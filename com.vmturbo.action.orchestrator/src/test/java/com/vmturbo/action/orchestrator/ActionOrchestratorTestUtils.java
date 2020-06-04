@@ -58,6 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -230,16 +231,16 @@ public class ActionOrchestratorTestUtils {
                 .build();
         final Setting executionScheduleSetting = Setting.newBuilder()
                 .setSettingSpecName(
-                    ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                        EntitySettingSpecs.Move))
+                    ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                        EntitySettingSpecs.Move, ActionSettingType.SCHEDULE))
                 .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                         .addAllOids(executionScheduleIds)
                         .build())
                 .build();
         return new ImmutableMap.Builder<String, Setting>()
                 .put(EntitySettingSpecs.Move.getSettingName(), actionModeSetting)
-                .put(ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                        EntitySettingSpecs.Move),
+                .put(ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                        EntitySettingSpecs.Move, ActionSettingType.SCHEDULE),
                     executionScheduleSetting)
                 .build();
     }

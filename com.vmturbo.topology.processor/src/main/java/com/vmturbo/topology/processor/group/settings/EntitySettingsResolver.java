@@ -60,6 +60,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -299,8 +300,8 @@ public class EntitySettingsResolver {
         final List<List<Setting>> relatedSettings = new ArrayList<>();
         for (Setting actionModeSetting : actionModeSettings) {
             final String executionScheduleSpecName =
-                    ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                        actionModeSetting.getSettingSpecName());
+                    ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                        actionModeSetting.getSettingSpecName(), ActionSettingType.SCHEDULE);
             final Setting correspondingExecutionSchedule =
                     executionScheduleSettings.get(executionScheduleSpecName);
             if (correspondingExecutionSchedule != null) {

@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.execution.notifications;
 
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -21,6 +22,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
+import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
@@ -80,6 +82,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
     private final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor;
 
+    private final ActionAuditSender auditSender;
+
     /**
      * Create a new {@link ActionStateUpdater}.
      * @param actionStorehouse The storehouse in which to look up actions as notifications are received.
@@ -90,6 +94,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
      * @param workflowStore the store for all the known {@link WorkflowDTO.Workflow} items
      * @param realtimeTopologyContextId The ID of the topology context for realtime market analysis
      * @param failedCloudVMGroupProcessor to process failed actions and add VM entities to a group.
+     * @param auditSender audit events message sender to report for finished actions
      */
     public ActionStateUpdater(@Nonnull final ActionStorehouse actionStorehouse,
             @Nonnull final ActionOrchestratorNotificationSender notificationSender,
@@ -97,7 +102,9 @@ public class ActionStateUpdater implements ActionExecutionListener {
             @Nonnull final AcceptedActionsDAO acceptedActionsStore,
             @Nonnull final ActionExecutor actionExecutor,
             @Nonnull final WorkflowStore workflowStore, final long realtimeTopologyContextId,
-            final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor) {
+            final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor,
+            @Nonnull final ActionAuditSender auditSender
+    ) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
         this.acceptedActionsStore = acceptedActionsStore;
@@ -106,6 +113,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.failedCloudVMGroupProcessor = failedCloudVMGroupProcessor;
+        this.auditSender = Objects.requireNonNull(auditSender);
     }
 
 
@@ -189,6 +197,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
                     logger.info("Action executed successfully: {}", action);
                     removeAcceptanceForSuccessfullyExecutedAction(action);
                     try {
+                        auditSender.sendActionEvents(Collections.singleton(action));
                         notificationSender.notifyActionSuccess(actionSuccess);
                     } catch (CommunicationException | InterruptedException e) {
                         logger.error("Unable to send notification for success of " + actionSuccess, e);
@@ -310,6 +319,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
             continueActionExecution(action);
         } else {
             try {
+                auditSender.sendActionEvents(Collections.singleton(action));
                 notificationSender.notifyActionFailure(actionFailure);
             } catch (CommunicationException | InterruptedException e) {
                 logger.error("Unable to send notification for failure of " + actionFailure, e);

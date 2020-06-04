@@ -49,6 +49,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
+import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
@@ -193,7 +194,7 @@ public class LiveActionStoreTest {
             targetSelector, probeCapabilityCache, entitySettingsCache,
             actionHistoryDao, actionsStatistician, actionTranslator,
             clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
-            actionIdentityService, involvedEntitiesExpander);
+            actionIdentityService, involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class));
 
         when(targetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -346,7 +347,7 @@ public class LiveActionStoreTest {
             targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
             actionsStatistician, actionTranslator, clock, userSessionContext,
             licenseCheckClient, acceptedActionsStore, actionIdentityService,
-                involvedEntitiesExpander);
+                involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class));
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -511,7 +512,7 @@ public class LiveActionStoreTest {
     }
 
     @Test
-    public void testPopulateOneDuplicateReRecommended() {
+    public void testPopulateOneDuplicateReRecommended() throws Exception {
         ActionPlan firstPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
                 .setMarket(MarketActionPlanInfo.newBuilder()
@@ -543,7 +544,7 @@ public class LiveActionStoreTest {
     }
 
     @Test
-    public void testPopulateReRecommendedWithAdditionalDuplicate() {
+    public void testPopulateReRecommendedWithAdditionalDuplicate() throws Exception {
         ActionDTO.Action.Builder firstMove =
             move(vm1, hostA, vmType, hostB, vmType);
         ActionDTO.Action.Builder secondMove =
@@ -687,7 +688,7 @@ public class LiveActionStoreTest {
     }
 
     @Test
-    public void testGetEntitySettings() {
+    public void testGetEntitySettings() throws Exception {
         ActionPlan plan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
                 .setMarket(MarketActionPlanInfo.newBuilder()
@@ -710,7 +711,7 @@ public class LiveActionStoreTest {
     }
 
     @Test
-    public void testPurgeOfNonRecommendedAction() {
+    public void testPurgeOfNonRecommendedAction() throws Exception {
         ActionDTO.Action.Builder queuedMove =
             move(vm1, hostA, vmType, hostB, vmType);
 
@@ -755,7 +756,7 @@ public class LiveActionStoreTest {
     }
 
     @Test
-    public void testTranslationOfRecommendedActions() {
+    public void testTranslationOfRecommendedActions() throws Exception {
         ActionDTO.Action.Builder queuedMove =
             move(vm1, hostA, vmType, hostB, vmType);
         ActionPlan plan = ActionPlan.newBuilder()
@@ -780,7 +781,7 @@ public class LiveActionStoreTest {
     }
 
     @Test
-    public void testDropFailedTranslations() {
+    public void testDropFailedTranslations() throws Exception {
         ActionDTO.Action.Builder queuedMove =
             move(vm1, hostA, vmType, hostB, vmType);
         ActionPlan plan = ActionPlan.newBuilder()
@@ -812,7 +813,7 @@ public class LiveActionStoreTest {
     private ArgumentCaptor<Stream<Action>> translationCaptor;
 
     @Test
-    public void testRetentionOfReRecommendedAction() {
+    public void testRetentionOfReRecommendedAction() throws Exception {
         ActionDTO.Action.Builder queuedMove =
             move(vm1, hostA, vmType, hostB, vmType);
 
@@ -856,7 +857,7 @@ public class LiveActionStoreTest {
     }
 
     @Test
-    public void testUpdateOfReRecommendedAction() {
+    public void testUpdateOfReRecommendedAction() throws Exception {
         final ActionDTO.Action.Builder move = move(vm1, hostA, vmType, hostB, vmType)
             // Initially the importance is 1 and executability is "false".
             .setDeprecatedImportance(1)
@@ -910,9 +911,11 @@ public class LiveActionStoreTest {
      * all moving OUT actions for host c get cleared. These actions should get cleared in all the
      * subsequent plans until we receive a topology with a most recent id than the state change
      * event.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testHostsWithNewState() {
+    public void testHostsWithNewState() throws Exception {
         final ActionDTO.Action.Builder moveInAction = move(vm1, hostA, vmType, hostB, vmType)
             .setDeprecatedImportance(1)
             .setExecutable(false);

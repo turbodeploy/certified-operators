@@ -115,7 +115,11 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     @Override
     public void registerTransport(ContainerInfo containerInfo,
                     ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint) {
-        logger.info("Registration message received from " + serverEndpoint);
+        logger.info("Registration message received from {} with probes {}", serverEndpoint,
+                containerInfo.getProbesList()
+                        .stream()
+                        .map(ProbeInfo::getProbeType)
+                        .collect(Collectors.toList()));
 
         // Register the transport handlers before registering the probes, so that
         // we still receive connection errors that happen while the probe store is saving

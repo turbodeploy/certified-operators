@@ -31,11 +31,8 @@ import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
@@ -47,6 +44,7 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFac
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
+import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -99,6 +97,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
@@ -207,7 +206,8 @@ public class ActionExecutionRpcTest {
                 actionTargetSelector, probeCapabilityCache,
                 entitySettingsCache, actionHistoryDao, statistician, actionTranslator,
                 clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
-                actionIdentityService, involvedEntitiesExpander));
+                actionIdentityService, involvedEntitiesExpander,
+                Mockito.mock(ActionAuditSender.class)));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -282,8 +282,8 @@ public class ActionExecutionRpcTest {
         when(snapshot.getSettingPoliciesForEntity(actionTargetId)).thenReturn(
                 new ImmutableMap.Builder<String, Collection<Long>>().put(
                         EntitySettingSpecs.Move.getSettingName(), Collections.singletonList(22L))
-                        .put(ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                                EntitySettingSpecs.Move),
+                        .put(ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                                EntitySettingSpecs.Move, ActionSettingType.SCHEDULE),
                             Collections.singleton(23L))
                         .build());
 
@@ -557,7 +557,7 @@ public class ActionExecutionRpcTest {
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache,
                 actionHistoryDao, statistician, actionTranslator, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, actionIdentityService,
-                    involvedEntitiesExpander));
+                    involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class)));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);

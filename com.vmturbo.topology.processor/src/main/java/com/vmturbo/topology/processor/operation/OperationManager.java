@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.matrix.component.external.MatrixInterface;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -54,6 +55,7 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionProgress;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
@@ -93,6 +95,8 @@ import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState
 import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateStateMessageHandler;
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionStateMessageHandler;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAuditMessageHandler;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -1366,6 +1370,32 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 operation, remoteMediationServer.getMessageHandlerExpirationClock(),
                 discoveryTimeoutMs, internalCallback);
         remoteMediationServer.sendActionUpdateStateRequest(target, request, handler);
+        operationStart(handler);
+        return operation;
+    }
+
+    @Nonnull
+    @Override
+    public ActionAudit sendActionAuditEvents(long targetId,
+            @Nonnull Collection<ActionEventDTO> events,
+            @Nonnull OperationCallback<ActionErrorsResponse> callback)
+            throws TargetNotFoundException, InterruptedException, ProbeException,
+            CommunicationException {
+        final Target target = targetStore.getTarget(targetId).orElseThrow(
+                () -> new TargetNotFoundException(targetId));
+        final ActionAuditRequest request = ActionAuditRequest
+                .newBuilder()
+                .setTarget(createTargetId(target))
+                .addAllAction(events)
+                .build();
+        final ActionAudit operation = new ActionAudit(target.getProbeId(), target.getId(),
+                identityProvider);
+        final OperationCallback<ActionErrorsResponse> internalCallback =
+                new InternalOperationCallback<>(callback, operation);
+        final ActionAuditMessageHandler handler = new ActionAuditMessageHandler(
+                operation, remoteMediationServer.getMessageHandlerExpirationClock(),
+                discoveryTimeoutMs, internalCallback);
+        remoteMediationServer.sendActionAuditRequest(target, request, handler);
         operationStart(handler);
         return operation;
     }

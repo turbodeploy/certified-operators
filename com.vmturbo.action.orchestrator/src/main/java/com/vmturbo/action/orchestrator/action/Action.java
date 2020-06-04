@@ -35,8 +35,8 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
@@ -65,6 +65,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -475,7 +476,8 @@ public class Action implements ActionView {
             // also check execution schedule settings because specsApplicableToAction don't have
             // information about them
             final String executionScheduleSetting =
-                    ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(settingName);
+                    ActionSettingSpecs.getSubSettingFromActionModeSetting(settingName,
+                            ActionSettingType.SCHEDULE);
             if (executionScheduleSetting != null) {
                 final Collection<Long> executionSchedulePolicies =
                         settingPoliciesForEntity.get(executionScheduleSetting);

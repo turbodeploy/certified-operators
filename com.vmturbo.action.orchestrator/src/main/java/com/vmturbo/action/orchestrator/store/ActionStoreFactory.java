@@ -9,16 +9,17 @@ import org.jooq.DSLContext;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
-import com.vmturbo.identity.IdentityService;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.identity.IdentityService;
 
 /**
  * A factory for creating {@link ActionStore}s.
@@ -64,6 +65,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
     private final AcceptedActionsDAO acceptedActionsStore;
 
     private final IdentityService<ActionInfo> actionIdentityService;
+    private final ActionAuditSender externalAuditEventSender;
 
     /**
      * To create a new ActionStoreFactory, use the {@link #newBuilder()}.
@@ -88,6 +90,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.acceptedActionsStore = Objects.requireNonNull(builder.acceptedActionsDAO);
         this.actionIdentityService = Objects.requireNonNull(builder.actionIdentityService);
         this.involvedEntitiesExpander = Objects.requireNonNull(builder.involvedEntitiesExpander);
+        this.externalAuditEventSender = Objects.requireNonNull(builder.actionAuditSender);
     }
 
     /**
@@ -106,6 +109,11 @@ public class ActionStoreFactory implements IActionStoreFactory {
      * @param clock the {@link Clock}
      * @param userSessionContext the user session context
      * @param acceptedActionsDAO dao layer working with accepted actions
+     * @param externalAuditEventsSender action event sender for external audit
+     * @param involvedEntitiesExpander involved entities expander
+     * @param licenseCheckClient license check client
+     * @param repositoryService repository service
+     * @param supplyChainService supply chain service
      */
     public ActionStoreFactory(@Nonnull final IActionFactory actionFactory,
                               final long realtimeTopologyContextId,
@@ -123,7 +131,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final RepositoryServiceBlockingStub repositoryService,
                               @Nonnull final LicenseCheckClient licenseCheckClient,
                               @Nonnull final IdentityService<ActionInfo> actionIdentityService,
-                              @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {
+                              @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander,
+                              @Nonnull final ActionAuditSender externalAuditEventsSender) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
@@ -141,6 +150,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsDAO);
         this.actionIdentityService = Objects.requireNonNull(actionIdentityService);
         this.involvedEntitiesExpander = Objects.requireNonNull(involvedEntitiesExpander);
+        this.externalAuditEventSender = Objects.requireNonNull(externalAuditEventsSender);
     }
 
     /**
@@ -157,7 +167,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
                 probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 actionsStatistician, actionTranslator, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, actionIdentityService,
-                    involvedEntitiesExpander);
+                    involvedEntitiesExpander, externalAuditEventSender);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 supplyChainService, repositoryService,
@@ -203,6 +213,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private AcceptedActionsDAO acceptedActionsDAO;
         private IdentityService<ActionInfo> actionIdentityService;
         private InvolvedEntitiesExpander involvedEntitiesExpander;
+        private ActionAuditSender actionAuditSender;
 
         private Builder() {
         }
@@ -361,10 +372,17 @@ public class ActionStoreFactory implements IActionStoreFactory {
             return this;
         }
 
+        /**
+         * Sets accepted actions store to a builder.
+         *
+         * @param acceptedActionsStore accepted actions store to set
+         * @return the builder itself for chained calls
+         */
         public Builder withAcceptedActionStore(@Nonnull AcceptedActionsDAO acceptedActionsStore) {
             this.acceptedActionsDAO = acceptedActionsStore;
             return this;
         }
+
         /**
          * Sets the actionIdentityService on this builder.
          *
@@ -384,6 +402,17 @@ public class ActionStoreFactory implements IActionStoreFactory {
          */
         public Builder withInvolvedEntitiesExpander(@Nonnull InvolvedEntitiesExpander involvedEntitiesExpander) {
             this.involvedEntitiesExpander = involvedEntitiesExpander;
+            return this;
+        }
+
+        /**
+         * Sets action audit sender.
+         *
+         * @param actionAuditSender action audit sender to sent actions' on-generation events
+         * @return the builder for chained calls
+         */
+        public Builder withActionAuditSender(@Nonnull ActionAuditSender actionAuditSender) {
+            this.actionAuditSender = actionAuditSender;
             return this;
         }
 

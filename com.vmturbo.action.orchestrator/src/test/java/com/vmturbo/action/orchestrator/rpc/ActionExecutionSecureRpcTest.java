@@ -45,6 +45,7 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
+import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -272,7 +273,8 @@ public class ActionExecutionSecureRpcTest {
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             actionTargetSelector, probeCapabilityCache, entitySettingsCache,
             actionHistoryDao, actionsStatistician, actionTranslator, clock, userSessionContext,
-            licenseCheckClient, acceptedActionsStore, actionIdentityService, involvedEntitiesExpander));
+            licenseCheckClient, acceptedActionsStore, actionIdentityService,
+            involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class)));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

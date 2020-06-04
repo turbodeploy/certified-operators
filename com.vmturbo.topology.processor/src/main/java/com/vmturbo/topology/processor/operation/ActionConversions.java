@@ -45,12 +45,18 @@ public class ActionConversions {
 
     public static ActionScriptPhase convertActionPhase(ActionPhase phase) {
         switch (phase) {
+            case ON_GENERATION:
+                return ActionScriptPhase.ON_GENERATION;
+            case APPROVAL:
+                return ActionScriptPhase.APPROVAL;
             case PRE:
                 return ActionScriptPhase.PRE;
             case REPLACE:
                 return ActionScriptPhase.REPLACE;
             case POST:
                 return ActionScriptPhase.POST;
+            case AFTER_EXECUTION:
+                return ActionScriptPhase.AFTER_EXECUTION;
             default:
                 logger.warn("Unknown ActionPhase: " + phase.name());
                 return null;

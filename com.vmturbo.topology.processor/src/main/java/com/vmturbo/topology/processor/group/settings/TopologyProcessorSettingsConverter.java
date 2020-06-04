@@ -18,6 +18,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
 
 /**
  * Converter between proto settings {@link Setting} and topology processor setting representation
@@ -173,9 +174,9 @@ public class TopologyProcessorSettingsConverter {
                     .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                             .addAllOids(actionModeExecutionScheduleSetting.getExecutionSchedules())
                             .build())
-                    .setSettingSpecName(
-                            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                                actionModeExecutionScheduleSetting.getSettingName()))
+                    .setSettingSpecName(ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                            actionModeExecutionScheduleSetting.getSettingName(),
+                            ActionSettingType.SCHEDULE))
                     .build();
             resultSettings.add(executionScheduleSetting);
         }

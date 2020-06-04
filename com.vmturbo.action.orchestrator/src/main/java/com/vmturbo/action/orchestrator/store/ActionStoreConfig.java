@@ -22,6 +22,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.approval.ApprovalCommunicationConfig;
+import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
@@ -59,7 +60,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
     TopologyProcessorConfig.class,
     UserSessionConfig.class,
     LicenseCheckClientConfig.class,
-    ApprovalCommunicationConfig.class})
+    ApprovalCommunicationConfig.class,
+    AuditCommunicationConfig.class})
 public class ActionStoreConfig {
 
     @Autowired
@@ -100,6 +102,9 @@ public class ActionStoreConfig {
 
     @Autowired
     private ApprovalCommunicationConfig approvalCommunicationConfig;
+
+    @Autowired
+    private AuditCommunicationConfig auditCommunicationConfig;
 
     @Value("${entityTypeRetryIntervalMillis}")
     private long entityTypeRetryIntervalMillis;
@@ -199,6 +204,7 @@ public class ActionStoreConfig {
             .withAcceptedActionStore(acceptedActionsStore())
             .withActionIdentityService(actionIdentityService())
             .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
+            .withActionAuditSender(auditCommunicationConfig.actionAuditSender())
             .build();
     }
 
