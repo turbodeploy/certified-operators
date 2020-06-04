@@ -1,10 +1,13 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -15,6 +18,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,6 +27,7 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -34,11 +40,14 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.CategoryPathConstants;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore.ReservedInstanceBoughtChangeType;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
@@ -52,13 +61,13 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * Invokes the RI Instance Analysis.
- * Called
+ * Called:
  * - when the cost component is started and later on after regular intervals.
  * - when the RI inventory changes.
  * - when RI Buy Settings change.
+ * - when RI or On-Demand template prices change.
  */
 public class ReservedInstanceAnalysisInvoker implements SettingsListener {
-
     private final Logger logger = LogManager.getLogger();
 
     private final ReservedInstanceAnalyzer reservedInstanceAnalyzer;
@@ -72,11 +81,19 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     // The inventory of RIs that have already been purchased
     private final ReservedInstanceBoughtStore riBoughtStore;
 
-    private final BusinessAccountPriceTableKeyStore keyStore;
+    private final BusinessAccountPriceTableKeyStore prTabKeyStore;
+    private final PriceTableStore prTabStore;
 
     private static List<String> riSettingNames = new ArrayList<>();
 
-    private final Set<Long> businessAccountsWithCost = new HashSet<>();
+    /**
+     * List of Business Accounts with associated pricing information.
+     */
+    private final Set<BizAccPriceRecord> businessAccountsWithCost = new HashSet<>();
+
+    private Optional<CloudTopology<TopologyEntityDTO>> cloudTopology = Optional.empty();
+
+    private boolean runBuyRIOnNextBroadcast = false;
 
     static  {
         for (GlobalSettingSpecs globalSettingSpecs : GlobalSettingSpecs.values()) {
@@ -90,17 +107,49 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                                            @Nonnull RepositoryServiceBlockingStub repositoryClient,
                                            @Nonnull SettingServiceBlockingStub settingsServiceClient,
                                            @Nonnull ReservedInstanceBoughtStore riBoughtStore,
-                                           @Nonnull BusinessAccountPriceTableKeyStore keyStore,
+                                           @Nonnull BusinessAccountPriceTableKeyStore prTabKeyStore,
+                                           @Nonnull PriceTableStore prTabStore,
                                            long realtimeTopologyContextId) {
         this.reservedInstanceAnalyzer = reservedInstanceAnalyzer;
         this.repositoryClient = repositoryClient;
         this.settingsServiceClient = settingsServiceClient;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.riBoughtStore = riBoughtStore;
-        this.keyStore = keyStore;
+        this.prTabKeyStore = prTabKeyStore;
+        this.prTabStore = prTabStore;
         this.riBoughtStore.getUpdateEventStream()
                 .filter(event -> event == ReservedInstanceBoughtChangeType.UPDATED)
                 .subscribe(this::onRIInventoryUpdated);
+    }
+
+    /**
+     * Invokes RI Buy Analysis.
+     *
+     * @param cloudTopology Cloud Topology from Live Topology Listener.
+     * @param allBusinessAccounts BAs.
+     */
+    public void invokeBuyRIAnalysis(final CloudTopology<TopologyEntityDTO> cloudTopology,
+            final Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+        Objects.requireNonNull(cloudTopology, "CloudTopology is not initialized.");
+        this.cloudTopology = Optional.of(cloudTopology);
+
+        // We don't want to run Buy RI twice (once for reason A, another for reason B).
+        boolean hasRIBuyRun = false;
+        hasRIBuyRun = invokeRIBuyIfBusinessAccountsUpdated(allBusinessAccounts);
+        if (!hasRIBuyRun) {
+            hasRIBuyRun = invokeRIBuyIfPriceTablesChanged(allBusinessAccounts);
+        }
+        if (!hasRIBuyRun && isRunBuyRIOnNextBroadcast()) {
+            StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
+            if (buyRiRequest.getAccountsList().isEmpty()) {
+                logger.warn("invokeBuyRIAnalysis: No BAs found. Trigger RI Buy Analysis on"
+                        + " next next topology broadcast.");
+            } else {
+                // Reset only if we have non-empty topology with BAs.
+                setRunBuyRIOnNextBroadcast(false);
+            }
+            invokeBuyRIAnalysis(buyRiRequest);
+        }
     }
 
     /**
@@ -109,20 +158,30 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      * @param buyRiRequest StartBuyRIAnalysisRequest.
      */
     public synchronized void invokeBuyRIAnalysis(StartBuyRIAnalysisRequest buyRiRequest) {
-        logger.info("Started BuyRIAnalysis with accounts: {},  regions: {}, platforms: {}," +
-                "tenancies: {} and profile: {}", buyRiRequest.getAccountsList(),
-                buyRiRequest.getRegionsList(), buyRiRequest.getPlatformsList(),
-                buyRiRequest.getTenanciesList(), buyRiRequest.getPurchaseProfileByCloudtypeMap());
-        ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
-                new ReservedInstanceAnalysisScope(buyRiRequest);
-        try {
-            reservedInstanceAnalyzer.runRIAnalysisAndSendActions(realtimeTopologyContextId,
-                    reservedInstanceAnalysisScope, ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
-        } catch (InterruptedException e) {
-            logger.error("Interrupted publishing of Buy RI actions", e);
-            Thread.currentThread().interrupt();
-        } catch (CommunicationException e) {
-            logger.error("Exception while publishing Buy RI actions", e);
+        if (cloudTopology.isPresent()) {
+            logger.info("Started BuyRIAnalysis with accounts: {}, regions: {}, platforms: {},"
+                    + " tenancies: {} and profile: {}",
+                    buyRiRequest.getAccountsList(),
+                    buyRiRequest.getRegionsList(),
+                    buyRiRequest.getPlatformsList(),
+                    buyRiRequest.getTenanciesList(),
+                    buyRiRequest.getPurchaseProfileByCloudtypeMap());
+            ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
+                    new ReservedInstanceAnalysisScope(buyRiRequest);
+            try {
+                reservedInstanceAnalyzer.runRIAnalysisAndSendActions(realtimeTopologyContextId,
+                        cloudTopology.get(), reservedInstanceAnalysisScope,
+                        ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
+            } catch (InterruptedException e) {
+                logger.error("Interrupted publishing of Buy RI actions", e);
+                Thread.currentThread().interrupt();
+            } catch (CommunicationException e) {
+                logger.error("Exception while publishing Buy RI actions", e);
+            }
+        } else {
+            logger.warn("No cloud topology defined in the Cost. Trigger Buy RI on next topology broadcast.");
+            // Set flag to run RI Buy on next topology broadcast.
+            setRunBuyRIOnNextBroadcast(true);
         }
     }
 
@@ -133,9 +192,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     public void onSettingsUpdated(SettingNotification notification) {
         StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
         if (buyRiRequest.getAccountsList().isEmpty()) {
-            logger.warn("ReservedInstanceAnalysisInvoker::onSettingsUpdated." +
-                    "No BA's found in repository. Reattempt to trigger RI Buy Analysis will be " +
-                    "done during next settings update.");
+            logger.warn("onSettingsUpdated: No BAs found. Trigger RI Buy Analysis on"
+                    + " next inventory/price table udpate or scheduled interval.");
             return;
         }
         if (riSettingNames.contains(notification.getGlobal().getSetting().getSettingSpecName())) {
@@ -153,9 +211,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     protected void onRIInventoryUpdated(final ReservedInstanceBoughtChangeType type) {
         StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
         if (buyRiRequest.getAccountsList().isEmpty()) {
-            logger.warn("ReservedInstanceAnalysisInvoker::onRIInventoryUpdated." +
-                    "No BA's found in repository. Reattempt to trigger RI Buy Analysis will be " +
-                    "done during next RI Inventory update.");
+            logger.warn("onRIInventoryUpdated: No BAs found. Trigger RI Buy Analysis on"
+                    + " next inventory/price table udpate or scheduled interval.");
             return;
         }
         logger.info("RI Inventory has been changed. Triggering RI Buy Analysis.");
@@ -163,29 +220,61 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     }
 
     /**
-     * Invoke RI Buy Analysis if the number of BA's are updated.
+     * Invoke RI Buy Analysis if the number of BAs has changed.
      *
-     * @param allBusinessAccounts OID's of all BA's present.
+     * @param allBusinessAccounts OIDs of all BAs present.
+     *
+     * @return true if BuyRI Analysis was invoked or if there are no targets/BAs to process,
+     *         false otherwise.
      */
-    public void invokeRIBuyIfBusinessAccountsUpdated(Set<Long> allBusinessAccounts) {
-        StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
+    public boolean invokeRIBuyIfBusinessAccountsUpdated(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+        boolean runRiBuy = false;
+        final StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
         logger.info("Business accounts received in topology broadcast: {}", allBusinessAccounts);
-        if (buyRiRequest.getAccountsList().isEmpty()) {
-            logger.warn("ReservedInstanceAnalysisInvoker::invokeRIBuyIfBusinessAccountsUpdated." +
-                    "No BA's found in repository. Reattempt to trigger RI Buy Analysis will be " +
-                    "done during next live topology broadcast.");
-            return;
+        if (addNewBAsWithCost(allBusinessAccounts)) {
+            logger.info("Invoke RI Buy Analysis as a new BA with Cost was found.");
+            runRiBuy = true;
         }
-        if (isNewBusinessAccountWithCostFound(allBusinessAccounts) || isBusinessAccountDeleted(allBusinessAccounts)) {
-            logger.info("Invoking RI Buy Analysis because either a new BA with Cost was found" +
-                    " or a BA was deleted.");
+        if (rmObsoleteBAs(allBusinessAccounts)) {
+            logger.info("Invoke RI Buy Analysis as a BA was removed.");
+            runRiBuy = true;
+        }
+        if (runRiBuy) {
             invokeBuyRIAnalysis(buyRiRequest);
         }
+
+        return runRiBuy;
     }
 
     /**
-     * Returns a StartBuyRIAnalysisRequest for a real time topology.
-     * @return
+     * Invoke RI Buy Analysis if any price table has changed.
+     *
+     * @param allBusinessAccounts OIDs of all BAs present.
+     *
+     * @return true if BuyRI Analysis was invoked, false otherwise.
+     */
+    public boolean invokeRIBuyIfPriceTablesChanged(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+        StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
+        logger.info("Business accounts received in topology broadcast: {}", allBusinessAccounts);
+        if (buyRiRequest.getAccountsList().isEmpty()) {
+            logger.warn("invokeRIBuyIfPriceTablesChanged: No BAs found. Trigger RI Buy Analysis"
+                    + " next inventory/price table udpate or scheduled interval.");
+            return false;
+        }
+
+        if (checkAndUpdatePricing(allBusinessAccounts)) {
+            logger.info("Invoke RI Buy Analysis as pricing changed for some of the discovered BAs.");
+            invokeBuyRIAnalysis(buyRiRequest);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Get a StartBuyRIAnalysisRequest for a real time topology.
+     *
+     * @return StartBuyRIAnalysisRequest for a real time topology.
      */
     public StartBuyRIAnalysisRequest getStartBuyRIAnalysisRequest() {
         List<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
@@ -203,8 +292,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
 
         // Gets all Business Account Ids.
         final Set<Long> baIds = entities.stream()
-                .filter(a -> a.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
-                .map(a -> a.getOid())
+                .filter(entity -> entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
+                .map(entity -> entity.getOid())
                 .collect(Collectors.toSet());
 
         // Gets all Cloud Region Ids.
@@ -295,78 +384,286 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     }
 
     /**
-     * Returns whether a new BA with cost was found since last topology broadcast.
+     * Checks, and updates if needed, price record data for BAs since last discovery/topology broadcast.
      *
      * @param allBusinessAccounts All Business Accounts in topology.
-     * @return whether a new BA with cost was found since last topology broadcast.
+     *
+     * @return whether pricing record for any BAs was updated since last topology broadcast.
      */
-    protected boolean isNewBusinessAccountWithCostFound(Set<Long> allBusinessAccounts) {
-        Set<Long> newBusinessAccountsWithCost = getNewBusinessAccountsWithCost(allBusinessAccounts);
-        addToBusinessAccountsWithCost(newBusinessAccountsWithCost);
+    protected boolean checkAndUpdatePricing(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+        boolean priceChanged = false;
+
+        Set<BizAccPriceRecord> newBusinessAccountsWithCost = new HashSet<>();
+        // Get all BAs which have cost (includes old and new).
+        final Map<Long, Long> allBAToPriceTableOid = prTabKeyStore
+                .fetchPriceTableKeyOidsByBusinessAccount(allBusinessAccounts.stream().map(p -> p.left)
+                        .collect(Collectors.toSet()));
+
+        Set<BizAccPriceRecord> lastDiscoveredBAs = collectBAsCostRecords(allBusinessAccounts,
+                allBAToPriceTableOid);
+
+        logger.info("Business Accounts w/cost: {}", businessAccountsWithCost);
+        logger.info("Last Discovered BAs: {}", lastDiscoveredBAs);
+
+        // Run through the list of BAs with price info as was known prior to the last discovery
+        // and check if the price info changed for any.
+        // In other words - for each BA:
+        //     Compare pricing from past discovery to pricing from current discovery.
+        //     If different, update record to reflect new price table oid and checksum
+        //     and,
+        //     Flag the change in pricing to trigger the Buy RI in the parent.
+        for (BizAccPriceRecord storedBaRec : businessAccountsWithCost) {
+            for (BizAccPriceRecord lastDiscBaRec : lastDiscoveredBAs) {
+                // Same BA? Check if the pricing has changed since last discovery.
+                if (lastDiscBaRec.getBusinessAccountOid().equals(storedBaRec.getBusinessAccountOid())) {
+                    if (!lastDiscBaRec.equals(storedBaRec)) {
+                        logger.info("Pricing changed for BA: {}. BA's old price {}",
+                                lastDiscBaRec, storedBaRec);
+                        priceChanged = true;
+                        // Make the BA pricing record up-to-date in the member "businessAccountsWithCost"
+                        // collection.
+                        storedBaRec.setPrTabChecksum(lastDiscBaRec.getPrTabChecksum());
+                        storedBaRec.setPrTabKeyOid(lastDiscBaRec.getPrTabKeyOid());
+                        // Note that, even if we detected price change in this particular account pricing,
+                        // (i.e enough to know to decide to trigger Buy RI) we still have to run though ALL
+                        // entries in both sets (businessAccountsWithCost, lastDiscoveredBAs) as we also have
+                        // to update all current prices for all accounts in businessAccountsWithCost.
+                        // --------------
+                        // So, do not be tempted to
+                        // break;
+                        // at this moment.
+                    }
+                }
+            }
+        }
+
+        return priceChanged;
+    }
+
+    private Set<BizAccPriceRecord> collectBAsCostRecords(
+            final Set<ImmutablePair<Long, String>> businessAccounts,
+            final Map<Long, Long> baToPriceTableOidMap) {
+        Set<BizAccPriceRecord> lastDiscoveredBAs = new HashSet<>();
+        // Find which of the new BAs have cost.
+        for (Long businessAccountId : baToPriceTableOidMap.keySet()) {
+            Long priceTableKeyOid = baToPriceTableOidMap.get(businessAccountId);
+
+            Map<Long, PriceTableKey> prTabOidToTabKey = prTabStore.getPriceTableKeys(
+                    Collections.singletonList(priceTableKeyOid));
+            PriceTableKey prTabKey = prTabOidToTabKey.get(priceTableKeyOid);
+            // Get price table checksum by price table key.
+            Map<PriceTableKey, Long> prTabkeyToChkSum = prTabStore.getChecksumByPriceTableKeys(
+                    Collections.singletonList(prTabKey));
+            // Add record of BA with its price table key oid and price table checksum.
+            lastDiscoveredBAs.add(new BizAccPriceRecord(businessAccountId,
+                    getAccountNameByOid(businessAccounts, businessAccountId),
+                    priceTableKeyOid, prTabkeyToChkSum.get(prTabKey)));
+        }
+
+        return lastDiscoveredBAs;
+    }
+
+    /**
+     * Adds newly discovered BAs having cost info since last discovery/topology broadcast.
+     *
+     * @param allBusinessAccounts All Business Accounts in topology.
+     *
+     * @return whether any new BAs with cost were discovered since last topology broadcast.
+     */
+    protected boolean addNewBAsWithCost(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+        Set<BizAccPriceRecord> newBusinessAccountsWithCost = getNewBusinessAccountsWithCost(allBusinessAccounts);
         if (newBusinessAccountsWithCost.size() > 0) {
-            logger.info("Detected new businessAccounts: {}", newBusinessAccountsWithCost);
+            businessAccountsWithCost.addAll(newBusinessAccountsWithCost);
+            logger.info("Detected new Business Account(s): {}", newBusinessAccountsWithCost.stream()
+                    .map(rec -> rec.getBusinessAccountOid()).collect(Collectors.toSet()));
+            logger.info("Size of the updated collection 'Business Accounts With Cost' = {}",
+                    businessAccountsWithCost.size());
         }
         return (newBusinessAccountsWithCost.size() > 0);
     }
 
     /**
-     * Returns whether a BA was deleted since last topology broadcast.
+     * Removes obsolete BAs (which were not present in results of recent discovery and last topology broadcast).
      *
      * @param allBusinessAccounts All Business Accounts in topology.
-     * @return whether a BA was deleted since last topology broadcast.
+     *
+     * @return whether an existing BA was deleted since last topology broadcast or if BA accounts collection
+     *         parameter does not have any BAs.
      */
-    private boolean isBusinessAccountDeleted(Set<Long> allBusinessAccounts) {
-        Set<Long> deletedBusinessAccounts = Sets.difference(businessAccountsWithCost, allBusinessAccounts)
+    protected boolean rmObsoleteBAs(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+        if (CollectionUtils.isEmpty(allBusinessAccounts)) {
+            return true;
+        }
+
+        Set<Long> deletedBusinessAccounts = Sets.difference(
+                businessAccountsWithCost.stream()
+                        .map(baRec -> baRec.getBusinessAccountOid()).collect(Collectors.toSet()),
+                allBusinessAccounts.stream().map(p -> p.left).collect(Collectors.toSet()))
                 .immutableCopy();
-        removeFromBusinessAccountsWithCost(deletedBusinessAccounts);
         if (deletedBusinessAccounts.size() > 0) {
-            logger.info("Detected deleted businessAccounts: {}", deletedBusinessAccounts);
+            Set<BizAccPriceRecord> removeTheseBAs = new HashSet<>();
+            for (Long baOid : deletedBusinessAccounts) {
+                for (BizAccPriceRecord baRec : businessAccountsWithCost) {
+                    if (baRec.getBusinessAccountOid() == baOid) {
+                        removeTheseBAs.add(baRec);
+                    }
+                }
+            }
+            businessAccountsWithCost.removeAll(removeTheseBAs);
+            logger.info("Detected deleted Business Account(s): {}."
+                    + " Size of the updated collection 'Business Accounts With Cost' = {}",
+                    removeTheseBAs, businessAccountsWithCost.size());
         }
         return (deletedBusinessAccounts.size() > 0);
     }
 
     /**
-     * Returns a collection of BA's which didn't have cost till last topology broadcast.
+     * Returns a collection of BAs' pricing records which didn't have cost till last topology broadcast.
      *
      * @param allBusinessAccounts All Business Accounts in topology.
-     * @return collection of BA's which didn't have cost till last topology broadcast.
+     *
+     * @return collection of BAs which didn't have cost till last topology broadcast.
      */
     @VisibleForTesting
-    public Set<Long> getNewBusinessAccountsWithCost(Set<Long> allBusinessAccounts) {
-        // Get all new discovered BA's since last broadcast.
-        final ImmutableSet<Long> newBusinessAccounts = Sets
-                .difference(allBusinessAccounts, businessAccountsWithCost).immutableCopy();
+    public Set<BizAccPriceRecord> getNewBusinessAccountsWithCost(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+        // Get all new discovered BAs since last broadcast.
+        final ImmutableSet<Long> newBusinessAccounts = Sets.difference(
+                allBusinessAccounts.stream().map(p -> p.left).collect(Collectors.toSet()),
+                businessAccountsWithCost.stream().map(baRec -> baRec.getBusinessAccountOid())
+                        .collect(Collectors.toSet())).immutableCopy();
 
-        // Get all BA's which have cost(includes old and new) .
-        final Map<Long, Long> allBusinessAccountsWithCost = keyStore
+        if (CollectionUtils.isEmpty(newBusinessAccounts)) {
+            return new HashSet<>();
+        }
+
+        // Get all BAs which have cost (includes old and new).
+        final Map<Long, Long> newBAToPriceTableOid = prTabKeyStore
                 .fetchPriceTableKeyOidsByBusinessAccount(newBusinessAccounts);
 
-        Set<Long> newBusinessAccountsWithCost = new HashSet<>();
-        // Find which of the new BA's have cost.
-        for (Long businessAccountId : newBusinessAccounts) {
-            if (allBusinessAccountsWithCost.containsKey(businessAccountId)) {
-                newBusinessAccountsWithCost.add(businessAccountId);
+        return collectBAsCostRecords(allBusinessAccounts, newBAToPriceTableOid);
+    }
+
+    @Nonnull
+    private String getAccountNameByOid(@Nonnull Set<ImmutablePair<Long, String>> allBusinessAccounts,
+            @Nonnull Long businessAccountId) {
+        String accName = "unknown";
+        for (ImmutablePair<Long, String> acc : allBusinessAccounts) {
+            if (acc.left.equals(businessAccountId)) {
+                accName = acc.right;
+                break;
             }
         }
-        return newBusinessAccountsWithCost;
+
+        return accName;
     }
 
     /**
-     * Adds the new Business Accounts With Cost to current Business Accounts With Cost.
+     * Get "Run Buy RI analysis on next topology broadcast" flag.
      *
-     * @param newBusinessAccountsWithCost a collection of BA's which didn't have cost till last
-     *                                    topology broadcast.
+     * @return "Run Buy RI analysis on next topology broadcast" flag.
      */
-    private void addToBusinessAccountsWithCost(Set<Long> newBusinessAccountsWithCost) {
-        businessAccountsWithCost.addAll(newBusinessAccountsWithCost);
+    public boolean isRunBuyRIOnNextBroadcast() {
+        return runBuyRIOnNextBroadcast;
     }
 
     /**
-     * Removes the deleted Business Accounts With Cost from current Business Accounts With Cost.
+     * Set "Run Buy RI analysis on next topology broadcast" flag.
      *
-     * @param deletedBusinessAccounts a collection of BA's which have been deleted.
+     * @param runBuyRIOnNextBroadcast "Run Buy RI analysis on next topology broadcast" flag.
      */
-    private void removeFromBusinessAccountsWithCost(Set<Long> deletedBusinessAccounts) {
-        businessAccountsWithCost.removeAll(deletedBusinessAccounts);
+    public void setRunBuyRIOnNextBroadcast(boolean runBuyRIOnNextBroadcast) {
+        this.runBuyRIOnNextBroadcast = runBuyRIOnNextBroadcast;
+    }
+
+    /**
+     * Class representing record of essential information related to pricing for a business account.
+     */
+    private class BizAccPriceRecord {
+        private Long businessAccountOid;
+        private String baDisplayName;
+        private Long prTabKeyOid;
+        private Long prTabChecksum;
+
+        BizAccPriceRecord(Long businessAccountOid, String baDisplayName, Long prTabKeyOid, Long prTabChecksum) {
+            super();
+            this.businessAccountOid = businessAccountOid;
+            this.baDisplayName = baDisplayName;
+            this.prTabKeyOid = prTabKeyOid;
+            this.prTabChecksum = prTabChecksum;
+        }
+
+        Long getBusinessAccountOid() {
+            return businessAccountOid;
+        }
+
+        Long getPrTabKeyOid() {
+            return prTabKeyOid;
+        }
+
+        void setPrTabKeyOid(Long prTabKeyOid) {
+            this.prTabKeyOid = prTabKeyOid;
+        }
+
+        Long getPrTabChecksum() {
+            return prTabChecksum;
+        }
+
+        void setPrTabChecksum(Long prTabChecksum) {
+            this.prTabChecksum = prTabChecksum;
+        }
+
+        public String getBaDisplayName() {
+            return baDisplayName;
+        }
+
+        private ReservedInstanceAnalysisInvoker getOuterType() {
+            return ReservedInstanceAnalysisInvoker.this;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + getOuterType().hashCode();
+            result = prime * result + ((businessAccountOid == null) ? 0 : businessAccountOid.hashCode());
+            result = prime * result + ((prTabChecksum == null) ? 0 : prTabChecksum.hashCode());
+            result = prime * result + ((prTabKeyOid == null) ? 0 : prTabKeyOid.hashCode());
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            BizAccPriceRecord other = (BizAccPriceRecord) obj;
+            if (!getOuterType().equals(other.getOuterType()))
+                return false;
+            if (businessAccountOid == null) {
+                if (other.businessAccountOid != null)
+                    return false;
+            } else if (!businessAccountOid.equals(other.businessAccountOid))
+                return false;
+            if (prTabChecksum == null) {
+                if (other.prTabChecksum != null)
+                    return false;
+            } else if (!prTabChecksum.equals(other.prTabChecksum))
+                return false;
+            if (prTabKeyOid == null) {
+                if (other.prTabKeyOid != null)
+                    return false;
+            } else if (!prTabKeyOid.equals(other.prTabKeyOid))
+                return false;
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return "BizAccPriceRecord [baOid=" + businessAccountOid + ", baName=" + baDisplayName
+                    + ", prTabKeyOid=" + prTabKeyOid + ", prTabChecksum=" + prTabChecksum + "]";
+        }
     }
 }

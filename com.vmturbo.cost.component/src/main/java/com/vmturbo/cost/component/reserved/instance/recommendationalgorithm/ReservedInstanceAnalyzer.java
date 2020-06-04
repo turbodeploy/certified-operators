@@ -43,6 +43,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.CategoryPathConstants;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
@@ -173,6 +174,7 @@ public class ReservedInstanceAnalyzer {
      * Run the RI buy algorithm and send the RI buy actions to the action orchestrator.
      *
      * @param topologyContextId  this may be the plan id or the realtime topology context ID.
+     * @param cloudTopology Cloud Topology.
      * @param scope analysis scope
      * @param historicalDemandDataType the type of demand data: allocated or consumption.
      * @throws CommunicationException Exception thrown on errors occurred during communications.
@@ -180,17 +182,18 @@ public class ReservedInstanceAnalyzer {
      *                              and the thread is interrupted, either before or during the activity.
      */
     public void runRIAnalysisAndSendActions(final long topologyContextId,
-                @Nonnull ReservedInstanceAnalysisScope scope,
-                @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
-                                throws CommunicationException, InterruptedException {
+            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+            @Nonnull ReservedInstanceAnalysisScope scope,
+            @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
+                throws CommunicationException, InterruptedException {
         ActionPlan actionPlan;
         // If the analysis is for real time delete all entries for real time from
         // action_context_ri_buy table.
         if (topologyContextId == realtimeTopologyContextId) {
             actionContextRIBuyStore.deleteRIBuyContextData(realtimeTopologyContextId);
         }
-        @Nullable ReservedInstanceAnalysisResult result = analyze(topologyContextId, scope,
-            historicalDemandDataType);
+        ReservedInstanceAnalysisResult result = analyze(topologyContextId, cloudTopology,
+                scope, historicalDemandDataType);
         if (result == null) {
             // when result is null, it may be that no need to buy any ri
             // so we create a dummy action plan and send to action orchestrator
@@ -207,10 +210,11 @@ public class ReservedInstanceAnalyzer {
     /**
      * Create a dummy action plan and send to action orchestrator.
      *
-     * @param topologyContextId Topology context ID
-     * @return Empty action plan
+     * @param topologyContextId Topology context ID.
+     *
+     * @return Empty action plan.
      */
-    private ActionPlan createEmptyActionPlan(long topologyContextId) {
+    public ActionPlan createEmptyActionPlan(long topologyContextId) {
         return ActionPlan.newBuilder()
                 .setId(IdentityGenerator.next())
                 .setInfo(ActionPlanInfo.newBuilder()
@@ -222,9 +226,11 @@ public class ReservedInstanceAnalyzer {
     /**
      * Run the analysis and produce recommendations.
      *
-     * @param topologyContextId the topology used to analyze buy ri
+     * @param topologyContextId the topology used to analyze Buy RI.
+     * @param cloudTopology Cloud Topology.
      * @param scope describes the scope of the analysis including regions, platforms, etc. under consideration.
      * @param historicalDemandDataType type of data used in RI Buy Analysis -- ALLOCATION or CONSUMPTION based.
+     *
      * @return the resulting recommendations plus contextual information, or null
      *         if there was an error. A successful analysis always returns an
      *         AnalysisResult, but it may not contain any recommendations if there
@@ -233,6 +239,7 @@ public class ReservedInstanceAnalyzer {
      */
     @Nullable
     public ReservedInstanceAnalysisResult analyze(final long topologyContextId,
+            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
             @Nonnull ReservedInstanceAnalysisScope scope,
             @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType) {
         Objects.requireNonNull(scope);
@@ -248,8 +255,8 @@ public class ReservedInstanceAnalyzer {
 
             // Find the historical demand by context and create analysis clusters.
             final Stopwatch stopWatch = Stopwatch.createStarted();
-            final RIBuyAnalysisContextInfo analysisContextInfo =
-                    analysisContextProvider.computeAnalysisContexts(scope, purchaseConstraints);
+            final RIBuyAnalysisContextInfo analysisContextInfo = analysisContextProvider.computeAnalysisContexts(
+                    scope, purchaseConstraints, cloudTopology);
             if (analysisContextInfo.regionalContexts().isEmpty()) {
                 logger.info("Something went wrong: discovered 0 Analyzer clusters, time: {} ms",
                     stopWatch.elapsed(TimeUnit.MILLISECONDS));
@@ -634,5 +641,9 @@ public class ReservedInstanceAnalyzer {
                 .put(CategoryPathConstants.AZURE.toUpperCase(), azureReservedInstancePurchaseConstraints)
                 .build();
 
+    }
+
+    public ReservedInstanceActionsSender getActionsSender() {
+        return actionsSender;
     }
 }

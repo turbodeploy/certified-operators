@@ -11,7 +11,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostServiceConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
@@ -82,11 +81,6 @@ public class ReservedInstanceAnalysisConfig {
     }
 
     @Bean
-    public RepositoryServiceBlockingStub repositoryServiceClient() {
-        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
-    }
-
-    @Bean
     public ReservedInstanceAnalyzer reservedInstanceAnalyzer() {
         return new ReservedInstanceAnalyzer(
                 settingServiceClient(),
@@ -105,8 +99,6 @@ public class ReservedInstanceAnalysisConfig {
     public RIBuyAnalysisContextProvider riBuyAnalysisContextProvider() {
         return new RIBuyAnalysisContextProvider(
                 computeTierDemandStatsConfig.riDemandStatsStore(),
-                repositoryServiceClient(),
-                cloudTopologyFactory(),
                 regionalRIMatcherCacheFactory(),
                 realtimeTopologyContextId,
                 allowStandaloneAccountRIBuyAnalysis);
@@ -160,12 +152,5 @@ public class ReservedInstanceAnalysisConfig {
      */
     public PlanReservedInstanceStore planReservedInstanceStore() {
         return reservedInstanceConfig.planReservedInstanceStore();
-    }
-
-    @Bean
-    public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
-        return new DefaultTopologyEntityCloudTopologyFactory(
-                new GroupMemberRetriever(
-                        GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel())));
     }
 }
