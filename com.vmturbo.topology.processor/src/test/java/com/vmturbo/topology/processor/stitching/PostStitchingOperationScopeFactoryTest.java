@@ -228,6 +228,36 @@ public class PostStitchingOperationScopeFactoryTest {
             .collect(Collectors.toList()), contains(4L));
     }
 
+    /**
+     * testProbeCategoryScope.
+     */
+    @Test
+    public void testProbeCategoryScope() {
+        assertThat(scopeFactory.probeCategoryScope(
+            ProbeCategory.HYPERVISOR).entities()
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 4L));
+        assertThat(scopeFactory.probeCategoryScope(
+            ProbeCategory.STORAGE).entities()
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toList()), is(empty()));
+    }
+
+    /**
+     * testEntityDiscoveredByMultipleTargetsProbeCategory.
+     */
+    @Test
+    public void testEntityDiscoveredByMultipleTargetsProbeCategory() {
+        assertThat(scopeFactory.probeCategoryScope(
+            ProbeCategory.HYPERVISOR).entities()
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 4L));
+        assertThat(scopeFactory.probeCategoryScope(
+            ProbeCategory.HYPERCONVERGED).entities()
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toList()), containsInAnyOrder(4L, 5L));
+    }
+
     @Test
     public void testContainsAllEntityTypesScope() {
         assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
