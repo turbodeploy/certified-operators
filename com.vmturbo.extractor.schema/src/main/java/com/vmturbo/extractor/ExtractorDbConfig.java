@@ -1,5 +1,7 @@
 package com.vmturbo.extractor;
 
+import java.util.function.Supplier;
+
 import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -28,8 +30,11 @@ public class ExtractorDbConfig {
      * @throws UnsupportedDialectException should not happen
      */
     @Bean
-    public DbEndpoint ingesterEndpoint() throws UnsupportedDialectException {
-        return sqlDatabaseConfig2.primaryDbEndpoint(SQLDialect.POSTGRES);
+    public Supplier<DbEndpoint> ingesterEndpoint() throws UnsupportedDialectException {
+        return sqlDatabaseConfig2.primaryDbEndpoint(SQLDialect.POSTGRES)
+                .withDbAccess(DbEndpointAccess.ALL)
+                .withDbDestructiveProvisioningEnabled(true)
+                .build();
     }
 
     /**
@@ -39,8 +44,11 @@ public class ExtractorDbConfig {
      * @throws UnsupportedDialectException should not happen
      */
     @Bean
-    public DbEndpoint queryEndpoint() throws UnsupportedDialectException {
+    public Supplier<DbEndpoint> queryEndpoint() throws UnsupportedDialectException {
         return sqlDatabaseConfig2.secondaryDbEndpoint("q", SQLDialect.POSTGRES)
-                .like(ingesterEndpoint()).withAccess(DbEndpointAccess.READ_ONLY).noMigration();
+                .like(ingesterEndpoint())
+                .withDbAccess(DbEndpointAccess.READ_ONLY)
+                .withNoDbMigrations()
+                .build();
     }
 }
