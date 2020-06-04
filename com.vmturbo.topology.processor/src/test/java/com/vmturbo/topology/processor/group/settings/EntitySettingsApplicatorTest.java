@@ -23,7 +23,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 
@@ -35,6 +34,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
@@ -615,7 +615,7 @@ public class EntitySettingsApplicatorTest {
 
         final TopologyEntityDTO.Builder entity = new VirtualMachineEntityConstructor()
                 .createTopologyEntityFromTemplate(VM_TEMPLATE, Collections.emptyMap(), null, false,
-                        identityProvider);
+                        identityProvider, null);
         entity.setEnvironmentType(EnvironmentType.ON_PREM);
         final long entityId = entity.getOid();
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator

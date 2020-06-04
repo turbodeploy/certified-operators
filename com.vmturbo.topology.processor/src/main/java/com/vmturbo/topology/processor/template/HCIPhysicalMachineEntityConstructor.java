@@ -34,6 +34,8 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 public class HCIPhysicalMachineEntityConstructor {
 
     private static final Logger logger = LogManager.getLogger();
+    // TODO OM-58341 retrieve it from settings
+    private static final int RESERVED_HOSTS_COUNT = 1;
 
     private final Template template;
     private final Map<Long, TopologyEntity.Builder> topology;
@@ -79,7 +81,7 @@ public class HCIPhysicalMachineEntityConstructor {
         // Create new storage
         TopologyEntityDTO.Builder newStorage = new StorageEntityConstructor()
                 .createTopologyEntityFromTemplate(template, topology, originalStorage, isReplaced,
-                        identityProvider);
+                        identityProvider, null);
         setClusterCommodities(newStorage);
         setResizable(newStorage, CommodityType.STORAGE_AMOUNT);
         setResizable(newStorage, CommodityType.STORAGE_PROVISIONED);
@@ -90,27 +92,31 @@ public class HCIPhysicalMachineEntityConstructor {
         logger.info("Replacing HCI storage '{}' with '{}'", originalStorage.getDisplayName(),
                 newStorage.getDisplayName());
 
-        // Create new host
-        TopologyEntityDTO.Builder newHost = new PhysicalMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(template, topology, anyHost.getEntityBuilder(),
-                        isReplaced, identityProvider);
-        result.add(newHost);
-        logger.info("Replacing HCI host '{}' with '{}'", anyHost.getDisplayName(),
-                newHost.getDisplayName());
+        for (int count = 0; count < 1 + RESERVED_HOSTS_COUNT; count++) {
+            String nameSuffix = count == 0 ? null : "(Reserved " + count + ")";
 
-        // Process all the hosts
-        for (TopologyEntity.Builder originalHost : hostsToReplace) {
-            setAccessCommodities(newHost, originalHost.getEntityBuilder());
+            // Create new host
+            TopologyEntityDTO.Builder newHost = new PhysicalMachineEntityConstructor()
+                    .createTopologyEntityFromTemplate(template, topology,
+                            anyHost.getEntityBuilder(), isReplaced, identityProvider, nameSuffix);
+            result.add(newHost);
+            logger.info("Replacing HCI host '{}' with '{}'", anyHost.getDisplayName(),
+                    newHost.getDisplayName());
 
-            for (TopologyEntity.Builder provider : getProvidingStorages(originalHost)) {
-                setReplacementId(provider.getEntityBuilder(), newStorage.getOid(), planId);
+            // Process all the hosts
+            for (TopologyEntity.Builder originalHost : hostsToReplace) {
+                setAccessCommodities(newHost, originalHost.getEntityBuilder());
+
+                for (TopologyEntity.Builder provider : getProvidingStorages(originalHost)) {
+                    setReplacementId(provider.getEntityBuilder(), newStorage.getOid(), planId);
+                }
             }
-        }
 
-        // Create commodities from the template
-        TopologyEntityConstructor.addStorageCommoditiesSold(newHost, templateValues, true);
-        TopologyEntityConstructor.addStorageCommoditiesBought(newStorage, newHost.getOid(),
-                templateValues);
+            // Create commodities from the template
+            TopologyEntityConstructor.addStorageCommoditiesSold(newHost, templateValues, true);
+            TopologyEntityConstructor.addStorageCommoditiesBought(newStorage, newHost.getOid(),
+                    templateValues);
+        }
 
         return result;
     }

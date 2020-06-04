@@ -137,7 +137,7 @@ public class StorageEntityConstructorTest {
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
                 .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, null, false,
-                        identityProvider);
+                        identityProvider, null);
 
         // 6 commodities sold: storage latency, provisioned, amount, access and 2 DSPM_ACCESS
         assertEquals(6, topologyEntityDTO.getCommoditySoldListCount());
@@ -190,7 +190,7 @@ public class StorageEntityConstructorTest {
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
                 .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, builder, false,
-                        identityProvider);
+                        identityProvider, null);
         // 7 commodities sold: storage latency, provisioned, amount and access
         // storage cluster commodity and two dspm access commodities
         assertEquals(7, topologyEntityDTO.getCommoditySoldListCount());

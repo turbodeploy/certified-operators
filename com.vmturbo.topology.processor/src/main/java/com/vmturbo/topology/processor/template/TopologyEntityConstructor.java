@@ -58,6 +58,7 @@ public class TopologyEntityConstructor {
      * @param isReplaced is replaced
      * @param identityProvider identity provider
      * @param entityType entity type
+     * @param nameSuffix suffix for the entity name
      * @return topology entities
      * @throws TopologyEntityConstructorException error creating topology
      *             entities
@@ -65,7 +66,7 @@ public class TopologyEntityConstructor {
     @Nonnull
     public TopologyEntityDTO.Builder generateTopologyEntityBuilder(@Nonnull Template template,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
-            @Nonnull IdentityProvider identityProvider, int entityType)
+            @Nonnull IdentityProvider identityProvider, int entityType, @Nullable String nameSuffix)
             throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder result = TopologyEntityDTO.newBuilder()
                 .setEntityState(EntityState.POWERED_ON).setAnalysisSettings(AnalysisSettings
@@ -85,6 +86,10 @@ public class TopologyEntityConstructor {
             }
 
             displayName += originalTopologyEntity.getDisplayName();
+        }
+
+        if (nameSuffix != null) {
+            displayName += "" + nameSuffix;
         }
 
         result.setDisplayName(displayName);
