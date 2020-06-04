@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
 
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
@@ -60,6 +61,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final LicenseCheckClient licenseCheckClient;
 
+    private final AcceptedActionsDAO acceptedActionsStore;
+
     private final IdentityService<ActionInfo> actionIdentityService;
 
     /**
@@ -89,8 +92,19 @@ public class ActionStoreFactory implements IActionStoreFactory {
     /**
      * Create a new ActionStoreFactory.
      *
-     * @param userSessionContext user session context
+     * @param actionFactory the action factory
+     * @param realtimeTopologyContextId the topology context id
      * @param actionIdentityService identity service to assign OIDs to actions
+     * @param databaseDslContext dsl context
+     * @param actionHistoryDao dao layer working with executed actions
+     * @param actionTargetSelector selects which target/probe to execute each action against
+     * @param probeCapabilityCache gets the target-specific action capabilities
+     * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot
+     * @param actionsStatistician works with action stats
+     * @param actionTranslator the action translator class
+     * @param clock the {@link Clock}
+     * @param userSessionContext the user session context
+     * @param acceptedActionsDAO dao layer working with accepted actions
      */
     public ActionStoreFactory(@Nonnull final IActionFactory actionFactory,
                               final long realtimeTopologyContextId,
@@ -103,6 +117,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final ActionTranslator actionTranslator,
                               @Nonnull final Clock clock,
                               @Nonnull final UserSessionContext userSessionContext,
+                              @Nonnull final AcceptedActionsDAO acceptedActionsDAO,
                               @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
                               @Nonnull final RepositoryServiceBlockingStub repositoryService,
                               @Nonnull final LicenseCheckClient licenseCheckClient,
@@ -122,6 +137,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.supplyChainService = Objects.requireNonNull(supplyChainService);
         this.repositoryService = Objects.requireNonNull(repositoryService);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
+        this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsDAO);
         this.actionIdentityService = Objects.requireNonNull(actionIdentityService);
         this.involvedEntitiesExpander = Objects.requireNonNull(involvedEntitiesExpander);
     }
@@ -139,7 +155,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
                 supplyChainService, repositoryService, actionTargetSelector,
                 probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 actionsStatistician, actionTranslator, clock, userSessionContext,
-                licenseCheckClient, actionIdentityService, involvedEntitiesExpander);
+                licenseCheckClient, acceptedActionsStore, actionIdentityService,
+                    involvedEntitiesExpander);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 supplyChainService, repositoryService,

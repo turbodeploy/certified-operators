@@ -207,7 +207,8 @@ public class TemplateConverterFactory {
             List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
             for (TopologyEntity.Builder entity : entitiesToReplace) {
-                result.add(generateTopologyEntityByType(template, topology, entity, false, true));
+                result.add(generateTopologyEntityByType(template, topology,
+                        entity.getEntityBuilder(), false, true));
             }
 
             return result;
@@ -258,7 +259,7 @@ public class TemplateConverterFactory {
     private TopologyEntityDTO.Builder generateTopologyEntityByType(
             @Nonnull final Template template,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntity.Builder originalTopologyEntity, final boolean isReservation,
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, final boolean isReservation,
             boolean isReplaced) throws TopologyEntityConstructorException {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
         final Map<Integer, ITopologyEntityConstructor> converterMap = isReservation

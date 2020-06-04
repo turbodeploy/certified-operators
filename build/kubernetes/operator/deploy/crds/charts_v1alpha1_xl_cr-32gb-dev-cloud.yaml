@@ -10,6 +10,7 @@ spec:
     tag: 7.21.200-EA1
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
+    externalTimescaleDBIP: 10.0.2.15
     debug: true
     dev_options: "-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n"
 

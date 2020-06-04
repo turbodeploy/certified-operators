@@ -61,7 +61,7 @@ public class ClassicEnumMapper {
             .put("Ballooning",                  CommodityType.BALLOONING)
             .put("BufferCommodity",             CommodityType.BUFFER_COMMODITY)
             .put("ClusterCommodity",            CommodityType.CLUSTER)
-            .put("CollectionTime",              CommodityType.COLLECTION_TIME)
+            .put("CollectionTime",              CommodityType.REMAINING_GC_CAPACITY)
             .put("Cooling",                     CommodityType.COOLING)
             .put("Connection",                  CommodityType.CONNECTION)
             .put("CPU",                         CommodityType.CPU)
@@ -163,6 +163,7 @@ public class ClassicEnumMapper {
         ACTIVE_SESSIONS("ActiveSessions", ""),
         BALLOONING("Ballooning", "KB"),
         COLLECTION_TIME("CollectionTime", "%"),
+        REMAINING_GC_CAPACITY("RemainingGcCapacity", "%"),
         CONNECTION("Connection", "Connections"),
         COOLING("Cooling", "C"),
         CPU("CPU", "MHz"),

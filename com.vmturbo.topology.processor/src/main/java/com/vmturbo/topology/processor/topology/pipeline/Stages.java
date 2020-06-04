@@ -104,6 +104,7 @@ import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
+import com.vmturbo.topology.processor.topology.RequestCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
@@ -1157,15 +1158,23 @@ public class Stages {
      */
     public static class EntityValidationStage extends PassthroughStage<GraphWithSettings> {
         private final EntityValidator entityValidator;
+        private final boolean isPlan;
 
-        public EntityValidationStage(@Nonnull final EntityValidator entityValidator) {
+        /**
+         * Construct the validatio stage.
+         *
+         * @param entityValidator validator instance
+         * @param isPlan whether the pipeline is working on a plan or live broadcast
+         */
+        public EntityValidationStage(@Nonnull final EntityValidator entityValidator, boolean isPlan) {
             this.entityValidator = entityValidator;
+            this.isPlan = isPlan;
         }
 
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             try {
-                entityValidator.validateTopologyEntities(input.getTopologyGraph().entities());
+                entityValidator.validateTopologyEntities(input.getTopologyGraph().entities(), isPlan);
                 return Status.success();
             } catch (EntitiesValidationException e) {
                 throw new PipelineStageException(e);
@@ -1517,6 +1526,31 @@ public class Stages {
         @Nonnull
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             ephemeralEntityEditor.applyEdits(graph);
+            return Status.success();
+        }
+    }
+
+    /**
+     * Stage to inject min and max thresholds to Container entity request commodities.
+     * These thresholds control the behavior of resize analysis for these commodities in the market.
+     */
+    public static class RequestCommodityThresholdsStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
+        private final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector;
+
+        /**
+         * Create a new {@link RequestCommodityThresholdsStage}.
+         * @param requestCommodityThresholdsInjector The {@link RequestCommodityThresholdsInjector} to
+         *                                           be run in this stage.
+         */
+        public RequestCommodityThresholdsStage(
+            @Nonnull final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector) {
+            this.requestCommodityThresholdsInjector = Objects.requireNonNull(requestCommodityThresholdsInjector);
+        }
+
+        @Override
+        @Nonnull
+        public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
+            requestCommodityThresholdsInjector.injectThresholds(graph);
             return Status.success();
         }
     }

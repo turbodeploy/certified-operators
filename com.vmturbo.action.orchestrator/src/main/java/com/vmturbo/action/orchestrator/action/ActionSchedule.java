@@ -204,4 +204,14 @@ public class ActionSchedule {
         return Objects.hash(scheduleStartTimestamp, scheduleEndTimestamp, scheduleTimeZoneId,
             scheduleId, scheduleDisplayName, executionWindowActionMode, acceptingUser);
     }
+
+    /**
+     * Return true if schedule is active at this time.
+     *
+     * @return true if schedule is active, otherwise false
+     */
+    public boolean isActiveSchedule() {
+        return scheduleEndTimestamp != null && (scheduleStartTimestamp == null
+                || scheduleEndTimestamp < scheduleStartTimestamp);
+    }
 }

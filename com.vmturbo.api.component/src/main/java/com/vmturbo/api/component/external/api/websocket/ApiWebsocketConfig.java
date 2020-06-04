@@ -21,7 +21,7 @@ public class ApiWebsocketConfig implements WebSocketConfigurer {
     /**
      * The URL at which the UI listens for websocket notifications.
      */
-    public static final String WEBSOCKET_URL = "/vmturbo/messages";
+    public static final String WEBSOCKET_URL = "/ws/messages";
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry webSocketHandlerRegistry) {

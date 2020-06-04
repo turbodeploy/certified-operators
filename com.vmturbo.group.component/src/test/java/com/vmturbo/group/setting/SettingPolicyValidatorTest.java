@@ -332,7 +332,7 @@ public class SettingPolicyValidatorTest {
     }
 
     @Test(expected = InvalidItemException.class)
-    public void testEnumSettingInvalid() throws InvalidItemException{
+    public void testEnumSettingInvalid() throws InvalidItemException {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setEnumSettingValueType(EnumSettingValueType.newBuilder()
                         .addEnumValues("1").addEnumValues("2"))

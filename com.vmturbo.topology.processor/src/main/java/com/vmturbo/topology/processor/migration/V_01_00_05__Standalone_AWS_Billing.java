@@ -21,9 +21,11 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonIOException;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSyntaxException;
 import com.google.gson.stream.JsonReader;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
@@ -143,6 +145,7 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
     static final String FIELD_REPORT_PATH_PREFIX = "reportPathPrefix";
     static final String FIELD_USERNAME = "username";
     static final String FIELD_VERIFICATION = "verificationRegex";
+    static final String ARN_PREFIX = "arn:";
 
     static final ImmutableSet<String> s3Fields = ImmutableSet.of(FIELD_REPORT_PATH_PREFIX,
         FIELD_BUCKET_REGION, FIELD_BUCKET_NAME);
@@ -212,7 +215,7 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
     @Nullable
     @VisibleForTesting
     protected boolean updateProbes(KeyValueStore keyValueStore) {
-        logger.debug("Starting probe migration.");
+        logger.info("Starting probe migration.");
         boolean succeeded = true;
         // get the JSON for all the previously stored probes
         final Map<String, String> persistedProbes =
@@ -225,8 +228,8 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
             try {
                 reader = new JsonReader(new StringReader(entry.getValue()));
                 json = new JsonParser().parse(reader).getAsJsonObject();
-            } catch (IllegalStateException e) {
-                logger.trace("probeId={} unable to read JSON!", probeId);
+            } catch (IllegalStateException | JsonIOException | JsonSyntaxException e) {
+                logger.error("probeId={} unable to read JSON!", probeId);
                 continue;
             }
             JsonElement probeElement = json.get("probeType");
@@ -322,14 +325,14 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
             // AWS Billing probe: change creation mode
             json.remove(FIELD_CREATION_MODE);
             json.addProperty(FIELD_CREATION_MODE, CreationMode.STAND_ALONE.name());
-            logger.trace("probeId={} probeType='{}' AWS Billing Category and creation mode", probeId, probeType);
+            logger.debug("probeId={} probeType='{}' AWS Billing Category and creation mode", probeId, probeType);
         }
         if (!json.has(FIELD_ACCOUNT_DEFINITION)) {
             logger.error("probeId={} probeType='{}' Can't find accountDefinition", probeId, probeType);
         } else {
             JsonArray accountDefs = json.get(FIELD_ACCOUNT_DEFINITION).getAsJsonArray();
             // iterate over account definitions
-            logger.trace("probeId={} probeType='{}' iterate over accountDefs", probeId, probeType);
+            logger.debug("probeId={} probeType='{}' iterate over accountDefs", probeId, probeType);
             for (int i = 0; i < accountDefs.size(); i++) {
                 JsonObject accountDef = accountDefs.get(i).getAsJsonObject();
                 processAccountDefinition(accountDef, probeId, probeType);
@@ -463,14 +466,17 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
         // handle all other AWS targets
         // iterate through persisted targets
         for (Entry<String, String> entry : persistedTargets.entrySet()) {
-            final JsonReader reader = new JsonReader(new StringReader(entry.getValue()));
-            final JsonObject secretFields = new JsonParser().parse(reader).getAsJsonObject();
-            final JsonObject targetJson = new JsonParser().parse(reader).getAsJsonObject();
-            final JsonPrimitive targetInfo = targetJson.getAsJsonPrimitive(FIELD_TARGET_INFO);
-            final JsonReader reader2 = new JsonReader(new StringReader(targetInfo.getAsString()));
-            final JsonObject targetInfoObject = new JsonParser().parse(reader2).getAsJsonObject();
-            processTarget(secretFields, targetInfoObject, entry.getKey(), probeIdToProbeTypeMap);
-
+            try {
+                final JsonReader reader = new JsonReader(new StringReader(entry.getValue()));
+                final JsonObject secretFields = new JsonParser().parse(reader).getAsJsonObject();
+                final JsonObject targetJson = new JsonParser().parse(reader).getAsJsonObject();
+                final JsonPrimitive targetInfo = targetJson.getAsJsonPrimitive(FIELD_TARGET_INFO);
+                final JsonReader reader2 = new JsonReader(new StringReader(targetInfo.getAsString()));
+                final JsonObject targetInfoObject = new JsonParser().parse(reader2).getAsJsonObject();
+                processTarget(secretFields, targetInfoObject, entry.getKey(), probeIdToProbeTypeMap);
+            } catch (JsonIOException | JsonSyntaxException e) {
+                logger.error("Could not process target.", e);
+            }
         }
         // Get the targets from consul to pick up any changes.
         awsBillingTargetNoLongerDerived(keyValueStore.getByPrefix(TargetStore.TARGET_KV_STORE_PREFIX),
@@ -500,7 +506,7 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
         String probeType = probeIdToProbeTypeMap.get(probeId);
 
         logger.info("targetId={} probeType='{}' Starting target migration", targetId, probeType);
-        processSpec(spec, targetKey, targetId, probeId, probeType);
+        processSpec(spec, targetKey, targetId, probeType);
 
 
         // Write changes back to consul
@@ -517,11 +523,10 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
      * @param spec  specification
      * @param targetKey target Key
      * @param targetId target ID
-     * @param probeId  probe ID
      * @param probeType  probe type
      */
     @VisibleForTesting
-    void processSpec(JsonObject spec, String targetKey, String targetId, String probeId, String probeType) {
+    void processSpec(JsonObject spec, String targetKey, String targetId, String probeType) {
         // Only AWS Targets
         if (AWS.getProbeType().equals(probeType)) {
             // save AWS target key
@@ -532,12 +537,16 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
             // change isHidden from true to false
             spec.remove(FIELD_IS_HIDDEN);
             spec.addProperty(FIELD_IS_HIDDEN, VALUE_FALSE);
-            logger.trace("AWS Billing targetId={} probeType='{}' change isHidden to false",
+            logger.debug("AWS Billing targetId={} probeType='{}' change isHidden to false",
                 targetId, probeType);
         }
         // Determine iamRole's value.
         boolean iamRoleValue = false;
         JsonArray accountValues = spec.get(FIELD_ACCOUNT_VALUE).getAsJsonArray();
+        if (alreadyContainsIamRoleArn(accountValues)) {
+            // This signifies the migration has run before. Do not update account values again.
+            return;
+        }
         // iterate over the fields
         for (int i = accountValues.size() - 1; i >= 0; i--) {
             JsonObject accountValue = accountValues.get(i).getAsJsonObject();
@@ -545,21 +554,36 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
             if (s3Fields.contains(key) && PROBE_TYPES_ALL_BUT_BILLING.contains(probeType)) {
                 // remove S3 fields
                 accountValues.remove(i);
-                logger.trace("targetId={} probeType='{}' remove S3 field={}", targetId, probeType, key);
+                logger.debug("targetId={} probeType='{}' remove S3 field={}", targetId, probeType, key);
             } else if (FIELD_IAM_ROLE.equals(key)) {
                 String value = accountValue.get(FIELD_ACCOUNT_VALUE_STRING_VALUE).getAsString();
-                if (!Strings.isNullOrEmpty(value)) {
+                // Validate if the current iamRole value is a valid ARN value.
+                if (!Strings.isNullOrEmpty(value) && value.toLowerCase().startsWith(ARN_PREFIX)) {
                     // IAM Role ARN is specified, therefore IAM Role is true.
-                    logger.trace("targetId={} probeType='{}' iamRole is true, because iamRoleArn={}", targetId,
-                        probeType, accountValue.toString());
+                    logger.debug("targetId={} probeType='{}' iamRole is true, because iamRoleArn={}", targetId,
+                            probeType, accountValue.toString());
                     iamRoleValue = true;
                 }
                 accountValue.addProperty(FIELD_ACCOUNT_VALUE_KEY, FIELD_IAM_ROLE_ARN);
-                logger.trace("targetId={} probeType='{}' convert iamRole to iamRoleArn {}", targetId, probeType,
+                logger.debug("targetId={} probeType='{}' convert iamRole to iamRoleArn {}", targetId, probeType,
                     accountValue.toString());
             }
         }
         addIamRoleFieldToTarget(spec, iamRoleValue, targetId, probeType);
+    }
+
+    private boolean alreadyContainsIamRoleArn(final JsonArray accountValues) {
+        try {
+            for (int i = accountValues.size() - 1; i >= 0; i--) {
+                JsonObject accountValue = accountValues.get(i).getAsJsonObject();
+                if (FIELD_IAM_ROLE_ARN.equals(accountValue.get(FIELD_ACCOUNT_VALUE_KEY).getAsString())) {
+                    return true;
+                }
+            }
+        } catch (IllegalStateException e) {
+            logger.error("Could not iterate over account values. Account values: {} ", accountValues, e);
+        }
+        return false;
     }
 
     /**
@@ -589,7 +613,7 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
     private void awsBillingTargetNoLongerDerived(Map<String, String> persistedTargets,
                                                  Map<String, String> probeIdToProbeTypeMap) {
         if (awsTargetKeys.size() == 0 || awsBillingTargetIds.size() == 0) {
-            logger.trace("probeType='AWS' awsTargetKey.size()={} or awsBillingTargetId.size()={} == 0",
+            logger.info("probeType='AWS' awsTargetKey.size()={} or awsBillingTargetId.size()={} == 0",
                 awsTargetKeys.size(), awsBillingTargetIds.size());
             return;
         }
@@ -607,6 +631,11 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
             JsonObject spec = targetInfoObject.get(FIELD_SPEC).getAsJsonObject();
             String probeId = spec.get(FIELD_PROBE_ID).getAsString();
             String probeType = probeIdToProbeTypeMap.get(probeId);
+            if (spec.get(FIELD_DERIVED_TARGET_IDS) == null || !spec.get(FIELD_DERIVED_TARGET_IDS).isJsonArray()) {
+                // Target has no derived target.
+                logger.warn("AWS Target {} of probeType : {} has no derived target.", targetId, probeType);
+                continue;
+            }
             JsonArray targetIds = spec.get(FIELD_DERIVED_TARGET_IDS).getAsJsonArray();
             logger.trace("targetId={} probeType='{}' targetIds={}", targetId, probeType, targetIds);
 

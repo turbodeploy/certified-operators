@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.protobuf.InvalidProtocolBufferException;
 
@@ -28,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto;
@@ -64,8 +66,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequ
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.EntitySettingStore;
@@ -74,6 +74,7 @@ import com.vmturbo.group.setting.ISettingPolicyStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * The SettingPolicyService provides RPC's for CRUD-type operations
@@ -172,32 +173,31 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
      */
     @Override
     public void updateSettingPolicy(UpdateSettingPolicyRequest request,
-                                    StreamObserver<UpdateSettingPolicyResponse> responseObserver) {
+            StreamObserver<UpdateSettingPolicyResponse> responseObserver) {
         if (!request.hasId() || !request.hasNewInfo()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Update request must have ID and new setting policy info.")
-                    .asException());
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(
+                    "Update request must have ID and new setting policy info.").asException());
             return;
         }
+        grpcTransactionUtil.executeOperation(responseObserver,
+                stores -> updateSettingPolicyInternal(request, responseObserver,
+                        stores.getSettingPolicyStore()));
+    }
 
-        try {
-            final SettingPolicy policy =
-                    settingStore.updateSettingPolicy(request.getId(), request.getNewInfo());
-            cancelAutomationActions(policy);
-            responseObserver.onNext(UpdateSettingPolicyResponse.newBuilder()
-                    .setSettingPolicy(policy)
-                    .build());
-            responseObserver.onCompleted();
-        } catch (DuplicateNameException e) {
-            responseObserver.onError(Status.ALREADY_EXISTS
-                    .withDescription(e.getMessage()).asException());
-        } catch (InvalidItemException e) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(e.getMessage()).asException());
-        } catch (SettingPolicyNotFoundException e) {
-            responseObserver.onError(Status.NOT_FOUND
-                    .withDescription(e.getMessage()).asException());
+    private void updateSettingPolicyInternal(UpdateSettingPolicyRequest request,
+            StreamObserver<UpdateSettingPolicyResponse> responseObserver,
+            ISettingPolicyStore settingPolicyStore) throws StoreOperationException {
+        final Pair<SettingPolicy, Boolean> updateSettingPolicyPair =
+                settingPolicyStore.updateSettingPolicy(request.getId(), request.getNewInfo());
+        final SettingPolicy policy = updateSettingPolicyPair.getFirst();
+        final Boolean isModifiedExecutionScheduleSettings = updateSettingPolicyPair.getSecond();
+        if (isModifiedExecutionScheduleSettings) {
+            removeAcceptancesForAssociatedActions(policy.getId());
         }
+        cancelAutomationActions(policy);
+        responseObserver.onNext(
+                UpdateSettingPolicyResponse.newBuilder().setSettingPolicy(policy).build());
+        responseObserver.onCompleted();
     }
 
     @Override
@@ -212,7 +212,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
         try {
             final SettingPolicy policy =
-                    settingStore.resetSettingPolicy(request.getSettingPolicyId());
+                    settingStore.resetSettingPolicy(request.getSettingPolicyId()).getFirst();
             cancelAutomationActions(policy);
             responseObserver.onNext(ResetSettingPolicyResponse.newBuilder()
                     .setSettingPolicy(policy)
@@ -254,8 +254,23 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         settingPolicyStore.deletePolicies(Collections.singletonList(request.getId()), Type.USER);
         logger.info("Deleted setting policy: {}", request.getId());
         cancelAutomationActions(policy);
+        removeAcceptancesForAssociatedActions(policy.getId());
         responseObserver.onNext(DeleteSettingPolicyResponse.getDefaultInstance());
         responseObserver.onCompleted();
+    }
+
+    /**
+     * Remove acceptance for all actions associated with this policy.
+     *
+     * @param policyId the policy id
+     */
+    private void removeAcceptancesForAssociatedActions(long policyId) {
+        try {
+            actionsServiceClient.removeActionsAcceptances(
+                    RemoveActionsAcceptancesRequest.newBuilder().setPolicyId(policyId).build());
+        } catch (StatusRuntimeException e) {
+            logger.warn("Failed to remove actions associate with policy {}", policyId, e);
+        }
     }
 
     /**
@@ -413,9 +428,16 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             final GetSettingPoliciesUsingScheduleRequest request,
             final StreamObserver<SettingPolicy> responseObserver,
             @Nonnull ISettingPolicyStore settingPolicyStore) throws StoreOperationException {
-        final Collection<SettingPolicy> settingPolicies = settingPolicyStore.getPolicies(
-                SettingPolicyFilter.newBuilder().withScheduleId(request.getScheduleId()).build());
-        for (SettingPolicy policy : settingPolicies) {
+        final Collection<SettingPolicy> policiesWithActivationSchedules =
+                settingPolicyStore.getPolicies(SettingPolicyFilter.newBuilder()
+                        .withActivationScheduleId(request.getScheduleId())
+                        .build());
+        final Collection<SettingPolicy> policiesWithExecutionSchedules =
+                settingPolicyStore.getPolicies(SettingPolicyFilter.newBuilder()
+                        .withExecutionScheduleId(request.getScheduleId())
+                        .build());
+        for (SettingPolicy policy : Iterables.concat(policiesWithActivationSchedules,
+                policiesWithExecutionSchedules)) {
             responseObserver.onNext(policy);
         }
         responseObserver.onCompleted();

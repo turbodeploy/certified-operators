@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -152,10 +153,27 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                                   @Nonnull List<EntityCommodityReference> commodityRefs) {
         // calculate only fields for commodities present in the cache
         List<EntityCommodityFieldReference> cachedFields = commodityRefs.stream()
-                        .flatMap(commRef -> Arrays.stream(CommodityField.values())
-                                        .map(field -> new EntityCommodityFieldReference(commRef, field)))
-                        .filter(cache::containsKey)
-                        .collect(Collectors.toList());
+            .flatMap(commRef -> Arrays.stream(CommodityField.values())
+                .map(field -> {
+                    final EntityCommodityFieldReference fieldReference =
+                        new EntityCommodityFieldReference(commRef, field);
+                    final EntityCommodityFieldReference liveTopologyReference =
+                        fieldReference.getLiveTopologyFieldReference(context);
+                    if (cache.containsKey(liveTopologyReference)) {
+                        // Here, we check presence of live topology reference in the cache but we
+                        // keep the original reference. This is intentional as we always use the
+                        // live topology reference to lookup the cache while we use the original
+                        // reference for other operations.
+                        return fieldReference;
+                    } else {
+                        logger.debug("The utilization information for commodity {} (live reference"
+                            + " {} ) does not exist. Topology Id: {}", () -> fieldReference,
+                            () -> liveTopologyReference, () -> context.getTopologyId());
+                        return null;
+                    }
+                }))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
         // chunk by configured size
         List<List<EntityCommodityFieldReference>> partitions = Lists
                         .partition(cachedFields, getConfig().getCalculationChunkSize());
@@ -269,7 +287,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
         @Override
         public List<Void> call() throws Exception {
             commodityFields.forEach(ref -> {
-                HistoryData data = cache.get(ref);
+                HistoryData data = cache.get(ref.getLiveTopologyFieldReference(context));
                 if (data == null) {
                     // shouldn't have happened, preparation is supposed to add entries
                     logger.error("Missing historical data cache entry for " + ref);

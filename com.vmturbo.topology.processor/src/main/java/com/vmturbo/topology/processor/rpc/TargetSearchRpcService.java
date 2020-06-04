@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchTargetsResponse;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceImplBase;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -70,6 +71,7 @@ public class TargetSearchRpcService extends TargetSearchServiceImplBase {
                         .put(SearchableProperties.TARGET_VALIDATION_STATUS,
                                 this::getTargetsByStatus)
                         .put(SearchableProperties.CLOUD_PROVIDER, this::getTargetsByCloudProvider)
+                        .put(SearchableProperties.K8S_CLUSTER, this::getCloudNativeTargetsByK8sCluster)
                         .build();
     }
 
@@ -173,6 +175,33 @@ public class TargetSearchRpcService extends TargetSearchServiceImplBase {
                 .filter(target -> probesToFetch.contains(target.getProbeId()))
                 .map(Target::getId)
                 .collect(Collectors.toSet());
+    }
+
+    @Nonnull
+    private Set<Long> getCloudNativeTargetsByK8sCluster(@Nonnull StringFilter stringFilter) throws StatusException {
+        if (!stringFilter.hasStringPropertyRegex()) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "Regular expression is expected for cloud native target by k8s cluster filter: " + stringFilter)
+                .asException();
+        }
+        final int flags = stringFilter.getCaseSensitive() ? 0 : Pattern.CASE_INSENSITIVE;
+        final Pattern pattern = Pattern.compile(stringFilter.getStringPropertyRegex(), flags);
+        final Set<Long> result = new HashSet<>();
+        for (Target target : targetStore.getAll()) {
+            Optional<ProbeCategory> probeCategory = targetStore.getProbeCategoryForTarget(target.getId());
+            // Skip non Cloud Native targets.
+            if (!probeCategory.isPresent() || probeCategory.get() != ProbeCategory.CLOUD_NATIVE) {
+                continue;
+            }
+            // Add targetId to results (based on the following XOR condition) if
+            // 1. probe type matches the pattern, AND stringFilter is positive match;
+            // 2. probe type does not match the pattern, AND stringFilter is not positive match;
+            if (pattern.matcher(target.getProbeInfo().getProbeType()).matches()
+                ^ !stringFilter.getPositiveMatch()) {
+                result.add(target.getId());
+            }
+        }
+        return result;
     }
 
     /**

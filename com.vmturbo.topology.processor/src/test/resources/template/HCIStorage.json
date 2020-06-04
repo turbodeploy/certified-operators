@@ -1,15 +1,40 @@
 {
   "entityType": 2,
-  "oid": "77777777777777",
-  "displayName": "vsanDatastore (Cluster1)",
+  "oid": "73488350794443",
+  "displayName": "DC9-vsanDatastore (Astra)",
   "commoditySoldList": [{
     "commodityType": {
-      "type": 64
+      "type": 51,
+      "key": "PhysicalMachine::Virtual_ESX_4238e2ce-54ca-5a35-4d2e-0096dcb83745"
     },
-    "used": 0.0,
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73488350794450",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 6
+    },
+    "used": 2048.0,
     "peak": 0.0,
     "capacity": 0.0,
     "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "StorageCluster::16372722efbc8c6e300346e73f19ee6f7258f81f"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
     "isThin": true,
     "active": true,
     "displayName": ""
@@ -26,71 +51,20 @@
     "displayName": ""
   }, {
     "commodityType": {
-      "type": 51,
-      "key": "PhysicalMachine::Virtual_ESX_4238e933-3923-8334-37fe-3aec8fbd046f"
-    },
-    "used": 1.0,
-    "peak": 0.0,
-    "capacity": 1.0E9,
-    "isResizeable": false,
-    "isThin": true,
-    "accesses": "73415060210159",
-    "active": true,
-    "displayName": ""
-  }, {
-    "commodityType": {
       "type": 8
     },
-    "used": 15649.828731060028,
+    "used": 3508.0,
     "peak": 0.0,
-    "capacity": 20473.9609375,
+    "capacity": 21736.0,
     "isResizeable": true,
     "isThin": true,
     "active": true,
     "displayName": ""
   }, {
     "commodityType": {
-      "type": 59,
-      "key": "StorageCluster::7bc730bbc23f729bfe2f47318836366d6b1e2503"
+      "type": 64
     },
-    "used": 1.0,
-    "peak": 0.0,
-    "capacity": 1.0E9,
-    "isResizeable": false,
-    "isThin": true,
-    "active": true,
-    "displayName": ""
-  }, {
-    "commodityType": {
-      "type": 51,
-      "key": "PhysicalMachine::Virtual_ESX_423822fc-1916-06d2-eb17-1e77dc1b25e3"
-    },
-    "used": 1.0,
-    "peak": 0.0,
-    "capacity": 1.0E9,
-    "isResizeable": false,
-    "isThin": true,
-    "accesses": "73415060210157",
-    "active": true,
-    "displayName": ""
-  }, {
-    "commodityType": {
-      "type": 51,
-      "key": "PhysicalMachine::Virtual_ESX_4238c2c1-3d94-a73c-fdcc-3edd3a89e804"
-    },
-    "used": 1.0,
-    "peak": 0.0,
-    "capacity": 1.0E9,
-    "isResizeable": false,
-    "isThin": true,
-    "accesses": "73415060210160",
-    "active": true,
-    "displayName": ""
-  }, {
-    "commodityType": {
-      "type": 6
-    },
-    "used": 36841.141837120056,
+    "used": 0.0,
     "peak": 0.0,
     "capacity": 0.0,
     "isResizeable": true,
@@ -100,151 +74,95 @@
   }, {
     "commodityType": {
       "type": 51,
-      "key": "PhysicalMachine::Virtual_ESX_42381da5-12fa-1e82-2f1c-887419380d43"
+      "key": "PhysicalMachine::Virtual_ESX_564db2e8-ab95-8683-30d6-ffbcc87e828c"
     },
     "used": 1.0,
     "peak": 0.0,
     "capacity": 1.0E9,
     "isResizeable": false,
     "isThin": true,
-    "accesses": "88888888888888",
+    "accesses": "73488350794449",
     "active": true,
     "displayName": ""
   }, {
     "commodityType": {
       "type": 51,
-      "key": "PhysicalMachine::Virtual_ESX_42381da5-12fa-1e82-2f1c-887419380d43-73415060210158"
+      "key": "HCI - Replacing hp-esx79.eng.vmturbo.com::73488372040528"
     },
     "used": 1.0,
     "peak": 0.0,
     "capacity": 1.0E9,
     "isResizeable": false,
     "isThin": true,
-    "accesses": "73415081656992",
+    "accesses": "73488372040528",
     "active": true,
     "displayName": ""
   }],
   "commoditiesBoughtFromProviders": [{
-    "providerId": "73415060210159",
-    "providerEntityType": 14,
-    "commodityBought": [{
-      "commodityType": {
-        "type": 64
-      },
-      "used": 0.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }, {
-      "commodityType": {
-        "type": 8
-      },
-      "used": 10240.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }, {
-      "commodityType": {
-        "type": 6
-      },
-      "used": 0.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }]
-  }, {
-    "providerId": "73415060210160",
-    "providerEntityType": 14,
-    "commodityBought": [{
-      "commodityType": {
-        "type": 64
-      },
-      "used": 0.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }, {
-      "commodityType": {
-        "type": 8
-      },
-      "used": 10240.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }, {
-      "commodityType": {
-        "type": 6
-      },
-      "used": 0.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }]
-  }, {
-    "providerId": "88888888888888",
-    "providerEntityType": 14,
-    "commodityBought": [{
-      "commodityType": {
-        "type": 64
-      },
-      "used": 0.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }, {
-      "commodityType": {
-        "type": 8
-      },
-      "used": 10240.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }, {
-      "commodityType": {
-        "type": 6
-      },
-      "used": 0.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }]
-  }, {
-    "providerId": "73415060210157",
-    "providerEntityType": 14,
-    "commodityBought": [{
-      "commodityType": {
-        "type": 64
-      },
-      "used": 0.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }, {
-      "commodityType": {
-        "type": 8
-      },
-      "used": 10240.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }, {
-      "commodityType": {
-        "type": 6
-      },
-      "used": 0.0,
-      "peak": 0.0,
-      "active": true,
-      "displayName": ""
-    }]
-  }, {
-    "providerId": "73415060210145",
+    "providerId": "73488350794437",
     "providerEntityType": 11,
     "commodityBought": [{
       "commodityType": {
         "type": 60,
-        "key": "DiskArray-525d5005cda275d5-e901b76e1a09c2a6"
+        "key": "DiskArray-522b383c0267e1a6-9063bcfe8fa205cd"
       },
-      "used": 7.0,
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73488350794449",
+    "providerEntityType": 14,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 6
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 6144.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73488350794450",
+    "providerEntityType": 14,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 6
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 16384.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
       "peak": 0.0,
       "active": true,
       "displayName": ""
@@ -252,7 +170,7 @@
   }],
   "entityState": "POWERED_ON",
   "entityPropertyMap": {
-    "VcTgtIdAndInternalName": "61018ea83663817ddf235e63d173024afb5debf5"
+    "VcTgtIdAndInternalName": "c06b892ab96b6c79ad1485b58ae9dc22c7af8cb1"
   },
   "analysisSettings": {
     "isAvailableAsProvider": true,
@@ -263,12 +181,18 @@
   },
   "origin": {
     "discoveryOrigin": {
-      "lastUpdatedTime": "1586416478453",
+      "lastUpdatedTime": "1590997084967",
       "discoveredTargetData": {
-        "73415059620624": {
-          "vendorId": "datastore-170"
+        "73488349925440": {
+          "vendorId": "datastore-553"
         }
       }
+    }
+  },
+  "edit": {
+    "replaced": {
+      "planId": "214225860393008",
+      "replacementId": "73488372040480"
     }
   },
   "tags": {
@@ -283,9 +207,9 @@
         "spaceReservationPct": 0
       },
       "rawCapacity": {
-        "capacity": "40947",
-        "free": "9648",
-        "uncommitted": "5541"
+        "capacity": "21736",
+        "free": "18228",
+        "uncommitted": "6495"
       }
     }
   }

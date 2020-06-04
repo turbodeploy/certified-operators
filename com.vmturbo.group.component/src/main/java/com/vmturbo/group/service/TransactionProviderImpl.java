@@ -17,6 +17,7 @@ import org.jooq.impl.DSL;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.policy.IPlacementPolicyStore;
@@ -24,6 +25,7 @@ import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.setting.ISettingPolicyStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
 import com.vmturbo.group.setting.SettingStore;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Transaction provider based on Jooq connection.
@@ -147,6 +149,13 @@ public class TransactionProviderImpl implements TransactionProvider {
         public Collection<SettingPolicy> getPolicies(
                 @Nonnull SettingPolicyFilter filter) throws StoreOperationException {
             return settingStore.getSettingPolicies(dslContext, filter);
+        }
+
+        @Nonnull
+        @Override
+        public Pair<SettingPolicy, Boolean> updateSettingPolicy(long id,
+                @Nonnull SettingPolicyInfo newPolicyInfo) throws StoreOperationException {
+            return settingStore.updateSettingPolicy(id, newPolicyInfo);
         }
     }
 

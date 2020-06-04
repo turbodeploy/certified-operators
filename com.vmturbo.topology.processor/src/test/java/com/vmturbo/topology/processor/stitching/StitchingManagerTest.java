@@ -30,14 +30,14 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
@@ -320,13 +320,13 @@ public class StitchingManagerTest {
         }
 
         @Override
-        public Optional<String> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
-            return Optional.of(internalEntity.getLocalId());
+        public Collection<String> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
+            return Collections.singleton(internalEntity.getLocalId());
         }
 
         @Override
-        public Optional<Void> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
-            return Optional.empty();
+        public Collection<Void> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
+            return Collections.emptySet();
         }
 
         @Nonnull
@@ -366,13 +366,15 @@ public class StitchingManagerTest {
         }
 
         @Override
-        public Optional<String> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
-            return Optional.of(internalEntity.getEntityBuilder().getVirtualMachineData().getGuestName());
+        public Collection<String> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
+            return Collections.singleton(internalEntity.getEntityBuilder().getVirtualMachineData()
+                            .getGuestName());
         }
 
         @Override
-        public Optional<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
-            return Optional.of(externalEntity.getEntityBuilder().getVirtualMachineData().getGuestName());
+        public Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
+            return Collections.singleton(externalEntity.getEntityBuilder().getVirtualMachineData()
+                            .getGuestName());
         }
 
         @Nonnull

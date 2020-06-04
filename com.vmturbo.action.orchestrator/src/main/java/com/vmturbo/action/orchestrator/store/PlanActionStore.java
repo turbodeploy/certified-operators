@@ -49,10 +49,12 @@ import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -470,9 +472,9 @@ public class PlanActionStore implements ActionStore {
                     final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
                     translatedActionsToAdd.add(ImmutableActionAndInfo.builder()
                         .translatedAction(recommendation)
-                        .description(ActionDescriptionBuilder.buildActionDescription(snapshot, recommendation))
-                        .associatedAccountId(snapshot.getOwnerAccountOfEntity(primaryEntity)
-                            .map(EntityWithConnections::getOid))
+                        .description(ActionDescriptionBuilder.buildActionDescription(snapshot,
+                                                                      recommendation))
+                        .associatedAccountId(PlanActionStore.getAssociatedAccountId(recommendation, snapshot, primaryEntity))
                         .build());
                 } catch (UnsupportedActionException e) {
                     unsupportedActionTypes.add(recommendation.getInfo().getActionTypeCase());
@@ -485,6 +487,21 @@ public class PlanActionStore implements ActionStore {
         }
         return translatedActionsToAdd;
     }
+
+    private static Optional<Long> getAssociatedAccountId(@Nonnull final ActionDTO.Action action,
+                                                         @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                         long primaryEntity) {
+        final ActionInfo actionInfo = action.getInfo();
+        switch (actionInfo.getActionTypeCase()) {
+            case BUYRI:
+                final BuyRI buyRi = actionInfo.getBuyRi();
+                return Optional.of(buyRi.getMasterAccount().getId());
+            default:
+                return entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
+                        .map(EntityWithConnections::getOid);
+        }
+    }
+
 
     /**
      * Load all market actions in the persistent store by their associated topologyContextId.

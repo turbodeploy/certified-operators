@@ -1,24 +1,21 @@
 package com.vmturbo.stitching.fabric;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
-
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.IntersectionStitchingIndex;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
@@ -41,7 +38,7 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  * carries out the connection of and cleanup of entities.
  *
  */
-public abstract class FabricStitchingOperation implements StitchingOperation<List<String>, String> {
+public abstract class FabricStitchingOperation implements StitchingOperation<String, String> {
     protected static final Logger logger = LogManager.getLogger();
 
     @Nonnull
@@ -74,7 +71,7 @@ public abstract class FabricStitchingOperation implements StitchingOperation<Lis
      * @return an optional list of Strings which is Optional.empty if the property doesn't exist or
      * is empty and is the list of values parsed from the property if it does exist.
      */
-    private Optional<List<String>> getStringListEntityProperty(@Nonnull StitchingEntity stitchingEntity,
+    private Collection<String> getStringListEntityProperty(@Nonnull StitchingEntity stitchingEntity,
                                                                @Nonnull String propertyName) {
         final List<String> retVal = Lists.newArrayList();
         Optional<EntityProperty> rawProperty = stitchingEntity.getEntityBuilder()
@@ -86,18 +83,18 @@ public abstract class FabricStitchingOperation implements StitchingOperation<Lis
                 retVal.addAll(Arrays.asList(entityProperty.getValue().split(","))));
         logger.trace("FabricStitchingOperation: Returning string list of size {}"
                         + " for property {}", retVal.size(), propertyName);
-        return retVal.isEmpty() ? Optional.empty() : Optional.of(retVal);
+        return retVal.isEmpty() ? Collections.emptySet() : retVal;
 
     }
 
     @Override
-    public Optional<List<String>> getInternalSignature(@Nonnull final StitchingEntity internalEntity) {
+    public Collection<String> getInternalSignature(@Nonnull final StitchingEntity internalEntity) {
         return getStringListEntityProperty(internalEntity, getEntityPropertyName());
     }
 
     @Override
-    public Optional<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
-        return Optional.of(externalEntity.getEntityBuilder().getId());
+    public Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+        return Collections.singleton(externalEntity.getEntityBuilder().getId());
     }
 
     @Nonnull
@@ -124,38 +121,8 @@ public abstract class FabricStitchingOperation implements StitchingOperation<Lis
 
     @Nonnull
     @Override
-    public StitchingIndex<List<String>, String> createIndex(final int expectedSize) {
-        return new FabricStitchingOperation.FabricStitchingIndex(expectedSize);
+    public StitchingIndex<String, String> createIndex(final int expectedSize) {
+        return new IntersectionStitchingIndex(expectedSize);
     }
 
-    /**
-     * An index that permitting match identification for the uuid of Physical Machine.
-     * The rule for identifying a fabric match by physical machine uuid is as follows:
-     *
-     * The internal entity to be matched specifies a list of uuids representing physical machines
-     * that it matches with (the internal entity may be a chassis or another physical machine).
-     * If the external physical machine's uuid appears on the list, it is considered a match.
-     * Multiple external physical machine's may match.  In practice, this will often be the case
-     * for chassese but will not be the case for internal physical machines.
-     *
-     * This index maintains a map of each uuid in the list to the entire list.
-     */
-    public static class FabricStitchingIndex implements StitchingIndex<List<String>, String> {
-
-        private final Multimap<String, List<String>> index;
-
-        public FabricStitchingIndex(final int expectedSize) {
-            index = Multimaps.newListMultimap(new HashMap<>(expectedSize), ArrayList::new);
-        }
-
-        @Override
-        public void add(@Nonnull List<String> internalSignature) {
-            internalSignature.forEach(pmUUID -> index.put(pmUUID, internalSignature));
-        }
-
-        @Override
-        public Stream<List<String>> findMatches(@Nonnull String externalSignature) {
-            return index.get(externalSignature).stream();
-        }
-    }
 }

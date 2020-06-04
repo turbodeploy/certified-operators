@@ -20,7 +20,6 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -44,6 +43,7 @@ import org.mockito.Mockito;
 import org.mockito.internal.matchers.apachecommons.ReflectionEquals;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
@@ -75,6 +75,9 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServi
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -173,6 +176,8 @@ public class LiveActionStoreTest {
         supplyChainServiceMole,
         repositoryServiceMole);
 
+    private final AcceptedActionsDAO acceptedActionsStore = mock(AcceptedActionsDAO.class);
+
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
@@ -187,8 +192,8 @@ public class LiveActionStoreTest {
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             targetSelector, probeCapabilityCache, entitySettingsCache,
             actionHistoryDao, actionsStatistician, actionTranslator,
-            clock, userSessionContext, licenseCheckClient, actionIdentityService,
-            involvedEntitiesExpander);
+            clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
+            actionIdentityService, involvedEntitiesExpander);
 
         when(targetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -198,6 +203,7 @@ public class LiveActionStoreTest {
                     .build()));
         });
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
         setEntitiesOIDs();
         IdentityGenerator.initPrefix(0);
     }
@@ -339,7 +345,8 @@ public class LiveActionStoreTest {
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
             actionsStatistician, actionTranslator, clock, userSessionContext,
-            licenseCheckClient, actionIdentityService, involvedEntitiesExpander);
+            licenseCheckClient, acceptedActionsStore, actionIdentityService,
+                involvedEntitiesExpander);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -897,14 +904,18 @@ public class LiveActionStoreTest {
     }
 
     /**
-     * Test a host going into maintenance. The live store contains actions to move a vm into host
-     * b. After that the host goes into maintenance and all the actions get cleared, until we get
-     * a topology that has been generated after the creation of the maintenance event.
+     * Test a host going into maintenance (host a) and a host going back into powered_on state
+     * (host c). We expect that when their state get updated all moving IN actions from host a and
+     * all moving OUT actions for host c get cleared. These actions should get cleared in all the
+     * subsequent plans until we receive a topology with a most recent id than the state change
+     * event.
      */
     @Test
-    public void testHostGoingIntoMaintenance() {
-        final ActionDTO.Action.Builder move = move(vm1, hostA, vmType, hostB, vmType)
-            // Initially the importance is 1 and executability is "false".
+    public void testHostsWithNewState() {
+        final ActionDTO.Action.Builder moveInAction = move(vm1, hostA, vmType, hostB, vmType)
+            .setDeprecatedImportance(1)
+            .setExecutable(false);
+        final ActionDTO.Action.Builder moveOutAction = move(vm2, hostC, vmType, hostA, vmType)
             .setDeprecatedImportance(1)
             .setExecutable(false);
 
@@ -915,7 +926,8 @@ public class LiveActionStoreTest {
                         .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                         .setTopologyId(1))))
             .setId(firstPlanId)
-            .addAction(move)
+            .addAction(moveInAction)
+            .addAction(moveOutAction)
             .build();
 
         final EntitiesAndSettingsSnapshot snapshot =
@@ -925,8 +937,23 @@ public class LiveActionStoreTest {
 
         actionStore.populateRecommendedActions(firstPlan);
 
-        actionStore.clearActionsOnHosts(new HashSet<>(Collections.singletonList(hostB)), 3);
-        assertTrue(!actionStore.getAction(move.getId()).isPresent());
+        // Changes with this id should be cached until we receive a plan originated by a topology
+        // with a bigger or equal id
+        final long stateChangeId = 3;
+        EntitiesWithNewState entitiesWithNewState = EntitiesWithNewState.newBuilder()
+            .setStateChangeId(stateChangeId)
+            .addTopologyEntity(TopologyEntityDTO
+                .newBuilder().setOid(hostB).setEntityState(EntityState.MAINTENANCE)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).build())
+            .addTopologyEntity(TopologyEntityDTO
+                .newBuilder().setOid(hostC).setEntityState(EntityState.POWERED_ON)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).build())
+            .build();
+        actionStore.updateActionsBasedOnNewStates(entitiesWithNewState);
+
+        assertFalse(actionStore.getAction(moveInAction.getId()).isPresent());
+        assertFalse(actionStore.getAction(moveOutAction.getId()).isPresent());
+
 
         final ActionPlan secondPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
@@ -935,11 +962,13 @@ public class LiveActionStoreTest {
                         .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                         .setTopologyId(2))))
             .setId(firstPlanId)
-            .addAction(move)
+            .addAction(moveInAction)
+            .addAction(moveOutAction)
             .build();
 
         actionStore.populateRecommendedActions(secondPlan);
-        assertTrue(!actionStore.getAction(move.getId()).isPresent());
+        assertFalse(actionStore.getAction(moveInAction.getId()).isPresent());
+        assertFalse(actionStore.getAction(moveOutAction.getId()).isPresent());
 
         final ActionPlan thirdPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
@@ -948,12 +977,15 @@ public class LiveActionStoreTest {
                         .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                         .setTopologyId(4))))
             .setId(firstPlanId)
-            .addAction(move)
+            .addAction(moveInAction)
+            .addAction(moveOutAction)
             .build();
 
         actionStore.populateRecommendedActions(thirdPlan);
-        assertTrue(actionStore.getAction(move.getId()).isPresent());
+        assertTrue(actionStore.getAction(moveInAction.getId()).isPresent());
+        assertTrue(actionStore.getAction(moveOutAction.getId()).isPresent());
     }
+
 
     @Test
     public void testRecommendationTracker() {

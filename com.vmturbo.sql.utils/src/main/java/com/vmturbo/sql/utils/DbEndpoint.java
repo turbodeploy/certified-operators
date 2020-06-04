@@ -440,7 +440,8 @@ public class DbEndpoint {
      */
     public String getRootUserName() throws InterruptedException {
         final String fromTemplate = template != null ? template.getRootUserName() : null;
-        return getTaggedPropertyValue(DB_ROOT_USER_NAME_PROPERTY, fromTemplate, dbPasswordUtil.getSqlDbRootUsername());
+        return getTaggedPropertyValue(DB_ROOT_USER_NAME_PROPERTY, fromTemplate,
+                dbPasswordUtil.getSqlDbRootUsername(dialect.toString()));
     }
 
     /**

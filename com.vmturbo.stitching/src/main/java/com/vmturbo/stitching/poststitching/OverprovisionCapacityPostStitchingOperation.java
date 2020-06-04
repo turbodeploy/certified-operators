@@ -110,7 +110,7 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
      * @return true if the commodity builder should set a new capacity, and false otherwise
      */
     private boolean canUpdateCapacity(@Nonnull final CommoditySoldDTO.Builder commodity) {
-        return !commodity.hasCapacity() || commodity.getCapacity() == 0 || shouldOverwriteCapacity();
+        return !commodity.hasCapacity() || commodity.getCapacity() <= 0 || shouldOverwriteCapacity();
     }
 
     /**

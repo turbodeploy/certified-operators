@@ -721,7 +721,7 @@ public enum EntitySettingSpecs {
     /**
      * Virtual CPU Increment for containers.
      */
-    ContainerVcpuIncrement("usedIncrement_Container_VCPU", "Increment constant for VCPU [MHz]",
+    ContainerVcpuIncrement("usedIncrement_Container_VCPU", "Increment constant for VCPU and VCPU Request [MHz]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER),
             numeric(0.0f, 1000000.0f, 100.0f), true),
@@ -729,7 +729,7 @@ public enum EntitySettingSpecs {
     /**
      * Virtual Memory Increment for containers.
      */
-    ContainerVmemIncrement("usedIncrement_Container_VMEM", "Increment constant for VMem [MB]",
+    ContainerVmemIncrement("usedIncrement_Container_VMEM", "Increment constant for VMem and VMem Request [MB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER),
             numeric(0.0f, 1000000.0f, 64.0f), true),

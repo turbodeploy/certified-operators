@@ -66,13 +66,13 @@ public class AwsBillingBusinessAccountStitchingOperation implements StitchingOpe
     }
 
     @Override
-    public Optional<String> getInternalSignature(@Nonnull final StitchingEntity internalEntity) {
-        return Optional.of(internalEntity.getLocalId());
+    public Collection<String> getInternalSignature(@Nonnull final StitchingEntity internalEntity) {
+        return Collections.singleton(internalEntity.getLocalId());
     }
 
     @Override
-    public Optional<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
-        return Optional.of(externalEntity.getLocalId());
+    public Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+        return Collections.singleton(externalEntity.getLocalId());
     }
 
     @Nonnull

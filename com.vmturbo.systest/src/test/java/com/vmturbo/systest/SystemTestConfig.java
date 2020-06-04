@@ -30,7 +30,7 @@ public class SystemTestConfig {
 
 
     // Websocket URL to connect to for notifications, e.g. plan progress updates.
-    private static final String WEBSOCKET_URL = "/vmturbo/messages";
+    private static final String WEBSOCKET_URL = "/ws/messages";
 
     @Autowired
     private TopologyProcessorClientConfig tpClientConfig;

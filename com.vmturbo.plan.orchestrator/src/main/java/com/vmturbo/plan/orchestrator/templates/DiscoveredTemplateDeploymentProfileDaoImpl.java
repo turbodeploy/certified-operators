@@ -85,8 +85,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
                     .fetch()
                     .into(RESERVATION);
             if (!invalidReservationRecords.isEmpty()) {
-                transactionDsl.batchUpdate(invalidateReservation(invalidReservationRecords)).execute();
-                logger.warn("Invalidated reservations: {}", invalidReservationRecords.stream()
+                transactionDsl.batchDelete(invalidReservationRecords).execute();
+                logger.warn("Deleted invalidated reservations: {}", invalidReservationRecords.stream()
                         .map(ReservationRecord::getName).collect(Collectors.toList()));
             }
 
@@ -113,17 +113,6 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
 
     private Set<Long> buildTemplateIds(List<TemplateRecord> missingTargetTemplateRecords) {
         return missingTargetTemplateRecords.stream().map(TemplateRecord::getId).collect(Collectors.toSet());
-    }
-
-    private List<ReservationRecord> invalidateReservation(List<ReservationRecord> oldRecords) {
-        return oldRecords.stream()
-                .map(r -> new ReservationRecord(r.getId(), r.getName(), r.getStartTime(), r.getExpireTime(),
-                        ReservationProtoUtil
-                                .clearProviderFromReservationInstance(
-                                        r.getReservationTemplateCollection()),
-                        r.getConstraintInfoCollection(),
-                        ReservationStatusConverter.typeToDb(ReservationStatus.INVALID)))
-                .collect(Collectors.toList());
     }
 
     /**

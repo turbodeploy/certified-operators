@@ -484,10 +484,7 @@ public class HistoricalEditorTest {
      */
     private void checkHistoricalValues(final HistoricalValues.Builder origin,
                                        final HistoricalValues.Builder clone) {
-        Assert.assertEquals(origin.getMaxQuantity(), clone.getMaxQuantity(), FLOATING_POINT_DELTA);
         Assert.assertEquals(origin.getHistUtilization(), clone.getHistUtilization(), FLOATING_POINT_DELTA);
-        Assert.assertEquals(origin.getTimeSlotList(), clone.getTimeSlotList());
-        Assert.assertEquals(origin.getPercentile(), clone.getPercentile(), FLOATING_POINT_DELTA);
     }
 
     /**

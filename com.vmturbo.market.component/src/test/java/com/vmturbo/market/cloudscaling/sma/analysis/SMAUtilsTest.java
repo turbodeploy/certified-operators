@@ -551,13 +551,11 @@ public class SMAUtilsTest {
                 SMATemplate currentTemplate = vm.getCurrentTemplate();
                 SMATemplate matchTemplate = match.getTemplate();
                 if (currentTemplate != matchTemplate || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
-                    System.out.println(String.format("testStability mismatch VM=%s: " +
-                                    "currentTemplate=%s % != matchTemplate=%s " +
-                                    "%scoverage=%s discount=%s",
+                    System.out.println(String.format("testStability mismatch VM=%s: "
+                                    + "currentTemplate=%s != matchTemplate=%s "
+                                    + "coverage=%s discount=%s",
                             vm.getName(), currentTemplate.getName(),
-                            currentTemplate.getOnDemandTotalCost(vm.getBusinessAccountId(), os),
                             matchTemplate.getName(),
-                            matchTemplate.getOnDemandTotalCost(vm.getBusinessAccountId(), os),
                             vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
                     coupons += Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons();
@@ -931,6 +929,7 @@ public class SMAUtilsTest {
         }
 
         SMAInputContext inputContext = new SMAInputContext(context, smaVirtualMachines, smaReservedInstances, smaTemplates);
+        normalizeReservedInstance(inputContext);
         return inputContext;
     }
 }

@@ -284,10 +284,6 @@ public class HistoryAggregator {
                             .computeIfAbsent(editor, e -> new LinkedList<>());
             graph.entities()
                 .filter(editor::isEntityApplicable)
-                // Skip clones because this stage can end up setting '0' value for percentile and
-                // hence no resize actions. To fix this we have created a bug : OM-56643 and this condition
-                // should be removed with that fix.
-                .filter(entity -> !entity.getClonedFromEntity().isPresent())
                 .forEach(entity -> {
                     TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
                     // gather sold

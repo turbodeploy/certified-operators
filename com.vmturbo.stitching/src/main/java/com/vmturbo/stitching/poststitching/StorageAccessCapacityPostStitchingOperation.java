@@ -178,6 +178,7 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
                 .mapToDouble(consumer -> consumer.getTopologyEntityDtoBuilder()
                         .getCommoditySoldListList().stream()
                         .filter(IS_STORAGE_ACCESS)
+                        .filter(comm -> comm.hasCapacity() && comm.getCapacity() > 0)
                         .map(CommoditySoldDTO::getCapacity)
                         .findAny().orElse(0d))
                 .sum();

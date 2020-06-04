@@ -52,6 +52,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -300,7 +301,7 @@ public class ReservationManagerTest {
         assertEquals(110.0, commoditySoldDTOs.get(0).getUsed(), epsilon);
         assertEquals(VMPM_ACCESS_VALUE, commoditySoldDTOs.get(1).getCommodityType().getType());
         assertEquals(RESERVATION_KEY, commoditySoldDTOs.get(1).getCommodityType().getKey());
-        assertEquals(1e9, commoditySoldDTOs.get(1).getCapacity(), epsilon);
+        assertEquals(SDKConstants.ACCESS_COMMODITY_CAPACITY, commoditySoldDTOs.get(1).getCapacity(), epsilon);
     }
 
     @Ignore

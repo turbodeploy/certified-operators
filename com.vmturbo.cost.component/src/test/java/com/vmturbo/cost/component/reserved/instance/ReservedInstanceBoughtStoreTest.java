@@ -7,6 +7,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.Period;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -93,6 +97,9 @@ public class ReservedInstanceBoughtStoreTest {
                     .setAvailabilityZoneId(100L)
                     .setNumBought(10)
                     .setStartTime(System.currentTimeMillis())
+                    .setEndTime(LocalDateTime.now().plus(Period.ofYears(1))
+                            .toInstant(ZoneOffset.UTC)
+                            .toEpochMilli())
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
                                     .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0))
                                     .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
@@ -105,6 +112,9 @@ public class ReservedInstanceBoughtStoreTest {
                     .setAvailabilityZoneId(100L)
                     .setNumBought(20)
                     .setStartTime(System.currentTimeMillis())
+                    .setEndTime(LocalDateTime.now().plus(Period.ofYears(1))
+                            .toInstant(ZoneOffset.UTC)
+                            .toEpochMilli())
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
                                     .newBuilder()
                                     .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
@@ -118,6 +128,9 @@ public class ReservedInstanceBoughtStoreTest {
                     .setAvailabilityZoneId(50L)
                     .setNumBought(30)
                     .setStartTime(System.currentTimeMillis())
+                    .setEndTime(LocalDateTime.now().plus(Period.ofYears(1))
+                            .toInstant(ZoneOffset.UTC)
+                            .toEpochMilli())
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
                                     .newBuilder()
                                     .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
@@ -131,6 +144,9 @@ public class ReservedInstanceBoughtStoreTest {
                     .setAvailabilityZoneId(50L)
                     .setNumBought(40)
                     .setStartTime(System.currentTimeMillis())
+                    .setEndTime(LocalDateTime.now().plus(Period.ofYears(1))
+                            .toInstant(ZoneOffset.UTC)
+                            .toEpochMilli())
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
                                     .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0))
                                     .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))

@@ -30,6 +30,10 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
+import io.grpc.Status.Code;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -37,11 +41,8 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
-
-import io.grpc.Status.Code;
-
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator;
@@ -132,17 +133,19 @@ public class ActionQueryRpcTest {
     private final UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
 
     private final Clock clock = new MutableFixedClock(1_000_000);
+    private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
+
 
     private ActionsRpcService actionsRpcService = new ActionsRpcService(clock,
             actionStorehouse, actionExecutor, actionTargetSelector, entitySettingsCache,
             actionTranslator, paginatorFactory, workflowStore,
-            historicalStatReader, liveStatReader, userSessionContext);
+            historicalStatReader, liveStatReader, userSessionContext, acceptedActionsStore);
 
     private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(clock,
             actionStorehouse, actionExecutor, actionTargetSelector, entitySettingsCache,
             actionTranslatorWithFailedTranslation, paginatorFactory,
             workflowStore, historicalStatReader, liveStatReader,
-            userSessionContext);
+            userSessionContext, acceptedActionsStore);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
