@@ -49,9 +49,9 @@ public class ExtractorComponent extends BaseVmtComponent {
         try {
             getHealthMonitor().addHealthCheck(new PostgreSQLHealthMonitor(
                     timescaledbHealthCheckIntervalSeconds,
-                    extractorDbConfig.ingesterEndpoint().datasource()::getConnection));
-        } catch (UnsupportedDialectException | SQLException | InterruptedException e) {
-            logger.error("Failed to add Postgres health checks", e);
+                    extractorDbConfig.ingesterEndpoint().get().datasource()::getConnection));
+        } catch (InterruptedException | UnsupportedDialectException | SQLException e) {
+            throw new IllegalStateException("DbEndpoint not available, could not start health monitor", e);
         }
     }
 
@@ -77,7 +77,7 @@ public class ExtractorComponent extends BaseVmtComponent {
         // change retention policy if custom period is provided
         if (reportingMetricTableRetentionMonths != null) {
             try {
-                extractorDbConfig.ingesterEndpoint().getAdapter().setupRetentionPolicy(
+                extractorDbConfig.ingesterEndpoint().get().getAdapter().setupRetentionPolicy(
                         "metric", ChronoUnit.MONTHS, reportingMetricTableRetentionMonths);
             } catch (UnsupportedDialectException | InterruptedException | SQLException e) {
                 logger.error("Failed to create retention policy", e);
