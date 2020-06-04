@@ -12,7 +12,7 @@ RUN groupadd -g 1000 kafka && useradd -m -r -d /home/kafka -g 1000 -s /bin/bash 
     passwd -l root
 
 # Install rsyslog and java-11 packages
-RUN dnf install -y rsyslog procps-ng java-11-openjdk-headless && \
+RUN dnf install -y rsyslog procps-ng java-11-openjdk-headless gnutls && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
