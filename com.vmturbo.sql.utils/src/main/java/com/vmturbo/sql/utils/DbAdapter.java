@@ -3,6 +3,7 @@ package com.vmturbo.sql.utils;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 import javax.sql.DataSource;
@@ -16,7 +17,7 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 /**
  * Class used by {@link DbEndpoint} to supply connections and/or perform provisioning operations.
  */
-abstract class DbAdapter {
+public abstract class DbAdapter {
     protected final Logger logger = LogManager.getLogger();
 
     protected final DbEndpoint config;
@@ -84,7 +85,7 @@ abstract class DbAdapter {
     protected abstract void performNonRootGrants(DbEndpointAccess access)
             throws SQLException, UnsupportedDialectException, InterruptedException;
 
-    private Connection getNonRootConnection() throws UnsupportedDialectException, SQLException, InterruptedException {
+    Connection getNonRootConnection() throws UnsupportedDialectException, SQLException, InterruptedException {
         return getConnection(config.getUrl(), config.getUserName(), config.getPassword());
     }
 
@@ -102,5 +103,20 @@ abstract class DbAdapter {
     protected void execute(Connection conn, String sql) throws SQLException {
         logger.info("Executing SQL: {}", sql);
         conn.createStatement().execute(sql);
+    }
+
+    /**
+     * Set up the retention policy for a table based on the retention parameters provided.
+     *
+     * @param table name of the table to set up retention policy
+     * @param timeUnit unit of the retention period
+     * @param retentionPeriod retention period
+     * @throws UnsupportedDialectException if this endpoint is mis-configured
+     * @throws InterruptedException if interrupted
+     * @throws SQLException if there are DB problems
+     */
+    public void setupRetentionPolicy(String table, ChronoUnit timeUnit, int retentionPeriod)
+            throws UnsupportedDialectException, InterruptedException, SQLException {
+        // do nothing by default
     }
 }

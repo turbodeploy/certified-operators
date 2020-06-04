@@ -645,6 +645,15 @@ public class DbEndpoint {
     }
 
     /**
+     * Get the adapter for this endpoint.
+     *
+     * @return {@link DbAdapter}
+     */
+    public DbAdapter getAdapter() {
+        return adapter;
+    }
+
+    /**
      * Exception to throw when an unsupported {@link SQLDialect} value is used to configure an
      * endpoint.
      */

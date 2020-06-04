@@ -45,9 +45,9 @@ CREATE TABLE "metric" (
   "entity_oid" int8 NOT NULL,
   -- hash of that entity as it appeared in this topology
   "entity_hash" int8 NOT NULL,
-  -- comomodity type
+  -- commodity type
   "type" text NOT NULL,
-  -- current utilization of comoodity in selling entity
+  -- current utilization of commodity in selling entity
   "current" float8 NULL,
   -- capacity of commodity in selling entity
   "capacity" float8 NULL,
@@ -66,3 +66,15 @@ ALTER TABLE "metric" SET(
   timescaledb.compress_segmentby = 'entity_oid, entity_hash, type');
 SELECT add_compress_chunks_policy('metric', INTERVAL '2 days');
 
+-- remove retention policy if it exists
+SELECT remove_drop_chunks_policy('metric', if_exists => true);
+-- add new retention policy, default to 12 months, and it only drop raw chunks, while keeping
+-- data in the continuous aggregates
+SELECT alter_job_schedule(
+    -- add new policy which returns job id and use it as parameter of function alter_job_schedule
+    add_drop_chunks_policy('metric', INTERVAL '12 months', cascade_to_materializations => FALSE),
+    -- set the drop_chunks background job to run every day (this is default interval)
+    schedule_interval => INTERVAL '1 days',
+    -- set the job to start from midnight of next day
+    next_start => date_trunc('DAY', now()) + INTERVAL '1 days'
+);
