@@ -11,7 +11,7 @@ RUN echo "[nginx]" > /etc/yum.repos.d/nginx.repo && \
     echo "baseurl=http://nginx.org/packages/rhel/7/x86_64/" >> /etc/yum.repos.d/nginx.repo && \
     echo "gpgcheck=0" >> /etc/yum.repos.d/nginx.repo && \
     echo "enabled=1" >> /etc/yum.repos.d/nginx.repo && \
-    dnf install -y rsyslog procps-ng openssl nginx gettext  && \
+    dnf install -y rsyslog procps-ng openssl nginx gettext gnutls && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 

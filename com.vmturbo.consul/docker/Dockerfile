@@ -7,7 +7,7 @@ ENV CONSUL_VERSION=0.8.3
 ENV DOCKER_DUMBINIT=1.2.0
 
 # Install rsyslog and consul packages
-RUN dnf install -y rsyslog procps-ng python2 openssl iproute unzip && \
+RUN dnf install -y rsyslog procps-ng python2 openssl iproute unzip gnutls && \
     cd /tmp && \
     curl -k -s -O https://releases.hashicorp.com/consul/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_linux_amd64.zip && \
     unzip -d /bin consul_${CONSUL_VERSION}_linux_amd64.zip && \

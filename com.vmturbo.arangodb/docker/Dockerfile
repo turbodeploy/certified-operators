@@ -11,7 +11,7 @@ RUN userdel systemd-coredump
 
 # Install rsyslog and other packages
 RUN dnf install -y https://download.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
-    dnf install -y rsyslog procps-ng python2 jemalloc pwgen && \
+    dnf install -y rsyslog procps-ng python2 jemalloc pwgen gnutls && \
 # Install flask, for use by arango_dump_restore script
     python2.7 -m pip install flask && \
     dnf clean all && \

@@ -6,7 +6,7 @@ RUN groupadd -g 1000 influxdb && useradd -r -g 1000 -s /bin/bash -u 102 influxdb
 passwd -l root
 
 # Install rsyslog and influxdb packages
-RUN dnf install -y rsyslog procps-ng openssl python2 gettext
+RUN dnf install -y rsyslog procps-ng openssl python2 gettext gnutls
 RUN echo "[influxdb]" > /etc/yum.repos.d/influxdb.repo && \
     echo "name=InfluxDB Repository" >> /etc/yum.repos.d/influxdb.repo && \
     echo "baseurl=https://repos.influxdata.com/rhel/7/x86_64/stable/" >> /etc/yum.repos.d/influxdb.repo && \
