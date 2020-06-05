@@ -1,0 +1,182 @@
+package com.vmturbo.repository.service;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+import javax.annotation.Nonnull;
+
+import com.google.common.collect.Sets;
+
+import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.repository.EntityConstraints.CurrentPlacement;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsRequest;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsRequest;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.RelationType;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceImplBase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
+import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
+import com.vmturbo.repository.service.ConstraintsCalculator.ConstraintGrouping;
+import com.vmturbo.topology.graph.TopologyGraph;
+
+/**
+ * Service to calculate the constraints of an entity. This is used in the constraints view.
+ */
+public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBase {
+
+    private final Logger logger = LogManager.getLogger();
+    private final LiveTopologyStore liveTopologyStore;
+    private final PartialEntityConverter partialEntityConverter;
+    private static final DataMetricSummary CALCULATE_CONSTRAINTS_DURATION_SUMMARY =
+        DataMetricSummary.builder()
+            .withName("repo_calculate_constraints_duration_seconds")
+            .withHelp("Duration in seconds it takes repository to construct constraints for an entity.")
+            .build()
+            .register();
+    private static final DataMetricSummary CALCULATE_POTENTIAL_PLACEMENTS_DURATION_SUMMARY =
+        DataMetricSummary.builder()
+            .withName("repo_calculate_potential_placements_duration_seconds")
+            .withHelp("Duration in seconds it takes repository to calculate potential placements for a set of constraints.")
+            .build()
+            .register();
+    private final ConstraintsCalculator constraintsCalculator;
+
+    /**
+     * Entity Constraints RPC service. We calculate the constraints only for real-time entities.
+     *
+     * @param liveTopologyStore live topology store
+     * @param partialEntityConverter partialEntityConverter is needed to return entities of particular {@link Type}
+     * @param constraintsCalculator this is used to calculate the constraints
+     */
+    public EntityConstraintsRpcService(@Nonnull LiveTopologyStore liveTopologyStore,
+                                       @Nonnull PartialEntityConverter partialEntityConverter,
+                                       @Nonnull ConstraintsCalculator constraintsCalculator) {
+        this.liveTopologyStore = liveTopologyStore;
+        this.partialEntityConverter = partialEntityConverter;
+        this.constraintsCalculator = constraintsCalculator;
+    }
+
+    /**
+     * A service that is used to get constraints by entity oid.
+     *
+     * @param request an entity constraint request that contains an entity oid
+     * @param responseObserver An observer on which to write entity constraints.
+     */
+    @Override
+    public void getConstraints(@Nonnull final EntityConstraintsRequest request,
+                               @Nonnull final StreamObserver<EntityConstraintsResponse> responseObserver) {
+        Optional<SourceRealtimeTopology> realTimeTopology = liveTopologyStore.getSourceTopology();
+        if (!realTimeTopology.isPresent()) {
+            logger.warn("No real-time topology exists to calculate constraints");
+            return;
+        }
+        final DataMetricTimer timer = CALCULATE_CONSTRAINTS_DURATION_SUMMARY.startTimer();
+        TopologyGraph<RepoGraphEntity> entityGraph = realTimeTopology.get().entityGraph();
+        Map<Integer, List<ConstraintGrouping>> constraintGroupingsByProviderEntityType =
+            constraintsCalculator.calculateConstraints(request.getOid(), entityGraph);
+        EntityConstraintsResponse response = buildEntityConstraintsResponse(
+            constraintGroupingsByProviderEntityType, entityGraph);
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+        timer.observe();
+        logger.info("Calculated constraints for oid {} in {} seconds", request.getOid(), timer.getTimeElapsedSecs());
+    }
+
+    /**
+     * Converts the constraintGroupings to EntityConstraintsResponse.
+     *
+     * @param constraintGroupings constraintGroupings for the requested entity
+     * @param entityGraph entity graph
+     * @return EntityConstraintsResponse
+     */
+    private EntityConstraintsResponse buildEntityConstraintsResponse(
+        @Nonnull final Map<Integer, List<ConstraintGrouping>> constraintGroupings,
+        @Nonnull final TopologyGraph<RepoGraphEntity> entityGraph) {
+        // Convert the constraintGroupings map to protobuf structures
+        final EntityConstraintsResponse.Builder response = EntityConstraintsResponse.newBuilder();
+        constraintGroupings.forEach((providerEntityType, constraintGroupingsForProviderEntityType) -> {
+            constraintGroupingsForProviderEntityType.forEach(constraintGrouping -> {
+                // We create an EntityConstraint for each constraintGrouping
+                final EntityConstraint.Builder entityConstraint = EntityConstraint.newBuilder();
+                entityConstraint.setRelationType(RelationType.BOUGHT);
+                // set the current placement
+                constraintGrouping.getCurrentPlacement().ifPresent(currPlacement -> {
+                    entityGraph.getEntity(currPlacement).ifPresent(curPlacementEntity -> {
+                        entityConstraint.setCurrentPlacement(CurrentPlacement.newBuilder()
+                            .setOid(curPlacementEntity.getOid())
+                            .setDisplayName(curPlacementEntity.getDisplayName())
+                            .build());
+                        entityConstraint.setEntityType(curPlacementEntity.getEntityType());
+                    });
+                });
+                // Overall potential placements should be the intersection of the
+                // potential placements for all of the commodity types
+                final Set<Long> overallPotentialPlacements = Sets.newHashSet();
+                if (!constraintGrouping.getSellersByCommodityType().isEmpty()) {
+                    // Initialize the overallPotentialPlacements to the first set of sellers
+                    overallPotentialPlacements.addAll(
+                        constraintGrouping.getSellersByCommodityType().values().iterator().next());
+                }
+                constraintGrouping.getSellersByCommodityType().forEach((commType, sellers) -> {
+                    entityConstraint.addPotentialPlacements(
+                        PotentialPlacements.newBuilder()
+                            .setCommodityType(commType)
+                            .setNumPotentialPlacements(sellers.size())
+                            .setScopeDisplayName(commType.getKey()));
+                    overallPotentialPlacements.retainAll(sellers);
+                });
+                entityConstraint.setNumPotentialPlacements(overallPotentialPlacements.size());
+                response.addEntityConstraint(entityConstraint);
+            });
+        });
+        return response.build();
+    }
+
+    /**
+     * A service that is used to get the potential placements.
+     * Given a set of constraints, this method will return the set of sellers which can satisfy all
+     * the constraints.
+     *
+     * @param request a potential placements request that contains an entity oid
+     * @param responseObserver An observer on which to write entity constraints.
+     */
+    @Override
+    public void getPotentialPlacements(PotentialPlacementsRequest request,
+                                       StreamObserver<PotentialPlacementsResponse> responseObserver) {
+        Optional<SourceRealtimeTopology> realTimeTopology = liveTopologyStore.getSourceTopology();
+        if (!realTimeTopology.isPresent()) {
+            logger.warn("No real-time topology exists to calculate potential placements");
+            return;
+        }
+        final DataMetricTimer timer = CALCULATE_POTENTIAL_PLACEMENTS_DURATION_SUMMARY.startTimer();
+        TopologyGraph<RepoGraphEntity> entityGraph = realTimeTopology.get().entityGraph();
+        Set<Integer> potentialEntityTypes = Sets.newHashSet(request.getPotentialEntityTypesList());
+        Set<CommodityType> constraints = Sets.newHashSet(request.getCommodityTypeList());
+        List<TopologyEntityDTO> potentialPlacements = constraintsCalculator.calculatePotentialPlacements(
+            potentialEntityTypes, constraints, entityGraph);
+        PotentialPlacementsResponse.Builder response = PotentialPlacementsResponse.newBuilder();
+        response.setNumPotentialPlacements(potentialPlacements.size());
+        // Sort them, and filter out 20 entries for paginaiton here.
+        potentialPlacements.forEach(t -> response.addEntities(partialEntityConverter.createPartialEntity(t, Type.API)));
+        responseObserver.onNext(response.build());
+        responseObserver.onCompleted();
+        timer.observe();
+        logger.info("Calculated potential placements for oid {} with constraints {} in {} seconds",
+            request.getOid(), constraintsCalculator.getPrintableConstraints(constraints), timer.getTimeElapsedSecs());
+    }
+}

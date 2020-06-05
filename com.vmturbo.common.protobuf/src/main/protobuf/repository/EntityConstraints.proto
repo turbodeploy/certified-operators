@@ -51,17 +51,17 @@ message PotentialPlacements {
     optional string scopeDisplayName = 3;
 }
 
-message EntityConstraintRequest {
+message EntityConstraintsRequest {
     // Oid of the entity.
     optional int64 oid = 1;
 }
 
-message EntityConstraintResponse {
+message EntityConstraintsResponse {
     // A list of entity constraints.
     repeated EntityConstraint entityConstraint = 1;
 }
 
-message PotentialPlacementRequest {
+message PotentialPlacementsRequest {
     // Oid of the entity.
     optional int64 oid = 1;
 
@@ -77,7 +77,7 @@ message PotentialPlacementRequest {
     optional common.PaginationParameters pagination_params = 5;
 }
 
-message PotentialPlacementResponse {
+message PotentialPlacementsResponse {
     // total number of potential entities
     optional int32 num_potential_placements = 1;
 
@@ -87,9 +87,9 @@ message PotentialPlacementResponse {
     optional common.PaginationResponse pagination_response = 3;
 }
 
-service EntityConstraintService {
+service EntityConstraintsService {
     // A service that is used to get constraints by entity oid.
-    rpc GetConstraintsByEntityOid(EntityConstraintRequest) returns (EntityConstraintResponse);
+    rpc GetConstraints(EntityConstraintsRequest) returns (EntityConstraintsResponse);
 
-    rpc GetPotentialPlacements(PotentialPlacementRequest) returns (PotentialPlacementResponse);
+    rpc GetPotentialPlacements(PotentialPlacementsRequest) returns (PotentialPlacementsResponse);
 }
