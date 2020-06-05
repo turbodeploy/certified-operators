@@ -451,19 +451,13 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
             Map<Long, PriceTableKey> prTabOidToTabKey = prTabStore.getPriceTableKeys(
                     Collections.singletonList(priceTableKeyOid));
             PriceTableKey prTabKey = prTabOidToTabKey.get(priceTableKeyOid);
-            if (prTabKey != null) {
-                // Get price table checksum by price table key.
-                Map<PriceTableKey, Long> prTabkeyToChkSum = prTabStore.getChecksumByPriceTableKeys(
-                        Collections.singletonList(prTabKey));
-                // Get checksum of a price table.
-                Long tabChecksum = prTabkeyToChkSum.get(prTabKey);
-                if (tabChecksum != null) {
-                    // Add record of BA with its price table key oid and price table checksum.
-                    lastDiscoveredBAs.add(new BizAccPriceRecord(businessAccountId,
-                            getAccountNameByOid(businessAccounts, businessAccountId),
-                            priceTableKeyOid, tabChecksum));
-                }
-            }
+            // Get price table checksum by price table key.
+            Map<PriceTableKey, Long> prTabkeyToChkSum = prTabStore.getChecksumByPriceTableKeys(
+                    Collections.singletonList(prTabKey));
+            // Add record of BA with its price table key oid and price table checksum.
+            lastDiscoveredBAs.add(new BizAccPriceRecord(businessAccountId,
+                    getAccountNameByOid(businessAccounts, businessAccountId),
+                    priceTableKeyOid, prTabkeyToChkSum.get(prTabKey)));
         }
 
         return lastDiscoveredBAs;

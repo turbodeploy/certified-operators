@@ -770,12 +770,7 @@ public class VoltronConfiguration {
         /**
          * XTremio.
          */
-        MEDIATION_XTREMIO(Component.MEDIATION_XTREMIO),
-
-        /**
-         * ServiceNOW.
-         */
-        MEDIATION_SERVICENOW(Component.MEDIATION_SERVICENOW);
+        MEDIATION_XTREMIO(Component.MEDIATION_XTREMIO);
 
         private Component component;
 
