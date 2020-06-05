@@ -73,7 +73,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ActionsServiceTest {
 
     public static final String[] ALL_ACTION_MODES = {
-            "RECOMMEND", "DISABLED", "MANUAL", "AUTOMATIC"
+            "RECOMMEND", "DISABLED", "MANUAL", "AUTOMATIC", "EXTERNAL_APPROVAL"
     };
     /**
      * The backend the API forwards calls to (i.e. the part that's in the plan orchestrator).

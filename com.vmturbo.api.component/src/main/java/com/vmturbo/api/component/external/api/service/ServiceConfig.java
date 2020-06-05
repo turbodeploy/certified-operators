@@ -164,10 +164,16 @@ public class ServiceConfig {
     private String apiPaginationDefaultSortCommodity;
 
     /**
-     * Feature flag. If it is true than ExecutionSchedule settings are not displayed in UI.
+     * Feature flag. If it is true then ExecutionSchedule settings are not displayed in UI.
      */
     @Value("${hideExecutionScheduleSetting:true}")
     private boolean hideExecutionScheduleSetting;
+
+    /**
+     * Feature flag. If it is true then ExternalApproval settings are not displayed in UI.
+     */
+    @Value("${hideExternalApprovalOrAuditSettings:true}")
+    private boolean hideExternalApprovalOrAuditSettings;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -524,7 +530,9 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 mapperConfig.settingsMapper(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
-                settingsPoliciesService(), hideExecutionScheduleSetting);
+                settingsPoliciesService(),
+                hideExecutionScheduleSetting,
+                hideExternalApprovalOrAuditSettings);
     }
 
     @Bean

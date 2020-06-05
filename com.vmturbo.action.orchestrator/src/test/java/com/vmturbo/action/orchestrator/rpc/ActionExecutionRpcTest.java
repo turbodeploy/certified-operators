@@ -87,6 +87,7 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
@@ -248,8 +249,9 @@ public class ActionExecutionRpcTest {
         when(snapshot.getSettingPoliciesForEntity(actionTargetId)).thenReturn(
                 new ImmutableMap.Builder<String, Collection<Long>>().put(
                         EntitySettingSpecs.Move.getSettingName(), Collections.singletonList(22L))
-                        .put(EntitySettingSpecs.MoveExecutionSchedule.getSettingName(),
-                                Collections.singleton(23L))
+                        .put(ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                                EntitySettingSpecs.Move),
+                            Collections.singleton(23L))
                         .build());
 
         actionStorehouse.storeActions(plan);

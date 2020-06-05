@@ -29,8 +29,10 @@ import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.group.service.SettingRpcService;
@@ -59,7 +61,7 @@ public class SettingsMapperIntegrationTest {
      */
     @Test
     public void testSettingsMapping() throws Exception {
-        final SettingSpecStore specStore = new EnumBasedSettingSpecStore();
+        final SettingSpecStore specStore = new EnumBasedSettingSpecStore(false, false);
         final SettingStore settingStore = Mockito.mock(SettingStore.class);
         final SettingRpcService settingRpcService =
             new SettingRpcService(specStore, settingStore);
@@ -81,7 +83,8 @@ public class SettingsMapperIntegrationTest {
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
                         StatsHistoryServiceGrpc.newBlockingStub(channel),
-                        mapper, settingsManagerMapping, settingsPoliciesService, false);
+                        mapper, settingsManagerMapping, settingsPoliciesService,
+                        false, false);
 
         final List<SettingsManagerApiDTO> settingSpecs =
                 settingService.getSettingsSpecs(null, null, false);
@@ -98,6 +101,9 @@ public class SettingsMapperIntegrationTest {
             Stream.of(GlobalSettingSpecs.values())
                 .map(GlobalSettingSpecs::getSettingName)
                 .collect(Collectors.toSet()));
+        enumSettingsNames.addAll(ActionSettingSpecs.getSettingSpecs().stream()
+            .map(SettingSpec::getName)
+            .collect(Collectors.toSet()));
         Assert.assertEquals(enumSettingsNames, visibleSettings);
 
         server.shutdownNow();

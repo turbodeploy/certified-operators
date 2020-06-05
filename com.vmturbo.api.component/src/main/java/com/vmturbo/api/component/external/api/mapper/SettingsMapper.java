@@ -94,6 +94,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingReque
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -379,7 +380,8 @@ public class SettingsMapper {
 
     /**
      * Convert a collection of {@link SettingSpec} objects into a specific
-     * {@link SettingsManagerApiDTO}. This is like {@link SettingsMapper#toManagerDtos(Collection, Optional)},
+     * {@link SettingsManagerApiDTO}. This is like
+     * {@link SettingsMapper#toManagerDtos(Collection, Optional, Boolean)},
      * just for one specific manager.
      *
      * @param specs The {@link SettingSpec}s. These don't have to all be managed by the desired
@@ -1098,6 +1100,7 @@ public class SettingsMapper {
         return settingPolicy.getInfo().getName().equals(GLOBAL_SETTING_POLICY_NAME);
     }
 
+    @Nonnull
     private static Optional<SettingSpec> getSettingSpec(@Nonnull final String settingSpecName) {
         Optional<EntitySettingSpecs> entitySpec =
             EntitySettingSpecs.getSettingByName(settingSpecName);
@@ -1107,12 +1110,11 @@ public class SettingsMapper {
 
         Optional<GlobalSettingSpecs> globalSpec =
             GlobalSettingSpecs.getSettingByName(settingSpecName);
-
         if (globalSpec.isPresent()) {
             return Optional.of(globalSpec.get().createSettingSpec());
         }
 
-        return Optional.empty();
+        return Optional.ofNullable(ActionSettingSpecs.getSettingSpec(settingSpecName));
     }
 
     /**

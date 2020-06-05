@@ -48,7 +48,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingReque
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 
 /**
@@ -80,7 +80,12 @@ public class SettingsService implements ISettingsService {
     /**
      * name of the manager for automation.
      */
-    private static final String AUTOMATION_MANAGER = "automationmanager";
+    public static final String AUTOMATION_MANAGER = "automationmanager";
+
+    /**
+     * The name of the manager for action workflow.
+     */
+    public static final String CONTROL_MANAGER = "controlmanager";
 
     /**
      * Temporary feature flag. If value is false then we don't sent ExecutionSchedule settings
@@ -88,19 +93,27 @@ public class SettingsService implements ISettingsService {
      */
     private final boolean hideExecutionScheduleSettings;
 
+    /**
+     * Temporary feature flag. If value is false then we don't sent ExternalApproval settings
+     * spec and as a result External Approval and Audit settings are not displayed in UI.
+     */
+    private final boolean hideExternalApprovalOrAuditSettings;
+
 
     public SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
                     @Nonnull final StatsHistoryServiceBlockingStub statsServiceClient,
                     @Nonnull final SettingsMapper settingsMapper,
                     @Nonnull final SettingsManagerMapping settingsManagerMapping,
                     @Nonnull final SettingsPoliciesService settingsPoliciesService,
-                    final boolean hideExecutionScheduleSettings) {
+                   final boolean hideExecutionScheduleSettings,
+                   final boolean hideExternalApprovalOrAuditSettings) {
         this.settingServiceBlockingStub = settingServiceBlockingStub;
         this.statsServiceClient = Objects.requireNonNull(statsServiceClient);
         this.settingsMapper = settingsMapper;
         this.settingsManagerMapping = settingsManagerMapping;
         this.settingsPoliciesService = settingsPoliciesService;
         this.hideExecutionScheduleSettings = hideExecutionScheduleSettings;
+        this.hideExternalApprovalOrAuditSettings = hideExternalApprovalOrAuditSettings;
     }
 
     @Override
@@ -291,7 +304,7 @@ public class SettingsService implements ISettingsService {
     @Override
     public List<SettingsManagerApiDTO> getSettingsSpecs(final String managerUuid,
                                                         final String entityType,
-                                                        final boolean isPlan) throws Exception {
+                                                        final boolean isPlan) {
         final Iterable<SettingSpec> specIt = () -> settingServiceBlockingStub.searchSettingSpecs(
                 SearchSettingSpecsRequest.getDefaultInstance());
 
@@ -314,8 +327,18 @@ public class SettingsService implements ISettingsService {
     }
 
     private boolean isSupportedSetting(@Nonnull String settingName) {
-        return !hideExecutionScheduleSettings || !EntitySettingSpecs.isExecutionScheduleSetting(
-                settingName);
+        return !isHiddenExecutionScheduleSetting(settingName)
+            && !isHiddenExternalApprovalOrAuditSetting(settingName);
+    }
+
+    private boolean isHiddenExecutionScheduleSetting(@Nonnull String settingName) {
+        return hideExecutionScheduleSettings
+            && ActionSettingSpecs.isExecutionScheduleSetting(settingName);
+    }
+
+    private boolean isHiddenExternalApprovalOrAuditSetting(@Nonnull String settingName) {
+        return hideExternalApprovalOrAuditSettings
+            && ActionSettingSpecs.isExternalApprovalOrAuditSetting(settingName);
     }
 
     @VisibleForTesting

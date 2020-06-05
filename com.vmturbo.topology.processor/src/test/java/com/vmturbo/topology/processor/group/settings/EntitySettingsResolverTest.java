@@ -48,6 +48,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.api.enums.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -164,6 +165,10 @@ public class EntitySettingsResolverTest {
     private static final Setting setting2a = createNumericSetting(SPEC_2, 18f);
     private static final Setting setting3 = createNumericSetting(SPEC_3, 30f);
     private static final Setting setting4 = createNumericSetting(SPEC_4, 50f);
+    private static final Setting RECOMMEND_SETTING = createEnumSetting(SPEC_VCPU_UP,
+        ActionMode.RECOMMEND.name());
+    private static final Setting EXTERNAL_APPROVAL_SETTING = createEnumSetting(SPEC_VCPU_UP,
+        ActionDTO.ActionMode.EXTERNAL_APPROVAL.name());
     private static final Setting manualActionModeSetting = createEnumSetting(SPEC_VCPU_UP,
             ActionMode.MANUAL.name());
     private static final Setting automaticActionModeSetting = createEnumSetting(SPEC_VCPU_UP,
@@ -237,9 +242,7 @@ public class EntitySettingsResolverTest {
         createSettingSpec(SPEC_NAME, SettingTiebreaker.BIGGER);
 
     private static final SettingSpec ACTION_MODE_SETTING_SPEC =
-            createActionModeSettingSpec(SPEC_VCPU_UP, SettingTiebreaker.SMALLER,
-                    Arrays.asList(ActionMode.RECOMMEND.name(), ActionMode.MANUAL.name(),
-                            ActionMode.AUTOMATIC.name()));
+            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingSpec();
 
     private static final SettingSpec EXECUTION_SCHEDULE_SETTING_SPEC =
             createSettingSpec(SPEC_VCPU_UP_EXEC_SCHEDULE, SettingTiebreaker.UNION);
@@ -1192,6 +1195,88 @@ public class EntitySettingsResolverTest {
                         Collections.singletonList(444444L))), null);
 
         verify(testSettingPolicyService, never()).updateSettingPolicy(any());
+    }
+
+    /**
+     * EXTERNAL_APPROVAL action mode should be selected over MANUAL.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testExternalMoreConservativeThanManual() throws Exception {
+        final SettingPolicy policy1 = createSettingPolicy(SP1_ID, "sp1", Type.USER,
+            Collections.singletonList(manualActionModeSetting),
+            Collections.singletonList(groupId));
+
+        final SettingPolicy policy2 = createSettingPolicy(SP2_ID, "sp2", Type.USER,
+            Collections.singletonList(EXTERNAL_APPROVAL_SETTING),
+            Collections.singletonList(groupId));
+
+        final ArgumentCaptor<Grouping> groupArguments = ArgumentCaptor.forClass(Grouping.class);
+        when(groupResolver.resolve(group, topologyGraph)).thenReturn(
+            resolvedGroup(group, entities));
+        when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
+        when(testSettingPolicyService.listSettingPolicies(any())).thenReturn(
+            Arrays.asList(policy1, policy2));
+        when(testGroupService.getGroups(any())).thenReturn(Collections.singletonList(group));
+
+        when(testSettingService.searchSettingSpecs(
+            SearchSettingSpecsRequest.getDefaultInstance())).thenReturn(
+            Arrays.asList(ACTION_MODE_SETTING_SPEC, EXECUTION_SCHEDULE_SETTING_SPEC));
+
+        final GraphWithSettings entitiesSettings =
+            entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
+                settingOverrides, rtTopologyInfo, consistentScalingManager);
+
+        verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
+        verify(settingOverrides, times(2)).overrideSettings(any(), any());
+        assertEquals(entitiesSettings.getEntitySettings().size(), 2);
+        assertThat(entitiesSettings.getEntitySettings(), containsInAnyOrder(
+            createEntitySettings(entityOid1, Collections.singletonList(EXTERNAL_APPROVAL_SETTING),
+                Collections.singletonList(SP2_ID)),
+            createEntitySettings(entityOid2, Collections.singletonList(EXTERNAL_APPROVAL_SETTING),
+                Collections.singletonList(SP2_ID))));
+    }
+
+    /**
+     * RECOMMEND action mode should be selected over EXTERNAL_APPROVAL.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testRecommendMoreConservativeThanExternal() throws Exception {
+        final SettingPolicy policy1 = createSettingPolicy(SP1_ID, "sp1", Type.USER,
+            Collections.singletonList(RECOMMEND_SETTING),
+            Collections.singletonList(groupId));
+
+        final SettingPolicy policy2 = createSettingPolicy(SP2_ID, "sp2", Type.USER,
+            Collections.singletonList(EXTERNAL_APPROVAL_SETTING),
+            Collections.singletonList(groupId));
+
+        final ArgumentCaptor<Grouping> groupArguments = ArgumentCaptor.forClass(Grouping.class);
+        when(groupResolver.resolve(group, topologyGraph)).thenReturn(
+            resolvedGroup(group, entities));
+        when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
+        when(testSettingPolicyService.listSettingPolicies(any())).thenReturn(
+            Arrays.asList(policy1, policy2));
+        when(testGroupService.getGroups(any())).thenReturn(Collections.singletonList(group));
+
+        when(testSettingService.searchSettingSpecs(
+            SearchSettingSpecsRequest.getDefaultInstance())).thenReturn(
+            Arrays.asList(ACTION_MODE_SETTING_SPEC, EXECUTION_SCHEDULE_SETTING_SPEC));
+
+        final GraphWithSettings entitiesSettings =
+            entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
+                settingOverrides, rtTopologyInfo, consistentScalingManager);
+
+        verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
+        verify(settingOverrides, times(2)).overrideSettings(any(), any());
+        assertEquals(entitiesSettings.getEntitySettings().size(), 2);
+        assertThat(entitiesSettings.getEntitySettings(), containsInAnyOrder(
+            createEntitySettings(entityOid1, Collections.singletonList(RECOMMEND_SETTING),
+                Collections.singletonList(SP1_ID)),
+            createEntitySettings(entityOid2, Collections.singletonList(RECOMMEND_SETTING),
+                Collections.singletonList(SP1_ID))));
     }
 
     private static SettingPolicy createSettingPolicy(
