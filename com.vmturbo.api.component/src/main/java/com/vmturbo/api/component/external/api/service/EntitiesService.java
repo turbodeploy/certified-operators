@@ -88,11 +88,11 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.EntityConstraintOuterClass.EntityConstraint;
-import com.vmturbo.common.protobuf.repository.EntityConstraintOuterClass.EntityConstraintRequest;
-import com.vmturbo.common.protobuf.repository.EntityConstraintOuterClass.EntityConstraintResponse;
-import com.vmturbo.common.protobuf.repository.EntityConstraintOuterClass.PotentialPlacements;
-import com.vmturbo.common.protobuf.repository.EntityConstraintServiceGrpc.EntityConstraintServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsRequest;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
@@ -101,9 +101,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPolicies
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -153,7 +153,7 @@ public class EntitiesService implements IEntitiesService {
 
     private final EntitySettingQueryExecutor entitySettingQueryExecutor;
 
-    private final EntityConstraintServiceBlockingStub entityConstraintRpcService;
+    private final EntityConstraintsServiceBlockingStub entityConstraintsRpcService;
 
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
@@ -213,7 +213,7 @@ public class EntitiesService implements IEntitiesService {
         @Nonnull final ActionSearchUtil actionSearchUtil,
         @Nonnull final RepositoryApi repositoryApi,
         final EntitySettingQueryExecutor entitySettingQueryExecutor,
-        @Nonnull final EntityConstraintServiceBlockingStub entityConstraintRpcService) {
+        @Nonnull final EntityConstraintsServiceBlockingStub entityConstraintsRpcService) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -231,7 +231,7 @@ public class EntitiesService implements IEntitiesService {
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.entitySettingQueryExecutor = entitySettingQueryExecutor;
-        this.entityConstraintRpcService = entityConstraintRpcService;
+        this.entityConstraintsRpcService = entityConstraintsRpcService;
     }
 
     @Override
@@ -824,8 +824,8 @@ public class EntitiesService implements IEntitiesService {
                     "Should be a numeric entity id.", uuid));
         }
 
-        final EntityConstraintResponse response = entityConstraintRpcService.getConstraintsByEntityOid(
-            EntityConstraintRequest.newBuilder().setOid(uuidMapper.fromUuid(uuid).oid()).build());
+        final EntityConstraintsResponse response = entityConstraintsRpcService.getConstraints(
+            EntityConstraintsRequest.newBuilder().setOid(uuidMapper.fromUuid(uuid).oid()).build());
 
         final List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>(response.getEntityConstraintCount());
         for (EntityConstraint entityConstraint : response.getEntityConstraintList()) {

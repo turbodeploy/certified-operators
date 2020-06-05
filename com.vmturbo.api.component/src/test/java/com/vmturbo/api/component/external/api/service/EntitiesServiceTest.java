@@ -63,7 +63,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.repository.EntityConstraintServiceGrpc;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
@@ -232,7 +232,7 @@ public class EntitiesServiceTest {
                 mock(SettingsMapper.class),
                 actionSearchUtil,
                 repositoryApi, entitySettingQueryExecutor,
-                EntityConstraintServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+                EntityConstraintsServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     /**
