@@ -26,6 +26,7 @@ import org.junit.Test;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.PlanSettingInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -36,6 +37,10 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 public class SettingsManagerMappingLoaderTest {
 
     private static final Gson GSON = ComponentGsonFactory.createGson();
+    private static final String REAL_SETTING_MANAGER_JSON = "settingManagers.json";
+    private static final String RESIZE_EXECUTION_SETTING_NAME = "resizeExecutionSchedule";
+    private static final String RESIZE_EXTERNAL_APPROVAL_TYPE_SETTING_NAME =
+        "approvalResizeActionWorkflow";
 
     /**
      * Verify that a manager loaded from JSON file gets used to map
@@ -46,7 +51,7 @@ public class SettingsManagerMappingLoaderTest {
         SettingsManagerMappingLoader mapper = new SettingsManagerMappingLoader("settingManagersTest.json");
 
         assertThat(mapper.getMapping().getManagerUuid("move").get(),
-                is("automationmanager"));
+                is(SettingsService.AUTOMATION_MANAGER));
 
         final SettingsManagerInfo mgrInfo =
                 mapper.getMapping().getManagerForSetting("move").get();
@@ -55,7 +60,8 @@ public class SettingsManagerMappingLoaderTest {
         assertTrue(mgrInfo.getPlanSettingInfo().isPresent());
 
         // We should return exactly the same object when querying by mgr id.
-        assertThat(mapper.getMapping().getManagerInfo("automationmanager").get(), is(mgrInfo));
+        assertThat(mapper.getMapping().getManagerInfo(
+            SettingsService.AUTOMATION_MANAGER).get(), is(mgrInfo));
     }
 
     @Test
@@ -209,5 +215,28 @@ public class SettingsManagerMappingLoaderTest {
 
     }
 
+    /**
+     * Generated action mode sub settings do not come from the settingManagers.json file. They
+     * are generated an added during post processing.
+     *
+     * @throws IOException should not be thrown.
+     */
+    @Test
+    public void testActionModeSubSettingsAdded() throws IOException {
+        SettingsManagerMappingLoader settingsManagerMappingLoader =
+            new SettingsManagerMappingLoader(REAL_SETTING_MANAGER_JSON);
 
+        Optional<SettingsManagerInfo> optional = settingsManagerMappingLoader.getMapping()
+            .getManagerInfo(SettingsService.AUTOMATION_MANAGER);
+        assertTrue(optional.isPresent());
+        SettingsManagerInfo settingsManagerInfo = optional.get();
+        assertTrue(settingsManagerInfo.getSettings().contains(RESIZE_EXECUTION_SETTING_NAME));
+
+        optional = settingsManagerMappingLoader.getMapping()
+            .getManagerInfo(SettingsService.CONTROL_MANAGER);
+        assertTrue(optional.isPresent());
+        settingsManagerInfo = optional.get();
+        assertTrue(settingsManagerInfo.getSettings()
+            .contains(RESIZE_EXTERNAL_APPROVAL_TYPE_SETTING_NAME));
+    }
 }

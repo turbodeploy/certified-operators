@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -87,7 +88,8 @@ public class EntitySettingsApplicator {
                             EntitySettingSpecs.getSettingByName(setting.getSettingSpecName());
                     if (policySetting.isPresent()) {
                         settingsForEntity.put(policySetting.get(), setting);
-                    } else {
+                    } else if (!ActionSettingSpecs.isActionModeSubSetting(setting.getSettingSpecName())) {
+                        // action mode settings do not affect topology setting applicators
                         logger.warn("Unknown setting {} for entity {}",
                                 setting.getSettingSpecName(), entity.getOid());
                     }

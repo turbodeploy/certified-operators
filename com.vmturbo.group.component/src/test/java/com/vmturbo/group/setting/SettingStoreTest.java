@@ -75,6 +75,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValue
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
@@ -292,7 +293,8 @@ public class SettingStoreTest {
                         .addAllOids(Collections.singletonList(savedSchedule.getId()))
                         .build())
                 .setSettingSpecName(
-                        EntitySettingSpecs.ResizeVcpuDownInBetweenThresholdsExecutionSchedule.getSettingName())
+                        ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                            EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds))
                 .build();
 
         final SettingPolicyInfo settingInfo = SettingPolicyInfo.newBuilder()
@@ -1094,7 +1096,8 @@ public class SettingStoreTest {
                         ActionMode.MANUAL);
 
         final Setting executionScheduleSetting = createExecutionScheduleSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholdsExecutionSchedule.name(),
+            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds),
                 Arrays.asList(savedSchedule1.getId(), savedSchedule2.getId()));
 
         final SettingPolicyInfo settingPolicyInfo =
@@ -1115,8 +1118,10 @@ public class SettingStoreTest {
         final Setting newActionModeSetting =
                 createActionModeSetting(EntitySettingSpecs.Move.name(), ActionMode.RECOMMEND);
         final Setting newExecutionScheduleSetting =
-                createExecutionScheduleSetting(EntitySettingSpecs.MoveExecutionSchedule.name(),
-                        Collections.singletonList(savedSchedule1.getId()));
+                createExecutionScheduleSetting(
+                    ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                        EntitySettingSpecs.Move),
+                    Collections.singletonList(savedSchedule1.getId()));
 
         final SettingPolicyInfo updatedSettingPolicyInfo = savedPolicy.get()
                 .getInfo()
@@ -1159,8 +1164,9 @@ public class SettingStoreTest {
                 ActionMode.MANUAL);
 
         final Setting executionScheduleSetting = createExecutionScheduleSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholdsExecutionSchedule.getSettingName(),
-                Arrays.asList(savedSchedule1.getId(), savedSchedule2.getId()));
+            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds),
+            Arrays.asList(savedSchedule1.getId(), savedSchedule2.getId()));
 
         final SettingPolicyInfo settingPolicyInfo =
                 createSettingPolicyInfo(Arrays.asList(actionModeSetting, executionScheduleSetting),
@@ -1219,7 +1225,8 @@ public class SettingStoreTest {
                 ActionMode.MANUAL);
 
         final Setting executionScheduleSetting = createExecutionScheduleSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholdsExecutionSchedule.getSettingName(),
+                ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                    EntitySettingSpecs.ResizeVmemUpInBetweenThresholds),
                 Collections.singletonList(savedSchedule1.getId()));
 
         final SettingPolicyInfo settingPolicyInfo =
@@ -1238,8 +1245,9 @@ public class SettingStoreTest {
         assertTrue(savedPolicy.isPresent());
 
         final Setting updatedExecutionScheduleSetting = createExecutionScheduleSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholdsExecutionSchedule.getSettingName(),
-                Collections.singletonList(savedSchedule2.getId()));
+            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds),
+            Collections.singletonList(savedSchedule2.getId()));
 
         final SettingPolicyInfo updatedSettingPolicyInfo = savedPolicy.get()
                 .getInfo()
@@ -1282,8 +1290,9 @@ public class SettingStoreTest {
                 ActionMode.MANUAL);
 
         final Setting executionScheduleSetting = createExecutionScheduleSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholdsExecutionSchedule.getSettingName(),
-                Arrays.asList(savedSchedule1.getId(), savedSchedule2.getId()));
+            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds),
+            Arrays.asList(savedSchedule1.getId(), savedSchedule2.getId()));
 
         final SettingPolicyInfo settingPolicyInfo =
                 createSettingPolicyInfo(Arrays.asList(actionModeSetting, executionScheduleSetting),

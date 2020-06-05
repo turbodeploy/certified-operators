@@ -65,6 +65,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -525,8 +526,8 @@ public class ActionModeCalculator {
 
     @Nullable
     private String getExecutionWindowSettingSpec(@Nonnull EntitySettingSpecs spec) {
-        return EntitySettingSpecs
-            .getActionModeToExecutionScheduleSettings().get(spec.getSettingName());
+        return ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+            spec.getSettingName());
     }
 
     /**

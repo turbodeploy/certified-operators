@@ -79,6 +79,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.group.common.InvalidItemException;
@@ -461,7 +462,7 @@ public class SettingStore implements DiagsRestorable {
             @Nonnull SettingPolicyInfo newInfo, @Nonnull SettingPolicyInfo existingInfo) {
         final List<Setting> previousExecutionScheduleSettings = existingInfo.getSettingsList()
                 .stream()
-                .filter(setting -> EntitySettingSpecs.isExecutionScheduleSetting(
+                .filter(setting -> ActionSettingSpecs.isExecutionScheduleSetting(
                         setting.getSettingSpecName()))
                 .collect(Collectors.toList());
         if (previousExecutionScheduleSettings.isEmpty()) {
@@ -470,7 +471,7 @@ public class SettingStore implements DiagsRestorable {
 
         final Map<String, List<Long>> newExecutionScheduleSettings = newInfo.getSettingsList()
                 .stream()
-                .filter(setting -> EntitySettingSpecs.isExecutionScheduleSetting(
+                .filter(setting -> ActionSettingSpecs.isExecutionScheduleSetting(
                         setting.getSettingSpecName()))
                 .collect(Collectors.toMap(Setting::getSettingSpecName,
                         setting -> setting.getSortedSetOfOidSettingValue().getOidsList()));
@@ -483,13 +484,11 @@ public class SettingStore implements DiagsRestorable {
         boolean removeAcceptances = removedExecutionScheduleSetting.isPresent();
 
         if (!removeAcceptances) {
-            final BiMap<String, String> executionScheduleToActionModeSettings =
-                    EntitySettingSpecs.getActionModeToExecutionScheduleSettings().inverse();
             final List<String> previousActionModeSettingsNames =
-                    previousExecutionScheduleSettings.stream()
-                            .map(el -> executionScheduleToActionModeSettings.get(
-                                    el.getSettingSpecName()))
-                            .collect(Collectors.toList());
+                previousExecutionScheduleSettings.stream()
+                    .map(el -> ActionSettingSpecs.getActionModeSettingFromExecutionScheduleSetting(
+                        el.getSettingSpecName()))
+                    .collect(Collectors.toList());
 
             final List<String> previousActionModeSettingsWithManualValue =
                     getActionModeSettingsWithManualValue(existingInfo,
@@ -497,7 +496,7 @@ public class SettingStore implements DiagsRestorable {
 
             final List<String> newActionModeSettingsNames = newExecutionScheduleSettings.keySet()
                     .stream()
-                    .map(executionScheduleToActionModeSettings::get)
+                    .map(ActionSettingSpecs::getActionModeSettingFromExecutionScheduleSetting)
                     .collect(Collectors.toList());
 
             final List<String> newActionModeSettingsWithManualValue =
@@ -725,7 +724,7 @@ public class SettingStore implements DiagsRestorable {
     private List<Long> getAppropriateMultiplySettingValue(@Nonnull String settingName,
             @Nonnull Long policyId, @Nonnull Table<Long, String, List<Long>> oidListValues,
             @Nonnull Table<Long, String, List<Long>> scheduleValues) {
-        if (EntitySettingSpecs.isExecutionScheduleSetting(settingName)) {
+        if (ActionSettingSpecs.isExecutionScheduleSetting(settingName)) {
             return scheduleValues.get(policyId, settingName);
         } else {
             return oidListValues.get(policyId, settingName);
@@ -1393,7 +1392,7 @@ public class SettingStore implements DiagsRestorable {
                     new SettingPolicySettingRecord(policyId, setting.getSettingSpecName(),
                             setting.getValueCase(), "-");
             result.add(mainRecord);
-            if (EntitySettingSpecs.isExecutionScheduleSetting(setting.getSettingSpecName())) {
+            if (ActionSettingSpecs.isExecutionScheduleSetting(setting.getSettingSpecName())) {
                 addExecutionScheduleRecords(result, setting, policyId);
             } else {
                 addOidsRecords(result, setting, policyId);
