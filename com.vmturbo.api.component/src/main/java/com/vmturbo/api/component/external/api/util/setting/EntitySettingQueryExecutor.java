@@ -34,6 +34,8 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.setting.SettingActivePolicyApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
@@ -68,25 +70,30 @@ public class EntitySettingQueryExecutor {
 
     private final SettingsManagerMapping settingsManagerMapping;
 
+    private final UserSessionContext userSessionContext;
+
     public EntitySettingQueryExecutor(final SettingPolicyServiceBlockingStub settingPolicyService,
                                       final SettingServiceBlockingStub settingService,
                                       final GroupExpander groupExpander,
                                       final SettingsMapper settingsMapper,
-                                      final SettingsManagerMapping settingsManagerMapping) {
+                                      final SettingsManagerMapping settingsManagerMapping,
+                                      final UserSessionContext userSessionContext) {
         this(settingPolicyService, settingService, groupExpander,
-            new EntitySettingGroupMapper(settingsMapper), settingsManagerMapping);
+            new EntitySettingGroupMapper(settingsMapper), settingsManagerMapping, userSessionContext);
     }
 
     public EntitySettingQueryExecutor(final SettingPolicyServiceBlockingStub settingPolicyService,
                                       final SettingServiceBlockingStub settingService,
                                       final GroupExpander groupExpander,
                                       final EntitySettingGroupMapper entitySettingGroupMapper,
-                                      final SettingsManagerMapping settingsManagerMapping) {
+                                      final SettingsManagerMapping settingsManagerMapping,
+                                      final UserSessionContext userSessionContext) {
         this.settingPolicyService = settingPolicyService;
         this.settingService = settingService;
         this.groupExpander = groupExpander;
         this.entitySettingGroupMapper = entitySettingGroupMapper;
         this.settingsManagerMapping = settingsManagerMapping;
+        this.userSessionContext = userSessionContext;
     }
 
     @Nonnull
@@ -145,6 +152,9 @@ public class EntitySettingQueryExecutor {
             oids = groupExpander.expandOids(Collections.singleton(scope.oid()));
         } else {
             oids = Collections.singleton(scope.oid());
+        }
+        if (userSessionContext != null) {
+            UserScopeUtils.checkAccess(userSessionContext, oids);
         }
 
         final GetEntitySettingsRequest.Builder request =
