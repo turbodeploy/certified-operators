@@ -198,7 +198,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
 
                 if (templateRecordOptional.isPresent()) {
                     // If a template with the same name exists, update it.
-                    return editTemplate(templateRecordOptional.get().getId(), templateInfo);
+                    throw new DuplicateTemplateException(templateInfo.getName());
                 } else {
                     // Create a new template.
                     final TemplateDTO.Template.Builder templateBuilder = TemplateDTO.Template.newBuilder()
