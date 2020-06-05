@@ -220,7 +220,7 @@ public class TemplatesRpcTest {
                 .setTemplateInfo(templateInstance)
                 .build();
         when(templatesDao.createTemplate(templateInstance)).thenThrow(new DuplicateTemplateException("test1"));
-        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.ALREADY_EXISTS).descriptionContains("Template with name test1 already exist"));
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.ALREADY_EXISTS).descriptionContains("Template with the name test1 already exists"));
         templateServiceBlockingStub.createTemplate(request);
     }
 
@@ -238,7 +238,7 @@ public class TemplatesRpcTest {
                 .setTemplateInfo(templateInstance)
                 .build();
         when(templatesDao.editTemplate(anyLong(), any(TemplateInfo.class))).thenThrow(new DuplicateTemplateException("test1"));
-        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.ALREADY_EXISTS).descriptionContains("Template with name test1 already exist"));
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.ALREADY_EXISTS).descriptionContains("Template with the name test1 already exists"));
         templateServiceBlockingStub.editTemplate(request);
     }
 
