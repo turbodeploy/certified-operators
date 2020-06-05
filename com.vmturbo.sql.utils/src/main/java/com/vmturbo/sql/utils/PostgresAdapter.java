@@ -36,32 +36,35 @@ public class PostgresAdapter extends DbAdapter {
                     ChronoUnit.HOURS, "hours"
             );
 
-    PostgresAdapter(final DbEndpoint config) {
+    PostgresAdapter(final DbEndpointConfig config) {
         super(config);
     }
 
     @Override
-    DataSource getDataSource(String url, String user, String password) throws InterruptedException {
+    DataSource getDataSource(String url, String user, String password) {
         final PGSimpleDataSource dataSource = new PGSimpleDataSource();
         dataSource.setUrl(url);
         dataSource.setUser(user);
         dataSource.setPassword(password);
-        dataSource.setCurrentSchema(config.getSchemaName());
+        dataSource.setCurrentSchema(config.getDbSchemaName());
         return dataSource;
     }
 
     @Override
     protected void createNonRootUser() throws SQLException, UnsupportedDialectException, InterruptedException {
         try (Connection conn = getRootConnection(null)) {
-            dropUser(conn, config.getUserName());
+            dropUser(conn, config.getDbUserName());
             execute(conn, String.format("CREATE USER \"%s\" WITH PASSWORD '%s'",
-                    config.getUserName(), config.getPassword()));
+                    config.getDbUserName(), config.getDbPassword()));
             execute(conn, String.format("ALTER ROLE \"%s\" SET search_path TO \"%s\"",
-                    config.getUserName(), config.getSchemaName()));
+                    config.getDbUserName(), config.getDbSchemaName()));
         }
     }
 
     private void dropUser(final Connection conn, final String user) throws SQLException {
+        if (!config.getDbDestructiveProvisioningEnabled()) {
+            return;
+        }
         try {
             execute(conn, String.format("DROP USER IF EXISTS \"%s\"", user));
         } catch (SQLException e) {
@@ -87,38 +90,40 @@ public class PostgresAdapter extends DbAdapter {
     }
 
     private void performRWGrants() throws UnsupportedDialectException, SQLException, InterruptedException {
-        try (Connection conn = getRootConnection(config.getDatabaseName())) {
+        try (Connection conn = getRootConnection(config.getDbDatabaseName())) {
             execute(conn, String.format("GRANT ALL PRIVILEGES ON SCHEMA \"%s\" TO \"%s\"",
-                    config.getSchemaName(), config.getUserName()));
+                    config.getDbSchemaName(), config.getDbUserName()));
         }
     }
 
     private void performROGrants() throws SQLException, UnsupportedDialectException, InterruptedException {
-        try (Connection conn = getRootConnection(config.getDatabaseName())) {
+        try (Connection conn = getRootConnection(config.getDbDatabaseName())) {
             execute(conn, String.format("GRANT CONNECT ON DATABASE \"%s\" TO \"%s\"",
-                    config.getDatabaseName(), config.getUserName()));
+                    config.getDbDatabaseName(), config.getDbUserName()));
             execute(conn, String.format("GRANT USAGE ON SCHEMA \"%s\" TO \"%s\"",
-                    config.getSchemaName(), config.getUserName()));
+                    config.getDbSchemaName(), config.getDbUserName()));
             execute(conn, String.format("GRANT SELECT ON ALL TABLES IN SCHEMA \"%s\" TO \"%s\"",
-                    config.getSchemaName(), config.getUserName()));
+                    config.getDbSchemaName(), config.getDbUserName()));
             execute(conn, String.format("ALTER DEFAULT PRIVILEGES IN SCHEMA \"%s\" "
                             + "GRANT SELECT ON TABLES TO \"%s\"",
-                    config.getSchemaName(), config.getUserName()));
+                    config.getDbSchemaName(), config.getDbUserName()));
         }
     }
 
     @Override
     protected void createSchema() throws SQLException, UnsupportedDialectException, InterruptedException {
         try (Connection conn = getRootConnection(null)) {
-            if (!databaseExists(conn, config.getDatabaseName())) {
-                execute(conn, String.format("CREATE DATABASE \"%s\"", config.getDatabaseName()));
-                try (Connection dbConn = getRootConnection(config.getDatabaseName())) {
-                    execute(dbConn, "DROP SCHEMA public CASCADE");
+            if (!databaseExists(conn, config.getDbDatabaseName())) {
+                execute(conn, String.format("CREATE DATABASE \"%s\"", config.getDbDatabaseName()));
+                try (Connection dbConn = getRootConnection(config.getDbDatabaseName())) {
+                    if (config.getDbDestructiveProvisioningEnabled()) {
+                        execute(dbConn, "DROP SCHEMA public CASCADE");
+                    }
                 }
             }
         }
-        try (Connection conn = getRootConnection(config.getDatabaseName())) {
-            execute(conn, String.format("CREATE SCHEMA IF NOT EXISTS \"%s\"", config.getSchemaName()));
+        try (Connection conn = getRootConnection(config.getDbDatabaseName())) {
+            execute(conn, String.format("CREATE SCHEMA IF NOT EXISTS \"%s\"", config.getDbSchemaName()));
             setupTimescaleDb(conn);
         }
     }
@@ -133,11 +138,10 @@ public class PostgresAdapter extends DbAdapter {
      *
      * @param conn db connection currently connected to the target database
      * @throws SQLException if there's a problem adding the extension
-     * @throws InterruptedException if interrupted
      */
-    protected void setupTimescaleDb(Connection conn) throws SQLException, InterruptedException {
+    protected void setupTimescaleDb(Connection conn) throws SQLException {
         execute(conn, String.format("CREATE EXTENSION IF NOT EXISTS timescaledb SCHEMA %s",
-                config.getSchemaName()));
+                config.getDbSchemaName()));
     }
 
     private boolean databaseExists(final Connection conn, final String databaseName) throws SQLException {
