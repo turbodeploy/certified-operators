@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import com.vmturbo.api.dto.entityaspect.DBEntityAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.AspectName;
@@ -12,6 +13,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Databas
  * Topology Extension data related to Database type-specific data.
  **/
 public class DatabaseAspectMapper extends AbstractAspectMapper {
+
+    private static final String MAX_CONCURRENT_SESSION = "max_concurrent_session";
+    private static final String MAX_CONCURRENT_WORKER = "max_concurrent_worker";
+    private static final String PRICING_MODEL = "pricing_model";
+
     @Nullable
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
@@ -35,14 +41,19 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
             }
         }
 
-        String concurrentSession = entity.getEntityPropertyMapOrDefault("max_concurrent_session", null);
-        if (concurrentSession != null) {
-            aspect.setMaxConcurrentSession(Integer.parseInt(concurrentSession));
+        String concurrentSessions = entity.getEntityPropertyMapOrDefault(MAX_CONCURRENT_SESSION, null);
+        if (concurrentSessions != null) {
+            aspect.setMaxConcurrentSessions(Integer.parseInt(concurrentSessions));
         }
 
-        String concurrentWorker = entity.getEntityPropertyMapOrDefault("max_concurrent_worker", null);
-        if (concurrentWorker != null) {
-            aspect.setMaxConcurrentWorker(Integer.parseInt(concurrentWorker));
+        String concurrentWorkers = entity.getEntityPropertyMapOrDefault(MAX_CONCURRENT_WORKER, null);
+        if (concurrentWorkers != null) {
+            aspect.setMaxConcurrentWorkers(Integer.parseInt(concurrentWorkers));
+        }
+
+        String pricingModel = entity.getEntityPropertyMapOrDefault(PRICING_MODEL, null);
+        if (pricingModel != null) {
+            aspect.setPricingModel(pricingModel);
         }
 
         return aspect;

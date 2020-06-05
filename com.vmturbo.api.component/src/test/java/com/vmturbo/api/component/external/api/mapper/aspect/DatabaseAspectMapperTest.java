@@ -25,6 +25,7 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
     private static final String TEST_DATABASE_VERSION = "666";
     private static final int MAX_CONCURRENT_SESSION = 400;
     private static final int MAX_CONCURRENT_WORKER = 10;
+    private static final String PRICING_MODEL = "DTU";
 
     private static final long TEST_OID = 123L;
 
@@ -42,7 +43,8 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
                     .setLicenseModel(TEST_LICENSE_MODEL))
                 .build())
                 .putEntityPropertyMap("max_concurrent_session", "400")
-                .putEntityPropertyMap("max_concurrent_worker", "10");
+                .putEntityPropertyMap("max_concurrent_worker", "10")
+                .putEntityPropertyMap("pricing_model", PRICING_MODEL);
 
         final DatabaseAspectMapper mapper = new DatabaseAspectMapper();
         // act
@@ -56,7 +58,9 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
         assertEquals(TEST_LICENSE_MODEL.name(), dbAspect.getLicenseModel());
         assertEquals(TEST_DEPLOYMENT_TYPE.name(), dbAspect.getDeploymentType());
         assertEquals(TEST_DEPLOYMENT_TYPE.name(), dbAspect.getDeploymentType());
-        assertEquals(MAX_CONCURRENT_SESSION, dbAspect.getMaxConcurrentSession());
-        assertEquals(MAX_CONCURRENT_WORKER, dbAspect.getMaxConcurrentWorker());
+        assertEquals(MAX_CONCURRENT_SESSION, dbAspect.getMaxConcurrentSessions());
+        assertEquals(MAX_CONCURRENT_WORKER, dbAspect.getMaxConcurrentWorkers());
+        assertEquals(PRICING_MODEL, dbAspect.getPricingModel());
+
     }
 }
