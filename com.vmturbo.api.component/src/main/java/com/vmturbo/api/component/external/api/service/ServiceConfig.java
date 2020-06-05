@@ -735,8 +735,7 @@ public class ServiceConfig {
     public HistoricalCommodityStatsSubQuery historicalCommodityStatsSubQuery() {
         final HistoricalCommodityStatsSubQuery historicalStatsQuery =
             new HistoricalCommodityStatsSubQuery(mapperConfig.statsMapper(),
-                communicationConfig.historyRpcService(), userSessionContext(),
-                communicationConfig.repositoryApi());
+                communicationConfig.historyRpcService(), userSessionContext());
         statsQueryExecutor().addSubquery(historicalStatsQuery);
         return historicalStatsQuery;
     }
@@ -815,8 +814,7 @@ public class ServiceConfig {
 
     @Bean
     public StatsQueryScopeExpander scopeExpander() {
-        return new StatsQueryScopeExpander(communicationConfig.groupExpander(),
-            communicationConfig.repositoryApi(), communicationConfig.supplyChainFetcher(),
+        return new StatsQueryScopeExpander(communicationConfig.supplyChainFetcher(),
             userSessionContext());
     }
 

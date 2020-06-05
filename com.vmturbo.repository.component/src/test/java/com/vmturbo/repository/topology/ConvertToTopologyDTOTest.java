@@ -12,6 +12,7 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationInfo;
@@ -19,7 +20,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Busines
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolAssignmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolCloneType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolProvisionType;
@@ -41,9 +41,6 @@ public class ConvertToTopologyDTOTest {
     private static final String SE_OID_STRING = "1234";
     private static final String TEST_IP_ADDRESS = "1.2.3.4";
     private static final boolean TEST_IP_ELASTIC = false;
-    private static final Float TEST_STORAGE_AMOUNT_CAPACITY = 2.717f;
-    private static final Float TEST_STORAGE_ACCESS_CAPACITY = 3.141f;
-    private static final Float TEST_IO_THROUGHPUT_CAPACITY = 1.618f;
     private static final RedundancyType TEST_REDUNDANCY_TYPE = RedundancyType.LRS;
     private static final long TEST_DESKTOP_VM_REFERENCE_ID = 200L;
     private static final String TEST_DESKTOP_CLONE_SNAPSHOT = "/Clone Snapshot";
@@ -117,9 +114,6 @@ public class ConvertToTopologyDTOTest {
         final IpAddressRepoDTO repoIpAddressDTO = new IpAddressRepoDTO();
         repoIpAddressDTO.setIpAddress(TEST_IP_ADDRESS);
         repoIpAddressDTO.setElastic(TEST_IP_ELASTIC);
-        virtualVolumeInfoRepoDTO.setStorageAmountCapacity(TEST_STORAGE_AMOUNT_CAPACITY);
-        virtualVolumeInfoRepoDTO.setStorageAccessCapacity(TEST_STORAGE_ACCESS_CAPACITY);
-        virtualVolumeInfoRepoDTO.setIoThroughputCapacity(TEST_IO_THROUGHPUT_CAPACITY);
         virtualVolumeInfoRepoDTO.setRedundancyType(TEST_REDUNDANCY_TYPE.getNumber());
 
         serviceEntityRepoDTO.setVirtualVolumeInfoRepoDTO(virtualVolumeInfoRepoDTO);
@@ -131,9 +125,6 @@ public class ConvertToTopologyDTOTest {
         assertTrue(resultTopoEntityDTO.getTypeSpecificInfo().hasVirtualVolume());
         final VirtualVolumeInfo virtualVolumeInfo = resultTopoEntityDTO.getTypeSpecificInfo()
             .getVirtualVolume();
-        assertThat(virtualVolumeInfo.getStorageAmountCapacity(), equalTo(TEST_STORAGE_AMOUNT_CAPACITY));
-        assertThat(virtualVolumeInfo.getStorageAccessCapacity(), equalTo(TEST_STORAGE_ACCESS_CAPACITY));
-        assertThat(virtualVolumeInfo.getIoThroughputCapacity(), equalTo(TEST_IO_THROUGHPUT_CAPACITY));
         assertThat(virtualVolumeInfo.getRedundancyType(), equalTo(TEST_REDUNDANCY_TYPE));
     }
 

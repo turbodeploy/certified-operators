@@ -18,6 +18,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.Streams;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -103,17 +104,15 @@ public class PlanTopologyScopeEditor {
                 continue;
             }
             if (entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
-                connectedVMsAndVVIds.addAll(entity.getInboundAssociatedEntities().stream()
-                                                .filter(e -> e.getEntityType()
-                                                            == EntityType.VIRTUAL_MACHINE_VALUE)
-                                                .map(TopologyEntity::getOid)
-                                                .collect(Collectors.toList()));
+                Streams.concat(entity.getInboundAssociatedEntities().stream(), entity.getConsumers().stream())
+                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                        .map(TopologyEntity::getOid)
+                        .forEach(connectedVMsAndVVIds::add);
             } else if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                connectedVMsAndVVIds.addAll(entity.getOutboundAssociatedEntities().stream()
-                                                .filter(e -> e.getEntityType()
-                                                             == EntityType.VIRTUAL_VOLUME_VALUE)
-                                                .map(TopologyEntity::getOid)
-                                                .collect(Collectors.toList()));
+                Streams.concat(entity.getOutboundAssociatedEntities().stream(), entity.getProviders().stream())
+                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                        .map(TopologyEntity::getOid)
+                        .forEach(connectedVMsAndVVIds::add);
             }
         }
         seedIds.addAll(connectedVMsAndVVIds);

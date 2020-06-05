@@ -3,11 +3,8 @@ package com.vmturbo.api.component.external.api.util.stats;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -18,7 +15,6 @@ import java.util.List;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.junit.Before;
@@ -94,8 +90,7 @@ public class StatsQueryScopeExpanderTest {
             mock(EntityAspectMapper.class),
             CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             7));
-        scopeExpander = new StatsQueryScopeExpander(groupExpander, repositoryApi,
-            supplyChainFetcherFactory, userSessionContext);
+        scopeExpander = new StatsQueryScopeExpander(supplyChainFetcherFactory, userSessionContext);
         // Doing this here because we make this RPC in every call.
         final SearchRequest req = ApiTestUtils.mockSearchMinReq(Collections.singletonList(DC));
         when(repositoryApi.newSearchRequest(any())).thenReturn(req);
@@ -365,74 +360,5 @@ public class StatsQueryScopeExpanderTest {
         assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         // We should still land on a PM oid even though the related type "DC" was requested.
         assertThat(expandedScope.getExpandedOids(), is(Collections.singleton(1L)));
-    }
-
-    /**
-     * Test for finding expanded oids with and without related types.
-     */
-    @Test
-    public void testExpandConnectedVMs() throws OperationFailedException {
-        final ApiId mockScope = mock(ApiId.class);
-        final long originalOid = 1L;
-        when(mockScope.getScopeOids(userSessionContext, Collections.emptyList()))
-            .thenReturn(Collections.singleton(originalOid));
-
-        final long expandedFromOriginalId = 2L;
-        doReturn(Collections.singleton(expandedFromOriginalId)).when(supplyChainFetcherFactory)
-            .expandAggregatedEntities(eq(Collections.singleton(originalOid)));
-
-        final long relatedOid = 3L;
-        doReturn(Collections.singleton(relatedOid)).when(supplyChainFetcherFactory)
-            .expandScope(any(), any());
-        final long expandedFromRelatedId = 4L;
-        doReturn(Collections.singleton(expandedFromRelatedId)).when(supplyChainFetcherFactory)
-            .expandAggregatedEntities(eq(Collections.singleton(relatedOid)));
-
-        final StatApiInputDTO stat = new StatApiInputDTO();
-        stat.setRelatedEntityType(ApiEntityType.STORAGE_TIER.apiStr());
-        final List<StatApiInputDTO> relatedTypeStats = Collections.singletonList(stat);
-        when(mockScope.getScopeOids(userSessionContext, relatedTypeStats))
-                .thenReturn(Collections.singleton(originalOid));
-
-        // no related types - result comes from original id
-        final StatsQueryScope result1 = scopeExpander.expandScope(mockScope, Collections.emptyList());
-        assertEquals(Collections.singleton(expandedFromOriginalId), result1.getExpandedOids());
-
-        // has related types - entities of related type are expanded first
-        final StatsQueryScope result2 = scopeExpander.expandScope(mockScope, relatedTypeStats);
-        assertEquals(Collections.singleton(expandedFromRelatedId), result2.getExpandedOids());
-
-        // connected VM should not be added separately if the scope type doesn't have volume
-        stat.setRelatedEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
-        when(mockScope.getScopeTypes()).thenReturn(Optional.empty());
-        final StatsQueryScope result3 = scopeExpander.expandScope(mockScope, relatedTypeStats);
-        assertEquals(Collections.singleton(expandedFromRelatedId), result3.getExpandedOids());
-
-        // if connected VM should be added separately but there are no connected VMs, original oid is used.
-        final SearchRequest emptyReq = ApiTestUtils.mockSearchMinReq(Collections.emptyList());
-        when(repositoryApi.newSearchRequest(any())).thenReturn(emptyReq);
-        when(mockScope.getScopeTypes())
-            .thenReturn(Optional.of(Collections.singleton(ApiEntityType.VIRTUAL_VOLUME)));
-        final StatsQueryScope result4 = scopeExpander.expandScope(mockScope, relatedTypeStats);
-        assertEquals(Collections.singleton(expandedFromOriginalId), result4.getExpandedOids());
-
-        // connected VM is added separately
-        final long vmId = 5;
-        final long expandedFromVmAndOrigId = 6L;
-        doReturn(Collections.singleton(expandedFromVmAndOrigId)).when(supplyChainFetcherFactory)
-            .expandAggregatedEntities(eq(ImmutableSet.of(vmId, originalOid)));
-        final SearchRequest goodRec = ApiTestUtils.mockSearchIdReq(Collections.singleton(vmId));
-        when(repositoryApi.newSearchRequest(any())).thenReturn(goodRec);
-
-        final StatsQueryScope result5 = scopeExpander.expandScope(mockScope, relatedTypeStats);
-        assertEquals(Collections.singleton(expandedFromVmAndOrigId), result5.getExpandedOids());
-
-
-        // related type expansion throws an exception (connected VMs not added)
-        stat.setRelatedEntityType(ApiEntityType.STORAGE_TIER.apiStr());
-        doThrow(new OperationFailedException("failed!!!!!!")).when(supplyChainFetcherFactory)
-            .expandScope(any(), any());
-        final StatsQueryScope result6 = scopeExpander.expandScope(mockScope, relatedTypeStats);
-        assertEquals(Collections.singleton(originalOid), result6.getExpandedOids());
     }
 }

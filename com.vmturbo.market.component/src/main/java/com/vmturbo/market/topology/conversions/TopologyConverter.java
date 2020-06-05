@@ -6,10 +6,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -1085,10 +1087,67 @@ public class TopologyConverter {
                         storageCommSold.setUsed(Math.max(0, storageCommSold.getUsed() - stAmtToReleaseInMB)));
             });
 
+        overwriteCommoditiesBoughtByVMsFromVolumes(entityDTOBuilder);
+
         TopologyEntityDTO entityDTO = entityDTOBuilder.build();
         topologyEntityDTOs.add(entityDTO);
         topologyEntityDTOs.addAll(createResources(entityDTO));
         return topologyEntityDTOs;
+    }
+
+    /**
+     * This method overwrites projected commodities bought by VMs from volumes using original
+     * commodities. That is each projected commodity bought by VM from volume is replaced with
+     * related commodity from original VM {@code TopologyEntityDTO}.
+     *
+     * @param entityBuilder Projected entity builder.
+     */
+    private void overwriteCommoditiesBoughtByVMsFromVolumes(
+            @Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+        if (entityBuilder.getEntityType() != EntityType.VIRTUAL_MACHINE.getNumber()) {
+            return;
+        }
+
+        final TopologyEntityDTO originalVm = entityOidToDto.get(entityBuilder.getOid());
+        if (originalVm == null) {
+            logger.error("Cannot find original entity for projected VM: " + entityBuilder.getOid());
+            return;
+        }
+
+        // Get original commodities
+        final Queue<CommoditiesBoughtFromProvider> originalCommodities =
+                originalVm.getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        .filter(commBought -> commBought.getProviderEntityType()
+                                == EntityType.VIRTUAL_VOLUME.getNumber())
+                        .collect(Collectors.toCollection(LinkedList::new));
+
+        if (originalCommodities.isEmpty()) {
+            return;
+        }
+
+        // Replace every commodity bought from volume with original commodity. We assume that the
+        // number of commodities hasn't changed.
+        for (int i = 0; i < entityBuilder.getCommoditiesBoughtFromProvidersCount(); i++) {
+            final long providerEntityType = entityBuilder
+                    .getCommoditiesBoughtFromProvidersBuilder(i).getProviderEntityType();
+            if (providerEntityType == EntityType.VIRTUAL_VOLUME.getNumber()) {
+                final CommoditiesBoughtFromProvider nextCommBought = originalCommodities.poll();
+                if (nextCommBought == null) {
+                    logger.error("The number of projected commodities bought by VM {} from "
+                                    + "Volumes is greater than the number of original commodities",
+                            entityBuilder.getOid());
+                    return;
+                }
+                entityBuilder.setCommoditiesBoughtFromProviders(i, nextCommBought.toBuilder());
+            }
+        }
+
+        if (!originalCommodities.isEmpty()) {
+            logger.error("The number of projected commodities bought by VM {} from Volumes "
+                    + "doesn't match the number of original commodities. {} extra original "
+                    + "commodities found", entityBuilder.getOid(), originalCommodities.size());
+        }
     }
 
     /**
@@ -1251,12 +1310,12 @@ public class TopologyConverter {
                             .setEntityType(originalVolume.getEntityType())
                             .setOid(originalVolume.getOid());
 
-                    // connect to storage or storage tier
-                    ConnectedEntity connectedStorageOrStorageTier = ConnectedEntity.newBuilder()
+                    // connect to storage
+                    final ConnectedEntity connectedStorage = ConnectedEntity.newBuilder()
                             .setConnectedEntityId(commBoughtGrouping.getProviderId())
                             .setConnectedEntityType(commBoughtGrouping.getProviderEntityType())
                             .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
-                    volume.addConnectedEntityList(connectedStorageOrStorageTier);
+                    volume.addConnectedEntityList(connectedStorage);
 
                     // Get the AZ or Region the VM is connected to (there is no zone for azure or on-prem)
                     List<TopologyEntityDTO> azOrRegion = TopologyDTOUtil.getConnectedEntitiesOfType(

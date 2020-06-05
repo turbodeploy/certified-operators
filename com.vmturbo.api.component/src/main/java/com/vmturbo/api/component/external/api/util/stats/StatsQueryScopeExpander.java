@@ -46,20 +46,12 @@ public class StatsQueryScopeExpander {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final GroupExpander groupExpander;
-
-    private final RepositoryApi repositoryApi;
-
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
     private final UserSessionContext userSessionContext;
 
-    public StatsQueryScopeExpander(@Nonnull final GroupExpander groupExpander,
-                                   @Nonnull final RepositoryApi repositoryApi,
-                                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
+    public StatsQueryScopeExpander(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                                    @Nonnull final UserSessionContext userSessionContext) {
-        this.groupExpander = groupExpander;
-        this.repositoryApi = repositoryApi;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.userSessionContext = userSessionContext;
     }
@@ -265,12 +257,7 @@ public class StatsQueryScopeExpander {
 
         Set<Long> expandedOidsInScope;
 
-        if (shouldConnectedVmBeSeparatelyAdded(scope, relatedTypes)) {
-            // case where VM oids need to be added separately to the scope, i.e. for Volume commodity queries
-            final Set<Long> connectedVmOids = findConnectedVmOids(immediateOidsInScope);
-            expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(
-                Sets.union(immediateOidsInScope, connectedVmOids));
-        } else if (!relatedTypes.isEmpty()) {
+        if (!relatedTypes.isEmpty()) {
             // We replace the proxy entities after first finding related type entities, so that the
             // supply chain search for related entities has the correct starting point (the original
             // entities in the request, rather than the replacement entities).
@@ -336,24 +323,5 @@ public class StatsQueryScopeExpander {
         return new StatQueryScopeLazyLoader(
                 this, scope, globalScope.orElse(null),
                 scopeOids, relatedTypes, userSessionContext);
-    }
-
-    private Set<Long> findConnectedVmOids(@Nonnull final Set<Long> volumeOids) {
-        final TraversalFilter vmFrom = SearchProtoUtil.traverseToType(
-            TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE.apiStr());
-        final PropertyFilter startFilter = SearchProtoUtil.idFilter(volumeOids);
-
-        final SearchParameters searchParams = SearchProtoUtil.makeSearchParameters(startFilter)
-            .addSearchFilter(SearchProtoUtil.searchFilterTraversal(vmFrom))
-            .build();
-        return repositoryApi.newSearchRequest(searchParams).getOids();
-    }
-
-    private boolean shouldConnectedVmBeSeparatelyAdded(@Nonnull final ApiId scope,
-                                                       @Nonnull final Set<ApiEntityType> relatedTypes) {
-        return relatedTypes.size() == 1 && relatedTypes.contains(ApiEntityType.VIRTUAL_MACHINE) &&
-            scope.getScopeTypes()
-                .filter(set -> set.contains(ApiEntityType.VIRTUAL_VOLUME))
-                .isPresent();
     }
 }

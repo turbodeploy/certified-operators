@@ -45,6 +45,7 @@ import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.RangeTuple;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ApplicationData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -185,13 +186,34 @@ public class SdkToTopologyEntityConverterTest {
         TopologyEntityDTO pmFailoverTopologyDTO = findEntity(topologyDTOs, PM_FAILOVER_OID);
         assertTrue(pmFailoverTopologyDTO.getEntityState() == EntityState.FAILOVER);
 
-        // check for st capacity constraint
         TopologyEntityDTO stTopologyDTO = findEntity(topologyDTOs, DS_OID);
+        // check for storageTier ratio constraint
         stTopologyDTO.getCommoditySoldListList().forEach(c -> {
             if (c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
                 assertEquals(10000, c.getMaxAmountForConsumer(), DELTA);
                 assertEquals(100, c.getMinAmountForConsumer(), DELTA);
                 assertEquals(3, c.getRatioDependency().getRatio(), DELTA);
+            }
+        });
+        // check for storageTier storageAmount checkMin true constraint
+        stTopologyDTO.getCommoditySoldListList().forEach(c -> {
+            if (c.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {
+                assertEquals(1024, c.getMaxAmountForConsumer(), DELTA);
+                assertEquals(1, c.getMinAmountForConsumer(), DELTA);
+                assertTrue(c.getCheckMinAmountForConsumer());
+            }
+        });
+        // check for storageTier ranged capacity constraint
+        stTopologyDTO.getCommoditySoldListList().forEach(c -> {
+            if (c.getCommodityType().getType() == CommodityType.IO_THROUGHPUT_VALUE) {
+                CommodityDTO.RangeDependency rangeDependency = c.getRangeDependency();
+                assertEquals(2, rangeDependency.getRangeTupleCount());
+                RangeTuple amount1 = rangeDependency.getRangeTuple(0);
+                assertEquals(170, amount1.getBaseMaxAmountForConsumer(), DELTA);
+                assertEquals(128, amount1.getDependentMaxAmountForConsumer(), DELTA);
+                RangeTuple amount2 = rangeDependency.getRangeTuple(1);
+                assertEquals(16384, amount2.getBaseMaxAmountForConsumer(), DELTA);
+                assertEquals(250, amount2.getDependentMaxAmountForConsumer(), DELTA);
             }
         });
     }
