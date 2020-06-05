@@ -857,7 +857,8 @@ public class ServiceConfig {
             communicationConfig.settingRpcService(),
             communicationConfig.groupExpander(),
             mapperConfig.settingsMapper(),
-            mapperConfig.settingManagerMappingLoader().getMapping());
+            mapperConfig.settingManagerMappingLoader().getMapping(),
+            userSessionContext());
     }
 
     /**
