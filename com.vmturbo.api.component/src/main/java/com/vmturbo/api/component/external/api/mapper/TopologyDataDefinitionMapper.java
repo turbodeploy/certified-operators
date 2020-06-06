@@ -506,6 +506,7 @@ public class TopologyDataDefinitionMapper {
      * Get static connections criteria from API DTO.
      *
      * @param staticConnections API DTO for static connections
+     * @param entityType type of entity for static connections
      * @return criteria for static connections
      */
     private AssociatedEntitySelectionCriteria.Builder getStaticCriteria(@Nonnull final ManualStaticConnections staticConnections,
