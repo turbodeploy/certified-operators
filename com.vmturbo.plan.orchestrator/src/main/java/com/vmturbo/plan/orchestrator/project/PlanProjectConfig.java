@@ -95,7 +95,8 @@ public class PlanProjectConfig {
                 repositoryClientConfig.repositoryChannel(),
                 templatesConfig.templatesDao(),
                 historyClientConfig.historyChannel(),
-                headroomCalculationForAllClusters);
+                headroomCalculationForAllClusters,
+                globalConfig.tpNotificationClient());
     }
 
     @Bean

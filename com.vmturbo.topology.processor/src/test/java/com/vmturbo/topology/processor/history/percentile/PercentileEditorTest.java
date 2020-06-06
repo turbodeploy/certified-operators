@@ -11,6 +11,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -80,7 +84,9 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                             Clock.systemUTC());
 
     private static final long VIRTUAL_MACHINE_OID = 1;
+    private static final long VIRTUAL_MACHINE_OID_2 = 2;
     private static final long BUSINESS_USER_OID = 10;
+    private static final long BUSINESS_USER_OID_2 = 11;
     private static final long DATABASE_SERVER_OID = 100;
     private static final long DATABASE_OID = 500;
     private static final long CONTAINER_OID = 1000;
@@ -91,6 +97,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private static final long PREVIOUS_BUSINESS_USER_OBSERVATION_PERIOD = 4;
     private static final long NEW_BUSINESS_USER_OBSERVATION_PERIOD = 2;
     private static final float CAPACITY = 1000F;
+    private static final String DESKTOP_POOL_COMMODITY_KEY = "DesktopPool::key";
     private static final EntityCommodityFieldReference VCPU_COMMODITY_REFERENCE =
             new EntityCommodityFieldReference(VIRTUAL_MACHINE_OID,
                     TopologyDTO.CommodityType.newBuilder()
@@ -100,7 +107,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
             new EntityCommodityFieldReference(BUSINESS_USER_OID,
                     TopologyDTO.CommodityType.newBuilder()
                             .setType(CommodityType.VCPU_VALUE)
-                            .setKey("DesktopPool::key")
+                            .setKey(DESKTOP_POOL_COMMODITY_KEY)
                             .build(), DESKTOP_POOL_PROVIDER_OID, CommodityField.USED);
 
     private final Clock clock = Mockito.mock(Clock.class);
@@ -601,6 +608,116 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                             .load(Mockito.any(),
                                             Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
         }
+    }
+
+    /**
+     * Tests the case where the entity in the plan has been cloned from another entity. It
+     * ensures that the percentile has been set for the entity.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testPercentileEditorPlanContext() throws Exception {
+        ExecutorService executor = Executors.newCachedThreadPool();
+        try {
+            // ARRANGE
+            Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
+            // First initializing history from db.
+            percentileEditor.initContext(new HistoryAggregationContext(topologyInfo, graphWithSettings,
+                false), Collections.emptyList());
+            // in our setup the entity with VIRTUAL_MACHINE_OID is a clone of a virtual machine
+            // with live entity OID of VIRTUAL_MACHINE_OID_2
+            final Map<Long, TopologyEntity.Builder> topologyMap = createTopologyMap();
+            final TopologyInfo planTopologyInfo =
+                TopologyInfo.newBuilder().setTopologyId(71111L).build();
+            final GraphWithSettings graph = new GraphWithSettings(TopologyEntityTopologyGraphCreator
+                .newGraph(topologyMap), entitySettings, Collections.emptyMap());
+            final HistoryAggregationContext context = new HistoryAggregationContext(planTopologyInfo,
+                graph, true);
+
+            List<EntityCommodityReference> commodities = Arrays.asList(
+                new EntityCommodityReference(VIRTUAL_MACHINE_OID_2,
+                    TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE).build(),
+                    null),
+                new EntityCommodityFieldReference(BUSINESS_USER_OID_2,
+                    TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityType.VCPU_VALUE)
+                        .setKey(DESKTOP_POOL_COMMODITY_KEY)
+                        .build(), DESKTOP_POOL_PROVIDER_OID, CommodityField.USED)
+            );
+
+            // ACT
+            percentileEditor.createPreparationTasks(context, commodities);
+
+            List<? extends Callable<List<Void>>> callableList =
+                percentileEditor.createCalculationTasks(context, commodities);
+
+            List<Future<List<Void>>> futureList = executor.invokeAll(callableList);
+            for (Future<List<Void>> future : futureList) {
+                future.get();
+            }
+
+            // ASSERT
+            Assert.assertTrue(topologyMap.get(VIRTUAL_MACHINE_OID_2)
+                .getEntityBuilder().getCommoditySoldList(0).getHistoricalUsed().hasPercentile());
+            Assert.assertThat(topologyMap.get(VIRTUAL_MACHINE_OID_2)
+                .getEntityBuilder().getCommoditySoldList(0).getHistoricalUsed().getPercentile(),
+                Matchers.closeTo(1.0, 0.001));
+            Assert.assertTrue(topologyMap.get(BUSINESS_USER_OID_2).getEntityBuilder()
+                .getCommoditiesBoughtFromProvidersBuilder(0)
+                .getCommodityBought(0)
+                .getHistoricalUsed()
+                .hasPercentile());
+            Assert.assertThat(topologyMap.get(BUSINESS_USER_OID_2).getEntityBuilder()
+                    .getCommoditiesBoughtFromProvidersBuilder(0)
+                    .getCommodityBought(0)
+                    .getHistoricalUsed()
+                    .getPercentile(),
+                Matchers.closeTo(1.0, 0.001));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private HashMap<Long, Builder> createTopologyMap() {
+        HashMap<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
+        topologyMap.put(VIRTUAL_MACHINE_OID_2, TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(VIRTUAL_MACHINE_OID_2)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditySoldList(
+                    TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(TopologyDTO
+                        .CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE))
+                        .setCapacity(CAPACITY))
+            )
+                .setClonedFromEntity(TopologyEntityDTO.newBuilder().setOid(VIRTUAL_MACHINE_OID))
+        );
+
+        topologyMap.put(BUSINESS_USER_OID_2, TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(BUSINESS_USER_OID_2)
+                .setEntityType(EntityType.BUSINESS_USER_VALUE)
+                .addCommoditiesBoughtFromProviders(TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(DESKTOP_POOL_PROVIDER_OID)
+                    .addCommodityBought(TopologyDTO.CommodityBoughtDTO.newBuilder().setCommodityType(TopologyDTO
+                        .CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE)
+                        .setKey(DESKTOP_POOL_COMMODITY_KEY))))
+            )
+                .setClonedFromEntity(TopologyEntityDTO.newBuilder().setOid(BUSINESS_USER_OID))
+        );
+
+        topologyMap.put(DESKTOP_POOL_PROVIDER_OID, TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(DESKTOP_POOL_PROVIDER_OID)
+                .setEntityType(EntityType.DESKTOP_POOL_VALUE)
+                .addCommoditySoldList(
+                    TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(TopologyDTO
+                        .CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE)
+                        .setKey(DESKTOP_POOL_COMMODITY_KEY))
+                        .setCapacity(CAPACITY))
+            )
+        );
+        return topologyMap;
     }
 
     /**

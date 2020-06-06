@@ -164,16 +164,23 @@ public class DemandOverriddenCommodityEditor {
         } else if (commSold.hasHistoricalPeak() && isPeak) {
             HistoricalValues.Builder builder = commSold.getHistoricalPeakBuilder();
             difference = applyChangeOnHistoricalBuilder(commSold, builder, percentage);
-        } else if (isPeak) {
-            double newPeak = Math.max(0, Math.min(commSold.getCapacity(),
-                commSold.getPeak() * (percentage / 100d + 1)));
-            difference = newPeak - commSold.getPeak();
-            commSold.setPeak(Math.max(0, newPeak));
         } else {
-            double newUsed = Math.max(0, Math.min(commSold.getCapacity(),
-                commSold.getUsed() * (percentage / 100d + 1)));
-            difference = newUsed - commSold.getUsed();
-            commSold.setUsed(Math.max(0, newUsed));
+            if (commSold.hasCapacity()) {
+                if (isPeak) {
+                    double newPeak = Math.max(0, Math.min(commSold.getCapacity(),
+                                    commSold.getPeak() * (percentage / 100d + 1)));
+                    difference = newPeak - commSold.getPeak();
+                    commSold.setPeak(Math.max(0, newPeak));
+                } else {
+                    double newUsed = Math.max(0, Math.min(commSold.getCapacity(),
+                        commSold.getUsed() * (percentage / 100d + 1)));
+                    difference = newUsed - commSold.getUsed();
+                    commSold.setUsed(Math.max(0, newUsed));
+                }
+            } else {
+                logger.debug("Workload usage will not be overridden for commodity with missing capacity " + commSold);
+                difference = 0d;
+            }
         }
         return difference;
     }
@@ -190,11 +197,16 @@ public class DemandOverriddenCommodityEditor {
     private double applyChangeOnHistoricalBuilder(@Nonnull CommoditySoldDTO.Builder commSold,
                                                 @Nonnull HistoricalValues.Builder builder,
                                                 int percentage) {
-        double newUsed = Math.max(0, Math.min(commSold.getCapacity(),
-            builder.getHistUtilization() * (percentage / 100d + 1)));
-        double difference = newUsed - builder.getHistUtilization();
-        builder.setHistUtilization(Math.max(0, newUsed));
-        return difference;
+        if (commSold.hasCapacity()) {
+            double newUsed = Math.max(0, Math.min(commSold.getCapacity(),
+                builder.getHistUtilization() * (percentage / 100d + 1)));
+            double difference = newUsed - builder.getHistUtilization();
+            builder.setHistUtilization(Math.max(0, newUsed));
+            return difference;
+        } else {
+            logger.debug("Historical utilization will not be overridden for commodity with missing capacity " + commSold);
+            return 0d;
+        }
     }
 
     /**

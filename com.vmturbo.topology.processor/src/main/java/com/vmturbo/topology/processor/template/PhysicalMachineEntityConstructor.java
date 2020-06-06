@@ -43,24 +43,21 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
     // Max 256 LUNS based on https://www.vmware.com/pdf/vsphere6/r60/vsphere-60-configuration-maximums.pdf
     public static final int MAX_LUN_LIMIT = 256;
 
-    // Random numbers ported from legacy.
+    // Semi-random capacity number based on VC standard 20-second real-time metric interval.
     public static final double QX_VCPU_BASE_COEFFICIENT = 20000.0;
+    // Random numbers ported from legacy.
     public static final double BALLOONING_DEFAULT_CAPACITY = 1.0E9;
     public static final double SWAPPING_DEFAULT_CAPACITY = 5000.0;
 
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-            @Nonnull final Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
+            @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
                 template, originalTopologyEntity, isReplaced, identityProvider,
                 EntityType.PHYSICAL_MACHINE_VALUE);
 
-        final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
-                originalTopologyEntity);
-        final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
-                originalTopologyEntity);
         final Map<String, String> computeTemplateResources = createFieldNameValueMap(
                 getTemplateResources(template, Compute));
         addComputeCommodities(topologyEntityBuilder, computeTemplateResources);
@@ -72,11 +69,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
         final List<TemplateResource> infraTemplateResources = getTemplateResources(template,
                 Infrastructure);
         addInfraCommodities(topologyEntityBuilder, infraTemplateResources);
-        addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
-        if (originalTopologyEntity != null) {
-            updateRelatedEntityAccesses(originalTopologyEntity.getOid(),
-                    topologyEntityBuilder.getOid(), commoditySoldConstraints, topology);
-        }
+        setAccessCommodities(topologyEntityBuilder, originalTopologyEntity, topology);
 
         String templateName = template.hasTemplateInfo() && template.getTemplateInfo().hasName() ?
                         template.getTemplateInfo().getName() : "";
@@ -110,6 +103,32 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
             .setPhysicalMachine(pmInfoBuilder));
 
         return topologyEntityBuilder;
+    }
+
+    /**
+     * Set the access commodities for the new host, based on the original host
+     * access commodities.
+     *
+     * @param newHost new host
+     * @param originalHost original host
+     * @param topology topology
+     * @throws TopologyEntityConstructorException error setting access
+     *             commodities
+     */
+    public static void setAccessCommodities(@Nonnull TopologyEntityDTO.Builder newHost,
+            @Nullable TopologyEntityDTO.Builder originalHost,
+            @Nonnull Map<Long, TopologyEntity.Builder> topology)
+            throws TopologyEntityConstructorException {
+        Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(originalHost);
+        List<CommoditiesBoughtFromProvider> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
+                originalHost);
+
+        addCommodityConstraints(newHost, commoditySoldConstraints, commodityBoughtConstraints);
+
+        if (originalHost != null) {
+            updateRelatedEntityAccesses(originalHost, newHost.build(),
+                    commoditySoldConstraints, topology);
+        }
     }
 
     /**

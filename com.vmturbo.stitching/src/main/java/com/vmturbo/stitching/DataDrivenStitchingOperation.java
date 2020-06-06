@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -37,19 +38,20 @@ import com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy;
  * {@link StitchingMatchingMetaData} is the interface that encapsulates the meta data needed to
  * drive the stitching.
  *
- * @param <INTERNAL_SIGNATURE_TYPE> The type of the signature used for matching with the internal
+ * @param <InternalSignatureT> The type of the signature used for matching with the internal
  *                                 (probe) side.
- * @param <EXTERNAL_SIGNATURE_TYPE> The type of the signature used for matching with the external
+ * @param <ExternalSignatureT> The type of the signature used for matching with the external
  *                                 (server) side.
  */
-public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> implements
-        StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> {
+public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT>
+                implements
+                StitchingOperation<InternalSignatureT, ExternalSignatureT> {
 
     private static final Logger logger = LogManager.getLogger();
 
     // The data structure encapsulating the stitching behavior passed in from the supply chain of
     // the probe.
-    private final StitchingMatchingMetaData<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
+    private final StitchingMatchingMetaData<InternalSignatureT, ExternalSignatureT>
             matchingInformation;
 
     // Set of ProbeCategory identifying the categories of probe who we want to stitch with
@@ -61,16 +63,17 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
     private Map<EntityType, EntityType> replacementEntityMap;
 
     /**
-     * Constructor taking {@link StitchingMatchingMetaData} of the appropriate type to define the stitching
-     * behavior.
+     * Constructor taking {@link StitchingMatchingMetaData} of the appropriate type to define the
+     * stitching behavior.
      *
-     * @param matchingInfo {@link StitchingMatchingMetaData} defining the storage behavior.
-     * @param categoriesToStitchWith {@link Set} of {@link ProbeCategory} giving the probe categories that
-     *                                  this stitching operation can stitch with.
+     * @param matchingInfo {@link StitchingMatchingMetaData} defining the stitching
+     *                 behavior.
+     * @param categoriesToStitchWith {@link Set} of {@link ProbeCategory} giving the
+     *                 probe categories that
      */
-    public DataDrivenStitchingOperation(@Nonnull StitchingMatchingMetaData<INTERNAL_SIGNATURE_TYPE,
-            EXTERNAL_SIGNATURE_TYPE> matchingInfo,
-                                        @Nonnull final Set<ProbeCategory> categoriesToStitchWith) {
+    public DataDrivenStitchingOperation(
+                    @Nonnull StitchingMatchingMetaData<InternalSignatureT, ExternalSignatureT> matchingInfo,
+                    @Nonnull final Set<ProbeCategory> categoriesToStitchWith) {
         this.matchingInformation = Objects.requireNonNull(matchingInfo);
         this.categoriesToStitchWith = Objects.requireNonNull(categoriesToStitchWith);
         initReplacementEntityMap();
@@ -135,83 +138,27 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
         return Optional.of(matchingInformation.getExternalEntityType());
     }
 
-    /**
-     * Return a concatenated list of the String values passed in.  This is here as a convenience
-     * method to be called from combineSignatures by subclasses that are matching on String.
-     *
-     * @param matchingValues List of single matching values returned by a matching field or property.
-     * @return Optional string of concatenated values or Optional.empty.
-     */
-    protected static Optional<String> combineStringSignatures(List<String> matchingValues) {
-        if (matchingValues.isEmpty()) {
-            return Optional.empty();
-        }
-        String concatenatedValues = matchingValues.stream()
-                .collect(Collectors.joining(""));
-
-        return Optional.of(concatenatedValues);
+    @Override
+    public Collection<InternalSignatureT> getInternalSignature(@Nonnull StitchingEntity entity) {
+        return getSignatures(entity, matchingInformation::getInternalMatchingData);
     }
 
-    /**
-     * Method to combine multiple internal signature values into a single value.  Default behavior
-     * is to return first element of list.  Subclasses should override with useful
-     * behavior if they support combining multiple values.
-     *
-     * @param matchingValues List of single matching values returned by a matching field or property.
-     * @return Optional of combined values.
-     */
-    protected Optional<INTERNAL_SIGNATURE_TYPE> combineInternalSignatures(
-            List<INTERNAL_SIGNATURE_TYPE> matchingValues) {
-        if (matchingValues.isEmpty()) {
-            return Optional.empty();
-        }
-        if (matchingValues.size() > 1) {
-            logger.error("Multiple internal signatures returned for a stitching operation without "
-                    + "a defined method to combine values.  No stitching can be done on this entity.");
-            return Optional.empty();
-        }
-        return Optional.of(matchingValues.get(0));
-    }
-
-    /**
-     * Method to combine multiple external signature values into a single value.  Default behavior
-     * is to return first element of list.  Subclasses should override with useful
-     * behavior if they support combining multiple values.
-     *
-     * @param matchingValues List of single matching values returned by a matching field or property.
-     * @return Optional of combined values.
-     */
-    protected Optional<EXTERNAL_SIGNATURE_TYPE> combineExternalSignatures(
-            List<EXTERNAL_SIGNATURE_TYPE> matchingValues) {
-        if (matchingValues.isEmpty()) {
-            return Optional.empty();
-        }
-        if (matchingValues.size() > 1) {
-            logger.error("Multiple external signatures returned for a stitching operation without "
-            + "a defined method to combine values.  No stitching can be done on this entity.");
-            return Optional.empty();
-        }
-        return Optional.of(matchingValues.get(0));
+    private static <S> Collection<S> getSignatures(@Nonnull StitchingEntity internalEntity,
+                    @Nonnull Supplier<Collection<MatchingPropertyOrField<S>>> matchingMetadataProvider) {
+        final Collection<MatchingPropertyOrField<S>> matchingPropertyOrFields =
+                        matchingMetadataProvider.get();
+        final Collection<S> result = matchingPropertyOrFields.stream()
+                        .map(matchingFieldOrProp -> matchingFieldOrProp
+                                        .getMatchingValue(internalEntity))
+                        .filter(values -> !values.isEmpty())
+                        .flatMap(Collection::stream)
+                        .collect(Collectors.toSet());
+        return result;
     }
 
     @Override
-    public Optional<INTERNAL_SIGNATURE_TYPE> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
-        return combineInternalSignatures(matchingInformation.getInternalMatchingData()
-                .stream()
-                .map(matchingFieldOrProp -> matchingFieldOrProp.getMatchingValue(internalEntity))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList()));
-    }
-
-    @Override
-    public Optional<EXTERNAL_SIGNATURE_TYPE> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
-        return combineExternalSignatures(matchingInformation.getExternalMatchingData()
-                .stream()
-                .map(matchingFieldOrProp -> matchingFieldOrProp.getMatchingValue(externalEntity))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList()));
+    public Collection<ExternalSignatureT> getExternalSignature(@Nonnull StitchingEntity entity) {
+        return getSignatures(entity, matchingInformation::getExternalMatchingData);
     }
 
     @Nonnull

@@ -1,7 +1,7 @@
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-ENV ARANGO_VERSION 3.6.1-1.0
+ENV ARANGO_VERSION 3.6.4-1.0
 ENV ARANGO_URL https://download.arangodb.com/arangodb36/RPM/x86_64/arangodb3-${ARANGO_VERSION}.x86_64.rpm
 ENV OPENSSL_URL http://mirror.centos.org/centos/8/AppStream/x86_64/os/Packages/compat-openssl10-1.0.2o-3.el8.x86_64.rpm
 

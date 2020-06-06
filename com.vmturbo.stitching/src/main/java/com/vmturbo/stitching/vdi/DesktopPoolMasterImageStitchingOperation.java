@@ -1,15 +1,10 @@
 package com.vmturbo.stitching.vdi;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,6 +14,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterData;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.stitching.IntersectionStitchingIndex;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
@@ -59,20 +55,24 @@ public class DesktopPoolMasterImageStitchingOperation implements StitchingOperat
     }
 
     @Override
-    public Optional<String> getInternalSignature(@Nonnull final StitchingEntity internalEntity) {
+    public Collection<String> getInternalSignature(@Nonnull final StitchingEntity internalEntity) {
         if (!internalEntity.getEntityBuilder().hasVirtualDatacenterData() ||
                 !internalEntity.getEntityBuilder().getVirtualDatacenterData().hasDesktopPoolData()
                 || !internalEntity.getEntityBuilder().getVirtualDatacenterData()
                 .getDesktopPoolData().hasMasterImage()) {
-            return Optional.empty();
+            return Collections.emptySet();
         }
-        return Optional.of(internalEntity.getEntityBuilder()
+        return Collections.singleton(internalEntity.getEntityBuilder()
                 .getVirtualDatacenterData().getDesktopPoolData().getMasterImage());
     }
 
     @Override
-    public Optional<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
-        return Optional.ofNullable(externalEntity.getEntityBuilder().getId());
+    public Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+        final String entityId = externalEntity.getEntityBuilder().getId();
+        if (entityId == null) {
+            return Collections.emptySet();
+        }
+        return Collections.singleton(entityId);
     }
 
     @Nonnull
@@ -113,34 +113,8 @@ public class DesktopPoolMasterImageStitchingOperation implements StitchingOperat
         dpBuilder.setVirtualDatacenterData(vdcDataBuilder.build()).build();
     }
 
-    /**
-     * The index that matches from VMs' uuid to DPs' masterImage.
-     * Two DPs can have the same masterImage, if they source from the same VM.
-     * We use masterImage of DPs as internal signature, and use VMs' uuid as external signature.
-     * All the DPs need to be stitched.
-     * So we need to use a multimap to store the relations between masterImage and all the master image String objects.
-     */
-    public static class DesktopPoolMasterImageStitchingIndex implements StitchingIndex<String, String> {
-        private final Multimap<String, String> index;
-
-        public DesktopPoolMasterImageStitchingIndex(final int expectedSize) {
-            index = Multimaps.newListMultimap(new HashMap<>(expectedSize), ArrayList::new);
-        }
-
-        @Override
-        public void add(@Nonnull String internalSignature) {
-            index.put(internalSignature, internalSignature);
-        }
-
-
-        @Override
-        public Stream<String> findMatches(@Nonnull String externalSignature) {
-            return index.get(externalSignature).stream();
-        }
-    }
-
     @Override
     public StitchingIndex<String, String> createIndex(final int expectedSize) {
-        return new DesktopPoolMasterImageStitchingIndex(expectedSize);
+        return new IntersectionStitchingIndex(expectedSize);
     }
 }

@@ -39,6 +39,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorComponent;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
@@ -126,6 +127,7 @@ public class ActionExecutionSecureRpcTest {
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+    private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
@@ -167,7 +169,7 @@ public class ActionExecutionSecureRpcTest {
             workflowStore,
             statReader,
             currentActionStatReader,
-            userSessionContext);
+            userSessionContext, acceptedActionsStore);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
     private ActionStore actionStoreSpy;
@@ -272,7 +274,7 @@ public class ActionExecutionSecureRpcTest {
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             actionTargetSelector, probeCapabilityCache, entitySettingsCache,
             actionHistoryDao, actionsStatistician, actionTranslator, clock, userSessionContext,
-            licenseCheckClient, actionIdentityService, involvedEntitiesExpander));
+            licenseCheckClient, acceptedActionsStore, actionIdentityService, involvedEntitiesExpander));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");
@@ -296,7 +298,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -330,7 +332,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -361,7 +363,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -386,7 +388,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -430,7 +432,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -456,7 +458,7 @@ public class ActionExecutionSecureRpcTest {
     public void testAcceptActionWithScopedUser() {
         final Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID, 10L, 0, 1, 1, 1 );
         final ActionPlan plan = actionPlan(recommendation);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
         actionStorehouse.storeActions(plan);
 
@@ -467,7 +469,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         // a user WITH access CAN execute the action
         EntityAccessScope accessScopeOK = new EntityAccessScope(null, null,

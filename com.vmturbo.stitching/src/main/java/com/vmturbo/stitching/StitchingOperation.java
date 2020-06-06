@@ -105,7 +105,7 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      * @return The signature for the internal entity. Return {@link Optional#empty()} to skip considering
      *         this entity during matching.
      */
-    Optional<INTERNAL_SIGNATURE_TYPE> getInternalSignature(@Nonnull final StitchingEntity internalEntity);
+    Collection<INTERNAL_SIGNATURE_TYPE> getInternalSignature(@Nonnull StitchingEntity internalEntity);
 
     /**
      * Get the external signature for an external entity. External signatures will be matched against
@@ -125,7 +125,7 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      * @return The signature for the external entity. Return {@link Optional#empty()} to skip considering
      *         this entity during matching.
      */
-    Optional<EXTERNAL_SIGNATURE_TYPE> getExternalSignature(@Nonnull final StitchingEntity externalEntity);
+    Collection<EXTERNAL_SIGNATURE_TYPE> getExternalSignature(@Nonnull StitchingEntity externalEntity);
 
     /**
      * Stitch a collection of {@link StitchingPoint}s.

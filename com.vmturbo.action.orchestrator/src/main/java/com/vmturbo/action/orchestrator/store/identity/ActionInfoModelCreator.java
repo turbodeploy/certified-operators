@@ -1,19 +1,23 @@
 package com.vmturbo.action.orchestrator.store.identity;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
@@ -21,6 +25,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -45,6 +50,9 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
         map.put(ActionTypeCase.DEACTIVATE, ActionInfoModelCreator::getDeactivate);
         map.put(ActionTypeCase.RESIZE, ActionInfoModelCreator::getResize);
         map.put(ActionTypeCase.DELETE, ActionInfoModelCreator::getDelete);
+        map.put(ActionTypeCase.BUYRI, ActionInfoModelCreator::getBuyRi);
+        map.put(ActionTypeCase.ALLOCATE, ActionInfoModelCreator::getAllocate);
+        map.put(ActionTypeCase.SCALE, ActionInfoModelCreator::getScale);
         fieldsCalculators = Collections.unmodifiableMap(map);
     }
 
@@ -69,15 +77,8 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
     @Nonnull
     private static ActionInfoModel getMove(@Nonnull ActionInfo action) {
         final Move move = action.getMove();
-        final List<MoveChange> changes = new ArrayList<>(move.getChangesCount());
-        for (ChangeProvider changeProvider : move.getChangesList()) {
-            final MoveChange change = new MoveChange(changeProvider.getSource().getId(),
-                    changeProvider.getDestination().getId(),
-                    changeProvider.hasResource() ? changeProvider.getResource().getId() : null);
-            changes.add(change);
-        }
-        final String changesString = gson.toJson(changes);
-        return new ActionInfoModel(ActionTypeCase.MOVE, move.getTarget().getId(), changesString);
+        final Set<String> changes = createChangesJson(move.getChangesList());
+        return new ActionInfoModel(ActionTypeCase.MOVE, move.getTarget().getId(), null, changes);
     }
 
     @Nonnull
@@ -86,14 +87,14 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
         final String changesString =
                 reconfigure.hasSource() ? Long.toString(reconfigure.getSource().getId()) : null;
         return new ActionInfoModel(ActionTypeCase.RECONFIGURE, reconfigure.getTarget().getId(),
-                changesString);
+                changesString, null);
     }
 
     @Nonnull
     private static ActionInfoModel getProvision(@Nonnull ActionInfo action) {
         final Provision provision = action.getProvision();
         return new ActionInfoModel(ActionTypeCase.PROVISION, provision.getEntityToClone().getId(),
-                Long.toString(provision.getProvisionedSeller()));
+                Long.toString(provision.getProvisionedSeller()), null);
     }
 
     @Nonnull
@@ -104,31 +105,80 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
                         resize.getOldCapacity(), resize.getNewCapacity(),
                         resize.getHotAddSupported(), resize.getHotRemoveSupported());
         final String modelString = gson.toJson(model);
-        return new ActionInfoModel(ActionTypeCase.RESIZE, resize.getTarget().getId(), modelString);
+        return new ActionInfoModel(ActionTypeCase.RESIZE, resize.getTarget().getId(), modelString,
+                null);
     }
 
     @Nonnull
     private static ActionInfoModel getActivate(@Nonnull ActionInfo action) {
         final Activate activate = action.getActivate();
-        return new ActionInfoModel(ActionTypeCase.ACTIVATE, activate.getTarget().getId(), null);
+        return new ActionInfoModel(ActionTypeCase.ACTIVATE, activate.getTarget().getId(), null,
+                null);
     }
 
     @Nonnull
     private static ActionInfoModel getDeactivate(@Nonnull ActionInfo action) {
         final Deactivate deactivate = action.getDeactivate();
-        return new ActionInfoModel(ActionTypeCase.DEACTIVATE, deactivate.getTarget().getId(), null);
+        return new ActionInfoModel(ActionTypeCase.DEACTIVATE, deactivate.getTarget().getId(), null,
+                null);
     }
 
     @Nonnull
     private static ActionInfoModel getDelete(@Nonnull ActionInfo action) {
         final Delete delete = action.getDelete();
-        return new ActionInfoModel(ActionTypeCase.DELETE, delete.getTarget().getId(), null);
+        return new ActionInfoModel(ActionTypeCase.DELETE, delete.getTarget().getId(), null, null);
+    }
+
+    @Nonnull
+    private static ActionInfoModel getBuyRi(@Nonnull ActionInfo action) {
+        final BuyRI buyRi = action.getBuyRi();
+        final BuyRiModel model = new BuyRiModel(
+                buyRi.hasComputeTier() ? buyRi.getComputeTier().getId() : null,
+                buyRi.hasMasterAccount() ? buyRi.getMasterAccount().getId() : null,
+                buyRi.hasRegion() ? buyRi.getRegion().getId() : null);
+        return new ActionInfoModel(ActionTypeCase.BUYRI, buyRi.getBuyRiId(), gson.toJson(model),
+                null);
+    }
+
+    @Nonnull
+    private static ActionInfoModel getAllocate(@Nonnull ActionInfo action) {
+        final Allocate allocate = action.getAllocate();
+        return new ActionInfoModel(ActionTypeCase.ALLOCATE, allocate.getTarget().getId(),
+                allocate.hasWorkloadTier()
+                        ? Long.toString(allocate.getWorkloadTier().getId())
+                        : null, null);
+    }
+
+    @Nonnull
+    private static ActionInfoModel getScale(@Nonnull ActionInfo action) {
+        final Scale scale = action.getScale();
+        final Set<String> changes = createChangesJson(scale.getChangesList());
+        return new ActionInfoModel(ActionTypeCase.SCALE, scale.getTarget().getId(), null, changes);
     }
 
     /**
      * JSON schema to store a single move change.
+     *
+     * @param providers change providers to serialize to a string.
+     * @return JSON serialized string
+     */
+    @Nonnull
+    private static Set<String> createChangesJson(@Nonnull List<ChangeProvider> providers) {
+        final Set<String> changes = new HashSet<>(providers.size());
+        for (ChangeProvider changeProvider : providers) {
+            final MoveChange change = new MoveChange(changeProvider.getSource().getId(),
+                    changeProvider.getDestination().getId(),
+                    changeProvider.hasResource() ? changeProvider.getResource().getId() : null);
+            changes.add(gson.toJson(change));
+        }
+        return changes;
+    }
+
+    /**
+     * Move change object. Used for JSON serialization. It is just a composition of fields.
      */
     private static class MoveChange {
+
         private final long sourceId;
         private final long destinationId;
         private final Long resourceId;
@@ -160,6 +210,22 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
             this.newCapacity = newCapacity;
             this.hotAddSupported = hotAddSupported;
             this.hotRemoveSupported = hotRemoveSupported;
+        }
+    }
+
+    /**
+     * Model for BuyRi action details.
+     */
+    private static class BuyRiModel {
+        private final Long computeTier;
+        private final Long masterAccount;
+        private final Long region;
+
+        BuyRiModel(@Nullable Long computeTier, @Nullable Long masterAccount,
+                @Nullable Long region) {
+            this.computeTier = computeTier;
+            this.masterAccount = masterAccount;
+            this.region = region;
         }
     }
 }

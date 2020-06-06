@@ -342,6 +342,15 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
     }
 
+    private GetMembersResponse makeMembersResponse(final long groupId, Set<Long> members) {
+        members.remove(groupId);
+        final GetMembersResponse response = GetMembersResponse.newBuilder()
+                .setGroupId(groupId)
+                .addAllMemberId(members)
+                .build();
+        return response;
+    }
+
     @Override
     public void getMembers(final GroupDTO.GetMembersRequest request,
             final StreamObserver<GroupDTO.GetMembersResponse> responseObserver) {
@@ -368,7 +377,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                 .map(Optional::get)
                 .collect(Collectors.toList());
         for (Grouping group: tmpGroups) {
-            final List<Long> members = getGroupMembers(groupStore, group.getDefinition(),
+            final Set<Long> members = getGroupMembers(groupStore, group.getDefinition(),
                     request.getExpandNestedGroups());
             // verify the user has access to all of the group members before returning any of them.
             if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
@@ -382,11 +391,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             }
             // return members
             logger.trace("Returning group ({}) with {} members", group.getId(), members.size());
-            final GetMembersResponse response = GetMembersResponse.newBuilder()
-                    .setGroupId(group.getId())
-                    .addAllMemberId(members)
-                    .build();
-            responseObserver.onNext(response);
+            responseObserver.onNext(makeMembersResponse(group.getId(), members));
         }
         // Real (non-temporary groups)
         final Set<Long> realGroupIds = new HashSet<>(request.getIdList());
@@ -404,7 +409,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
         for (Long groupId: realGroupIds) {
             try {
-                final Collection<Long> members = getGroupMembers(groupStore, Collections.singleton(groupId),
+                final Set<Long> members = getGroupMembers(groupStore, Collections.singleton(groupId),
                     request.getExpandNestedGroups());
                 // verify the user has access to all of the group members before returning any of them.
                 if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
@@ -418,11 +423,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                 }
                 // return members
                 logger.trace("Returning group ({}) with {} members", groupId, members.size());
-                final GetMembersResponse response = GetMembersResponse.newBuilder()
-                    .setGroupId(groupId)
-                    .addAllMemberId(members)
-                    .build();
-                responseObserver.onNext(response);
+                responseObserver.onNext(makeMembersResponse(groupId, members));
             } catch (StoreOperationException | RuntimeException e) {
                 // We don't want a failure to retrieve the members of one group to result in a failure
                 // to retrieve members of all groups.
@@ -985,7 +986,7 @@ public class GroupRpcService extends GroupServiceImplBase {
     }
 
     @Nonnull
-    private List<Long> getGroupMembers(@Nonnull IGroupStore groupStore,
+    private Set<Long> getGroupMembers(@Nonnull IGroupStore groupStore,
             @Nonnull GroupDefinition groupDefinition, boolean expandNestedGroups)
             throws StoreOperationException {
         final long startTime = System.currentTimeMillis();
@@ -1040,7 +1041,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
         logger.debug("Retrieving anonymous group members took {}ms",
                 System.currentTimeMillis() - startTime);
-        return new ArrayList<>(memberOids);
+        return memberOids;
     }
 
     /**

@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.CaseFormat;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.stats.Stats.EntityToCommodityTypeCapacity;
 import com.vmturbo.common.protobuf.stats.Stats.EntityUuidAndType;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -37,18 +38,23 @@ import com.vmturbo.stitching.TopologyEntity;
  * The main algorithm for setting the capacity is as following:
  * if (userPolicyExits) {
  *      if (autoset from user policy == true) {
- * 	         then auto set.. take value from db last 7 days from the stats daily table.
+ * 	         then auto set.
  *      } else {
  * 	         take the value from settings -> this will search for value in user settings
  * 	         and if not found then from default settings
  *      }
  * } else {
  * 	    if (autoset == true) {
- * 		    then auto set.. take value from db last 7 days from the stats daily table.
+ * 		    then auto set.
  *      } else {
  * 		    take value from default settings
  *      }
  * }
+ *
+ *<p>** Auto setting is done as the following:
+ * Take value from db last 7 days (or hours on initialization) from the stats daily/hourly table,
+ * Then use the weighted avg of:
+ * (HISTORICAL_CAPACITY_WEIGHT * db value) + (CURRENT_CAPACITY_WEIGHT * capacity returned from probe)
  */
 public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostStitchingOperation {
 
@@ -59,6 +65,8 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
     private final CommodityType commodityType;
     private final com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig commodityStitchingOperationConfig;
     private static final Logger logger = LogManager.getLogger();
+    private static final double HISTORICAL_CAPACITY_WEIGHT = 0.8;
+    private static final double CURRENT_CAPACITY_WEIGHT = 0.2;
 
     /**
      * Creates an instance of this class.
@@ -126,7 +134,7 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                 }
             }
         });
-        // filtering ut the entities without commodities
+        // filtering out the entities without commodities
         final Map<TopologyEntity, Set<Builder>> entitySetMap = entitiesToUpdateCapacity.entrySet().stream()
             .filter(entityEntry -> !entityEntry.getValue().isEmpty())
             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
@@ -134,45 +142,71 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
         final Map<Long, TopologyEntity> oidToEntity = entitySetMap.keySet().stream()
             .collect(Collectors.toMap(e -> e.getOid(), e -> e));
         if (!entitySetMap.isEmpty()) {
-            updateEntitiesFromDb(entitySetMap, resultBuilder, oidToEntity);
+            updateEntitiesFromDb(entitySetMap, resultBuilder, oidToEntity, settingsCollection);
         }
         return resultBuilder.build();
     }
 
     private void updateEntitiesFromDb(final Map<TopologyEntity, Set<Builder>> entitySetMap,
                                       final EntityChangesBuilder<TopologyEntity> resultBuilder,
-                                      final Map<Long, TopologyEntity> oidToEntities) {
+                                      final Map<Long, TopologyEntity> oidToEntities, final EntitySettingsCollection settingsCollection) {
         final GetEntityCommoditiesCapacityValuesRequest.Builder requestBuilder = buildRequest(entitySetMap);
         // Getting the response from history component and queueing entity capacity update
         if (commodityStitchingOperationConfig.getStatsClient() != null) {
             commodityStitchingOperationConfig.getStatsClient().getEntityCommoditiesCapacityValues(requestBuilder.build())
                 .forEachRemaining(response -> {
-                    response.getEntitiesToCommodityTypeCapacityList().forEach(entityToCommodity -> {
-                        resultBuilder.queueUpdateEntityAlone(oidToEntities.get(entityToCommodity.getEntityUuid()),
-                            entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
-                                .getCommoditySoldListBuilderList().stream()
-                                .filter(this::commodityTypeMatches)
-                                .forEach(commSold ->    // updating the capacity from the response
-                                    commSold.setCapacity(entityToCommodity.getCapacity())
-                                ));
-                        oidToEntities.remove(entityToCommodity.getEntityUuid());
-                        }
-                    );
+                    if (response.getEntitiesToCommodityTypeCapacityList() != null) {
+                        response.getEntitiesToCommodityTypeCapacityList().forEach(entityToCommodity -> {
+                            resultBuilder.queueUpdateEntityAlone(oidToEntities.get(entityToCommodity.getEntityUuid()),
+                                entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
+                                    .getCommoditySoldListBuilderList().stream()
+                                    .filter(this::commodityTypeMatches)
+                                    .forEach(commSold -> // updating the capacity from the response
+                                        setValidCapacity(commSold, entityToCommodity, entityToUpdate)
+                                    ));
+                            oidToEntities.remove(entityToCommodity.getEntityUuid());
+                            }
+                        );
+                    }
                 });
         }
         // updating with the entities that did not return any data from the history component
-        // with the current used capacity
+        // with the current used capacity or policy
         oidToEntities.entrySet().forEach(oidToEntity -> {
-            final double usedCapacity = oidToEntity.getValue().getTopologyEntityDtoBuilder()
-                .getCommoditySoldListBuilderList().get(0).getUsed();
             resultBuilder.queueUpdateEntityAlone(oidToEntity.getValue(), entityToUpdate ->
                 entityToUpdate.getTopologyEntityDtoBuilder()
                 .getCommoditySoldListBuilderList().stream()
                 .filter(this::commodityTypeMatches)
                 .forEach(commSold ->
-                    commSold.setCapacity(usedCapacity)
+                    // set the used value if its not 0, otherwise set the policy value
+                    commSold.setCapacity(commSold.getUsed() != 0 ? commSold.getUsed() :
+                        settingsCollection
+                            .getEntitySetting(entityToUpdate.getOid(), capacitySettingName)
+                            // we know its not empty because that is the first validation in performOperation
+                            .get().getNumericSettingValue().getValue())
                 ));
         });
+    }
+
+    /**
+     * Setting the commodity capacity after null check and debug logging.
+     *
+     * @param commSold to which we want to set the value
+     * @param entityToCommodity contains the historical value returned from the db
+     * @param entityToUpdate contains the current 'used' value returned from the probe
+     */
+    private void setValidCapacity(final Builder commSold, final EntityToCommodityTypeCapacity entityToCommodity,
+                                  final TopologyEntity entityToUpdate) {
+        logger.debug("Calculating sold {} commodity capacity for {} with current used capacity: {} "
+                + "and historical capacity: {}", commodityType.name(), entityToUpdate.getDisplayName(),
+            commSold.getUsed(), entityToCommodity.getCapacity());
+        commSold.setCapacity(getWeightedAvgCapacity(
+            entityToCommodity.getCapacity(),
+            commSold.getUsed()));
+    }
+
+    private double getWeightedAvgCapacity(double historicalCapacity, double currentCapacity) {
+        return (historicalCapacity * HISTORICAL_CAPACITY_WEIGHT + currentCapacity * CURRENT_CAPACITY_WEIGHT);
     }
 
     /**

@@ -13,7 +13,6 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFac
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
@@ -78,7 +77,8 @@ public class RpcConfig {
             workflowConfig.workflowStore(),
             actionStatsConfig.historicalActionStatReader(),
             actionStatsConfig.currentActionStatReader(),
-            userSessionConfig.userSessionContext());
+            userSessionConfig.userSessionContext(),
+            actionStoreConfig.acceptedActionsStore());
     }
 
     @Bean

@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.operation;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Future;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -11,6 +12,7 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -240,6 +242,16 @@ public interface IOperationManager {
     @Nonnull
     Optional<Action> getInProgressAction(long id);
 
+    /**
+     * Notify the {@link OperationManager} that a {@link Operation} completed
+     * with a response returned by the probe.
+     *
+     * @param operation The {@link Operation} that completed.
+     * @param message The message from the probe containing the response.
+     * @return a Future representing pending completion of the task
+     */
+    Future<?> notifyDiscoveryResult(@Nonnull Discovery operation,
+                                           @Nonnull DiscoveryResponse message);
     /**
      * Returns timeout for action related operations. The operation is treated as expired, if
      * during a timeout period, there were no messages for the action: either action response

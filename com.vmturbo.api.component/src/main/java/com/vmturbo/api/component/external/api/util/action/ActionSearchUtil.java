@@ -11,9 +11,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -175,7 +175,6 @@ public class ActionSearchUtil {
      *
      * @param filter the filter
      * @return the result
-     * @throws OperationFailedException if the call to the supply chain service failed
      * @throws InterruptedException if thread is interrupted during processing.
      * @throws UnsupportedActionException translation to {@link ActionApiDTO} object failed for one object,
      *                                    because of action type that is not supported by the translation.
@@ -184,8 +183,7 @@ public class ActionSearchUtil {
      */
     @Nonnull
     public List<ActionApiDTO> callActionServiceWithNoPagination(@Nonnull ActionQueryFilter filter)
-            throws  InterruptedException, OperationFailedException,
-                    UnsupportedActionException, ExecutionException, ConversionException {
+            throws  InterruptedException, UnsupportedActionException, ExecutionException, ConversionException {
         final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
                 FilteredActionRequest.newBuilder()
                         .setTopologyContextId(realtimeTopologyContextId)

@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
@@ -62,6 +63,8 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.topology.processor.api.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * This class executes a plan project
@@ -93,6 +96,8 @@ public class PlanProjectExecutor {
     // If false, calculate headroom for restricted number of clusters in multiple plan instances.
     private final boolean headroomCalculationForAllClusters;
 
+    private final TopologyProcessor topologyProcessor;
+
     // Number of days for which system load was considered in history.
     private static final int LOOPBACK_DAYS = 10;
 
@@ -116,6 +121,7 @@ public class PlanProjectExecutor {
      * @param templatesDao templates DAO
      * @param historyChannel history channel
      * @param headroomCalculationForAllClusters specifies how to run cluster headroom plan
+     * @param topologyProcessor a REST call to get target info
      */
     PlanProjectExecutor(@Nonnull final PlanDao planDao,
                         @Nonnull final Channel groupChannel,
@@ -124,7 +130,8 @@ public class PlanProjectExecutor {
                         @Nonnull final Channel repositoryChannel,
                         @Nonnull final TemplatesDao templatesDao,
                         @Nonnull final Channel historyChannel,
-                        final boolean headroomCalculationForAllClusters) {
+                        final boolean headroomCalculationForAllClusters,
+                        @Nonnull final TopologyProcessor topologyProcessor) {
         this.groupChannel = Objects.requireNonNull(groupChannel);
         this.planService = Objects.requireNonNull(planRpcService);
         this.projectPlanPostProcessorRegistry = Objects.requireNonNull(projectPlanPostProcessorRegistry);
@@ -138,6 +145,7 @@ public class PlanProjectExecutor {
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
         this.statsHistoryService =
             StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
+        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
     }
 
     /**
@@ -319,6 +327,16 @@ public class PlanProjectExecutor {
         // executor class. We should refactor this to separate the general and type-specific
         // processing steps.
         if (type.equals(PlanProjectType.CLUSTER_HEADROOM)) {
+            Map<Long, String> targetOidToTargetName = Collections.emptyMap();
+            try {
+                // Construct targetOid to targetName map.
+                targetOidToTargetName = topologyProcessor.getAllTargets()
+                    .stream()
+                    .collect(Collectors.toMap(TargetInfo::getId, TargetInfo::getDisplayName));
+            } catch (CommunicationException e) {
+                logger.error("Error getting targets list", e);
+            }
+
             // Get the default cluster headroom template.
             Optional<Template> defaultHeadroomTemplate = templatesDao
                 .getFilteredTemplates(TemplatesFilter.newBuilder()
@@ -331,7 +349,7 @@ public class PlanProjectExecutor {
                 boolean addScopeEntry = true;
 
                 try {
-                    updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+                    updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, targetOidToTargetName);
                 } catch (NoSuchObjectException | IllegalTemplateOperationException |
                     DuplicateTemplateException e) {
                     addScopeEntry = false;
@@ -396,13 +414,15 @@ public class PlanProjectExecutor {
      *
      * @param cluster the cluster whose headroom template will be updated
      * @param defaultHeadroomTemplate an Optional of default cluster headroom template
+     * @param targetOidToTargetName targetOid to targetName map
      * @throws NoSuchObjectException if default cluster headroom template not found
      * @throws IllegalTemplateOperationException if the operation is not allowed created template
      * @throws DuplicateTemplateException if there are errors when a user tries to create templates
      */
     @VisibleForTesting
     void updateClusterHeadroomTemplate(@Nonnull final Grouping cluster,
-                                       @Nonnull final Optional<Template> defaultHeadroomTemplate)
+                                       @Nonnull final Optional<Template> defaultHeadroomTemplate,
+                                       @Nonnull final Map<Long, String> targetOidToTargetName)
                 throws NoSuchObjectException, IllegalTemplateOperationException,
                        DuplicateTemplateException {
         final List<SystemLoadRecord> systemLoadRecordList = new ArrayList<>();
@@ -418,7 +438,7 @@ public class PlanProjectExecutor {
             // Cluster has sufficient system load data.
             // Create avg template info.
             final SystemLoadProfileCreator profileCreator = new SystemLoadProfileCreator(
-                cluster, systemLoadRecordList, LOOPBACK_DAYS);
+                cluster, systemLoadRecordList, LOOPBACK_DAYS, targetOidToTargetName);
             final Map<Operation, SystemLoadCalculatedProfile> profiles = profileCreator.createAllProfiles();
             final SystemLoadCalculatedProfile avgProfile = profiles.get(Operation.AVG);
             // In this case, avgTemplateInfo exists for sure.
@@ -430,6 +450,11 @@ public class PlanProjectExecutor {
                 targetId = Optional.of(cluster.getOrigin().getDiscovered().getDiscoveringTargetId(0));
             } else {
                 targetId = Optional.empty();
+            }
+
+            if (!targetId.isPresent()) {
+                logger.warn("Cluster {} ({}) doesn't have an associated target id.",
+                    cluster.getDefinition().getDisplayName(), cluster.getId());
             }
 
             if (headroomTemplate.isPresent()) {

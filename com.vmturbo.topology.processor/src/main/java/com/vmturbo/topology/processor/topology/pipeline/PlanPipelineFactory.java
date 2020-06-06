@@ -36,6 +36,7 @@ import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
+import com.vmturbo.topology.processor.topology.RequestCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
@@ -57,6 +58,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ProbeActionCapabilitiesApplicatorStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.RequestCommodityThresholdsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationTrimStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
@@ -122,6 +124,8 @@ public class PlanPipelineFactory {
 
     private final DemandOverriddenCommodityEditor demandOverriddenCommodityEditor;
 
+    private final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector;
+
     private final EphemeralEntityEditor ephemeralEntityEditor;
 
     public PlanPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
@@ -147,6 +151,7 @@ public class PlanPipelineFactory {
                                @Nonnull HistoryAggregator historyAggregationStage,
                                @Nonnull DemandOverriddenCommodityEditor demandOverriddenCommodityEditor,
                                @Nonnull final ConsistentScalingManager consistentScalingManager,
+                               @Nonnull final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector,
                                @Nonnull final EphemeralEntityEditor ephemeralEntityEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
@@ -171,6 +176,7 @@ public class PlanPipelineFactory {
         this.constructTopologyStageCache = Objects.requireNonNull(constructTopologyStageCache);
         this.historyAggregator = Objects.requireNonNull(historyAggregationStage);
         this.demandOverriddenCommodityEditor = demandOverriddenCommodityEditor;
+        this.requestCommodityThresholdsInjector = Objects.requireNonNull(requestCommodityThresholdsInjector);
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
     }
 
@@ -232,11 +238,12 @@ public class PlanPipelineFactory {
                 .addStage(new SettingsUploadStage(entitySettingsResolver))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new PostStitchingStage(stitchingManager))
-                .addStage(new EntityValidationStage(entityValidator))
+                .addStage(new EntityValidationStage(entityValidator, true))
                 .addStage(new HistoryAggregationStage(historyAggregator, changes, topologyInfo, scope))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
                 .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes))
+                .addStage(new RequestCommodityThresholdsStage(requestCommodityThresholdsInjector))
                 .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))

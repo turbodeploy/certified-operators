@@ -2,9 +2,11 @@ package com.vmturbo.market.cloudscaling.sma.entities;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -328,15 +330,40 @@ public class SMAReservedInstance {
      *
      * @param coupon                 the max key value to search in couponToBestVM
      * @param includePartialCoverage ignore coupon parameter if true
+     * @param virtualMachineGroupMap map from group name to virtualMachine Group
      * @return the most preferred vm for the RI that the RI has not yet proposed and doesnt require more
      * coupons than what the RI has. In other words vm that can be fully covered by RI.
      */
-    public SMAVirtualMachine findBestVMIndexFromCouponToBestVM(int coupon, boolean includePartialCoverage) {
-        Set<Integer> possibleCoupons = couponToBestVM.keySet();
+    public SMAVirtualMachine findBestVMIndexFromCouponToBestVM(int coupon, boolean includePartialCoverage,
+                                                               Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
         if (!includePartialCoverage) {
-            possibleCoupons = possibleCoupons.stream()
-                    .filter(a -> a <= coupon).collect(Collectors.toSet());
+            // all possible coupons are passed to compute bestPartialVM.
+            SMAVirtualMachine bestPartialVM =  findBestVM(couponToBestVM.keySet());
+            // only those coupons which are below "coupon" are passed. We need full coverage.
+            SMAVirtualMachine bestFullVM =  findBestVM(couponToBestVM.keySet().stream()
+                    .filter(a -> a <= coupon).collect(Collectors.toSet()));
+            if (bestFullVM == null) {
+                return bestPartialVM;
+            }
+            if (bestPartialVM == null) {
+                return bestFullVM;
+            }
+            if (compareCost(bestFullVM, bestPartialVM, virtualMachineGroupMap, coupon) > 0) {
+                return bestPartialVM;
+            } else {
+                return bestFullVM;
+            }
+        } else {
+            return findBestVM(couponToBestVM.keySet());
         }
+    }
+
+    /**
+     * Find the best VM  the RI can discount whose coupons requirement is in possibleCoupons set.
+     * @param possibleCoupons the set of possible coupons.
+     * @return the best VM the RI can discount.
+     */
+    public SMAVirtualMachine findBestVM(Set<Integer> possibleCoupons) {
         SMAVirtualMachine bestVM = null;
         Integer bestIndex = Integer.MAX_VALUE;
         for (Integer c : possibleCoupons) {
@@ -347,6 +374,100 @@ public class SMAReservedInstance {
             }
         }
         return bestVM;
+    }
+
+    /**
+     * Compute the savings obtained by matching the virtual machine with reservedInstance.
+     *
+     * @param vm virtual machine of interest.
+     * @param virtualMachineGroupMap  map from group name to virtualMachine Group
+     * @param coupons remaining coupons available in the RI.
+     * @return  the savings obtained by matching the virtual machine with reservedInstance.
+     */
+    public float computeSaving(SMAVirtualMachine vm,
+                               Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
+                               int coupons) {
+        final List<SMAVirtualMachine> vmList;
+        if (vm.getGroupSize() > 1) {
+            vmList = virtualMachineGroupMap.get(vm.getGroupName()).getVirtualMachines();
+        } else {
+            vmList = Collections.singletonList(vm);
+        }
+        SMATemplate riTemplate = getNormalizedTemplate();
+        float netSavingvm = 0;
+        for (SMAVirtualMachine member : vmList) {
+            float onDemandCostvm = member.getNaturalTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), 0);
+            /*  ISF : VM with t3.large and a ISF RI in t2 family. VM can move to t2.large.
+             *  t2.large need 10 coupons. But we have only 6 coupons.
+             *  riTemplate.getFamily() returns t2.
+             *  getMinCostProviderPerFamily().get("t2") returns t2.large
+             *  netCost will be ondemandCost * .4 + discountedCost 0.6 of the t2.large template.
+             *  Note that for AWS the discountedCost will be 0;
+             */
+            /*  Non-ISF VM with t3.large and a RI is t2.large. VM has to move to t2.large.
+             *  t2.large need 10 coupons.
+             *  riTemplate returns t2.large.
+             *  afterMoveCost will be ondemandCost * 0 + discountedCost * 1 of the t2.large template.
+             *  Note that for AWS the discountedCost will be 0; So afterMoveCost will be 0;
+             */
+            float afterMoveCostvm = isIsf() ? member.getMinCostProviderPerFamily(
+                    riTemplate.getFamily()).getNetCost(vm.getBusinessAccountId(),
+                            vm.getOsType(),
+                            (float)coupons / vm.getGroupSize()) : riTemplate
+                    .getNetCost(vm.getBusinessAccountId(), vm.getOsType(), (float)coupons / vm.getGroupSize());
+
+            netSavingvm += (onDemandCostvm - afterMoveCostvm);
+        }
+        return netSavingvm;
+
+    }
+
+    /**
+     * compare the saving per coupon of two virtual machines when discounted by this RI.
+     * @param vm1 first VM
+     * @param vm2 second VM
+     * @param virtualMachineGroupMap  map from group name to virtualMachine Group
+     * @param coupons remaining coupons available in the RI.
+     * @return -1 if vm1 has more saving per coupon. 1 if vm2 has more saving per coupon. 0 otherwise.
+     */
+    public int compareCost(SMAVirtualMachine vm1, SMAVirtualMachine vm2,
+                           Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
+                           int coupons) {
+        float netSavingVm1 = computeSaving(vm1, virtualMachineGroupMap, coupons);
+        float netSavingVm2 = computeSaving(vm2, virtualMachineGroupMap, coupons);
+
+        String riFamily = getNormalizedTemplate().getFamily();
+        float couponsVm1 = 0.0f;
+        float couponsVm2 = 0.0f;
+        if (isIsf()) {
+            couponsVm1 = (float)Math.min(coupons, vm1.getMinCostProviderPerFamily(riFamily).getCoupons() * vm1.getGroupSize());
+            couponsVm2 = (float)Math.min(coupons, vm2.getMinCostProviderPerFamily(riFamily).getCoupons() * vm2.getGroupSize());
+        } else {
+            couponsVm1 = (float)getNormalizedTemplate().getCoupons() * vm1.getGroupSize();
+            couponsVm2 = (float)getNormalizedTemplate().getCoupons() * vm2.getGroupSize();
+        }
+
+        float netSavingVm1PerCoupon = netSavingVm1 / couponsVm1;
+        float netSavingVm2PerCoupon = netSavingVm2 / couponsVm2;
+
+        netSavingVm1PerCoupon = SMAUtils.round(netSavingVm1PerCoupon);
+        netSavingVm2PerCoupon = SMAUtils.round(netSavingVm2PerCoupon);
+
+        // Pick VM with higher savings per coupon.
+        if ((netSavingVm1PerCoupon - netSavingVm2PerCoupon) > SMAUtils.EPSILON) {
+            return -1;
+        }
+        if ((netSavingVm2PerCoupon - netSavingVm1PerCoupon) > SMAUtils.EPSILON) {
+            return 1;
+        }
+
+        if ((couponsVm1 - couponsVm2) > SMAUtils.EPSILON) {
+            return -1;
+        }
+        if ((couponsVm2 - couponsVm1) > SMAUtils.EPSILON) {
+            return 1;
+        }
+        return 0;
     }
 
     /**

@@ -10,6 +10,9 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -20,6 +23,8 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.io.BaseEncoding;
 
 import org.apache.logging.log4j.LogManager;
@@ -33,29 +38,35 @@ import com.vmturbo.components.common.utils.EnvironmentUtils;
 public class CryptoFacility {
 
     /**
-     * The logger.
+     * Default encryption key length is version 2 which is 256 bits.
      */
-    private static Logger logger = LogManager.getLogger(CryptoFacility.class);
+    static final Integer DEFAULT_KEY_LENGTH_VERSION = 2;
 
     /**
-     * The key localtion property
+     * The key location property.
      */
     private static final String VMT_ENCRYPTION_KEY_DIR_PARAM = "com.vmturbo.keydir";
 
     /**
-     * The default encryption key location
+     * The default encryption key location.
      */
     private static final String VMT_ENCRYPTION_KEY_DIR = "/home/turbonomic/data/helper_dir";
 
     /**
-     * The keystore data file name
+     * The keystore data file name, for 128 bits key-size.
      */
-    private static final String VMT_ENCRYPTION_KEY_FILE = "vmt_helper_data.out";
+    static final String VMT_ENCRYPTION_KEY_FILE = "vmt_helper_data.out";
 
     /**
-     * The charset for the passwords
+     * The keystore data file name, for 256 bits key-size.
      */
-    private static final String CHARSET_CRYPTO = "UTF-8";
+    static final String VMT_ENCRYPTION_KEY_FILE_256 = "vmt_helper_data_256.out";
+
+    /**
+     * The charset for the passwords.
+     */
+    @VisibleForTesting
+    static final String CHARSET_CRYPTO = "UTF-8";
 
     /**
      * The authenticated cipher algorithm.
@@ -68,44 +79,48 @@ public class CryptoFacility {
     private static final int GCM_TAG_LENGTH = 128;
 
     /**
-     * The cipher key specification algorithm
+     * The cipher key specification algorithm.
      */
     private static final String KEYSPEC_ALGORITHM = "AES";
 
     /**
-     * The key derivation algorithm
+     * The key derivation algorithm.
      */
     private static final String PBKDF2_DERIVATION_ALGORITHM = "PBKDF2WithHmacSHA256";
 
     /**
-     * The salt length
+     * The salt length.
      */
     public static final int PKCS5_SALT_LENGTH = 0x20;
 
     /**
-     * The PBKDF2 iteration count
+     * The PBKDF2 iteration count.
      */
     private static final int PBKDF2_ITERATIONS = 32768;
 
     /**
-     * The cipher key length
+     * Encryption version -> key size maps.
+     * version 1 -> 128 key size
+     * version 2 -> 256 key size
      */
-    private static final int KEY_LENGTH_BITS = 128;
+    @VisibleForTesting
+    static final Map<Integer, AesParameter> AES_VERSION_KEY_CONFIG_MAP =
+            ImmutableMap.<Integer, AesParameter>builder()
+                    .put(1, new AesParameter(128, VMT_ENCRYPTION_KEY_FILE))
+                    .put(2, new AesParameter(256, VMT_ENCRYPTION_KEY_FILE_256))
+                    .build();
 
     /**
-     * The version
+     * The logger.
      */
-    private static final int VERSION = 1;
+    private static Logger logger = LogManager.getLogger(CryptoFacility.class);
 
     /**
      * The secure random
      */
     private static final SecureRandom random = new SecureRandom();
 
-    /**
-     * The encryption key
-     */
-    private static byte[] encryptionKeyForVMTurboInstance = null;
+    private static  Map<Integer, byte[]> encryptionKeyMap = new ConcurrentHashMap<>();
 
     /**
      * The magic cookie.
@@ -189,7 +204,7 @@ public class CryptoFacility {
             Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
             ByteBuffer buff = ByteBuffer.wrap(cipherdata);
             int version = buff.getInt();
-            if (version != VERSION) {
+            if (!AES_VERSION_KEY_CONFIG_MAP.containsKey(version)) {
                 throw new IllegalArgumentException("The version is unsupported");
             }
 
@@ -211,7 +226,7 @@ public class CryptoFacility {
             byte[] cipherBytes = new byte[length];
             buff.get(cipherBytes);
 
-            SecretKey key = getDerivedKey(keySplitValue, salt);
+            SecretKey key = getDerivedKey(keySplitValue, salt, version);
             GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, nonce);
             cipher.init(Cipher.DECRYPT_MODE, key, spec);
             byte[] decryptedData = cipher.doFinal(cipherBytes);
@@ -241,13 +256,15 @@ public class CryptoFacility {
      *                      constitutes the part of the salt utilized by the PBKDF2 algorithm,
      *                      but isn't stored stored with the encrypted data.
      * @param salt          The salt.
+     * @param version       Encryption key length version
      * @return The derived site secret.
      */
     private static SecretKey getDerivedKey(final String keySplitValue,
-                                           final @Nonnull byte[] salt) {
+            final @Nonnull byte[] salt,
+            final int version) {
         // In case there is no seed, use the direct key.
         if (keySplitValue == null) {
-            return new SecretKeySpec(getEncryptionKeyForVMTurboInstance(), KEYSPEC_ALGORITHM);
+            return new SecretKeySpec(getEncryptionKeyForVMTurboInstance(version), KEYSPEC_ALGORITHM);
         }
 
         try {
@@ -256,12 +273,11 @@ public class CryptoFacility {
             byte[] finalSalt = new byte[seedData.length + salt.length];
             System.arraycopy(seedData, 0, finalSalt, 0, seedData.length);
             System.arraycopy(salt, 0, finalSalt, seedData.length, salt.length);
-            byte[] siteSecretBytes = getEncryptionKeyForVMTurboInstance();
+            byte[] siteSecretBytes = getEncryptionKeyForVMTurboInstance(version);
             String siteSecret = BaseEncoding.base64().encode(siteSecretBytes);
             KeySpec specs = new PBEKeySpec(siteSecret.toCharArray(),
-                                           finalSalt,
-                                           PBKDF2_ITERATIONS,
-                                           KEY_LENGTH_BITS);
+                                           finalSalt, PBKDF2_ITERATIONS,
+                    AES_VERSION_KEY_CONFIG_MAP.get(version).keyLength);
             SecretKeyFactory kf = SecretKeyFactory.getInstance(PBKDF2_DERIVATION_ALGORITHM);
             return new SecretKeySpec(kf.generateSecret(specs).getEncoded(), KEYSPEC_ALGORITHM);
         } catch (NoSuchAlgorithmException | InvalidKeySpecException |
@@ -289,7 +305,7 @@ public class CryptoFacility {
      * @throws SecurityException In the case of any error decrypting the ciphertext.
      */
     public static byte[] encrypt(final @Nonnull byte[] bytes) throws SecurityException {
-        return encrypt(null, bytes);
+        return encrypt(null, bytes, DEFAULT_KEY_LENGTH_VERSION);
     }
 
     /**
@@ -307,7 +323,8 @@ public class CryptoFacility {
                                  final @Nonnull String plaintext)
             throws SecurityException {
         try {
-            byte[] encryptedBytes = encrypt(keySplitValue, plaintext.getBytes(CHARSET_CRYPTO));
+            byte[] encryptedBytes = encrypt(keySplitValue, plaintext.getBytes(CHARSET_CRYPTO),
+                   DEFAULT_KEY_LENGTH_VERSION);
             return BaseEncoding.base64().encode(encryptedBytes);
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException("Unable to decode.", e);
@@ -322,15 +339,18 @@ public class CryptoFacility {
      *                      constitutes the part of the salt utilized by the PBKDF2 algorithm,
      *                      but isn't stored stored with the encrypted data.
      * @param bytes     The bytearray to encrypt.
+     * @param version   The key length.
      * @return The encrypted string or null if an error occurred
      * @throws SecurityException In the case of any error decrypting the ciphertext.
      */
-    public static byte[] encrypt(final @Nullable String keySplitValue,
-                                 final @Nonnull byte[] bytes)
+    @VisibleForTesting
+    static byte[] encrypt(final @Nullable String keySplitValue,
+            final @Nonnull byte[] bytes,
+            final int version)
             throws SecurityException {
         try {
             byte[] salt = getRandomBytes(PKCS5_SALT_LENGTH);
-            SecretKey key = getDerivedKey(keySplitValue, salt);
+            SecretKey key = getDerivedKey(keySplitValue, salt, version);
             Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
 
             byte[] nonce = getRandomBytes(cipher.getBlockSize());
@@ -343,7 +363,7 @@ public class CryptoFacility {
             // 1 int for version, 3 for length.
             byte[] array = new byte[salt.length + nonce.length + cipherText.length + 16];
             ByteBuffer buff = ByteBuffer.wrap(array);
-            buff.putInt(VERSION);
+            buff.putInt(version);
             buff.putInt(salt.length).put(salt);
             buff.putInt(nonce.length).put(nonce);
             buff.putInt(cipherText.length).put(cipherText);
@@ -355,21 +375,24 @@ public class CryptoFacility {
 
     /**
      * This method gets the encryption key that is stored in the dedicated docker volume.
-     *
+
+     * @param version The key length.
      * @return The encryption key that is stored in the dedicated docker volume.
      */
-    private static synchronized byte[] getEncryptionKeyForVMTurboInstance() {
-        if (encryptionKeyForVMTurboInstance != null) {
-            return encryptionKeyForVMTurboInstance;
+    private static synchronized byte[] getEncryptionKeyForVMTurboInstance(final int version) {
+        if (encryptionKeyMap.containsKey(version)) {
+            return encryptionKeyMap.get(version);
         }
 
         final String location =
                 EnvironmentUtils.getOptionalEnvProperty(VMT_ENCRYPTION_KEY_DIR_PARAM).orElse(VMT_ENCRYPTION_KEY_DIR);
-        Path encryptionFile = Paths.get(location + "/" + VMT_ENCRYPTION_KEY_FILE);
+        Path encryptionFile = Paths.get(location + "/" + AES_VERSION_KEY_CONFIG_MAP.get(version).keyFileName);
+        byte[] encryptionKeyForVMTurboInstance;
         try {
+            final int numKeyBytes = AES_VERSION_KEY_CONFIG_MAP.get(version).keyLength / 8;
             if (Files.exists(encryptionFile)) {
                 encryptionKeyForVMTurboInstance = Files.readAllBytes(encryptionFile);
-                if (encryptionKeyForVMTurboInstance.length == KEY_LENGTH_BITS / 8) {
+                if (encryptionKeyForVMTurboInstance.length == numKeyBytes) {
                     return encryptionKeyForVMTurboInstance;
                 } else {
                     String renameSuffix = ".damaged_" + System.currentTimeMillis();
@@ -386,12 +409,31 @@ public class CryptoFacility {
                 Path dir = Files.createDirectories(outputDir);
             }
 
-            encryptionKeyForVMTurboInstance = getRandomBytes(KEY_LENGTH_BITS / 8);
+            encryptionKeyForVMTurboInstance = getRandomBytes(numKeyBytes);
+            encryptionKeyMap.put(version, encryptionKeyForVMTurboInstance);
             Files.write(encryptionFile, encryptionKeyForVMTurboInstance);
+            return encryptionKeyForVMTurboInstance;
         } catch (Exception e) {
             throw new SecurityException(e);
         }
+    }
 
-        return encryptionKeyForVMTurboInstance;
+    /**
+     * AES parameters value object.
+     */
+    private static class AesParameter {
+        private final int keyLength;
+        private final String keyFileName;
+
+        /**
+         * Constructor.
+         *
+         * @param keyLength   key length
+         * @param keyFileName key file name
+         */
+        AesParameter(final int keyLength, @Nonnull final String keyFileName) {
+            this.keyLength = keyLength;
+            this.keyFileName = Objects.requireNonNull(keyFileName);
+        }
     }
 }

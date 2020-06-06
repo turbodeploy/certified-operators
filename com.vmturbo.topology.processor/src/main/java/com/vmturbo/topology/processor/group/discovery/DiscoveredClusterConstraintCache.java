@@ -18,6 +18,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -40,8 +41,6 @@ public class DiscoveredClusterConstraintCache {
     private final EntityStore entityStore;
 
     private final Map<Long, List<DiscoveredClusterConstraint>> discoveredClusterConstraintMap;
-
-    private final double MAX_CAPACITY = 1e9d;
 
     public DiscoveredClusterConstraintCache(@Nonnull final EntityStore entityStore) {
         this.entityStore = Objects.requireNonNull(entityStore);
@@ -357,7 +356,7 @@ public class DiscoveredClusterConstraintCache {
                 providerEntity.get().getTopologyEntityDtoBuilder()
                         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                                 .setCommodityType(clusterCommodity)
-                                .setCapacity(MAX_CAPACITY)
+                                .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY)
                                 .setIsResizeable(false));
             }
         }

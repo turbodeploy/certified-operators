@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -118,9 +119,9 @@ public class AtMostNPolicyTest {
         assertThat(topologyGraph.getEntity(9L).get(),
                 not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
         assertThat(topologyGraph.getEntity(1L).get(),
-            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, PlacementPolicyApplication.MAX_CAPACITY_VALUE));
+            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY));
         assertThat(topologyGraph.getEntity(2L).get(),
-            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, PlacementPolicyApplication.MAX_CAPACITY_VALUE));
+            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY));
     }
 
     @Test
@@ -133,11 +134,11 @@ public class AtMostNPolicyTest {
         applyPolicy(new AtMostNPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
                 new PolicyEntities(providerGroup)));
         assertThat(topologyGraph.getEntity(1L).get(),
-            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, PlacementPolicyApplication.MAX_CAPACITY_VALUE));
+            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY));
         assertThat(topologyGraph.getEntity(2L).get(),
-            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, PlacementPolicyApplication.MAX_CAPACITY_VALUE));
+            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY));
         assertThat(topologyGraph.getEntity(9L).get(),
-                policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, PlacementPolicyApplication.MAX_CAPACITY_VALUE));
+                policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY));
         assertThat(topologyGraph.getEntity(4L).get(),
             policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
         assertThat(topologyGraph.getEntity(5L).get(),

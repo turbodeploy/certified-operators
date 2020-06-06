@@ -198,8 +198,8 @@ public class PercentileEditor extends
         // in order to get the percentiles for them calculated as well if they do not get read
         commodityRefs.forEach(commRef -> {
             EntityCommodityFieldReference field =
-                            new EntityCommodityFieldReference(commRef,
-                                                              CommodityField.USED);
+                (new EntityCommodityFieldReference(commRef, CommodityField.USED))
+                    .getLiveTopologyFieldReference(context);
             getCache().computeIfAbsent(field, fieldRef -> {
                 PercentileCommodityData data = historyDataCreator.get();
                 data.init(field, null, getConfig(), context);

@@ -721,7 +721,7 @@ public enum EntitySettingSpecs {
     /**
      * Virtual CPU Increment for containers.
      */
-    ContainerVcpuIncrement("usedIncrement_Container_VCPU", "Increment constant for VCPU [MHz]",
+    ContainerVcpuIncrement("usedIncrement_Container_VCPU", "Increment constant for VCPU and VCPU Request [MHz]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER),
             numeric(0.0f, 1000000.0f, 100.0f), true),
@@ -729,7 +729,7 @@ public enum EntitySettingSpecs {
     /**
      * Virtual Memory Increment for containers.
      */
-    ContainerVmemIncrement("usedIncrement_Container_VMEM", "Increment constant for VMem [MB]",
+    ContainerVmemIncrement("usedIncrement_Container_VMEM", "Increment constant for VMem and VMem Request [MB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER),
             numeric(0.0f, 1000000.0f, 64.0f), true),
@@ -1015,7 +1015,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
                     EntityType.DATABASE_SERVER,  EntityType.APPLICATION_COMPONENT,
                     EntityType.BUSINESS_TRANSACTION),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
+            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 2000.0f/*default*/),
             true),
 
     /**
@@ -1030,7 +1030,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.BUSINESS_APPLICATION, EntityType.APPLICATION_COMPONENT,
                     EntityType.BUSINESS_TRANSACTION, EntityType.SERVICE,
                     EntityType.DATABASE_SERVER),
-            new BooleanSettingDataType(true),
+            new BooleanSettingDataType(false),
             true),
 
     /**
@@ -1042,7 +1042,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
                     EntityType.DATABASE_SERVER,
                     EntityType.APPLICATION_COMPONENT, EntityType.BUSINESS_TRANSACTION),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 20.0f/*default*/),
+            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10.0f/*default*/),
             true),
 
     /**
@@ -1057,7 +1057,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
                     EntityType.BUSINESS_TRANSACTION, EntityType.DATABASE_SERVER,
                     EntityType.APPLICATION_COMPONENT),
-            new BooleanSettingDataType(true),
+            new BooleanSettingDataType(false),
             true),
 
     /**
