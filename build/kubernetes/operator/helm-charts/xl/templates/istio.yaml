@@ -85,7 +85,7 @@ spec:
     - uri:
         prefix: /doc
     - uri:
-        prefix: /api/v3
+        prefix: /vmturbo/rest
     - uri:
         prefix: /vmturbo/saml2
     - uri:
@@ -96,6 +96,8 @@ spec:
         port:
           number: 8080
   - match:
+    - uri:
+        prefix: /vmturbo/messages
     - uri:
         prefix: /ws/messages
     route:
