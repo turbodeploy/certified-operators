@@ -440,24 +440,29 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         return priceChanged;
     }
 
-    private Set<BizAccPriceRecord> collectBAsCostRecords(
+    protected Set<BizAccPriceRecord> collectBAsCostRecords(
             final Set<ImmutablePair<Long, String>> businessAccounts,
             final Map<Long, Long> baToPriceTableOidMap) {
         Set<BizAccPriceRecord> lastDiscoveredBAs = new HashSet<>();
         // Find which of the new BAs have cost.
         for (Long businessAccountId : baToPriceTableOidMap.keySet()) {
             Long priceTableKeyOid = baToPriceTableOidMap.get(businessAccountId);
-
             Map<Long, PriceTableKey> prTabOidToTabKey = prTabStore.getPriceTableKeys(
                     Collections.singletonList(priceTableKeyOid));
             PriceTableKey prTabKey = prTabOidToTabKey.get(priceTableKeyOid);
-            // Get price table checksum by price table key.
-            Map<PriceTableKey, Long> prTabkeyToChkSum = prTabStore.getChecksumByPriceTableKeys(
-                    Collections.singletonList(prTabKey));
-            // Add record of BA with its price table key oid and price table checksum.
-            lastDiscoveredBAs.add(new BizAccPriceRecord(businessAccountId,
-                    getAccountNameByOid(businessAccounts, businessAccountId),
-                    priceTableKeyOid, prTabkeyToChkSum.get(prTabKey)));
+            if (prTabKey != null) {
+                // Get price table checksum by price table key.
+                Map<PriceTableKey, Long> prTabkeyToChkSum = prTabStore.getChecksumByPriceTableKeys(
+                        Collections.singletonList(prTabKey));
+                // Get checksum of a price table.
+                Long tabChecksum = prTabkeyToChkSum.get(prTabKey);
+                if (tabChecksum != null) {
+                    // Add record of BA with its price table key oid and price table checksum.
+                    lastDiscoveredBAs.add(new BizAccPriceRecord(businessAccountId,
+                            getAccountNameByOid(businessAccounts, businessAccountId),
+                            priceTableKeyOid, tabChecksum));
+                }
+            }
         }
 
         return lastDiscoveredBAs;
@@ -578,7 +583,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     /**
      * Class representing record of essential information related to pricing for a business account.
      */
-    private class BizAccPriceRecord {
+    protected class BizAccPriceRecord {
         private Long businessAccountOid;
         private String baDisplayName;
         private Long prTabKeyOid;

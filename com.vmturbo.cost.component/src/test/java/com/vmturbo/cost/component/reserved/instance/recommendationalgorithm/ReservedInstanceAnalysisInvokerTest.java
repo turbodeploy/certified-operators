@@ -9,6 +9,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -24,11 +25,16 @@ import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.context.annotation.Bean;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
 
 import reactor.core.publisher.Flux;
 
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey.Builder;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -40,6 +46,7 @@ import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.SQLPriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore.ReservedInstanceBoughtChangeType;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker.BizAccPriceRecord;
 
 /**
  * Class to unit test ReservedInstanceAnalysisInvoker.
@@ -54,7 +61,7 @@ public class ReservedInstanceAnalysisInvokerTest {
      * Unit test method for testing ReservedInstanceAnalysisInvoker::getNewBusinessAccountsWithCost.
      */
     @Test
-    public void testGetNewBusinessAccountsWithCost() {
+    public void testGetNewBusinessAccountsWithCost() throws InvalidProtocolBufferException {
         Set<ImmutablePair<Long, String>> allBusinessAccounts = Sets.newHashSet(
                 ImmutablePair.of(1L, "Acc A"),
                 ImmutablePair.of(2L, "Acc B"),
@@ -69,6 +76,24 @@ public class ReservedInstanceAnalysisInvokerTest {
                 allBusinessAccounts.stream().map(p -> p.left).collect(Collectors.toSet())))
                         .thenReturn(allBusinessAccountsWithCost);
 
+        Map<Long, PriceTableKey> prTabOidToTabKey = Maps.newHashMap();
+        Builder priceTableKeyBuilder = PriceTableKey.newBuilder();
+        final String probeKeyMaterialString = "{" +
+                "  \"probeKeyMaterial\": {" +
+                "    \"ENROLLMENT_NUMBER\": \"\"," +
+                "    \"OFFER_ID\": \"MS-AZR-0003P\"" +
+                "  }," +
+                "  \"serviceProviderId\": \"73494941922466\"" +
+                "}";
+        JsonFormat.parser().merge(probeKeyMaterialString, priceTableKeyBuilder);
+        PriceTableKey prKey = priceTableKeyBuilder.build();
+        prTabOidToTabKey.put(10001L, prKey);
+        Mockito.when(prTabStore.getPriceTableKeys(any())).thenReturn(prTabOidToTabKey);
+
+        Map<PriceTableKey, Long> prTabkeyToChkSum = Maps.newHashMap();
+        prTabkeyToChkSum.put(prKey, 5501L);
+        Mockito.when(prTabStore.getChecksumByPriceTableKeys(any())).thenReturn(prTabkeyToChkSum);
+
         ReservedInstanceAnalysisInvoker invoker = getReservedInstanceAnalysisInvoker();
 
         logger.info("Add BAs with Cost {}", allBusinessAccounts);
@@ -81,34 +106,10 @@ public class ReservedInstanceAnalysisInvokerTest {
         HashSet<Long> newBa = new HashSet<>();
         newBa.add(4L);
         Mockito.when(store.fetchPriceTableKeyOidsByBusinessAccount(newBa))
-                        .thenReturn(new HashMap<>());
+                .thenReturn(new HashMap<>());
 
         logger.info("Add new BA *w/o* Cost {}", allBusinessAccounts);
         result = invoker.addNewBAsWithCost(allBusinessAccounts);
-        assertEquals(false, result);
-
-        // Now costs are also available for the new business account.
-        allBusinessAccountsWithCost.put(4L, 40004L);
-
-        final Map<Long, Long> newBaWithCost = new HashMap<>();
-        newBaWithCost.put(4L, 40004L);
-        Mockito.when(store.fetchPriceTableKeyOidsByBusinessAccount(newBa))
-                .thenReturn(newBaWithCost);
-
-        logger.info("Add new BA *with* Cost {}", allBusinessAccounts);
-        result = invoker.addNewBAsWithCost(allBusinessAccounts);
-        assertEquals(true, result);
-
-        // Now test removal of BA:
-        // Use case: target deleted or account doesn't exist anymore in the target and is not discovered going forward.
-        logger.info("Delete stale BA *with* Cost from 'All Business Accounts' - {}", allBusinessAccounts);
-        assertTrue("Failed to remove BA with cost from 'allBusinessAccounts' collection.",
-                allBusinessAccounts.remove(ImmutablePair.of(2L, "Acc B")));
-        result = invoker.rmObsoleteBAs(allBusinessAccounts);
-        assertEquals(true, result);
-
-        logger.info("Call 'Remove Obsolete BAs' again on same BAs - {}", allBusinessAccounts);
-        result = invoker.rmObsoleteBAs(allBusinessAccounts);
         assertEquals(false, result);
     }
 
