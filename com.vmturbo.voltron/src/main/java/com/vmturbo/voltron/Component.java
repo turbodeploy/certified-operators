@@ -416,7 +416,12 @@ public enum Component {
     /**
      * XTremio.
      */
-    MEDIATION_XTREMIO("xtremio", "com.vmturbo.mediation.xtremio.component");
+    MEDIATION_XTREMIO("xtremio", "com.vmturbo.mediation.xtremio.component"),
+
+    /**
+     * ServiceNOW.
+     */
+    MEDIATION_SERVICENOW("servicenow", "com.vmturbo.mediation.servicenow.component");
 
     private final String shortName;
     private final String topLevelFolder;
