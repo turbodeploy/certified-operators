@@ -42,8 +42,8 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
@@ -220,7 +220,7 @@ public class CostFunctionFactory {
      * @return a list of {@link DependentResourcePair}
      */
     public static List<DependentResourcePair>
-                    translateStorageResourceDependency(List<StorageResourceDependency> dependencyDTOs) {
+                    translateStorageResourceDependency(List<StorageResourceRatioDependency> dependencyDTOs) {
         List<DependentResourcePair> dependencyList = new ArrayList<>();
         dependencyDTOs.forEach(dto -> dependencyList.add(new DependentResourcePair(
                         ProtobufToAnalysis.commoditySpecification(
@@ -979,7 +979,7 @@ public class CostFunctionFactory {
                         translateResourceCostForStorageTier(resourceCost);
         // the capacity constraint between commodities
         List<DependentResourcePair> dependencyList =
-                        translateStorageResourceDependency(costDTO.getStorageResourceDependencyList());
+                        translateStorageResourceDependency(costDTO.getStorageResourceRatioDependencyList());
 
         CostFunction costFunction = new CostFunction() {
             @Override
