@@ -20,9 +20,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.InitializationContent;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -35,6 +39,10 @@ import com.vmturbo.topology.processor.communication.ExpiringMessageHandler.Handl
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.action.Action;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
@@ -320,6 +328,54 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     }
 
     @Override
+    public void sendActionApprovalsRequest(@Nonnull Target target,
+            @Nonnull ActionApprovalRequest actionApprovalRequest,
+            @Nonnull IOperationMessageHandler<ActionApproval> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        final int messageId = nextMessageId();
+        final MediationServerMessage message = MediationServerMessage.newBuilder()
+                .setMessageID(messageId)
+                .setActionApproval(actionApprovalRequest).build();
+
+        sendMessageToProbe(target, message, messageHandler);
+    }
+
+    @Override
+    public void sendActionUpdateStateRequest(@Nonnull Target target,
+            @Nonnull ActionUpdateStateRequest actionUpdateStateRequest,
+            @Nonnull IOperationMessageHandler<ActionUpdateState> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        final int messageId = nextMessageId();
+        final MediationServerMessage message = MediationServerMessage.newBuilder()
+                .setMessageID(messageId)
+                .setActionUpdateState(actionUpdateStateRequest).build();
+        sendMessageToProbe(target, message, messageHandler);
+    }
+
+    @Override
+    public void sendGetActionStatesRequest(@Nonnull Target target,
+            @Nonnull GetActionStateRequest getActionStateRequest,
+            @Nonnull IOperationMessageHandler<GetActionState> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        final int messageId = nextMessageId();
+        final MediationServerMessage message = MediationServerMessage.newBuilder()
+                .setMessageID(messageId)
+                .setGetActionState(getActionStateRequest).build();
+        sendMessageToProbe(target, message, messageHandler);
+    }
+
+    @Override
+    public void sendActionAuditRequest(@Nonnull Target target,
+            @Nonnull ActionAuditRequest actionAuditRequest,
+            @Nonnull IOperationMessageHandler<ActionAudit> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        final int messageId = nextMessageId();
+        final MediationServerMessage message = MediationServerMessage.newBuilder().setMessageID(
+                messageId).setActionAudit(actionAuditRequest).build();
+        sendMessageToProbe(target, message, messageHandler);
+    }
+
+    @Override
     public void handleTargetRemoval(long probeId, long targetId,
                                     @Nonnull TargetUpdateRequest request)
                     throws CommunicationException, InterruptedException, ProbeException {
@@ -341,10 +397,10 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
      * {@inheritDoc}
      */
     @Override
-    public int checkForExpiredHandlers() {
+    public void checkForExpiredHandlers() {
         // PassiveAdjustableExpiringMap will check for expiration on all its entries
         // whenever any operation is performed on it, including size()
-        return messageHandlers.size();
+        messageHandlers.size();
     }
 
     /**

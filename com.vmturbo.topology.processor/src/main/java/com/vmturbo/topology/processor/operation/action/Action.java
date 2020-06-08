@@ -6,7 +6,6 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
-import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.Operation;
 
@@ -23,11 +22,6 @@ public class Action extends Operation {
      * own operation ID, but all with a common actionId.
      */
     private final long actionId;
-    /**
-     * The timer used for timing the duration of actions.
-     * Mark transient to avoid serialization of this field.
-     */
-    private transient final DataMetricTimer durationTimer;
 
     private int progress = 0;
     private String description = "";
@@ -46,14 +40,22 @@ public class Action extends Operation {
         .build()
         .register();
 
+    /**
+     * Constructs action operation.
+     *
+     * @param actionId action id
+     * @param probeId probe OID
+     * @param targetId target OID
+     * @param identityProvider identity provider to create a unique ID
+     * @param actionType action type
+     */
     public Action(final long actionId,
                   final long probeId,
                   final long targetId,
                   @Nonnull final IdentityProvider identityProvider,
                   @Nonnull ActionType actionType) {
-        super(probeId, targetId, identityProvider);
+        super(probeId, targetId, identityProvider, ACTION_DURATION_SUMMARY);
         this.actionId = actionId;
-        this.durationTimer = ACTION_DURATION_SUMMARY.startTimer();
         this.actionType = actionType;
     }
 
@@ -62,6 +64,11 @@ public class Action extends Operation {
         return "Action operation (execution step of action " + actionId + "): " + super.toString();
     }
 
+    /**
+     * Updates action progress from the specified action response object.
+     *
+     * @param actionResponse action response to extract progress information from
+     */
     public void updateProgress(final ActionResponse actionResponse) {
         this.progress = actionResponse.getProgress();
         this.description = actionResponse.getResponseDescription();
@@ -78,12 +85,6 @@ public class Action extends Operation {
     @Nonnull
     public String getDescription() {
         return description;
-    }
-
-    @Nonnull
-    @Override
-    protected DataMetricTimer getMetricsTimer() {
-        return durationTimer;
     }
 
     @Nonnull

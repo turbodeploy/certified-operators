@@ -11,6 +11,8 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
+import com.vmturbo.action.orchestrator.approval.ExternalActionApprovalManager;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
@@ -22,13 +24,15 @@ import com.vmturbo.common.protobuf.action.ActionConstraintDTOREST.ActionConstrai
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionsServiceController;
 import com.vmturbo.common.protobuf.action.ActionsDebugREST.ActionsDebugServiceController;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeverityServiceController;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 @Configuration
 @Import({ActionOrchestratorGlobalConfig.class,
     ActionStoreConfig.class,
     ActionExecutionConfig.class,
     ActionStatsConfig.class,
-    UserSessionConfig.class})
+    UserSessionConfig.class,
+    TopologyProcessorClientConfig.class})
 public class RpcConfig {
 
     @Autowired
@@ -55,6 +59,9 @@ public class RpcConfig {
     @Autowired
     private UserSessionConfig userSessionConfig;
 
+    @Autowired
+    private TopologyProcessorClientConfig topologyProcessorClientConfig;
+
     @Value("${actionPaginationDefaultLimit}")
     private int actionPaginationDefaultLimit;
 
@@ -69,16 +76,39 @@ public class RpcConfig {
         return new ActionsRpcService(
             actionOrchestratorGlobalConfig.actionOrchestratorClock(),
             actionStoreConfig.actionStorehouse(),
-            actionExecutor,
-            actionExecutionConfig.actionTargetSelector(),
-            actionStoreConfig.entitySettingsCache(),
+            actionApprovalManager(),
             actionTranslator,
             actionPaginatorFactory(),
-            workflowConfig.workflowStore(),
             actionStatsConfig.historicalActionStatReader(),
             actionStatsConfig.currentActionStatReader(),
             userSessionConfig.userSessionContext(),
             actionStoreConfig.acceptedActionsStore());
+    }
+
+    /**
+     * Action approval manager - used to approve and execute actions requiring approval.
+     *
+     * @return the bean created
+     */
+    @Bean
+    public ActionApprovalManager actionApprovalManager() {
+        return new ActionApprovalManager(actionExecutor,
+                actionExecutionConfig.actionTargetSelector(),
+                actionStoreConfig.entitySettingsCache(), actionTranslator,
+                workflowConfig.workflowStore(), actionStoreConfig.acceptedActionsStore());
+    }
+
+    /**
+     * External approval manager bean.
+     *
+     * @return the bean created
+     */
+    @Bean
+    public ExternalActionApprovalManager externalActionApprovalManager() {
+        return new ExternalActionApprovalManager(actionApprovalManager(),
+                actionStoreConfig.actionStorehouse(),
+                topologyProcessorClientConfig.createActionStateReceiver(),
+                actionStoreConfig.realtimeTopologyContextId);
     }
 
     @Bean

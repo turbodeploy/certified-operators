@@ -121,25 +121,16 @@ public class ActionExecutor implements ActionExecutionListener {
     }
 
     /**
-     * Schedule execution of the given {@link ActionDTO.Action} and return immediately.
+     * Creates execute action request, suitable to send it to topology processor.
      *
-     * @param targetId the ID of the Target which should execute the action (unless there's a
-     *                 Workflow specified - see below)
-     * @param action the Action to execute
-     * @param workflowOpt an Optional specifying a Workflow to override the execution of the Action
-     * @throws ExecutionStartException
+     * @param targetId target to execute action on
+     * @param action action to execute
+     * @param workflowOpt workflow associated with this target (if any)
+     * @return DTO to send request to topology processor
      */
-    public void execute(final long targetId, @Nonnull final ActionDTO.Action action,
-                        @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
-            throws ExecutionStartException {
-        // pjs: make sure a license is available when it's time to execute an action
-        if (!licenseCheckClient.hasValidNonExpiredLicense()) {
-            // no valid license detected!
-            // this could be ephemeral -- e.g. a valid license could be installed, or the auth
-            // component or this component could be in the middle of starting up.
-            throw new ExecutionStartException("No valid license was detected. Will not execute the action.");
-        }
-
+    @Nonnull
+    public static ExecuteActionRequest createRequest(final long targetId, @Nonnull final ActionDTO.Action action,
+            @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt) {
         Objects.requireNonNull(action);
         Objects.requireNonNull(workflowOpt);
 
@@ -161,12 +152,34 @@ public class ActionExecutor implements ActionExecutionListener {
             // Target Entity was discovered
             executionRequestBuilder.setTargetId(targetId);
         }
+        return executionRequestBuilder.build();
+    }
 
+    /**
+     * Schedule execution of the given {@link ActionDTO.Action} and return immediately.
+     *
+     * @param targetId the ID of the Target which should execute the action (unless there's a
+     *                 Workflow specified - see below)
+     * @param action the Action to execute
+     * @param workflowOpt an Optional specifying a Workflow to override the execution of the Action
+     * @throws ExecutionStartException if action execution failed to start
+     */
+    public void execute(final long targetId, @Nonnull final ActionDTO.Action action,
+                        @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
+            throws ExecutionStartException {
+        // pjs: make sure a license is available when it's time to execute an action
+        if (!licenseCheckClient.hasValidNonExpiredLicense()) {
+            // no valid license detected!
+            // this could be ephemeral -- e.g. a valid license could be installed, or the auth
+            // component or this component could be in the middle of starting up.
+            throw new ExecutionStartException("No valid license was detected. Will not execute the action.");
+        }
+        final ExecuteActionRequest request = createRequest(targetId, action, workflowOpt);
         try {
             // TODO (roman, July 30 2019): OM-49080 - persist the state of in-progress actions in
             // the database, so that we don't lose the information across restarts.
             logger.info("Starting action {}", action.getId());
-            actionExecutionService.executeAction(executionRequestBuilder.build());
+            actionExecutionService.executeAction(request);
             logger.info("Action: {} started.", action.getId());
         } catch (StatusRuntimeException e) {
             throw new ExecutionStartException(
