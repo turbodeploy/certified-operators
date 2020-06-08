@@ -110,6 +110,15 @@ public class TopologyProcessorSubscription {
         /**
          * EntitiesWithNewState topic.
          */
-        EntitiesWithNewState
+        EntitiesWithNewState,
+        /**
+         * External action info reported.
+         */
+        ExternalActionApprovalResponse,
+        /**
+         * External action state change. Could occur when action approval probe will approve/
+         * reject action.
+         */
+        ExternalActionStateChange
     }
 }

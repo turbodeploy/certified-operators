@@ -24,6 +24,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Future;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.Lists;
 
 import junitparams.JUnitParamsRunner;
@@ -47,6 +49,7 @@ import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.matrix.component.TheMatrix;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
@@ -94,7 +97,9 @@ import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities.TrackingOperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
+import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.Validation;
+import com.vmturbo.topology.processor.operation.validation.ValidationMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
 import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
@@ -535,7 +540,13 @@ public class OperationManagerTest {
                 eq(targetId), anyInt(), eq(discoveryType), eq(Collections.singletonList(entity)));
 
         final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
-        OperationTestUtilities.waitForEvent(operationManager.notifyTimeout(discovery2, 1), Future::isDone);
+        final ArgumentCaptor<DiscoveryMessageHandler> captor = ArgumentCaptor.forClass(
+                DiscoveryMessageHandler.class);
+        Mockito.verify(mockRemoteMediationServer, Mockito.times(2)).sendDiscoveryRequest(
+                Mockito.eq(target), Mockito.any(), captor.capture());
+        captor.getAllValues().get(1).onExpiration();
+        operationListener.awaitOperation(
+                operation -> operation.equals(discovery2) && operation.getCompletionTime() != null);
 
         // The timeout shouldn't have resulted in another call to entitiesDiscovered.
         verify(entityStore, times(1)).entitiesDiscovered(eq(probeId),
@@ -557,7 +568,14 @@ public class OperationManagerTest {
         Assert.assertEquals(0, result.getErrors().get(ErrorSeverity.CRITICAL).size());
 
         final Validation validation2 = operationManager.startValidation(targetId);
-        OperationTestUtilities.waitForEvent(operationManager.notifyTimeout(validation2, 1), Future::isDone);
+        final ArgumentCaptor<ValidationMessageHandler> captor = ArgumentCaptor.forClass(
+                ValidationMessageHandler.class);
+        Mockito.verify(mockRemoteMediationServer, Mockito.times(2)).sendValidationRequest(Mockito.any(),
+                Mockito.any(), captor.capture());
+        captor.getAllValues().get(1).onExpiration();
+        operationListener.awaitOperation(operation -> operation.equals(validation2)
+                && operation.getCompletionTime() != null);
+
         final ValidationResult result2 = operationManager.getValidationResult(targetId).get();
         Assert.assertEquals(1, result2.getErrors().get(ErrorSeverity.CRITICAL).size());
     }
@@ -571,14 +589,20 @@ public class OperationManagerTest {
     public void testProcessValidationCancelOperation() throws Exception {
         final Validation validation = operationManager.startValidation(targetId);
         Assert.assertTrue(operationManager.getInProgressValidation(validation.getId()).isPresent());
-        OperationTestUtilities.waitForEvent(operationManager.notifyOperationCancelled(
-            validation, "transport closed"), Future::isDone);
+        final ArgumentCaptor<ValidationMessageHandler> captor = ArgumentCaptor.forClass(
+                ValidationMessageHandler.class);
+        Mockito.verify(mockRemoteMediationServer).sendValidationRequest(Mockito.eq(target),
+                Mockito.any(), captor.capture());
+        captor.getValue().onTransportClose();
+        operationListener.awaitOperation(
+                operation -> operation.equals(validation) && operation.getCompletionTime() != null);
         final Map<ErrorSeverity, List<ErrorDTO>> errors =
                         operationManager.getValidationResult(targetId).get().getErrors();
         Assert.assertEquals(1, errors.get(ErrorSeverity.CRITICAL).size());
         final String errorMessage =
                         errors.get(ErrorSeverity.CRITICAL).iterator().next().getDescription();
-        Assert.assertThat(errorMessage, CoreMatchers.containsString("transport closed"));
+        Assert.assertThat(errorMessage,
+                CoreMatchers.containsString("Communication transport to remote probe closed."));
     }
 
     /**
@@ -592,12 +616,14 @@ public class OperationManagerTest {
     public void testProcessDiscoveryCancelOperation(DiscoveryType discoveryType) throws Exception {
         final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
         Assert.assertTrue(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
-        OperationTestUtilities.waitForEvent(operationManager.notifyOperationCancelled(
-            discovery, "Transport closed"), Future::isDone);
+        operationManager.onTargetRemoved(target);
+        operationListener.awaitOperation(
+                operation -> operation.equals(discovery) && operation.getCompletionTime() != null);
         final List<String> errors = discovery.getErrors();
         Assert.assertEquals(1, errors.size());
         final String errorMessage = errors.iterator().next();
-        Assert.assertThat(errorMessage, CoreMatchers.containsString("Transport closed"));
+        Assert.assertThat(errorMessage,
+                CoreMatchers.containsString("Target " + targetId + " removed."));
     }
 
     /**
@@ -869,13 +895,10 @@ public class OperationManagerTest {
     public void testStartAction() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action moveAction = operationManager.requestActions(0,
+        final Action moveAction = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
-                ActionType.MOVE,
-                actionItemDtos,
-                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)),
-                Optional.empty());
+                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)));
         Mockito.verify(mockRemoteMediationServer).sendActionRequest(any(Target.class),
             any(ActionRequest.class), any(OperationMessageHandler.class));
         Assert.assertTrue(operationManager.getInProgressAction(moveAction.getId()).isPresent());
@@ -885,13 +908,13 @@ public class OperationManagerTest {
         Assert.assertTrue(moveEntityIds.size() == 2);
         Assert.assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
 
-        final Action activateAction = operationManager.requestActions(0,
+        final Action activateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.START)
+                        .build(),
                targetId,
                null,
-               ActionType.START,
-               actionItemDtos,
-               Collections.singleton(ACTIVATE_VM_ID),
-               Optional.empty());
+               Collections.singleton(ACTIVATE_VM_ID));
         Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
         Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
@@ -899,13 +922,13 @@ public class OperationManagerTest {
         Assert.assertTrue(activateEntityIds.size() == 1);
         Assert.assertTrue(activateEntityIds.contains(ACTIVATE_VM_ID));
 
-        final Action deactivateAction = operationManager.requestActions(0,
+        final Action deactivateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.SUSPEND)
+                        .build(),
                targetId,
                null,
-               ActionType.SUSPEND,
-               actionItemDtos,
-               Collections.singleton(DEACTIVATE_VM_ID),
-               Optional.empty());
+               Collections.singleton(DEACTIVATE_VM_ID));
                Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
        List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                .where(ENTITY_ACTION.ENTITY_ID.eq(DEACTIVATE_VM_ID))
@@ -922,13 +945,10 @@ public class OperationManagerTest {
     public void testProcessActionSuccess() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.requestActions(0,
+        final Action action = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
-                ActionType.MOVE,
-                actionItemDtos,
-                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)),
-                Optional.empty());
+                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)));
 
         final ActionResult result = ActionResult.newBuilder()
                 .setResponse(ActionResponse.newBuilder()
@@ -946,13 +966,13 @@ public class OperationManagerTest {
         Assert.assertTrue(moveEntityIds.size() == 2);
         Assert.assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
 
-        final Action activateAction = operationManager.requestActions(0,
+        final Action activateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.START)
+                        .build(),
                 targetId,
                 null,
-                ActionType.START,
-                actionItemDtos,
-                Collections.singleton(ACTIVATE_VM_ID),
-                Optional.empty());
+                Collections.singleton(ACTIVATE_VM_ID));
         Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
         Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                 .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
@@ -960,13 +980,13 @@ public class OperationManagerTest {
         Assert.assertTrue(activateEntityIds.size() == 1);
         Assert.assertTrue(activateEntityIds.contains(ACTIVATE_VM_ID));
 
-        final Action deactivateAction = operationManager.requestActions(0,
+        final Action deactivateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.SUSPEND)
+                        .build(),
                 targetId,
                 null,
-                ActionType.SUSPEND,
-                actionItemDtos,
-                Collections.singleton(DEACTIVATE_VM_ID),
-                Optional.empty());
+                Collections.singleton(DEACTIVATE_VM_ID));
        Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
        List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                        .where(ENTITY_ACTION.ENTITY_ID.eq(DEACTIVATE_VM_ID))
@@ -983,13 +1003,10 @@ public class OperationManagerTest {
     public void testActionDiscoveryFailure() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.requestActions(0,
+        final Action action = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
-                ActionType.MOVE,
-                actionItemDtos,
-                Collections.singleton(targetId),
-                Optional.empty());
+                Collections.singleton(targetId));
         // Critical errors applying to the target rather than a specific entity
         // should prevent any EntityDTOs in the discovery from being added to
         // the topology snapshot for the target.
@@ -1022,27 +1039,20 @@ public class OperationManagerTest {
     public void testProcessActionCancelOperation() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.requestActions(0,
+        final Action action = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
-                ActionType.MOVE,
-                actionItemDtos,
-                Collections.singleton(targetId),
-                Optional.empty());
+                Collections.singleton(targetId));
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
-        operationManager.notifyOperationCancelled(action, "Transport closed");
+        operationManager.onTargetRemoved(target);
         OperationTestUtilities.waitForEvent(operationListener, listener -> !listener.lastStatusMatches(Status.IN_PROGRESS));
 
         final List<String> errors = action.getErrors();
         Assert.assertEquals(1, errors.size());
         final String errorMessage = errors.iterator().next();
-        Assert.assertThat(errorMessage, CoreMatchers.containsString("Transport closed"));
+        Assert.assertThat(errorMessage,
+                CoreMatchers.containsString("Target " + targetId + " removed"));
         Assert.assertFalse(operationManager.getInProgressAction(action.getId()).isPresent());
-
-        // Timing out the handler after cancelling the operation should not override the previously set error.
-        operationManager.notifyTimeout(action, 10);
-        Assert.assertThat(action.getErrors().iterator().next(),
-            CoreMatchers.containsString("Transport closed"));
     }
 
     /**
@@ -1055,13 +1065,10 @@ public class OperationManagerTest {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
         final Target target = targetStore.getTarget(targetId).get();
 
-        final Action action = operationManager.requestActions(0,
+        final Action action = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
-                ActionType.MOVE,
-                actionItemDtos,
-                Collections.singleton(targetId),
-                Optional.empty());
+                Collections.singleton(targetId));
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
         operationManager.onTargetRemoved(target);
         OperationTestUtilities.waitForAction(operationManager, action);
@@ -1069,7 +1076,8 @@ public class OperationManagerTest {
         final List<String> errors = action.getErrors();
         Assert.assertEquals(1, errors.size());
         final String errorMessage = errors.iterator().next();
-        Assert.assertThat(errorMessage, CoreMatchers.containsString("Target removed."));
+        Assert.assertThat(errorMessage,
+                CoreMatchers.containsString("Target " + targetId + " removed"));
         Assert.assertFalse(operationManager.getInProgressAction(action.getId()).isPresent());
     }
 
@@ -1104,6 +1112,15 @@ public class OperationManagerTest {
         OperationTestUtilities.waitForEvent(operationManager.notifyDiscoveryResult(
             discovery, result), Future::isDone);
         Assert.assertFalse(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
+    }
+
+    @Nonnull
+    private ActionExecutionDTO actionDto() {
+        return ActionExecutionDTO.newBuilder()
+                .setActionOid(111L)
+                .addAllActionItem(actionItemDtos())
+                .setActionType(ActionType.MOVE)
+                .build();
     }
 
     private List<ActionItemDTO> actionItemDtos() {

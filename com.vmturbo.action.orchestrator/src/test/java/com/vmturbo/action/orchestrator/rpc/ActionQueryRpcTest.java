@@ -34,6 +34,7 @@ import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status.Code;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -50,6 +51,7 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFac
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
@@ -136,35 +138,50 @@ public class ActionQueryRpcTest {
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
 
 
-    private ActionsRpcService actionsRpcService = new ActionsRpcService(clock,
-            actionStorehouse, actionExecutor, actionTargetSelector, entitySettingsCache,
-            actionTranslator, paginatorFactory, workflowStore,
-            historicalStatReader, liveStatReader, userSessionContext, acceptedActionsStore);
-
-    private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(clock,
-            actionStorehouse, actionExecutor, actionTargetSelector, entitySettingsCache,
-            actionTranslatorWithFailedTranslation, paginatorFactory,
-            workflowStore, historicalStatReader, liveStatReader,
-            userSessionContext, acceptedActionsStore);
+    private ActionsRpcService actionsRpcService;
+    private ActionsRpcService actionsRpcServiceWithFailedTranslator;
+    private ActionApprovalManager approvalManager;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
+    private GrpcTestServer grpcServer;
+    private GrpcTestServer grpcServerForFailedTranslation;
 
-    @Rule
-    public GrpcTestServer grpcServerForFailedTranslation = GrpcTestServer.newServer(actionsRpcServiceWithFailedTranslator);
-
+    /**
+     * Initializes the tests.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Before
     public void setup() throws Exception {
+        approvalManager = Mockito.mock(ActionApprovalManager.class);
+        actionsRpcService = new ActionsRpcService(clock, actionStorehouse, approvalManager,
+                actionTranslator, paginatorFactory, historicalStatReader, liveStatReader,
+                userSessionContext, acceptedActionsStore);
+        grpcServer = GrpcTestServer.newServer(actionsRpcService);
+        grpcServer.start();
+
+        actionsRpcServiceWithFailedTranslator = new ActionsRpcService(clock, actionStorehouse,
+                approvalManager, actionTranslatorWithFailedTranslation, paginatorFactory,
+                historicalStatReader, liveStatReader, userSessionContext, acceptedActionsStore);
         IdentityGenerator.initPrefix(0);
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
-
+        grpcServerForFailedTranslation = GrpcTestServer.newServer(actionsRpcServiceWithFailedTranslator);
+        grpcServerForFailedTranslation.start();
         actionOrchestratorServiceClientForFailedTranslation =
                 ActionsServiceGrpc.newBlockingStub(grpcServerForFailedTranslation.getChannel());
 
         when(actionStorehouse.getStore(topologyContextId)).thenReturn(Optional.of(actionStore));
+    }
+
+    /**
+     * Cleans up the tests.
+     */
+    @After
+    public void cleanup() {
+        grpcServer.close();
+        grpcServerForFailedTranslation.close();
     }
 
     /**

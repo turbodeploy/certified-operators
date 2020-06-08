@@ -21,15 +21,16 @@ import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.approval.ApprovalCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
-import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
-import com.vmturbo.action.orchestrator.topology.TpEntitiesWithNewStateListener;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModel;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.store.identity.RecommendationIdentityStore;
+import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
+import com.vmturbo.action.orchestrator.topology.TpEntitiesWithNewStateListener;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
@@ -54,7 +55,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
     PlanOrchestratorClientConfig.class,
     TopologyProcessorConfig.class,
     UserSessionConfig.class,
-    LicenseCheckClientConfig.class})
+    LicenseCheckClientConfig.class,
+    ApprovalCommunicationConfig.class})
 public class ActionStoreConfig {
 
     @Autowired
@@ -93,6 +95,9 @@ public class ActionStoreConfig {
     @Autowired
     private LicenseCheckClientConfig licenseCheckClientConfig;
 
+    @Autowired
+    private ApprovalCommunicationConfig approvalCommunicationConfig;
+
     @Value("${entityTypeRetryIntervalMillis}")
     private long entityTypeRetryIntervalMillis;
 
@@ -106,7 +111,7 @@ public class ActionStoreConfig {
     private int concurrentAutomatedActions;
 
     @Value("${realtimeTopologyContextId}")
-    private Long realtimeTopologyContextId;
+    public long realtimeTopologyContextId;
 
     @Value("${minsActionAcceptanceTTL:1440}")
     private long minsActionAcceptanceTTL;
@@ -219,8 +224,9 @@ public class ActionStoreConfig {
     @Bean
     public ActionStorehouse actionStorehouse() {
         ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory(),
-            automatedActionExecutor(),
-                actionStoreLoader(), actionModeCalculator());
+                automatedActionExecutor(),
+                actionStoreLoader(),
+                approvalCommunicationConfig.approvalRequester());
         tpConfig.topologyProcessor()
             .addEntitiesWithNewStatesListener(new TpEntitiesWithNewStateListener(actionStorehouse,
                 tpConfig.realtimeTopologyContextId()));

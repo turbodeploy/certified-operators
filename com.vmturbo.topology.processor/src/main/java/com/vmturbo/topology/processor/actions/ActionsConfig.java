@@ -1,5 +1,11 @@
 package com.vmturbo.topology.processor.actions;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -11,9 +17,14 @@ import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc.ActionConstraintsServiceStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionREST.ActionExecutionServiceController;
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.entity.EntityConfig;
@@ -31,7 +42,8 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
         OperationConfig.class,
         RepositoryConfig.class,
         TargetConfig.class,
-        ActionOrchestratorClientConfig.class})
+        ActionOrchestratorClientConfig.class,
+        BaseKafkaProducerConfig.class})
 public class ActionsConfig {
 
     @Autowired
@@ -52,8 +64,26 @@ public class ActionsConfig {
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
 
+    @Autowired
+    private BaseKafkaProducerConfig kafkaProducerConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
+    /**
+     * Period of sending all the internal action state updates to external approval backend.
+     */
+    @Value("${actionStateUpdatesSendPeriodSec:30}")
+    private long actionStateUpdatesSendPeriodSec;
+    /**
+     * Batch size for sending internal action state updtates to external approval backend.
+     */
+    @Value("${actionStateUpdatesBatchSize:100}")
+    private int actionStateUpdatesBatchSize;
+    /**
+     * Period of retrieving action state changes from external approval backend.
+     */
+    @Value("${actionGetStatesPeriodSec:30}")
+    private long actionGetStatesPeriodSec;
 
     @Bean
     public ActionDataManager actionDataManager() {
@@ -106,5 +136,66 @@ public class ActionsConfig {
     public ActionConstraintsUploader actionConstraintsUploader() {
         return new ActionConstraintsUploader(entityConfig.entityStore(),
             actionConstraintsServiceStub());
+    }
+
+    /**
+     * Scheduler used for action orchestrator related tasks. It is Ok to have only 1 thread as
+     * the main purpose is to send a message to remote SDK probe (not waiting for the response).
+     *
+     * @return scheduled thread pool.
+     */
+    @Bean
+    public ScheduledExecutorService actionRelatedScheduler() {
+        final ThreadFactory factory = new ThreadFactoryBuilder().setNameFormat("tp-aoc-sched-%d")
+                .build();
+        return Executors.newScheduledThreadPool(1, factory);
+    }
+
+    /**
+     * Internal action state changes service.
+     *
+     * @return the service
+     */
+    @Bean
+    public ActionUpdateStateService actionUpdateStateService() {
+        return new ActionUpdateStateService(targetConfig.targetStore(),
+                operationConfig.operationManager(),
+                aoClientConfig.createActionStateUpdateListener(), actionRelatedScheduler(),
+                actionStateUpdatesSendPeriodSec, actionStateUpdatesBatchSize);
+    }
+
+    /**
+     * Asynchronous message sender for external action approval submission results.
+     *
+     * @return message sender
+     */
+    @Bean
+    public IMessageSender<ActionApprovalResponse> externalActionApprovalResponseSender() {
+        return kafkaProducerConfig.kafkaMessageSender()
+                .messageSender(TopologyProcessorClient.EXTERNAL_ACTION_APPROVAL_RESPONSE);
+    }
+
+    /**
+     * Asynchronous message sender for external action state changes.
+     *
+     * @return message sender
+     */
+    @Bean
+    public IMessageSender<GetActionStateResponse> externalStateUpdatesSender() {
+        return kafkaProducerConfig.kafkaMessageSender()
+                .messageSender(TopologyProcessorClient.EXTERNAL_ACTION_UPDATES_TOPIC);
+    }
+
+    /**
+     * Action approval service.
+     *
+     * @return action approval service.
+     */
+    @Bean
+    public ActionApprovalService actionApprovalService() {
+        return new ActionApprovalService(aoClientConfig.createActionApprovalRequestListener(),
+                externalStateUpdatesSender(), externalActionApprovalResponseSender(),
+                operationConfig.operationManager(), actionExecutionContextFactory(),
+                targetConfig.targetStore(), actionRelatedScheduler(), actionGetStatesPeriodSec);
     }
 }

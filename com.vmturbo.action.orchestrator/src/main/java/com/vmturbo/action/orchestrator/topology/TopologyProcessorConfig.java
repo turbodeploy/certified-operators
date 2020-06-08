@@ -46,7 +46,9 @@ public class TopologyProcessorConfig {
         return
             topologyProcessorClientConfig.topologyProcessor(
                 TopologyProcessorSubscription.forTopic(Topic.Notifications),
-                TopologyProcessorSubscription.forTopic(Topic.EntitiesWithNewState));
+                TopologyProcessorSubscription.forTopic(Topic.EntitiesWithNewState),
+                TopologyProcessorSubscription.forTopic(Topic.ExternalActionApprovalResponse),
+                TopologyProcessorSubscription.forTopic(Topic.ExternalActionStateChange));
     }
 
     /**
