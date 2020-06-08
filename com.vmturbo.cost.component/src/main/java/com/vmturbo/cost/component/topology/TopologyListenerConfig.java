@@ -106,6 +106,9 @@ public class TopologyListenerConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    @Value("${maxTrackedLiveTopologies:10}")
+    private int maxTrackedLiveTopologies;
+
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
         final LiveTopologyEntitiesListener entitiesListener =
@@ -220,7 +223,8 @@ public class TopologyListenerConfig {
     public TopologyInfoTracker liveTopologyInfoTracker() {
 
         final TopologyInfoTracker topologyInfoTracker = new TopologyInfoTracker(
-                TopologyInfoTracker.SUCCESSFUL_REALTIME_TOPOLOGY_SUMMARY_SELECTOR);
+                TopologyInfoTracker.SUCCESSFUL_REALTIME_TOPOLOGY_SUMMARY_SELECTOR,
+                maxTrackedLiveTopologies);
 
         topologyProcessorListenerConfig.topologyProcessor()
                 .addTopologySummaryListener(topologyInfoTracker);
