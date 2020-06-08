@@ -51,6 +51,10 @@ public class ActionsDebugRpcService extends ActionsDebugServiceImplBase {
             responseObserver.onError(Status.INTERNAL
                 .withDescription("Failed to receive action plan. " + e.getMessage())
                 .asException());
+        } catch (InterruptedException e) {
+            responseObserver.onError(
+                    Status.CANCELLED.withDescription("Thread interrupted executing the request")
+                            .asException());
         }
     }
 }

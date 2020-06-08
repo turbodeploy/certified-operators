@@ -9,13 +9,13 @@ import com.vmturbo.communication.chunking.ChunkConfigurationImpl;
 import com.vmturbo.communication.chunking.ChunkReceiver;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
-import com.vmturbo.topology.processor.operation.OperationManager;
+import com.vmturbo.topology.processor.operation.IOperationManager.OperationCallback;
 import com.vmturbo.topology.processor.operation.OperationMessageHandler;
 
 /**
  * Handles discovery responses from probes for a {@link Discovery} operation.
  */
-public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery> {
+public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery, DiscoveryResponse> {
 
     private final DiscoveryResponse.Builder discoveryBuilder;
     private final ChunkReceiver<DiscoveryResponse> chunkReceiver;
@@ -61,11 +61,17 @@ public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery> 
                         .build();
     }
 
-    public DiscoveryMessageHandler(@Nonnull final OperationManager manager,
-            @Nonnull final Discovery discovery,
-            @Nonnull final Clock clock,
-            final long timeoutMilliseconds) {
-        super(manager, discovery, clock, timeoutMilliseconds);
+    /**
+     * Constructs discovery message handler.
+     *
+     * @param discovery operation to handle messages for
+     * @param clock clock to use for time operations
+     * @param timeoutMilliseconds timeout value
+     * @param callback callback to execute when operation response or error arrives
+     */
+    public DiscoveryMessageHandler(@Nonnull final Discovery discovery, @Nonnull final Clock clock,
+            final long timeoutMilliseconds, OperationCallback<DiscoveryResponse> callback) {
+        super(discovery, clock, timeoutMilliseconds, callback);
         this.discoveryBuilder = DiscoveryResponse.newBuilder();
         this.chunkReceiver = CHUNK_CONFIG.newMessage(discoveryBuilder);
     }
@@ -79,7 +85,7 @@ public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery> 
                 if (chunkReceiver.isComplete()) {
                     getLogger().debug("Successfully received last chunk for message {}",
                             receivedMessage.getMessageID());
-                    manager.notifyDiscoveryResult(operation, discoveryBuilder.build());
+                    getCallback().onSuccess(discoveryBuilder.build());
                     return HandlerStatus.COMPLETE;
                 } else {
                     getLogger().debug("Successfully received next chunk for message {}",

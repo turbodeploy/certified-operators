@@ -15,7 +15,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/mediation/client/it/TestMediationCommonConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/mediation/client/it/TransportCloseTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/mediation/client/it/ProbeRegistrationTestIT.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/mediation/client/it/RemoteMediationImpl.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/mediation/client/it/ExternalProbeTestIT.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/mediation/client/it/AbstractIntegrationTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/mediation/client/it/TestRemoteMediationServer.java" />

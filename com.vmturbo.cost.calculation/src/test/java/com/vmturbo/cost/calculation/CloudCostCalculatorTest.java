@@ -345,7 +345,7 @@ public class CloudCostCalculatorTest {
         final TestEntityClass volume = TestEntityClass.newBuilder(123)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .build(infoExtractor);
-        when(topology.getConnectedVolumes(vmId)).thenReturn(Collections.singletonList(volume));
+        when(topology.getAttachedVolumes(vmId)).thenReturn(Collections.singletonList(volume));
         // A simple cost journal for the volume.
         final CostJournal<TestEntityClass> volumeJournal =
             CostJournal.newBuilder(volume, infoExtractor, region, discountApplicator, e2 -> null)

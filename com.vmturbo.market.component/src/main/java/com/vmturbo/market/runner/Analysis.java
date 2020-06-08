@@ -60,24 +60,23 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
-import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
-import com.vmturbo.market.diagnostics.ActionLogger;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
+import com.vmturbo.market.diagnostics.ActionLogger;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -705,21 +704,6 @@ public class Analysis {
     private void copySkippedEntitiesToProjectedTopology(
             final Set<Long> wastedStorageActionsVolumeIds,
             @Nonnull final Set<Long> oidsRemoved) {
-
-        // Calculate set of Volumes that have been already added to projected entities. They are:
-        // 1. Volumes attached to VMs
-        // 2. Detached volumes that have Delete action
-        final Set<Long> projectedAttachedVolumeIds = projectedEntities.values().stream()
-                .map(ProjectedTopologyEntity::getEntity)
-                .filter(Objects::nonNull)
-                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                .flatMap(vm -> vm.getConnectedEntityListList().stream())
-                .filter(connectedEntity -> connectedEntity.getConnectedEntityType() ==
-                        EntityType.VIRTUAL_VOLUME_VALUE)
-                .map(ConnectedEntity::getConnectedEntityId)
-                .collect(Collectors.toSet());
-        final Set<Long> alreadyAddedVolumeIds = Sets.union(projectedAttachedVolumeIds, wastedStorageActionsVolumeIds);
-
         final Stream<TopologyEntityDTO> projectedEntitiesFromOriginalTopo =
                 originalCloudTopology.getAllEntitiesOfType(
                         TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION).stream();
@@ -727,10 +711,12 @@ public class Analysis {
                 converter.getSkippedEntitiesInScope(topologyDTOs.keySet()).stream();
         final Set<ProjectedTopologyEntity> entitiesToAdd = Stream
                 .concat(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities)
-                // Exclude Volumes that have been already added to projected entities
-                .filter(entity -> !alreadyAddedVolumeIds.contains(entity.getOid()))
+                // Exclude Volumes with Delete Volume action
+                .filter(entity -> !wastedStorageActionsVolumeIds.contains(entity.getOid()))
                 // Exclude entities that were removed due to plan configurations in source topology
                 .filter(entity -> !oidsRemoved.contains(entity.getOid()))
+                // Exclude entities that have already been added
+                .filter(entity -> !projectedEntities.containsKey(entity.getOid()))
                 .map(Analysis::toProjectedTopologyEntity)
                 .collect(Collectors.toSet());
 

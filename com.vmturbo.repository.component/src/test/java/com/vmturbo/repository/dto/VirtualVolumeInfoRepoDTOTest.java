@@ -18,12 +18,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Red
  */
 public class VirtualVolumeInfoRepoDTOTest {
 
-    private static final float STORAGE_ACCESS_CAPACITY = 1.1f;
-    private static final float STORAGE_AMOUNT_CAPACITY = 2.2f;
-    private static final float IO_THROUGHPUT_CAPACITY = 3.3f;
     private static final RedundancyType REDUNDANCY_TYPE = RedundancyType.RAGRS;
     private static final String SNAPSHOT_ID = "snap-1234";
-    private static final double DELTA = 0.000001;
 
     /**
      * Test filling a RepoDTO from a {@link TypeSpecificInfo} with data fields populated.
@@ -33,9 +29,6 @@ public class VirtualVolumeInfoRepoDTOTest {
         // arrange
         final TypeSpecificInfo testInfo = TypeSpecificInfo.newBuilder()
                 .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                        .setStorageAccessCapacity(STORAGE_ACCESS_CAPACITY)
-                        .setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY)
-                        .setIoThroughputCapacity(IO_THROUGHPUT_CAPACITY)
                         .setRedundancyType(REDUNDANCY_TYPE)
                         .setSnapshotId(SNAPSHOT_ID)
                         .setAttachmentState(AttachmentState.ATTACHED)
@@ -49,12 +42,6 @@ public class VirtualVolumeInfoRepoDTOTest {
         // act
         testVirtualVolumeRepoDTO.fillFromTypeSpecificInfo(testInfo, serviceEntityRepoDTO);
         // assert
-        assertEquals(STORAGE_ACCESS_CAPACITY,
-                testVirtualVolumeRepoDTO.getStorageAccessCapacity(), DELTA);
-        assertEquals(STORAGE_AMOUNT_CAPACITY,
-                testVirtualVolumeRepoDTO.getStorageAmountCapacity(), DELTA);
-        assertEquals(IO_THROUGHPUT_CAPACITY,
-            testVirtualVolumeRepoDTO.getIoThroughputCapacity(), DELTA);
         assertEquals(Integer.valueOf(REDUNDANCY_TYPE.getNumber()),
                 testVirtualVolumeRepoDTO.getRedundancyType());
         assertEquals(SNAPSHOT_ID, testVirtualVolumeRepoDTO.getSnapshotId());
@@ -77,9 +64,6 @@ public class VirtualVolumeInfoRepoDTOTest {
         // act
         testVirtualVolumeInfoRepoDTO.fillFromTypeSpecificInfo(testInfo, serviceEntityRepoDTO);
         // assert
-        assertNull(testVirtualVolumeInfoRepoDTO.getStorageAccessCapacity());
-        assertNull(testVirtualVolumeInfoRepoDTO.getStorageAmountCapacity());
-        assertNull(testVirtualVolumeInfoRepoDTO.getIoThroughputCapacity());
         assertNull(testVirtualVolumeInfoRepoDTO.getRedundancyType());
         assertNull(testVirtualVolumeInfoRepoDTO.getSnapshotId());
         assertNull(testVirtualVolumeInfoRepoDTO.getAttachmentState());
@@ -94,18 +78,12 @@ public class VirtualVolumeInfoRepoDTOTest {
     public void testCreateFromRepoDTO() {
         // arrange
         VirtualVolumeInfoRepoDTO testDto = new VirtualVolumeInfoRepoDTO();
-        testDto.setStorageAccessCapacity(STORAGE_ACCESS_CAPACITY);
-        testDto.setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY);
-        testDto.setIoThroughputCapacity(IO_THROUGHPUT_CAPACITY);
         testDto.setRedundancyType(REDUNDANCY_TYPE.getNumber());
         testDto.setSnapshotId(SNAPSHOT_ID);
         testDto.setAttachmentState(AttachmentState.ATTACHED.getNumber());
         testDto.setEncryption(true);
         testDto.setEphemeral(true);
         VirtualVolumeInfo expected = VirtualVolumeInfo.newBuilder()
-                .setStorageAccessCapacity(STORAGE_ACCESS_CAPACITY)
-                .setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY)
-                .setIoThroughputCapacity(IO_THROUGHPUT_CAPACITY)
                 .setRedundancyType(REDUNDANCY_TYPE)
                 .setSnapshotId(SNAPSHOT_ID)
                 .setAttachmentState(AttachmentState.ATTACHED)

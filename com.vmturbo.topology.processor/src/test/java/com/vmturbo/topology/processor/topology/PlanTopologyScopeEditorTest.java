@@ -73,8 +73,6 @@ public class PlanTopologyScopeEditorTest {
     private static final TopologyDTO.CommodityType POWER = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.POWER_VALUE).build();
     private static final TopologyDTO.CommodityType EXTENT1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.EXTENT_VALUE)
             .setKey("DA1").build();
-    private static final TopologyDTO.CommodityType EXTENT2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.EXTENT_VALUE)
-            .setKey("DA2").build();
     private static final TopologyDTO.CommodityType DC1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
             .setKey("DC1").build();
     private static final TopologyDTO.CommodityType DC2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
@@ -180,18 +178,14 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder storageTier = createCloudConnectedTopologyEntity(
             CLOUD_TARGET_1, 7001L, "Storage tier", EntityType.STORAGE_TIER);
 
-    private final TopologyEntity.Builder vm1InLondon = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_1, 4001L, "VM1 in London", EntityType.VIRTUAL_MACHINE,
-            VIRTUAL_VOLUME_IN_LONDON_ID);
-    private final TopologyEntity.Builder vm2InLondon = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_1, 4002L, "VM2 in London", EntityType.VIRTUAL_MACHINE,
-            VIRTUAL_VOLUME_IN_LONDON_ID);
-    private final TopologyEntity.Builder vmInOhio = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_1, 4003L, "VM in Ohio", EntityType.VIRTUAL_MACHINE,
-            VIRTUAL_VOLUME_IN_OHIO_ID);
-    private final TopologyEntity.Builder vmInHongKong = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_1, 4004L, "VM in Hong Kong", EntityType.VIRTUAL_MACHINE,
-            VIRTUAL_VOLUME_IN_HONG_KONG_ID);
+    private final TopologyEntity.Builder vm1InLondon = createCloudVm(
+            CLOUD_TARGET_1, 4001L, "VM1 in London", VIRTUAL_VOLUME_IN_LONDON_ID);
+    private final TopologyEntity.Builder vm2InLondon = createCloudVm(
+            CLOUD_TARGET_1, 4002L, "VM2 in London");
+    private final TopologyEntity.Builder vmInOhio = createCloudVm(
+            CLOUD_TARGET_1, 4003L, "VM in Ohio", VIRTUAL_VOLUME_IN_OHIO_ID);
+    private final TopologyEntity.Builder vmInHongKong = createCloudVm(
+            CLOUD_TARGET_1, 4004L, "VM in Hong Kong", VIRTUAL_VOLUME_IN_HONG_KONG_ID);
 
     private final TopologyEntity.Builder appAws =
             TopologyEntityUtils.topologyEntity(900000L, CLOUD_TARGET_1, 0,
@@ -204,19 +198,18 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder dbsHongKong = createCloudConnectedTopologyEntity(
             CLOUD_TARGET_1, 9002L, "DBS in Hong Kong", EntityType.DATABASE_SERVER);
 
-    private final TopologyEntity.Builder virtualVolumeInLondon = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_LONDON_ID, "Virtual Volume in London", EntityType.VIRTUAL_VOLUME,
+    private final TopologyEntity.Builder virtualVolumeInLondon = createCloudVolume(
+            CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_LONDON_ID, "Virtual Volume in London",
             storageTier.getOid());
-    private final TopologyEntity.Builder virtualVolumeInOhio = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_OHIO_ID, "Virtual Volume in Ohio", EntityType.VIRTUAL_VOLUME,
+    private final TopologyEntity.Builder virtualVolumeInOhio = createCloudVolume(
+            CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_OHIO_ID, "Virtual Volume in Ohio",
             storageTier.getOid());
-    private final TopologyEntity.Builder virtualVolumeInHongKong = createCloudConnectedTopologyEntity(
+    private final TopologyEntity.Builder virtualVolumeInHongKong = createCloudVolume(
             CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_HONG_KONG_ID, "Virtual Volume in Hong Kong",
-            EntityType.VIRTUAL_VOLUME,
             storageTier.getOid());
-    private final TopologyEntity.Builder unattachedVirtualVolumeInLondon = createCloudConnectedTopologyEntity(
+    private final TopologyEntity.Builder unattachedVirtualVolumeInLondon = createCloudVolume(
             CLOUD_TARGET_1, UNATTACHED_VV_IN_LONDON_ID, "Unattached Virtual Volume in London",
-            EntityType.VIRTUAL_VOLUME, storageTier.getOid());
+            storageTier.getOid());
 
     private final TopologyEntity.Builder az1London = createCloudTopologyAvailabilityZone(
             CLOUD_TARGET_1, 1001L, "AZ1 London",
@@ -252,21 +245,26 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder storageTier2 = createCloudConnectedTopologyEntity(
             CLOUD_TARGET_2, 7002L, "Storage tier 2", EntityType.STORAGE_TIER);
 
-    private final TopologyEntity.Builder unattachedVirtualVolumeInCentralUs = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_2, UNATTACHED_VV_IN_CENTRAL_US_ID, "Unattached Virtual Volume in Central US",
-            EntityType.VIRTUAL_VOLUME, storageTier2.getOid());
-    private final TopologyEntity.Builder virtualVolumeInCentralUs = createCloudConnectedTopologyEntity(
+    private final TopologyEntity.Builder vmInCentralUs = createCloudVm(
+            CLOUD_TARGET_2, 4005L, "VM in Central US", VIRTUAL_VOLUME_IN_CENTRAL_US_ID);
+    private final TopologyEntity.Builder vmInCanada = createCloudVm(
+            CLOUD_TARGET_2, 4006L, "VM in Canada", VIRTUAL_VOLUME_IN_CANADA_ID,
+            VIRTUAL_VOLUME_2_IN_CANADA_ID);
+    private final TopologyEntity.Builder dbCentralUs = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_2, 8002L, "DB in Central US", EntityType.DATABASE);
+    private final TopologyEntity.Builder dbsCentralUs = createCloudConnectedTopologyEntity(
+            CLOUD_TARGET_2, 9003L, "DBS in Central US", EntityType.DATABASE_SERVER);
+
+    private final TopologyEntity.Builder unattachedVirtualVolumeInCentralUs = createCloudVolume(
+            CLOUD_TARGET_2, UNATTACHED_VV_IN_CENTRAL_US_ID,
+            "Unattached Virtual Volume in Central US", storageTier2.getOid());
+    private final TopologyEntity.Builder virtualVolumeInCentralUs = createCloudVolume(
             CLOUD_TARGET_2, VIRTUAL_VOLUME_IN_CENTRAL_US_ID, "Virtual Volume in Central US",
-            EntityType.VIRTUAL_VOLUME,
             storageTier2.getOid());
-    private final TopologyEntity.Builder virtualVolumeInCanada = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_2, VIRTUAL_VOLUME_IN_CANADA_ID, "Virtual Volume in Canada",
-            EntityType.VIRTUAL_VOLUME,
-            storageTier2.getOid());
-    private final TopologyEntity.Builder virtualVolume2InCanada = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_2, VIRTUAL_VOLUME_2_IN_CANADA_ID, "Virtual Volume 2 in Canada",
-            EntityType.VIRTUAL_VOLUME,
-            storageTier2.getOid());
+    private final TopologyEntity.Builder virtualVolumeInCanada = createCloudVolume(CLOUD_TARGET_2,
+            VIRTUAL_VOLUME_IN_CANADA_ID, "Virtual Volume in Canada", storageTier2.getOid());
+    private final TopologyEntity.Builder virtualVolume2InCanada = createCloudVolume(CLOUD_TARGET_2,
+            VIRTUAL_VOLUME_2_IN_CANADA_ID, "Virtual Volume 2 in Canada", storageTier2.getOid());
 
     private final TopologyEntity.Builder businessAcc2 = createOwner(
             CLOUD_TARGET_1, 5002L, "Business account 2", EntityType.BUSINESS_ACCOUNT,
@@ -277,17 +275,6 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder businessAcc1 = createOwner(
             CLOUD_TARGET_1, 5001L, "Business account 1", EntityType.BUSINESS_ACCOUNT,
             businessAcc3, vm1InLondon, virtualVolumeInLondon, appAws);
-
-    private final TopologyEntity.Builder vmInCentralUs = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_2, 4005L, "VM in Central US", EntityType.VIRTUAL_MACHINE,
-            VIRTUAL_VOLUME_IN_CENTRAL_US_ID);
-    private final TopologyEntity.Builder vmInCanada = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_2, 4006L, "VM in Canada", EntityType.VIRTUAL_MACHINE,
-            VIRTUAL_VOLUME_IN_CANADA_ID, VIRTUAL_VOLUME_2_IN_CANADA_ID);
-    private final TopologyEntity.Builder dbCentralUs = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_2, 8002L, "DB in Central US", EntityType.DATABASE);
-    private final TopologyEntity.Builder dbsCentralUs = createCloudConnectedTopologyEntity(
-            CLOUD_TARGET_2, 9003L, "DBS in Central US", EntityType.DATABASE_SERVER);
 
     private final TopologyEntity.Builder appAzure =
             TopologyEntityUtils.topologyEntity(900001L, CLOUD_TARGET_2, 0,
@@ -709,9 +696,9 @@ public class PlanTopologyScopeEditorTest {
         assertEquals(7, result.size());
 
         // Ensure virtual volume is included in scope due to storage.
-        assertTrue(result.entities().filter(entity -> entity.getEntityType()
-            == EntityType.VIRTUAL_VOLUME_VALUE)
-                .collect(Collectors.toList()).size() == 1);
+        assertEquals(1, result.entities()
+                .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                .count());
     }
 
     /**
@@ -940,5 +927,23 @@ public class PlanTopologyScopeEditorTest {
         TopologyEntity.Builder clone = createHypervisorTopologyEntity(oid, displayName, entityType,
                 producers, soldComms, connectedEntities);
         return clone.setClonedFromEntity(cloneFrom.getEntityBuilder());
+    }
+
+    private static TopologyEntity.Builder createCloudVm(
+            final long targetId,
+            final long oid,
+            final String displayName,
+            final long... volumeOids) {
+        return TopologyEntityUtils.topologyEntity(
+                oid, targetId, 0, displayName, EntityType.VIRTUAL_MACHINE, volumeOids);
+    }
+
+    private static TopologyEntity.Builder createCloudVolume(
+            final long targetId,
+            final long oid,
+            final String displayName,
+            final long storageTierOid) {
+        return TopologyEntityUtils.topologyEntity(
+                oid, targetId, 0, displayName, EntityType.VIRTUAL_VOLUME, storageTierOid);
     }
 }

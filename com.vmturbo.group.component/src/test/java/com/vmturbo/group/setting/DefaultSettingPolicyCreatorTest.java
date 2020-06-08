@@ -452,8 +452,8 @@ public class DefaultSettingPolicyCreatorTest {
     @Test
     public void testDoesNotCreateUnnecessaryPolicies() throws Exception {
         final Map<Integer, SettingPolicyInfo> defaultsMap =
-            DefaultSettingPolicyCreator.defaultSettingPoliciesFromSpecs(new EnumBasedSettingSpecStore()
-                .getAllSettingSpecs());
+            DefaultSettingPolicyCreator.defaultSettingPoliciesFromSpecs(
+                new EnumBasedSettingSpecStore(false, false).getAllSettingSpecs());
 
         assertThat(defaultsMap.size(), is(lessThan(EntityType.values().length)));
         assertThat(defaultsMap.keySet(), not(contains(EntityType.UNKNOWN.getValue())));

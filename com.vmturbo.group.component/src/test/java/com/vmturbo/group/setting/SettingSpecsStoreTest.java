@@ -19,7 +19,8 @@ public class SettingSpecsStoreTest {
 
     @Before
     public void init() {
-        specStore = new EnumBasedSettingSpecStore();
+        specStore = new EnumBasedSettingSpecStore(
+            false, false);
     }
 
     /**

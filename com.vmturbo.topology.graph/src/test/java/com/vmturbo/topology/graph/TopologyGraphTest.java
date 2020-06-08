@@ -3,43 +3,54 @@ package com.vmturbo.topology.graph;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.base.Functions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.graph.TopologyGraph.TopsortEdgeSupplier;
 
 public class TopologyGraphTest {
 
     /**
+     * Graph constructed below.
+     *
+     * <pre>
      * 4   5     VIRTUAL_MACHINE
      *  \ /
      *   2   3   PHYSICAL_MACHINE
      *    \ /
      *     1     DATACENTER
+     * </pre>
      */
     private final TestGraphEntity.Builder onPremDC = TestGraphEntity.newBuilder(1L, ApiEntityType.DATACENTER);
     private final TestGraphEntity.Builder onPremPM1 =
             TestGraphEntity.newBuilder(2L, ApiEntityType.PHYSICAL_MACHINE)
-                .addProviderId(1L);
+                    .addProviderId(1L);
     private final TestGraphEntity.Builder onPremPM2 =
             TestGraphEntity.newBuilder(3L, ApiEntityType.PHYSICAL_MACHINE)
-                .addProviderId(1L);
+                    .addProviderId(1L);
     private final TestGraphEntity.Builder onPremVM1 =
             TestGraphEntity.newBuilder(4L, ApiEntityType.VIRTUAL_MACHINE)
                 .addProviderId(2L);
@@ -53,6 +64,44 @@ public class TopologyGraphTest {
         4L, onPremVM1,
         5L, onPremVM2);
 
+
+    private static final ImmutableList<TopsortEdgeSupplier<TestGraphEntity>> BY_PROVIDERS_EDGE_SUPPLIERS
+            = ImmutableList.of(TopologyGraph::getProviders);
+    private static final ImmutableList<TopsortEdgeSupplier<TestGraphEntity>> BY_CONSUMERS_EDGE_SUPPLIERS
+            = ImmutableList.of((g, e) -> g.getConsumers(e));
+
+    /**
+     * These edge suppliers don't correspond to actual edges in this graph, but they test the use of
+     * multiple edge suppliers with contradictory ordering.
+     *
+     * <pre>
+     *   2 -> 3  |     3    5
+     *   ^   ^   |     |    ^
+     *    \ /    |     v    |
+     *     1     |  1  2    4
+     * </pre>
+     *
+     * <p>The 2 -> 3 edge should prevail over the 3 -> 2 edge, and the 4 -> 5 edge should show up
+     * as well.</p>
+     */
+    private static final ImmutableList<TopsortEdgeSupplier<TestGraphEntity>> MULTI_COMPETING_EDGE_SUPPLIERS
+            = ImmutableList.<TopsortEdgeSupplier<TestGraphEntity>>builder()
+            .add((g, e) -> e.getOid() == 1L
+                    ? Stream.of(g.getEntity(2L).get(), g.getEntity(3L).get())
+                    : e.getOid() == 2L
+                    ? Stream.of(g.getEntity(3L).get())
+                    : e.getOid() == 3L
+                    ? Stream.empty()
+                    : Stream.empty())
+            .add((g, e) -> e.getOid() == 3L
+                    ? Stream.of(g.getEntity(2L).get())
+                    : e.getOid() == 4L
+                    ? Stream.of(g.getEntity(5L).get())
+                    : e.getOid() == 5L
+                    ? Stream.empty()
+                    : Stream.empty())
+
+            .build();
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -392,11 +441,68 @@ public class TopologyGraphTest {
 
     private int producerCount(@Nonnull final TopologyGraph<TestGraphEntity> graph) {
         return graph.entities().mapToInt(
-            entity -> graph.getProviders(entity).mapToInt(v -> 1).sum()).sum();
+                entity -> graph.getProviders(entity).mapToInt(v -> 1).sum()).sum();
     }
 
     private int consumerCount(@Nonnull final TopologyGraph<TestGraphEntity> graph) {
         return graph.entities().mapToInt(
-            entity -> graph.getConsumers(entity).mapToInt(v -> 1).sum()).sum();
+                entity -> graph.getConsumers(entity).mapToInt(v -> 1).sum()).sum();
     }
+
+    /**
+     * Test a simple graph sort so providers precede consumers.
+     */
+    @Test
+    public void testTopologicalSortByProviders() {
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(onPremTopologyMap);
+        final Stream<TestGraphEntity> sortedEntities = graph.topSort(BY_PROVIDERS_EDGE_SUPPLIERS);
+        final Map<Long, Integer> oidIndexes = oidToIndex(graph, sortedEntities);
+        assertThat(oidIndexes.get(2L), greaterThan(oidIndexes.get(1L)));
+        assertThat(oidIndexes.get(3L), greaterThan(oidIndexes.get(1L)));
+        assertThat(oidIndexes.get(4L), greaterThan(oidIndexes.get(1L)));
+        assertThat(oidIndexes.get(5L), greaterThan(oidIndexes.get(1L)));
+        assertThat(oidIndexes.get(4L), greaterThan(oidIndexes.get(2L)));
+        assertThat(oidIndexes.get(5L), greaterThan(oidIndexes.get(2L)));
+    }
+
+    /**
+     * Test a simple graph with so that consumers precede providers (same result as "reverse" tests
+     * by using an inverse relation).
+     */
+    @Test
+    public void testTopologicalSortByConsumers() {
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(onPremTopologyMap);
+        final Stream<TestGraphEntity> sortedEntities = graph.topSort(BY_PROVIDERS_EDGE_SUPPLIERS);
+        final Map<Long, Integer> oidIndexes = oidToIndex(graph, sortedEntities);
+        assertThat(oidIndexes.get(2L), greaterThan(oidIndexes.get(1L)));
+        assertThat(oidIndexes.get(3L), greaterThan(oidIndexes.get(1L)));
+        assertThat(oidIndexes.get(4L), greaterThan(oidIndexes.get(1L)));
+        assertThat(oidIndexes.get(5L), greaterThan(oidIndexes.get(1L)));
+        assertThat(oidIndexes.get(4L), greaterThan(oidIndexes.get(2L)));
+        assertThat(oidIndexes.get(5L), greaterThan(oidIndexes.get(2L)));
+    }
+
+    /**
+     * Test that muliple edge suppliers that don't aggree are properly prioritized.
+     */
+    @Test
+    public void testContradicingEdgeSuppliers() {
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(onPremTopologyMap);
+        final Stream<TestGraphEntity> sortedEntities = graph.topSort(MULTI_COMPETING_EDGE_SUPPLIERS);
+        final Map<Long, Integer> oidIndexes = oidToIndex(graph, sortedEntities);
+        assertThat(oidIndexes.get(1L), greaterThan(oidIndexes.get(2L)));
+        assertThat(oidIndexes.get(1L), greaterThan(oidIndexes.get(3L)));
+        assertThat(oidIndexes.get(4L), greaterThan(oidIndexes.get(5L)));
+    }
+
+    private static Map<Long, Integer> oidToIndex(final TopologyGraph<TestGraphEntity> graph,
+            final Stream<TestGraphEntity> sortedEntities) {
+        final List<Long> sortedOids = sortedEntities
+                .map(TestGraphEntity::getOid)
+                .collect(Collectors.toList());
+        return IntStream.range(0, graph.size())
+                .boxed()
+                .collect(Collectors.toMap(i -> sortedOids.get(i), Functions.identity()));
+    }
+
 }

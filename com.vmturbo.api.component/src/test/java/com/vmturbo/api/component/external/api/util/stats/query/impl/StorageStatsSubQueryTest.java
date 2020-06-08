@@ -608,7 +608,7 @@ public class StorageStatsSubQueryTest {
     @Nonnull
     private ApiPartialEntity createVVApiPartialEntity(final long vvOid, final long storageTierOid) {
         return createBaseVVApiPartialEntity(vvOid, EnvironmentType.CLOUD)
-            .addConnectedTo(RelatedEntity.newBuilder()
+            .addProviders(RelatedEntity.newBuilder()
                     .setEntityType(EntityType.STORAGE_TIER.getValue())
                     .setOid(storageTierOid)
                     .build())

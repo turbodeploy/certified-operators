@@ -1391,7 +1391,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 (ServerCallStreamObserver)responseObserver : null;
         final Optional<GetMostRecentStatResponse.Builder> response = mostRecentLiveStatReader
             .getMostRecentStat(request.getEntityType(), request.getCommodityName(),
-                request.getCommodityKey(), streamObserver);
+                request.getProviderId(), streamObserver);
         final GetMostRecentStatResponse returnObject = response.map(stat -> {
             final String entityDisplayName = liveStatsReader
                 .getEntityDisplayNameForId(stat.getEntityUuid());

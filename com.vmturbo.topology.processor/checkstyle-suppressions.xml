@@ -6,7 +6,6 @@
 <suppressions>
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/operation/OperationTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/operation/OperationMessageHandlerTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/operation/OperationTestUtilities.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/topology/CommoditiesEditorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/topology/pipeline/EntityCounterTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/topology/pipeline/StagesTest.java" />
@@ -181,17 +180,11 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/rest/OperationControllerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/rest/TopologyControllerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/OperationListener.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/discovery/Discovery.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/discovery/DiscoveryMessageHandler.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/DiscoveryDumperSettings.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/action/Action.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/action/ActionMessageHandler.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/IOperationManager.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/OperationMessageHandler.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/Operation.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/validation/ValidationMessageHandler.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/validation/ValidationResult.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/validation/Validation.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/ActionConversions.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/OperationManager.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/operation/OperationConfig.java" />
@@ -449,7 +442,6 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/server/TopoBroadcastManager.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/ClockConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/communication/PassiveAdjustableExpiringMap.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/communication/RemoteMediation.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/communication/RemoteMediationServer.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/communication/BaseMessageHandler.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/communication/SdkServerConfig.java" />

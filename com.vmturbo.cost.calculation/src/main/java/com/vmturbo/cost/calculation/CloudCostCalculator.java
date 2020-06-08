@@ -440,7 +440,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         // The actual lookup will happen when someone tries to get the hourly cost from the
         // VM's cost journal, and we do assume that that will happen after all cost calculations have
         // been completed.
-        cloudTopology.getConnectedVolumes(entityId).forEach(journal::inheritCost);
+        cloudTopology.getAttachedVolumes(entityId).forEach(journal::inheritCost);
 
         entityInfoExtractor.getComputeConfig(entity).ifPresent(computeConfig -> {
             // Calculate on-demand prices for entities that have a compute config.

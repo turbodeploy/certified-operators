@@ -11,6 +11,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
@@ -18,8 +19,12 @@ import org.mockito.Mockito;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
@@ -29,6 +34,10 @@ import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -100,6 +109,38 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
+    public void sendActionApprovalsRequest(@Nonnull Target target,
+            @Nonnull ActionApprovalRequest actionApprovalRequest,
+            @Nonnull IOperationMessageHandler<ActionApproval> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        throw new NotImplementedException("Not implemented yet");
+    }
+
+    @Override
+    public void sendActionUpdateStateRequest(@Nonnull Target target,
+            @Nonnull ActionUpdateStateRequest actionUpdateStateRequest,
+            @Nonnull IOperationMessageHandler<ActionUpdateState> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        throw new NotImplementedException("Not implemented yet");
+    }
+
+    @Override
+    public void sendGetActionStatesRequest(@Nonnull Target target,
+            @Nonnull GetActionStateRequest getActionStateRequest,
+            @Nonnull IOperationMessageHandler<GetActionState> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        throw new NotImplementedException("Not implemented yet");
+    }
+
+    @Override
+    public void sendActionAuditRequest(@Nonnull Target target,
+            @Nonnull ActionAuditRequest actionAuditRequest,
+            @Nonnull IOperationMessageHandler<ActionAudit> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        throw new NotImplementedException("Not implemented yet");
+    }
+
+    @Override
     public void sendSetPropertiesRequest(long probeId, @Nonnull SetProperties setProperties)
             throws InterruptedException, ProbeException, CommunicationException {
     }
@@ -110,9 +151,7 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public int checkForExpiredHandlers() {
-        return 0;
-    }
+    public void checkForExpiredHandlers() {}
 
     @Override
     public Clock getMessageHandlerExpirationClock() {

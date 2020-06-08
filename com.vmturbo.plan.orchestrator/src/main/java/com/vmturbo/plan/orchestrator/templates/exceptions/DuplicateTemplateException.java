@@ -10,6 +10,6 @@ import javax.annotation.Nonnull;
 public class DuplicateTemplateException extends Exception {
 
     public DuplicateTemplateException(@Nonnull final String templateName) {
-        super(MessageFormat.format("Template with name {0} already exist", templateName));
+        super(MessageFormat.format("Template with the name {0} already exists", templateName));
     }
 }

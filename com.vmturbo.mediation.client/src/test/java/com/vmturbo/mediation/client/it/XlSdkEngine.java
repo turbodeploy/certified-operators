@@ -111,6 +111,8 @@ public class XlSdkEngine implements ISdkEngine {
         environment.setProperty("consul_port", "0");
         environment.setProperty("consul_host", "consul");
         environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+        environment.setProperty("standalone", "true");
+        environment.setProperty("connRetryIntervalSeconds", "1");
 
         applicationContext = new AnnotationConfigWebApplicationContext();
         applicationContext.setEnvironment(environment);
@@ -195,7 +197,9 @@ public class XlSdkEngine implements ISdkEngine {
     @Nonnull
     @Override
     public ISdkContainer createMediationContainer() throws Exception {
-        return new SdkContainer();
+        final SdkContainer container = new SdkContainer();
+        containers.add(container);
+        return container;
     }
 
     @Nonnull
@@ -284,6 +288,9 @@ public class XlSdkEngine implements ISdkEngine {
             environment.setProperty("serverAddress",
                     webSocketServer.getServerURI(SdkServerConfig.REMOTE_MEDIATION_PATH).toString());
             environment.setProperty("instances." + instanceId + ".identityGeneratorPrefix", "0");
+            environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+            environment.setProperty("standalone", "true");
+            environment.setProperty("connRetryIntervalSeconds", "1");
             testServer =
                     new IntegrationTestServer(testName, ContextConfiguration.class, environment);
         }

@@ -56,6 +56,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
@@ -66,7 +67,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
-import com.vmturbo.commons.Units;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -128,27 +128,22 @@ public class VirtualVolumeAspectMapperTest {
     private static final long[] wastedFileModTimes = { timeFile1, timeFile2 };
 
     // aws entities:
-    // vm1 --> volume1, vm1 --> storageTier1
+    // vm1 --> volume1
     // volume1 and volume2 --> zone1, storageTier1
     // region1 --> zone --> storageTier1
     // zone1 --> vm1
-    private TopologyEntityDTO vm1 = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityDTO vm1 = TopologyEntityDTO.newBuilder()
         .setOid(vmId1)
         .setDisplayName(vmName1)
         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
-                .setConnectedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setConnectedEntityId(volumeId1)
-                .build())
         .addConnectedEntityList(ConnectedEntity.newBuilder()
                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                 .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
                 .setConnectedEntityId(zoneId1)
                 .build())
         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(storageTierId1)
-                .setVolumeId(volumeId1)
+                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setProviderId(volumeId1)
                 .addCommodityBought(CommodityBoughtDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder().setType(
                                 CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).build())
@@ -162,7 +157,7 @@ public class VirtualVolumeAspectMapperTest {
                 .build())
         .build();
 
-    private TopologyEntityDTO volume1 = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityDTO volume1 = TopologyEntityDTO.newBuilder()
         .setOid(volumeId1)
         .setDisplayName(volumeName1)
         .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
@@ -170,19 +165,27 @@ public class VirtualVolumeAspectMapperTest {
             .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
             .setConnectedEntityId(zoneId1)
             .build())
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(EntityType.STORAGE_TIER_VALUE)
-            .setConnectedEntityId(storageTierId1)
-            .build())
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                        .setStorageAccessCapacity(100)
-                        .setStorageAmountCapacity(1000)
+                .setVirtualVolume(VirtualVolumeInfo.getDefaultInstance()))
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(storageTierId1)
+                .build())
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber())
                         .build())
+                .setCapacity(1000)
+                .build())
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber())
+                        .build())
+                .setCapacity(100)
                 .build())
         .build();
 
-    private TopologyEntityDTO volume2 = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityDTO volume2 = TopologyEntityDTO.newBuilder()
         .setOid(volumeId2)
         .setDisplayName(volumeName2)
         .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
@@ -190,18 +193,27 @@ public class VirtualVolumeAspectMapperTest {
             .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
             .setConnectedEntityId(zoneId1)
             .build())
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(EntityType.STORAGE_TIER_VALUE)
-            .setConnectedEntityId(storageTierId1)
-            .build())
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                        .setStorageAccessCapacity(200)
-                        .setStorageAmountCapacity(2000)
-                        .build()))
+                .setVirtualVolume(VirtualVolumeInfo.getDefaultInstance()))
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(storageTierId1)
+                .build())
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber())
+                        .build())
+                .setCapacity(2000)
+                .build())
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber())
+                        .build())
+                .setCapacity(200)
+                .build())
         .build();
 
-    private TopologyEntityDTO storageTier1 = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityDTO storageTier1 = TopologyEntityDTO.newBuilder()
         .setOid(storageTierId1)
         .setDisplayName(storageTierName1)
         .setEntityType(EntityType.STORAGE_TIER_VALUE)
@@ -211,7 +223,7 @@ public class VirtualVolumeAspectMapperTest {
             .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
         .build();
 
-    private ApiPartialEntity region1 = ApiPartialEntity.newBuilder()
+    private final ApiPartialEntity region1 = ApiPartialEntity.newBuilder()
         .setOid(regionId1)
         .setDisplayName("aws-US East")
         .setEntityType(EntityType.REGION_VALUE)
@@ -225,38 +237,21 @@ public class VirtualVolumeAspectMapperTest {
                             .build())
         .build();
 
-    private ApiPartialEntity zone1 = ApiPartialEntity.newBuilder()
-            .setOid(zoneId1)
-            .setDisplayName("aws-ap-northeast-1a")
-            .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
-            .build();
-
-    private ApiPartialEntity storageTierPartialEntity = ApiPartialEntity.newBuilder()
-            .setOid(storageTierId1)
-            .setDisplayName(storageDisplayName)
-            .setEntityType(EntityType.STORAGE_TIER_VALUE)
-            .build();
-
     // azure entities:
     // azureVm --> azureVolume, azureVm --> azureStorageTier
     // volume1 and volume2 --> zone1, storageTier1
     // region1 --> storageTier1, azureVm
-    private TopologyEntityDTO azureVm = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityDTO azureVm = TopologyEntityDTO.newBuilder()
             .setOid(azureVmId)
             .setDisplayName(azureVmName)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                    .setConnectionType(ConnectionType.NORMAL_CONNECTION)
-                    .setConnectedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                    .setConnectedEntityId(azureVolumeId)
-                    .build())
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityId(azureRegionId)
                     .setConnectedEntityType(EntityType.REGION_VALUE)
                     .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(azureStorageTierId)
-                    .setVolumeId(azureVolumeId)
+                    .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                    .setProviderId(azureVolumeId)
                     .addCommodityBought(CommodityBoughtDTO.newBuilder()
                             .setCommodityType(CommodityType.newBuilder().setType(
                                     CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).build())
@@ -270,27 +265,41 @@ public class VirtualVolumeAspectMapperTest {
                     .build())
             .build();
 
-    private TopologyEntityDTO azureVolume = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityDTO azureVolume = TopologyEntityDTO.newBuilder()
         .setOid(azureVolumeId)
         .setDisplayName(azureVolumeName)
         .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(EntityType.STORAGE_TIER_VALUE)
-            .setConnectedEntityId(azureStorageTierId)
-            .build())
         .addConnectedEntityList(ConnectedEntity.newBuilder()
             .setConnectedEntityType(EntityType.REGION_VALUE)
             .setConnectedEntityId(azureRegionId)
             .build())
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                        .setIoThroughputCapacity(azureVolumeIoThroughput)
-                        .setStorageAccessCapacity(300)
-                        .setStorageAmountCapacity(3000)
-                        .build()))
+                .setVirtualVolume(VirtualVolumeInfo.getDefaultInstance()))
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.STORAGE_TIER.getNumber())
+                .setProviderId(azureStorageTierId)
+                .build())
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber())
+                        .build())
+                .setCapacity(3000)
+                .build())
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber())
+                        .build())
+                .setCapacity(300)
+                .build())
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.IO_THROUGHPUT.getNumber())
+                        .build())
+                .setCapacity(azureVolumeIoThroughput)
+                .build())
         .build();
 
-    private TopologyEntityDTO azureStorageTier = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityDTO azureStorageTier = TopologyEntityDTO.newBuilder()
         .setOid(azureStorageTierId)
         .setDisplayName(azureStorageTierName)
         .setEntityType(EntityType.STORAGE_TIER_VALUE)
@@ -300,19 +309,19 @@ public class VirtualVolumeAspectMapperTest {
                                     .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
         .build();
 
-    private ApiPartialEntity azureRegion = ApiPartialEntity.newBuilder()
+    private final ApiPartialEntity azureRegion = ApiPartialEntity.newBuilder()
             .setOid(azureRegionId)
             .setDisplayName("azure-US East")
             .setEntityType(EntityType.REGION_VALUE)
             .build();
 
-    private TopologyEntityDTO storage1 = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityDTO storage1 = TopologyEntityDTO.newBuilder()
         .setOid(storageId)
         .setDisplayName(storageDisplayName)
         .setEntityType(EntityType.STORAGE_VALUE)
         .build();
 
-    private TopologyEntityDTO storage2 = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityDTO storage2 = TopologyEntityDTO.newBuilder()
         .setOid(storageId2)
         .setDisplayName(storage2DisplayName)
         .setEntityType(EntityType.STORAGE_VALUE)
@@ -326,7 +335,7 @@ public class VirtualVolumeAspectMapperTest {
     private final Long volumeConnectedZoneId = 102L;
     private final String volumeConnectedZoneDisplayName = "zone1";
 
-    private ApiPartialEntity volumeConnectedZone = ApiPartialEntity.newBuilder()
+    private final  ApiPartialEntity volumeConnectedZone = ApiPartialEntity.newBuilder()
             .setOid(volumeConnectedZoneId)
             .setDisplayName(volumeConnectedZoneDisplayName)
             .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
@@ -335,9 +344,9 @@ public class VirtualVolumeAspectMapperTest {
     private final Long volumeConnectedBusinessAccountId = 103L;
     private final String volumeConnectedBusinessAccountDisplayName = "businessAccount1";
 
-    private ServiceEntityApiDTO volumeConnectedBusinessAccount = new ServiceEntityApiDTO();
+    private final ServiceEntityApiDTO volumeConnectedBusinessAccount = new ServiceEntityApiDTO();
 
-    ServiceEntityApiDTO storageTierSEApiDTO = new ServiceEntityApiDTO();
+    private final ServiceEntityApiDTO storageTierSEApiDTO = new ServiceEntityApiDTO();
 
     private final Long virtualVolumeId = 100L;
     private final String virtualVolumeDisplayName = "volume1";
@@ -360,23 +369,33 @@ public class VirtualVolumeAspectMapperTest {
                     .setConnectedEntityId(volumeConnectedZoneId)
                     .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
                     .build())
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                    .setConnectedEntityType(EntityType.STORAGE_TIER_VALUE)
-                    .setConnectedEntityId(storageTierId1)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                    .setProviderId(storageTierId1)
                     .build())
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                            .setStorageAccessCapacity(storageAccessCapacity)
-                            .setStorageAmountCapacity(storageAmountCapacityInMB)
                             .setSnapshotId(snapshotId)
                             .setAttachmentState(AttachmentState.ATTACHED)
                             .setEncryption(true)
                             .build()))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber())
+                            .build())
+                    .setCapacity(storageAmountCapacityInMB)
+                    .build())
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber())
+                            .build())
+                    .setCapacity(storageAccessCapacity)
+                    .build())
             .build();
 
-    private Function<EnvironmentType, TopologyEntityDTO> getVirtualVolume = environmentType -> getVirtualVolumeWithId.apply(virtualVolumeId, environmentType);
+    private final Function<EnvironmentType, TopologyEntityDTO> getVirtualVolume = environmentType -> getVirtualVolumeWithId.apply(virtualVolumeId, environmentType);
 
-    private Supplier<TopologyEntityDTO> getAzureVirtualVolume = () -> TopologyEntityDTO.newBuilder()
+    private final Supplier<TopologyEntityDTO> getAzureVirtualVolume = () -> TopologyEntityDTO.newBuilder()
         .setOid(azureVolumeId)
         .setDisplayName(azureVolumeName)
         .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
@@ -385,19 +404,34 @@ public class VirtualVolumeAspectMapperTest {
             .setConnectedEntityId(azureRegionId)
             .setConnectedEntityType(EntityType.REGION_VALUE)
             .build())
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(EntityType.STORAGE_TIER_VALUE)
-            .setConnectedEntityId(azureStorageTierId)
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+            .setProviderId(azureStorageTierId)
             .build())
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                .setStorageAccessCapacity(storageAccessCapacity)
-                .setStorageAmountCapacity(storageAmountCapacityInMB)
-                .setIoThroughputCapacity(azureVolumeIoThroughput)
                 .setSnapshotId(snapshotId)
                 .setAttachmentState(AttachmentState.ATTACHED)
                 .setEncryption(true)
                 .build()))
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber())
+                .build())
+            .setCapacity(storageAmountCapacityInMB)
+            .build())
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber())
+                .build())
+            .setCapacity(storageAccessCapacity)
+            .build())
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.IO_THROUGHPUT.getNumber())
+                .build())
+            .setCapacity(azureVolumeIoThroughput)
+            .build())
         .build();
 
     /**
@@ -417,9 +451,9 @@ public class VirtualVolumeAspectMapperTest {
 
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
-            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
+            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, ApiEntityType.REGION))) {
                 return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
@@ -488,7 +522,7 @@ public class VirtualVolumeAspectMapperTest {
 
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
-            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
+            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, ApiEntityType.REGION))) {
                 return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
@@ -555,7 +589,7 @@ public class VirtualVolumeAspectMapperTest {
 
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
-            if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
+            if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(azureVm));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.STORAGE_TIER))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(azureStorageTier));
@@ -599,11 +633,13 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
         java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
         assertEquals(storageAmountCapacityInMB / 1024F, statApiDTOStorageAmount.get().getCapacity().getAvg().longValue(), 0.00001);
-        java.util.Optional<StatApiDTO> statApiDTOIoThroughput = stats.stream()
-            .filter(stat -> stat.getName() == "IOThroughput").findFirst();
-        assertEquals(statApiDTOIoThroughput.get().getCapacity().getAvg().longValue(),
-            azureVolumeIoThroughput * Units.KIBI, 0.00001);
         assertEquals(VirtualVolumeAspectMapper.CLOUD_STORAGE_AMOUNT_UNIT, statApiDTOStorageAmount.get().getUnits());
+        java.util.Optional<StatApiDTO> statApiDTOIoThroughput = stats.stream()
+                .filter(stat -> CommodityTypeUnits.IO_THROUGHPUT.getMixedCase().equals(stat.getName()))
+                .findFirst();
+        assertTrue(statApiDTOIoThroughput.isPresent());
+        assertEquals(azureVolumeIoThroughput,
+                statApiDTOIoThroughput.get().getCapacity().getAvg().longValue(), 0.00001);
 
         assertEquals(snapshotId, volumeAspect.getSnapshotId());
         assertEquals(AttachmentState.ATTACHED.name(), volumeAspect.getAttachmentState());
@@ -619,7 +655,7 @@ public class VirtualVolumeAspectMapperTest {
      * @throws Exception on exceptions occurred
      */
     @Test
-    public void testMapVolumeOnPerm() throws Exception {
+    public void testMapVolumeOnPrem() throws Exception {
         storageTierSEApiDTO.setUuid(storageTierId1.toString());
         storageTierSEApiDTO.setDisplayName(storageDisplayName);
 
@@ -628,9 +664,9 @@ public class VirtualVolumeAspectMapperTest {
 
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
-            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
+            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(azureVm));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, ApiEntityType.REGION))) {
                 return ApiTestUtils.mockSearchReq(Lists.newArrayList(volumeConnectedZone));
@@ -740,9 +776,9 @@ public class VirtualVolumeAspectMapperTest {
 
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
-           if (param.equals(SearchProtoUtil.neighborsOfType(storageTierId1, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME))) {
+           if (param.equals(SearchProtoUtil.neighborsOfType(storageTierId1, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_VOLUME))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(volume1, volume2));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureStorageTierId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureStorageTierId, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_VOLUME))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(azureVolume));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(storageTierId1, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
@@ -795,8 +831,10 @@ public class VirtualVolumeAspectMapperTest {
         assertNotNull(volumeAspect1);
         assertNotNull(volumeAspect2);
         assertNotNull(volumeAspect3);
+        assertNotNull(volumeAspect1.getAttachedVirtualMachine());
         assertEquals(String.valueOf(vmId1), volumeAspect1.getAttachedVirtualMachine().getUuid());
         assertNull(volumeAspect2.getAttachedVirtualMachine());
+        assertNotNull(volumeAspect3.getAttachedVirtualMachine());
         assertEquals(String.valueOf(azureVmId), volumeAspect3.getAttachedVirtualMachine().getUuid());
 
         // check datacenter
@@ -855,7 +893,7 @@ public class VirtualVolumeAspectMapperTest {
                 assertEquals(String.valueOf(azureStorageTierId), statApiDTO.getRelatedEntity().getUuid());
             } else if (statApiDTO.getName().equals(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase())) {
                 assertEquals(0, statApiDTO.getValue(), 0);
-                assertEquals(azureVolumeIoThroughput * Units.KIBI, statApiDTO.getCapacity().getTotal(), 0);
+                assertEquals(azureVolumeIoThroughput, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(azureStorageTierId), statApiDTO.getRelatedEntity().getUuid());
             }
         });

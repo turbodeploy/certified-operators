@@ -232,10 +232,12 @@ message TypeSpecificInfo {
     // specific data for virtual volume
     message VirtualVolumeInfo {
         // float iops capacity of volume needed for cost calculations
-        optional float storage_access_capacity = 1;
+        // The field is deprecated because the value is now carried in the sold commodity
+        optional float storage_access_capacity = 1 [deprecated = true];
 
         // float storage capacity (MB) of volume needed for cost calculations
-        optional float storage_amount_capacity = 2;
+        // The field is deprecated because the value is now carried in the sold commodity
+        optional float storage_amount_capacity = 2 [deprecated = true];
 
         // String identifying the replication type needed for cost calculations
         optional .common_dto.EntityDTO.VirtualVolumeData.RedundancyType redundancy_type = 3;
@@ -257,7 +259,8 @@ message TypeSpecificInfo {
         optional bool isEphemeral = 8;
 
         // float IO throughput capacity (MiB/s) needed for cost calculations
-        optional float io_throughput_capacity = 9;
+        // The field is deprecated because the value is now carried in the sold commodity
+        optional float io_throughput_capacity = 9 [deprecated = true];
     }
 
     // specific data for a Storage entity
@@ -1260,6 +1263,11 @@ message CommoditySoldDTO {
     // represents more of a logical grouping of entities rather than a proper supplier of resources ie
     // a Container buying from a ContainerPod.
     optional bool is_resold = 25;
+
+    // Whether min is a strict constraint. True when consumer must consume amount above min.
+    optional bool check_min_amount_for_consumer = 26 [default = false];
+
+    optional .common_dto.CommodityDTO.RangeDependency range_dependency = 27;
 
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {

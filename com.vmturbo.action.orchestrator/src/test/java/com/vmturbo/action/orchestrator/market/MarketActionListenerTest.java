@@ -14,8 +14,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
@@ -39,17 +39,16 @@ public class MarketActionListenerTest {
     private final IActionStoreFactory actionStoreFactory = Mockito.mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
-    private final ActionModeCalculator actionModeCalculator = mock(ActionModeCalculator.class);
-    private final ActionOrchestratorNotificationSender notificationSender =
-            mock(ActionOrchestratorNotificationSender.class);
-    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            executor, actionStoreLoader, actionModeCalculator);
+    private ActionStorehouse actionStorehouse;
     private final ActionStore actionStore = mock(ActionStore.class);
     private final EntitySeverityCache severityCache = mock(EntitySeverityCache.class);
     private final ActionPlanAssessor actionPlanAssessor = mock(ActionPlanAssessor.class);
 
     @Before
     public void setup() {
+        final ActionApprovalSender approvalSender = Mockito.mock(ActionApprovalSender.class);
+        this.actionStorehouse = new ActionStorehouse(actionStoreFactory,
+                executor, actionStoreLoader, approvalSender);
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStore);
         when(actionStore.getEntitySeverityCache()).thenReturn(severityCache);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());

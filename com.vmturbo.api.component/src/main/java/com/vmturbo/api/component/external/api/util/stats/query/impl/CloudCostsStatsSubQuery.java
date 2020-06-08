@@ -80,9 +80,11 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -453,16 +455,16 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
         Map<Long, List<Long>> storageTierOidToConnectedVVOids = new HashMap<>();
         vvEntities.forEach(vvEntity -> {
-            Optional<TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity> storageTierOpt = vvEntity.getConnectedToList().stream()
-                .filter(relatedEntity -> relatedEntity.getEntityType() == CommonDTO.EntityDTO.EntityType.STORAGE_TIER.getNumber())
-                .findFirst();
+            final RelatedEntity storageTier = vvEntity.getProvidersList().stream()
+                    .filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
+                    .findFirst().orElse(null);
 
-            if (storageTierOpt.isPresent()) {
+            if (storageTier != null) {
                 storageTierOidToConnectedVVOids
-                    .computeIfAbsent(storageTierOpt.get().getOid(), k -> new ArrayList<>())
+                    .computeIfAbsent(storageTier.getOid(), k -> new ArrayList<>())
                     .add(vvEntity.getOid());
             } else {
-                logger.error("Virtual Volume {} with uuid {} has NO storage tier connected to", vvEntity.getDisplayName(), vvEntity.getOid());
+                logger.error("Virtual Volume {} with uuid {} has NO storage tier provider", vvEntity.getDisplayName(), vvEntity.getOid());
             }
         });
 

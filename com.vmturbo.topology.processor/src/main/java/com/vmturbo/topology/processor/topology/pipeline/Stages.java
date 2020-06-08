@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -18,7 +19,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 import com.google.protobuf.AbstractMessage;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
@@ -1239,15 +1239,29 @@ public class Stages {
         public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull final GraphWithSettings graphWithSettings)
                 throws PipelineStageException, InterruptedException {
             return StageResult.withResult(graphWithSettings.getTopologyGraph())
-                .andStatus(Status.success());
+                    .andStatus(Status.success());
         }
     }
 
     /**
-     * This stage broadcasts the topology represented by a {@link TopologyGraph<TopologyEntity>} out of the
-     * topology processor.
+     * This stage sorts the entities in the topology graph so that inter-entity references always
+     * point to entities that appear earlier in the broadcast (e.g. sellers before consumers.
      */
-    public static class BroadcastStage extends Stage<TopologyGraph<TopologyEntity>, TopologyBroadcastInfo> {
+    public static class TopSortStage extends Stage<TopologyGraph<TopologyEntity>, Stream<TopologyEntity>> {
+
+        @Nonnull
+        @Override
+        public StageResult<Stream<TopologyEntity>> execute(@Nonnull final TopologyGraph<TopologyEntity> graph)
+                throws PipelineStageException, InterruptedException {
+            return StageResult.withResult(graph.topSort()).andStatus(Status.success());
+        }
+    }
+
+    /**
+     * This stage broadcasts the topology, presented as a stream of {@link TopologyEntity instances},
+     * out of the topology processor.
+     */
+    public static class BroadcastStage extends Stage<Stream<TopologyEntity>, TopologyBroadcastInfo> {
 
         private final Logger logger = LogManager.getLogger();
 
@@ -1264,7 +1278,7 @@ public class Stages {
          * @param matrix            The matrix.
          */
         public BroadcastStage(@Nonnull final List<TopoBroadcastManager> broadcastManagers,
-                              final MatrixInterface matrix) {
+                final MatrixInterface matrix) {
             this.broadcastManagers = Objects.requireNonNull(broadcastManagers);
             this.matrix = Objects.requireNonNull(matrix);
             Preconditions.checkArgument(broadcastManagers.size() > 0);
@@ -1272,7 +1286,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public StageResult<TopologyBroadcastInfo> execute(@Nonnull final TopologyGraph<TopologyEntity> input)
+        public StageResult<TopologyBroadcastInfo> execute(@Nonnull final Stream<TopologyEntity> input)
             throws PipelineStageException, InterruptedException {
 
             // Record TopologyInfo and Metrics to the journal if there is one.
@@ -1284,18 +1298,18 @@ public class Stages {
             // The number of entities that have errors.
             // Note that this will only be "valid" after the iterator is consumed.
             final MutableInt numEntitiesWithErrors = new MutableInt(0);
-            final Iterator<TopologyEntityDTO> entities = input.entities()
-                .map(topologyEntity -> {
-                    final TopologyEntityDTO entity = topologyEntity.getTopologyEntityDtoBuilder().build();
-                    if (!StitchingErrors.fromProtobuf(entity).isNone()) {
-                        // Incrementing the error count as a side-effect of the map is not ideal,
-                        // but we don't want to take another pass through entities just to count
-                        // the ones with errors.
-                        numEntitiesWithErrors.increment();
-                    }
-                    return entity;
-                })
-                .iterator();
+            final Iterator<TopologyEntityDTO> entities = input
+                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                    .map(TopologyEntityDTO.Builder::build)
+                    .peek(entity ->  {
+                        if (!StitchingErrors.fromProtobuf(entity).isNone()) {
+                            // Incrementing the error count as a side-effect of the map is not ideal,
+                            // but we don't want to take another pass through entities just to count
+                            // the ones with errors.
+                            numEntitiesWithErrors.increment();
+                        }
+                    })
+                    .iterator();
             try {
                 final TopologyBroadcastInfo broadcastInfo;
                 switch (getContext().getTopologyInfo().getTopologyType()) {

@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SessionData;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.stitching.prestitching.ADGroupsPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.ConnectedNetworkPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedCloudEntityPreStitchingOperation;
@@ -81,6 +82,7 @@ public class PreStitchingOperationLibrary {
                 new StorageVolumePreStitchingOperation(),
                 new SharedVirtualVolumePreStitchingOperation(),
                 new ConnectedNetworkPreStitchingOperation(),
+                new ADGroupsPreStitchingOperation(),
                 new SharedEntityDefaultPreStitchingOperation(
                         stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
                                 SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType(),

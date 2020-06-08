@@ -67,6 +67,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -118,7 +119,8 @@ public class SettingsServiceTest {
         statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         settingsService = spy(new SettingsService(settingServiceStub, statsServiceClient,
-                settingsMapper, settingsManagerMapping, settingsPoliciesService, false));
+                settingsMapper, settingsManagerMapping, settingsPoliciesService,
+                false, false));
 
         when(settingRpcServiceSpy.searchSettingSpecs(any()))
                 .thenReturn(Collections.singletonList(vmSettingSpec));
@@ -342,7 +344,8 @@ public class SettingsServiceTest {
     public void testSettingsServiceHidesCertainSettings() throws Exception {
         final SettingsService settingServiceHidesCertainSettings =
                 spy(new SettingsService(settingServiceStub, statsServiceClient, settingsMapper,
-                        settingsManagerMapping, settingsPoliciesService, true));
+                        settingsManagerMapping, settingsPoliciesService,
+                        true, true));
         final SettingApiDTO<String> actionModeSetting = createActionModeSetting();
         final SettingApiDTO<String> executionScheduleSetting = createExecutionScheduleSetting();
 
@@ -362,7 +365,9 @@ public class SettingsServiceTest {
                 Optional.of(automationSettingsManager));
         when(settingRpcServiceSpy.searchSettingSpecs(any())).thenReturn(
                 Arrays.asList(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingSpec(),
-                        EntitySettingSpecs.ResizeVcpuUpInBetweenThresholdsExecutionSchedule.getSettingSpec()));
+                    ActionSettingSpecs.getSettingSpec(
+                        ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds))));
 
         final List<? extends SettingApiDTO<?>> filteredSettings =
                 settingServiceHidesCertainSettings.getSettingsByUuid(managerName);
@@ -409,7 +414,9 @@ public class SettingsServiceTest {
                 Optional.of(automationSettingsManager));
         when(settingRpcServiceSpy.searchSettingSpecs(any())).thenReturn(
                 Arrays.asList(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingSpec(),
-                        EntitySettingSpecs.ResizeVcpuUpInBetweenThresholdsExecutionSchedule.getSettingSpec()));
+                    ActionSettingSpecs.getSettingSpec(
+                        ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds))));
 
         final List<? extends SettingApiDTO<?>> allSettings =
                 settingsService.getSettingsByUuid(managerName);
@@ -428,7 +435,9 @@ public class SettingsServiceTest {
                 eq(managerName), any());
         assertThat(specCaptor.getValue(), containsInAnyOrder(
                 EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingSpec(),
-                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholdsExecutionSchedule.getSettingSpec()));
+                ActionSettingSpecs.getSettingSpec(
+                    ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                        EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds))));
     }
 
     private static SettingsManagerApiDTO createAutomationManages(List<SettingApiDTO<?>> settings) {
@@ -451,7 +460,8 @@ public class SettingsServiceTest {
 
     private static SettingApiDTO<String> createExecutionScheduleSetting() {
         final String executionScheduleSettingName =
-                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholdsExecutionSchedule.getSettingName();
+                ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                    EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds);
         final String executionScheduleSettingValue = "124";
         final SettingApiDTO<String> executionScheduleSetting = new SettingApiDTO<>();
         executionScheduleSetting.setUuid(executionScheduleSettingName);

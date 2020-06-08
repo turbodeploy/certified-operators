@@ -153,8 +153,7 @@ public abstract class AbstractIntegrationTest {
         environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
         environment.setProperty("standalone", "true");
         environment.setProperty("clustermgr_port", "0");
-        System.setProperty("standalone", "true");
-        System.setProperty("connRetryIntervalSeconds", "10");
+        environment.setProperty("connRetryIntervalSeconds", "10");
 
         applicationContext = new AnnotationConfigWebApplicationContext();
         applicationContext.setEnvironment(environment);
@@ -344,6 +343,7 @@ public abstract class AbstractIntegrationTest {
             environment.setProperty("serverAddress",
                     webSocketServer.getServerURI(SdkServerConfig.REMOTE_MEDIATION_PATH).toString());
             environment.setProperty("instances." + instanceId + ".identityGeneratorPrefix", "0");
+            environment.setProperty("connRetryIntervalSeconds", "1");
             final Thread currentThread = Thread.currentThread();
             final ClassLoader currentClassLoader = currentThread.getContextClassLoader();
             ProbeCompiler.configureProbe(probeHome, probe);

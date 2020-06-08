@@ -33,14 +33,12 @@ import gnu.trove.map.hash.TObjectDoubleHashMap;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
-import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
@@ -120,25 +118,7 @@ public class LiveStatsAggregator {
      * @param entityDTO the entity which sold commodities capacities are added to the cache.
      */
     private void cacheCapacities(TopologyEntityDTO entityDTO) {
-        // for cloud volumes, the capacity is available in the volume info
-        if (HistoryStatsUtils.isCloudEntity(entityDTO) &&
-                entityDTO.getEntityType() == EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE) {
-            // todo: currently volume doesn't sell any commodities, the capacity is stored as
-            // properties, we should remove this logic once volume starts selling commodities
-            if (entityDTO.hasTypeSpecificInfo() && entityDTO.getTypeSpecificInfo().hasVirtualVolume()) {
-                VirtualVolumeInfo volume = entityDTO.getTypeSpecificInfo().getVirtualVolume();
-                capacityCache.cacheCapacity(
-                        entityDTO.getOid(), CommodityType.STORAGE_AMOUNT.getNumber(), volume.getStorageAmountCapacity());
-                capacityCache.cacheCapacity(
-                        entityDTO.getOid(), CommodityType.STORAGE_ACCESS.getNumber(), volume.getStorageAccessCapacity());
-                capacityCache.cacheCapacity(
-                    entityDTO.getOid(), CommodityType.IO_THROUGHPUT.getNumber(), volume.getIoThroughputCapacity());
-            } else {
-                logger.warn("Capacity info is missing for volume {}", entityDTO.getOid());
-            }
-        } else {
-            capacityCache.cacheCapacities(entityDTO);
-        }
+        capacityCache.cacheCapacities(entityDTO);
     }
 
     /**

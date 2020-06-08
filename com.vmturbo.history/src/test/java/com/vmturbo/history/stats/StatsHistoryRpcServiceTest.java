@@ -1022,16 +1022,17 @@ public class StatsHistoryRpcServiceTest {
         // given
         final long vmId = 11111L;
         final String vmName = "vm-1";
+        final String volId = "1234";
         final GetMostRecentStatResponse.Builder stubbedResponse = GetMostRecentStatResponse
                 .newBuilder().setEntityUuid(vmId);
         when(mostRecentLiveStatReader.getMostRecentStat(eq(VIRTUAL_MACHINE), eq(STORAGE_AMOUNT),
-            eq("vol-1"), any(ServerCallStreamObserver.class)))
+            eq(volId), any(ServerCallStreamObserver.class)))
             .thenReturn(Optional.of(stubbedResponse));
         when(mockLivestatsreader.getEntityDisplayNameForId(vmId)).thenReturn(vmName);
         Stats.GetMostRecentStatRequest request = Stats.GetMostRecentStatRequest.newBuilder()
                 .setEntityType(VIRTUAL_MACHINE)
                 .setCommodityName(STORAGE_AMOUNT)
-                .setCommodityKey("vol-1")
+                .setProviderId(volId)
                 .build();
 
         // when

@@ -27,6 +27,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 
 import org.hamcrest.CoreMatchers;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -41,6 +42,8 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -87,6 +90,7 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
@@ -113,10 +117,8 @@ public class ActionExecutionRpcTest {
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            executor, actionStoreLoader, actionModeCalculator);
+            executor, actionStoreLoader, Mockito.mock(ActionApprovalSender.class));
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
-
-    private final WorkflowStore workflowStore = mock(WorkflowStore.class);
 
     private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
 
@@ -139,33 +141,40 @@ public class ActionExecutionRpcTest {
 
     private final Clock clock = new MutableFixedClock(1_000_000);
 
-    private final ActionsRpcService actionsRpcService =
-        new ActionsRpcService(clock,
-            actionStorehouse,
-            actionExecutor,
-            actionTargetSelector,
-            entitySettingsCache,
-            actionTranslator,
-            paginatorFactory,
-            workflowStore,
-            statReader,
-            liveStatReader,
-            userSessionContext, acceptedActionsStore);
+    private ActionsRpcService actionsRpcService;
+    private ActionApprovalManager actionApprovalManager;
 
     private final SettingPolicyServiceMole settingPolicyServiceMole = new SettingPolicyServiceMole();
 
-    @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole);
-
+    private GrpcTestServer grpcServer;
     private ActionStore actionStoreSpy;
 
+    /**
+     * Sets up the tests.
+     *
+     * @throws Exception on exception occurred
+     */
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
+        actionApprovalManager = new ActionApprovalManager(actionExecutor, actionTargetSelector,
+                entitySettingsCache, actionTranslator, Mockito.mock(WorkflowStore.class),
+                acceptedActionsStore);
         actionIdentityService = Mockito.mock(IdentityServiceImpl.class);
         Mockito.when(actionIdentityService.getOidsForObjects(Mockito.any()))
                 .thenReturn(Arrays.asList(1L, 2L, 3L, 4L, 5L, 6L, 7L));
-
+        actionsRpcService =
+                new ActionsRpcService(clock,
+                        actionStorehouse,
+                        actionApprovalManager,
+                        actionTranslator,
+                        paginatorFactory,
+                        statReader,
+                        liveStatReader,
+                        userSessionContext,
+                        acceptedActionsStore);
+        grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole);
+        grpcServer.start();
         ActionTargetInfo targetInfo = ImmutableActionTargetInfo.builder()
             .supportingLevel(SupportLevel.SUPPORTED)
             .targetId(123)
@@ -187,6 +196,14 @@ public class ActionExecutionRpcTest {
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");
+    }
+
+    /**
+     * Cleans up resources.
+     */
+    @After
+    public void cleanup() {
+        grpcServer.close();
     }
 
     /**
@@ -248,8 +265,9 @@ public class ActionExecutionRpcTest {
         when(snapshot.getSettingPoliciesForEntity(actionTargetId)).thenReturn(
                 new ImmutableMap.Builder<String, Collection<Long>>().put(
                         EntitySettingSpecs.Move.getSettingName(), Collections.singletonList(22L))
-                        .put(EntitySettingSpecs.MoveExecutionSchedule.getSettingName(),
-                                Collections.singleton(23L))
+                        .put(ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                                EntitySettingSpecs.Move),
+                            Collections.singleton(23L))
                         .build());
 
         actionStorehouse.storeActions(plan);
@@ -275,9 +293,11 @@ public class ActionExecutionRpcTest {
 
     /**
      * Failed to persist acceptance for action if there are no associated policies.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testFailedPersistingAcceptance() {
+    public void testFailedPersistingAcceptance() throws Exception {
         final long actionTargetId = 4L;
         final long executionScheduleId = 111L;
         final ActionDTO.Action recommendation =
@@ -496,18 +516,14 @@ public class ActionExecutionRpcTest {
                 return actionStream;
             }
         }, grpcServer.getChannel()));
-        ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-                executor, actionStoreLoader, actionModeCalculator);
+                executor, actionStoreLoader, Mockito.mock(ActionApprovalSender.class));
         final ActionsRpcService actionsRpcService =
                 new ActionsRpcService(clock,
                     actionStorehouse,
-                    actionExecutor,
-                    actionTargetSelector,
-                    entitySettingsCache,
+                    actionApprovalManager,
                     actionTranslator,
                     paginatorFactory,
-                    workflowStore,
                     statReader,
                     liveStatReader,
                     userSessionContext, acceptedActionsStore);

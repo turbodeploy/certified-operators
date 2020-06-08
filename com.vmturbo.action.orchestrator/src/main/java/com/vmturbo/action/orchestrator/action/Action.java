@@ -59,6 +59,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -458,7 +459,7 @@ public class Action implements ActionView {
             // also check execution schedule settings because specsApplicableToAction don't have
             // information about them
             final String executionScheduleSetting =
-                    EntitySettingSpecs.getActionModeToExecutionScheduleSettings().get(settingName);
+                    ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(settingName);
             if (executionScheduleSetting != null) {
                 final Collection<Long> executionSchedulePolicies =
                         settingPoliciesForEntity.get(executionScheduleSetting);
