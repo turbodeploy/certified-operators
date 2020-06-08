@@ -49,7 +49,9 @@ public class EntityAspectMapper {
                               @Nonnull final DatabaseAspectMapper databaseAspectMapper,
                               @Nonnull final RegionAspectMapper regionAspectMapper,
                               @Nonnull final WorkloadControllerAspectMapper workloadControllerAspectMapper,
-                              @Nonnull final ComputeTierAspectMapper computeTierAspectMapper) {
+                              @Nonnull final ComputeTierAspectMapper computeTierAspectMapper,
+                              @Nonnull final DatabaseServerTierAspectMapper databaseServerTierAspectMapper,
+                              @Nonnull final DatabaseTierAspectMapper databaseTierAspectMapper) {
 
         aspectMappers = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
             .put(EntityType.DATABASE_VALUE, ImmutableList.of(
@@ -98,7 +100,10 @@ public class EntityAspectMapper {
                 ImmutableList.of(workloadControllerAspectMapper))
             .put(EntityType.COMPUTE_TIER_VALUE, ImmutableList.of(
                     computeTierAspectMapper))
-            // todo: add mappers for db tiers aspect and dbs tiers aspect after OM-57942 is resolved.
+            .put(EntityType.DATABASE_SERVER_TIER_VALUE, ImmutableList.of(
+                    databaseServerTierAspectMapper))
+            .put(EntityType.DATABASE_TIER_VALUE, ImmutableList.of(
+                    databaseTierAspectMapper))
                 .build();
     }
 
