@@ -66,6 +66,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicati
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsUploadStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
 
@@ -330,6 +331,7 @@ public class PlanPipelineFactory {
                 // One approach is to clear settings/policies from a topology, and then run the
                 // stages. The other approach is to extend the stages to handle already-existing
                 // policies/settings.
+                .addStage(new TopSortStage())
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
                 .build();
     }
