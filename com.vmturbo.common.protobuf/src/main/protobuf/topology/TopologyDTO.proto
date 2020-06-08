@@ -35,8 +35,6 @@ message TypeSpecificInfo {
         BusinessUserInfo business_user = 75;
         RegionInfo region = 76;
         WorkloadControllerInfo workload_controller = 77;
-        DatabaseTierInfo database_tier = 78;
-        DatabaseServerTierInfo database_server_tier = 79;
     }
 
     message ApplicationInfo {
@@ -200,17 +198,6 @@ message TypeSpecificInfo {
         optional bool burstableCPU = 9;
     }
 
-    message DatabaseTierInfo {
-        // Edition type of the specified database engine
-        optional string edition = 1;
-        // license model of database server; e.g. BYOL or license included
-        optional string family = 2;
-    }
-
-    message DatabaseServerTierInfo {
-        // license model of database server; e.g. BYOL or license included
-        optional string family = 1;
-    }
 
     // Architectures
     enum Architecture {
