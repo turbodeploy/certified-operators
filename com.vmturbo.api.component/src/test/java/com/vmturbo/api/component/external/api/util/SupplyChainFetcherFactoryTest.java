@@ -486,19 +486,27 @@ public class SupplyChainFetcherFactoryTest {
         when(costServiceMole.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
                 .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                 .setEntityFilter(EntityFilter.newBuilder().addEntityId(entityId).build())
-                .build()).build())).thenReturn(GetCloudCostStatsResponse.newBuilder()
-                .addCloudStatRecord(CloudCostStatRecord.newBuilder()
-                        .addAllStatRecords(Arrays.asList(StatRecord.newBuilder()
-                                .setValues(StatValue.newBuilder().setTotal(costComponent1).build())
+                .build()).build()))
+            .thenReturn(Arrays.asList(
+                GetCloudCostStatsResponse.newBuilder()
+                    .addCloudStatRecord(CloudCostStatRecord.newBuilder()
+                        .addAllStatRecords(Collections.singletonList(
+                            StatRecord.newBuilder()
+                                .setValues(StatValue.newBuilder().setTotal(costComponent1))
                                 .setAssociatedEntityId(entityId)
                                 .setName("CostComponent1")
-                                .build(), StatRecord.newBuilder()
+                                .build())))
+                    .build(),
+                GetCloudCostStatsResponse.newBuilder()
+                    .addCloudStatRecord(CloudCostStatRecord.newBuilder()
+                        .addAllStatRecords(Collections.singletonList(
+                            StatRecord.newBuilder()
                                 .setValues(StatValue.newBuilder().setTotal(costComponent2).build())
                                 .setName("CostComponent2")
                                 .setAssociatedEntityId(entityId)
-                                .build()))
-                        .build())
-                .build());
+                                .build())))
+                    .build())
+            );
     }
 
     /**

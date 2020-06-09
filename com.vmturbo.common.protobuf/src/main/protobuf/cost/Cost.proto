@@ -1292,7 +1292,7 @@ service CostService {
     rpc UpdateDiscount(UpdateDiscountRequest) returns (UpdateDiscountResponse);
 
     // Get bottom up Cloud cost stats
-    rpc GetCloudCostStats(GetCloudCostStatsRequest) returns (GetCloudCostStatsResponse);
+    rpc GetCloudCostStats(GetCloudCostStatsRequest) returns (stream GetCloudCostStatsResponse);
 
     // Get information about account expense
     rpc GetAccountExpenseStats(GetCloudExpenseStatsRequest) returns (GetCloudCostStatsResponse);

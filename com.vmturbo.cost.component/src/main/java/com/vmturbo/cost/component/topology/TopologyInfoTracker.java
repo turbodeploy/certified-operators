@@ -1,8 +1,11 @@
 package com.vmturbo.cost.component.topology;
 
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeSet;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;
 
@@ -34,12 +37,14 @@ public class TopologyInfoTracker implements TopologySummaryListener {
 
     private final Logger logger = LogManager.getLogger();
 
-    private final ReentrantReadWriteLock latestTopologyInfoLock = new ReentrantReadWriteLock(true);
+    private final ReentrantReadWriteLock topologyInfoLock = new ReentrantReadWriteLock(true);
 
     private final Predicate<TopologySummary> topologySummarySelector;
 
-    @Nullable
-    private TopologyInfo latestTopologyInfo = null;
+    private final int maxTrackedTopologies;
+
+    private NavigableSet<TopologyInfo> topologyInfoQueue =
+            new TreeSet<>(Comparator.comparing(TopologyInfo::getCreationTime));
 
     /**
      * Build a {@link TopologyInfoTracker}, based on a topology summary selector. The selector is
@@ -47,9 +52,14 @@ public class TopologyInfoTracker implements TopologySummaryListener {
      *
      * @param topologySummarySelector A filter for {@link TopologySummary} instances. This selector is
      *                                expected to focus on a specific topology type (e.g. plans or RT).
+     * @param maxTrackedTopologies The maximum number of topologies to track. Topologies will be tracked
+     *                             by their creation time, keeping only the latest {@code maxTrackedTopologies}
+     *                             topologies.
      */
-    public TopologyInfoTracker(@Nonnull Predicate<TopologySummary> topologySummarySelector) {
+    public TopologyInfoTracker(@Nonnull Predicate<TopologySummary> topologySummarySelector,
+                               int maxTrackedTopologies) {
         this.topologySummarySelector = Objects.requireNonNull(topologySummarySelector);
+        this.maxTrackedTopologies = maxTrackedTopologies;
     }
 
 
@@ -69,27 +79,30 @@ public class TopologyInfoTracker implements TopologySummaryListener {
 
         if (topologySummarySelector.test(topologySummary)) {
 
-            latestTopologyInfoLock.writeLock().lock();
+            topologyInfoLock.writeLock().lock();
             try {
-                final boolean updatedLatest = getLatestTopologyInfo()
-                        .map(recordedInfo ->
-                                recordedInfo.getCreationTime() < topologyInfo.getCreationTime())
 
-                        .orElse(true);
+                topologyInfoQueue.add(topologyInfo);
+                final boolean updatedLatest = getLatestTopologyInfo()
+                        .map(latestTopoInfo -> latestTopoInfo.getTopologyId() == topologyInfo.getTopologyId())
+                        .orElse(false);
 
                 if (updatedLatest) {
-
                     logger.info("Latest tracked topology summary " +
                             "(Context ID={}, Topology ID={}, Type={}, Creation Time={})",
                             topologyInfo.getTopologyContextId(),
                             topologyInfo.getTopologyId(),
                             topologyInfo.getTopologyType(),
                             Instant.ofEpochMilli(topologyInfo.getCreationTime()));
-
-                    latestTopologyInfo = topologyInfo;
                 }
+
+                // Limit the tracked topologies to the max size
+                while (topologyInfoQueue.size() > maxTrackedTopologies) {
+                    topologyInfoQueue.pollFirst();
+                }
+
             } finally {
-                latestTopologyInfoLock.writeLock().unlock();
+                topologyInfoLock.writeLock().unlock();
             }
         }
     }
@@ -105,11 +118,34 @@ public class TopologyInfoTracker implements TopologySummaryListener {
      */
     public Optional<TopologyInfo> getLatestTopologyInfo() {
 
-        latestTopologyInfoLock.readLock().lock();
+        topologyInfoLock.readLock().lock();
         try {
-            return Optional.ofNullable(latestTopologyInfo);
+            return topologyInfoQueue.isEmpty() ?
+                    Optional.empty() : Optional.of(topologyInfoQueue.last());
         } finally {
-            latestTopologyInfoLock.readLock().unlock();
+            topologyInfoLock.readLock().unlock();
+        }
+    }
+
+
+    /**
+     * Searches for the latest topology info within the {@link TopologyInfoTracker}'s tracked history,
+     * in which the creation time is still less than the creation time of {@code targetTopologyInfo}. A
+     * prior topology may not be found if fewer than two topology summaries have been broadcast or if
+     * the {@code targetTopologyInfo} is the oldest topology tracked.
+     *
+     * @param targetTopologyInfo The target {@link TopologyInfo}.
+     * @return The immediately prior topology to {@code targetTopologyInfo} or {@link Optional#empty()},
+     * if one can not be found.
+     */
+    @Nonnull
+    public Optional<TopologyInfo> getPriorTopologyInfo(@Nonnull TopologyInfo targetTopologyInfo) {
+
+        topologyInfoLock.readLock().lock();
+        try {
+            return Optional.ofNullable(topologyInfoQueue.lower(targetTopologyInfo));
+        } finally {
+            topologyInfoLock.readLock().unlock();
         }
     }
 

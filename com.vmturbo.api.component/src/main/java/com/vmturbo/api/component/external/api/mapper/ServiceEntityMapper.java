@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -35,11 +36,13 @@ import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
@@ -322,11 +325,18 @@ public class ServiceEntityMapper {
         if (entities.isEmpty()) {
             return;
         }
-        costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
+        final Iterator<GetCloudCostStatsResponse> response =
+            costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
                 .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-                        .setEntityFilter(
-                                EntityFilter.newBuilder().addAllEntityId(entities.keySet())))
-                .build()).getCloudStatRecordList().forEach(cloudCostStatRecord -> {
+                    .setEntityFilter(EntityFilter.newBuilder()
+                        .addAllEntityId(entities.keySet())))
+                .build());
+
+        final List<CloudCostStatRecord> cloudStatRecords = new ArrayList<>();
+        while (response.hasNext()) {
+            cloudStatRecords.addAll(response.next().getCloudStatRecordList());
+        }
+        cloudStatRecords.forEach(cloudCostStatRecord -> {
             // On average, 1 or 2 stat record is expected per entity.
             cloudCostStatRecord.getStatRecordsList().forEach(statRecord -> {
                 final ServiceEntityApiDTO serviceEntityApiDTO =

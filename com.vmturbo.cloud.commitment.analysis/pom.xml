@@ -15,6 +15,13 @@
     <description>The cloud commitment analysis package contains a library for generating recommendations to purchase cloud commitments (RIs, Savings Plans, etc.)</description>
 
     <dependencies>
+
+        <dependency>
+            <groupId>org.immutables</groupId>
+            <artifactId>value</artifactId>
+            <version>${immutables.version}</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>common-protobuf</artifactId>

@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,6 +51,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.Stat
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
@@ -646,8 +648,12 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         }
         request.addCloudCostStatsQuery(cloudCostStatsQuery.build());
         try {
-            final List<CloudCostStatRecord> cloudStatRecords = costServiceRpc.getCloudCostStats(request.build())
-                .getCloudStatRecordList();
+            final Iterator<GetCloudCostStatsResponse> response =
+                costServiceRpc.getCloudCostStats(request.build());
+            final List<CloudCostStatRecord> cloudStatRecords = new ArrayList<>();
+            while (response.hasNext()) {
+                cloudStatRecords.addAll(response.next().getCloudStatRecordList());
+            }
             return cloudStatRecords.stream()
                     .flatMap(cloudStatRecord -> cloudStatRecord.getStatRecordsList().stream())
                     .collect(

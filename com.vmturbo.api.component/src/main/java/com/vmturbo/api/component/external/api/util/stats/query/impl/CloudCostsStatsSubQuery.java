@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,6 +75,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -772,7 +774,13 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         } else {
             GetCloudCostStatsRequest getCloudExpenseStatsRequest = GetCloudCostStatsRequest.newBuilder()
                     .addAllCloudCostStatsQuery(cloudCostStatsQueries).build();
-            return costServiceRpc.getCloudCostStats(getCloudExpenseStatsRequest).getCloudStatRecordList();
+            final Iterator<GetCloudCostStatsResponse> response =
+                costServiceRpc.getCloudCostStats(getCloudExpenseStatsRequest);
+            final List<CloudCostStatRecord> records = new ArrayList<>();
+            while (response.hasNext()) {
+                records.addAll(response.next().getCloudStatRecordList());
+            }
+            return records;
         }
     }
 

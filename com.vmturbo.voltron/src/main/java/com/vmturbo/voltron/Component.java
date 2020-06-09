@@ -416,7 +416,12 @@ public enum Component {
     /**
      * XTremio.
      */
-    MEDIATION_XTREMIO("xtremio", "com.vmturbo.mediation.xtremio.component");
+    MEDIATION_XTREMIO("xtremio", "com.vmturbo.mediation.xtremio.component"),
+
+    /**
+     * ServiceNOW.
+     */
+    MEDIATION_SERVICENOW("servicenow", "com.vmturbo.mediation.servicenow.component");
 
     private final String shortName;
     private final String topLevelFolder;
@@ -481,7 +486,8 @@ public enum Component {
         context.setNamespace(topLevelFolder);
         context.setEnvironment(env);
         if (this == API) {
-            // Stupid hack.
+            // Stupid hack. We want to (and need to) serve the API from the root context,
+            // so we add the dispatcher servlet here.
             final ServletHolder dispatcherServlet = ApiComponent.addDispatcherToContext(context, contextServer);
             // Make it initialize after the parent context.
             dispatcherServlet.setInitOrder(100);
