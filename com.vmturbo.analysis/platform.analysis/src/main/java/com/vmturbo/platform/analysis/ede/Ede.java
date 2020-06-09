@@ -265,6 +265,12 @@ public final class Ede {
         // Save first call to before() to calculate total plan time
         Instant begin = statsUtils.before();
         if (isProvision) {
+            actions.addAll(seedActions.replayActions(economy));
+            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "provision replay");
+            // time to run provision replay
+            statsUtils.after();
+
+            statsUtils.before();
             actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
             ledger = new Ledger(economy);
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "bootstrap");
