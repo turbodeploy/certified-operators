@@ -161,7 +161,7 @@ public class CommodityConverter {
                         comName, dto.getDisplayName());
             }
             used = 0f;
-        } else if (used > capacity) {
+        } else if (used > capacity && !TopologyConversionUtils.isVsanStorage(dto)) {
             if (MarketAnalysisUtils.COMMODITIES_TO_CAP.contains(type)) {
                 float cappedUsed = capacity * TopologyConversionConstants.CAPACITY_FACTOR;
                 conversionErrorCounts.recordError(ErrorCategory.USED_GT_CAPACITY_MEDIATION,
