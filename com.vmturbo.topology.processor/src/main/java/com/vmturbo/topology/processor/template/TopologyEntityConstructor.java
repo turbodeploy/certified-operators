@@ -89,7 +89,7 @@ public class TopologyEntityConstructor {
         }
 
         if (nameSuffix != null) {
-            displayName += "" + nameSuffix;
+            displayName += " " + nameSuffix;
         }
 
         result.setDisplayName(displayName);
@@ -409,7 +409,7 @@ public class TopologyEntityConstructor {
      */
     public static void updateRelatedEntityAccesses(
             @Nonnull TopologyEntityDTO.Builder originalEntity,
-            @Nonnull TopologyEntityDTO replacementEntity,
+            @Nonnull TopologyEntityDTO.Builder replacementEntity,
             @Nonnull Collection<CommoditySoldDTO> commoditySoldConstraints,
             @Nonnull Map<Long, TopologyEntity.Builder> topology)
             throws TopologyEntityConstructorException {
@@ -419,25 +419,52 @@ public class TopologyEntityConstructor {
                 continue;
             }
 
-            TopologyEntity.Builder relatedEntity = topology
-                    .get(commoditySoldConstraint.getAccesses());
+            TopologyEntity.Builder entity = topology.get(commoditySoldConstraint.getAccesses());
 
-            if (relatedEntity == null) {
+            if (entity == null) {
                 continue;
             }
 
-            TopologyEntityDTO.Builder relatedEntityDTO = relatedEntity.getEntityBuilder();
-
-            Optional<CommoditySoldDTO> commodityAccessing = createRelatedEntityAccesses(
-                    relatedEntityDTO,
-                    originalEntity, replacementEntity);
-
-            if (!commodityAccessing.isPresent()) {
-                continue;
-            }
-
-            relatedEntityDTO.addCommoditySoldList(commodityAccessing.get());
+            TopologyEntityDTO.Builder relatedEntity = entity.getEntityBuilder();
+            addAccess(originalEntity, replacementEntity, relatedEntity);
         }
+    }
+
+    /**
+     * Add the access commodity to the related entity.
+     *
+     * @param originalEntity original entity
+     * @param replacementEntity replacement entity
+     * @param relatedEntity related entity
+     * @throws TopologyEntityConstructorException error adding commodity
+     */
+    public static void addAccess(TopologyEntityDTO.Builder originalEntity,
+            TopologyEntityDTO.Builder replacementEntity, TopologyEntityDTO.Builder relatedEntity)
+            throws TopologyEntityConstructorException {
+        CommoditySoldDTO commodityAccessing = createRelatedEntityAccesses(originalEntity,
+                replacementEntity, relatedEntity);
+
+        // Do not add the same commodity more then once
+        if (hasCommodity(relatedEntity, commodityAccessing)) {
+            return;
+        }
+
+        relatedEntity.addCommoditySoldList(commodityAccessing);
+    }
+
+
+    /**
+     * Check if the entity has the access commodity.
+     *
+     * @param entity entity
+     * @param comm access commodity
+     * @return true, if has commodity
+     */
+    public static boolean hasCommodity(@Nonnull TopologyEntityDTO.Builder entity,
+            @Nonnull CommoditySoldDTO comm) {
+        return entity.getCommoditySoldListBuilderList().stream()
+                .anyMatch(c -> c.getCommodityType().getType() == comm.getCommodityType().getType()
+                        && c.getCommodityType().getKey().equals(comm.getCommodityType().getKey()));
     }
 
     /**
@@ -459,21 +486,23 @@ public class TopologyEntityConstructor {
      * @throws TopologyEntityConstructorException error processing access commodity
      */
     @Nonnull
-    public static Optional<CommoditySoldDTO> createRelatedEntityAccesses(
-            @Nonnull TopologyEntityDTO.Builder relatedEntity,
+    public static CommoditySoldDTO createRelatedEntityAccesses(
             @Nonnull TopologyEntityDTO.Builder originalEntity,
-            @Nonnull TopologyEntityDTO replacementEntity)
+            @Nonnull TopologyEntityDTO.Builder replacementEntity,
+            @Nonnull TopologyEntityDTO.Builder relatedEntity)
             throws TopologyEntityConstructorException {
-        final List<CommoditySoldDTO.Builder> commoditiesAccessingOriginals = relatedEntity
+        List<CommoditySoldDTO.Builder> commoditiesAccessingOriginals = relatedEntity
                 .getCommoditySoldListBuilderList().stream()
-            .filter(CommoditySoldDTO.Builder::hasAccesses)
-            .filter(relatedEntityCommodity -> relatedEntityCommodity.getAccesses() == originalEntity.getOid())
-            .collect(Collectors.toList());
+                .filter(CommoditySoldDTO.Builder::hasAccesses)
+                .filter(relatedEntityCommodity -> relatedEntityCommodity
+                        .getAccesses() == originalEntity.getOid())
+                .collect(Collectors.toList());
 
         if (commoditiesAccessingOriginals.isEmpty()) {
-            logger.warn("Entity '{}' does not have access commodities related to '{}'",
-                    originalEntity.getDisplayName(), relatedEntity.getDisplayName());
-            return Optional.empty();
+            throw new TopologyEntityConstructorException(
+                    "Entity '" + originalEntity.getDisplayName()
+                            + "' does not have access commodities related to "
+                            + relatedEntity.getDisplayName());
         }
 
         if (commoditiesAccessingOriginals.size() > 1) {
@@ -490,7 +519,7 @@ public class TopologyEntityConstructor {
         CommoditySoldDTO.Builder commodityAccessing = commodityAccessingOriginal.clone();
         setKeyAndAccess(commodityAccessing, replacementEntity);
 
-        return Optional.of(commodityAccessing.build());
+        return commodityAccessing.build();
     }
 
     /**
@@ -506,8 +535,8 @@ public class TopologyEntityConstructor {
      * @param commodity commodity
      * @param replacementEntity the entity doing the replacement
      */
-    public static void setKeyAndAccess(@Nonnull CommoditySoldDTO.Builder commodity,
-            @Nonnull TopologyEntityDTO replacementEntity) {
+    private static void setKeyAndAccess(@Nonnull CommoditySoldDTO.Builder commodity,
+            @Nonnull TopologyEntityDTO.Builder replacementEntity) {
         String newKey = replacementEntity.getDisplayName() + "::" + replacementEntity.getOid();
         commodity.getCommodityTypeBuilder().setKey(newKey);
         commodity.setAccesses(replacementEntity.getOid());
@@ -598,8 +627,11 @@ public class TopologyEntityConstructor {
         // Since storage templates don't have a latency value, but VMs do buy a latency commodity,
         // a sold commodity is added. Capacity is left unset - StorageLatencyPostStitchingOperation
         // will set it to the default value from EntitySettingSpecs.LatencyCapacity.
-        CommoditySoldDTO storageLatencyCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE);
+        // TODO OM-59504 Set latency capacity. Capacity cannot be null
+        // anymore, see RB:39285
+        CommoditySoldDTO storageLatencyCommodity = createCommoditySoldDTO(
+                CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE, 200.0, isResizable);
+
         // Because we don't have access to settings at this time, we can't calculate capacities for
         // provisioned commodities. By leaving capacities unset, they will be set later in the
         // topology pipeline when settings are available by the
@@ -610,7 +642,7 @@ public class TopologyEntityConstructor {
         topologyEntityBuilder
             .addCommoditySoldList(storageAccessCommodity)
             .addCommoditySoldList(storageAmoutCommodity)
-            .addCommoditySoldList(storageLatencyCommodity)
+                .addCommoditySoldList(storageLatencyCommodity)
             .addCommoditySoldList(storageProvisionedCommodity);
     }
 
