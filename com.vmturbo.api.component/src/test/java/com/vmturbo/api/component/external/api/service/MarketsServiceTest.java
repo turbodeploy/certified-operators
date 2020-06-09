@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -66,15 +67,21 @@ import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.EntityOrderBy;
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeature;
+import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -106,6 +113,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -129,6 +137,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -210,6 +219,10 @@ public class MarketsServiceTest {
 
     private EntitySettingQueryExecutor entitySettingQueryExecutor = mock(EntitySettingQueryExecutor.class);
 
+    private SenderReceiverPair<LicenseSummary> licenseSummaryReceiver = new SenderReceiverPair<>();
+    private ExecutorService executorService = mock(ExecutorService.class);
+    private LicenseCheckClient licenseCheckClient = new LicenseCheckClient(licenseSummaryReceiver, executorService, null, 0L);
+
     /**
      * Test gRPC server to mock out gRPC dependencies.
      */
@@ -227,6 +240,11 @@ public class MarketsServiceTest {
     public void startup() {
         final ActionsServiceBlockingStub actionsRpcService = ActionsServiceGrpc.newBlockingStub(
                 grpcTestServer.getChannel());
+        // the planning feature will be enabled by default in the license
+        licenseSummaryReceiver.sendMessage(LicenseSummary.newBuilder()
+                .addFeature(LicenseFeature.PLANNER.getKey())
+                .build());
+
         marketsService = new MarketsService(actionSpecMapper, uuidMapper,
             ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             policiesService,
@@ -255,6 +273,7 @@ public class MarketsServiceTest {
                                  serviceProviderExpander,
                                  REALTIME_CONTEXT_ID),
             entitySettingQueryExecutor,
+            licenseCheckClient,
             REALTIME_CONTEXT_ID
         );
 
@@ -287,6 +306,19 @@ public class MarketsServiceTest {
         final MarketApiDTO realtimeMarket =
                 resp.stream().filter(market -> market.getUuid().equals("777777")).findFirst().get();
         assertNotNull(realtimeMarket);
+    }
+
+    /**
+     * Trying to get all markets without the planner feature enabled will trigger an exception.
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetAllMarketsUnlicensed() throws Exception {
+        // clear the license summary so no features are enabled, then try to access the market list.
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getMarkets(null);
     }
 
     /**
@@ -333,6 +365,19 @@ public class MarketsServiceTest {
         when(marketMapper.dtoFromPlanInstance(plan2)).thenReturn(mappedDto);
         MarketApiDTO response = marketsService.getMarketByUuid("2");
         assertThat(response, is(mappedDto));
+    }
+
+    /**
+     * Trying to get a plan without the planner feature enabled will trigger an exception.
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetMarketByIdUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getMarketByUuid("1");
     }
 
     /**
@@ -392,6 +437,60 @@ public class MarketsServiceTest {
             Long.toString(TEST_PLAN_OVER_PLAN_ID), TEST_SCENARIO_ID, true, null);
 
         assertThat(resp, is(mappedNewPlan));
+    }
+
+    /**
+     * Trying to run a plan without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testRunPlanUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.applyAndRunScenario("1", 1L, true, null);
+    }
+
+    /**
+     * Requesting plan actions without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetCurrentActionsByMarketUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getCurrentActionsByMarketUuid("1", EnvironmentType.ONPREM, ActionDetailLevel.EXECUTION, null);
+    }
+
+    /**
+     * Requesting plan actions without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetActionsByMarketUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getActionsByMarketUuid("1", null, null);
+    }
+
+    /**
+     * Requesting plan actions without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetActionByMarketUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getActionByMarketUuid("1", "1", ActionDetailLevel.EXECUTION);
     }
 
     /**
@@ -497,6 +596,77 @@ public class MarketsServiceTest {
         verify(priceIndexPopulator)
             .populatePlanEntities(projectedPlanTopologyId, Arrays.asList(se2, se3));
         verify(severityPopulator).populate(REALTIME_PLAN_ID, Arrays.asList(se2, se3));
+    }
+
+    /**
+     * Requesting plan entities without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetEntitiesByMarketUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getEntitiesByMarketUuid("1",
+                new EntityPaginationRequest(null, null, true, EntityOrderBy.NAME.name()));
+    }
+
+    /**
+     * plan action stat requests without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetActionCountStatsByUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getActionCountStatsByUuid("1", null);
+    }
+
+    /**
+     * verify that getStatsByEntitiesInMarketQuery without the planner feature will fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetStatsByEntitiesInMarketQueryUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getStatsByEntitiesInMarketQuery("1", null, null);
+
+    }
+
+    /**
+     * verify that getStatsByEntitiesInGroupInMarketQuery without the planner feature will fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetStatsByEntitiesInGroupInMarketQueryUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getStatsByEntitiesInGroupInMarketQuery("1", "1", null, null);
+    }
+
+
+    /**
+     * verify that getUnplacedEntitiesByMarketUuid without the planner feature will fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetUnplacedEntitiesByMarketUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getUnplacedEntitiesByMarketUuid("1");
     }
 
     /**

@@ -8,6 +8,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -45,6 +46,9 @@ import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeature;
+import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -125,11 +129,13 @@ public class PlanActionStoreTest {
 
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
+    private LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
         actionStore = new PlanActionStore(spyActionFactory, dsl, firstContextId,
-            entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
+            entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector, licenseCheckClient);
 
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
@@ -262,6 +268,17 @@ public class PlanActionStoreTest {
         assertTrue(actionStore.getActions().isEmpty());
     }
 
+    /**
+     * Test that getAction() is not available on the PlanActionStore if the "planner" feature is
+     * not available on the license.
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetActionUnlicensed() {
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(LicenseFeature.PLANNER)))
+            .when(licenseCheckClient).checkFeatureAvailable(LicenseFeature.PLANNER);
+        actionStore.getAction(1);
+    }
+
     @Test
     public void testGetActions() throws Exception {
         final List<ActionDTO.Action> actionList = actionList(3);
@@ -276,6 +293,17 @@ public class PlanActionStoreTest {
                 actionsMap.get(action.getId())
             )
         );
+    }
+
+    /**
+     * Test that getActions() is not available on the PlanActionStore if the "planner" feature is
+     * not available on the license.
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetActionsUnlicensed() {
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(LicenseFeature.PLANNER)))
+                .when(licenseCheckClient).checkFeatureAvailable(LicenseFeature.PLANNER);
+        actionStore.getActions();
     }
 
     @Test
@@ -354,7 +382,9 @@ public class PlanActionStoreTest {
     @Test
     public void testStoreLoaderWithNoStores() {
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator,
+                    entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector,
+                    licenseCheckClient).loadActionStores();
 
         assertTrue(loadedStores.isEmpty());
     }
@@ -374,13 +404,16 @@ public class PlanActionStoreTest {
 
         // Setup second planActionStore. This has 9 Buy RI Actions
         final ActionPlan buyRIActionPlan2 = buyRIActionPlan(3L, secondContextId, actionList(9));
-        PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId, entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
+        PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId, entitiesSnapshotFactory,
+                actionTranslator, realtimeId, actionTargetSelector, licenseCheckClient);
         actionStore2.populateRecommendedActions(buyRIActionPlan2);
         expectedActionStores.put(secondContextId, actionStore2);
 
         // Load the stores from DB
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator,
+                    entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector,
+                    licenseCheckClient).loadActionStores();
         loadedStores.forEach(store -> actualActionStores.put(store.getTopologyContextId(), store));
 
         // Assert that what we load from DB is the same as what we setup initially

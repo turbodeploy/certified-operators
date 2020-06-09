@@ -37,6 +37,7 @@ import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -84,6 +85,8 @@ public class PlanActionStoreTransactionTest {
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private PlanActionStore actionStore;
 
+    private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+
     @Before
     public void setup() {
         setEntitiesOIDs();
@@ -117,7 +120,9 @@ public class PlanActionStoreTransactionTest {
     @Test
     public void testRollbackWhenErrorDuringPopulateClean() {
         MockDataProvider mockProvider = providerFailingOn("DELETE");
-        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
+        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
+                entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector,
+                licenseCheckClient);
 
         // The first call does not clear because there is nothing in the store yet.
         assertTrue(actionStore.populateRecommendedActions(actionPlan));
@@ -132,7 +137,9 @@ public class PlanActionStoreTransactionTest {
     @Test
     public void testRollbackWhenErrorDuringPopulateStore() {
         MockDataProvider mockProvider = providerFailingOn("INSERT");
-        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
+        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
+                entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector,
+                licenseCheckClient);
 
         // The attempt to store actions should fail.
         assertFalse(actionStore.populateRecommendedActions(actionPlan));
@@ -144,7 +151,8 @@ public class PlanActionStoreTransactionTest {
     @Test
     public void testRollbackWhenErrorDuringOverwrite() {
         MockDataProvider mockProvider = providerFailingOn("INSERT");
-        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
+        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
+                entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector, licenseCheckClient);
 
         // The attempt to store actions should fail.
         List<Action> actions = actionPlan.getActionList().stream()
@@ -159,7 +167,8 @@ public class PlanActionStoreTransactionTest {
     @Test
     public void testRollbackDuringClear() {
         MockDataProvider mockProvider = providerFailingOn("DELETE");
-        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
+        actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
+                entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector, licenseCheckClient);
 
         // The first call does not clear because there is nothing in the store yet.
         assertTrue(actionStore.populateRecommendedActions(actionPlan));
