@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,9 +79,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
                             // Generate the resize actions for matching commodities between
                             // the model seller and the resizeThroughSupplier trader.
                             getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(
-                                                                                    getEconomy(),
-                                                                                    target,
-                                                                                    sl, false));
+                                getEconomy(), target, sl, false, new HashSet<>()));
                         });
             });
         } catch (Exception e) {
