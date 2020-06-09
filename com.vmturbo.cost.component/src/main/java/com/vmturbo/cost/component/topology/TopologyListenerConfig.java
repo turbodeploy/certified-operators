@@ -120,7 +120,7 @@ public class TopologyListenerConfig {
                         costConfig.businessAccountHelper(),
                         costJournalRecorder(),
                         buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(),
-                        liveTopologyInfoTracker());
+                        topologyProcessorListenerConfig.liveTopologyInfoTracker());
 
         topologyProcessorListenerConfig.topologyProcessor()
                 .addLiveTopologyListener(entitiesListener);
