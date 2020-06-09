@@ -123,6 +123,11 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         final Optional<ConnectedEntity> connectedAvailabilityZoneOrRegion =
                 getConnectedAvailabilityZoneOrRegion(entity);
         connectedAvailabilityZoneOrRegion.ifPresent(e -> oids.add(e.getConnectedEntityId()));
+
+        // Aspect will be empty, return null.
+        if (!templateOid.isPresent() && !connectedAvailabilityZoneOrRegion.isPresent()) {
+            return null;
+        }
         final Map<Long, MinimalEntity> oidToMinimalEntity = repositoryApi.entitiesRequest(oids)
                 .getMinimalEntities()
                 .collect(Collectors.toMap(MinimalEntity::getOid, e -> e));
