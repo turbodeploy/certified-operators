@@ -3,8 +3,13 @@ package com.vmturbo.platform.analysis.actions;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.Lists;
 import com.google.common.hash.Hashing;
@@ -32,6 +37,7 @@ public class Resize extends ActionImpl {
     private final int soldIndex_;
     private final double oldCapacity_; // needed for rolling back.
     private double newCapacity_;
+    private Map<Trader, Set<Integer>> resizeTriggerTraders_ = new HashMap<>();
 
     // Constructors
 
@@ -180,6 +186,16 @@ public class Resize extends ActionImpl {
         this.newCapacity_ = newCapacity;
     }
 
+    /**
+     * Return the trader that led to this resize action.
+     *
+     * @return resizeTriggerTrader the trader.
+     */
+    @Pure
+    public Map<Trader, Set<Integer>> getResizeTriggerTraders(@ReadOnly Resize this) {
+        return resizeTriggerTraders_;
+    }
+
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
         return new StringBuilder()
@@ -284,11 +300,15 @@ public class Resize extends ActionImpl {
             Resize newResize = new Resize(getEconomy(), getSellingTrader(),
                         getResizedCommoditySpec(), getResizedCommodity(), getSoldIndex(),
                         getOldCapacity(), resize.getNewCapacity());
-            // Ensure that if we need to extract the action from the provision round of the
-            // main market we are passing along the extractAction boolean value to the combined
-            // resize action.
-            if (resize.isExtractAction() && isExtractAction()) {
+            if (getSellingTrader().getSettings().isResizeThroughSupplier()) {
+                // Ensure that if we need to extract the action from the provision round of the
+                // main market we are passing along the extractAction boolean value to the combined
+                // resize action.
                 newResize.enableExtractAction();
+                newResize.getResizeTriggerTraders().putAll(getResizeTriggerTraders());
+                newResize.getResizeTriggerTraders().forEach((k, v) -> resize.getResizeTriggerTraders()
+                    .merge(k, v, (reasons1, reasons2)
+                        -> Stream.concat(reasons1.stream(), reasons2.stream()).collect(Collectors.toSet())));
             }
             return newResize;
         }

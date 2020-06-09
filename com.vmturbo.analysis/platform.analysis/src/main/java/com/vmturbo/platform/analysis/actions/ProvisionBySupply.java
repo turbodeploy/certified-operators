@@ -4,6 +4,7 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -11,6 +12,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.hash.Hashing;
 
 import org.apache.logging.log4j.LogManager;
@@ -186,9 +188,9 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
                             // Generate the resize actions for matching commodities between
                             // the model seller and the resizeThroughtSupplier trader.
                             getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(
-                                                                                    getEconomy(),
-                                                                                    getModelSeller(),
-                                                                                    sl, true));
+                                getEconomy(), getModelSeller(), sl, true,
+                                reasonCommodity == null ? new HashSet<>()
+                                                : ImmutableSet.of(reasonCommodity.getBaseType())));
                 });
             });
         } catch (Exception e) {

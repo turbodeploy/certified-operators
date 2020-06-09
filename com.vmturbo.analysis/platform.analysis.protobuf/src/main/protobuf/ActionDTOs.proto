@@ -185,6 +185,18 @@ message ResizeTO {
 
     // scaling group ID
     optional string scaling_group_id = 7;
+
+    // Resize causing trader related specifications.
+    repeated ResizeTriggerTraderTO resize_trigger_trader = 8;
+}
+
+// Resize causing trader related specifications.
+message ResizeTriggerTraderTO {
+    // The oid of the supplier who triggers the resize.
+    optional int64 trader = 1;
+
+    // Commodity types of reasons for this resize.
+    repeated int32 relatedCommodities = 2;
 }
 
 // An action to move a list of shopping lists bought by a trader from a number of old providers to
