@@ -103,9 +103,8 @@ public class TopologyDataDefinitionMapperTest {
     public void convertTopologyDataDefinitionTest() {
         TopologyDataDefinitionApiDTO manualDefinitionApiDTO = mapper.convertTopologyDataDefinition(manualProto);
         TopologyDataDefinitionApiDTO automatedDefinitionApiDTO = mapper.convertTopologyDataDefinition(automatedProto);
-        Gson g = new Gson();
-        assertEquals(g.toJson(automatedApiDTO), g.toJson(automatedDefinitionApiDTO));
-        assertEquals(g.toJson(manualApiDTO), g.toJson(manualDefinitionApiDTO));
+        assertEquals(automatedApiDTO.toString(), automatedDefinitionApiDTO.toString());
+        assertEquals(manualApiDTO.toString(), manualDefinitionApiDTO.toString());
     }
 
     /**
