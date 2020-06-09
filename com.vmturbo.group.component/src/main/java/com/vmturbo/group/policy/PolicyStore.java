@@ -1,6 +1,9 @@
 package com.vmturbo.group.policy;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -10,17 +13,16 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.reflect.TypeToken;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Record3;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -32,12 +34,10 @@ import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
-import com.vmturbo.group.common.TargetCollectionUpdate.TargetPolicyUpdate;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.Policy;
-import com.vmturbo.group.db.tables.pojos.PolicyGroup;
+import com.vmturbo.group.db.tables.records.PolicyGroupRecord;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
-import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
@@ -45,7 +45,7 @@ import com.vmturbo.proactivesupport.DataMetricCounter;
  * The {@link PolicyStore} class is used for CRUD operations on policies, to abstract away the
  * persistence details from the rest of the component.
  */
-public class PolicyStore implements DiagsRestorable {
+public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
 
     /**
      * The file name for the policies dump collected from the {@link PolicyStore}.
@@ -80,66 +80,23 @@ public class PolicyStore implements DiagsRestorable {
 
     private final IdentityProvider identityProvider;
 
-    private final DiscoveredPoliciesMapperFactory discoveredPoliciesMapperFactory;
-
     private final PolicyValidator policyValidator;
 
-    PolicyStore(@Nonnull final DSLContext dslContext,
-                @Nonnull final DiscoveredPoliciesMapperFactory mapperFactory,
-                @Nonnull final IdentityProvider identityProvider,
-                @Nonnull final GroupDAO groupDAO) {
-        this(dslContext, mapperFactory, identityProvider, new PolicyValidator(groupDAO));
-    }
-
-    @VisibleForTesting
-    PolicyStore(@Nonnull final DSLContext dslContext,
-                       @Nonnull final DiscoveredPoliciesMapperFactory mapperFactory,
+    /**
+     * Constructs placement policy store.
+     *
+     * @param dslContext DB connection context to use
+     * @param identityProvider identity provider to use
+     * @param policyValidator policy validator
+     */
+    public PolicyStore(@Nonnull final DSLContext dslContext,
                        @Nonnull final IdentityProvider identityProvider,
                        @Nonnull final PolicyValidator policyValidator) {
+        // TODO get rid of identity provider and policy validator here. Store should only store
+        // the data (operate with the DB)
         this.dslContext = Objects.requireNonNull(dslContext);
         this.identityProvider = Objects.requireNonNull(identityProvider);
-        this.discoveredPoliciesMapperFactory = Objects.requireNonNull(mapperFactory);
         this.policyValidator = Objects.requireNonNull(policyValidator);
-    }
-
-    /**
-     * Update the set of policies discovered by a particular target.
-     * The new set of policies will completely replace the old, even if the new set is empty.
-     *
-     * <p>See {@link TargetPolicyUpdate} for details on the update behavior.
-     *
-     * @param context The context to use to do the updates.
-     * @param targetId The ID of the target that discovered the policies.
-     * @param policyInfos The new set of {@link DiscoveredPolicyInfo}s.
-     * @param groupOids A mapping from group display names to group OIDs. We need this mapping
-     *                  because discovered policies reference groups by display name.
-     * @throws DataAccessException If there is an error interacting with the database.
-     */
-    public void updateTargetPolicies(@Nonnull final DSLContext context,
-                 final long targetId,
-                 @Nonnull final List<DiscoveredPolicyInfo> policyInfos,
-                 @Nonnull final Map<String, Long> groupOids) throws DataAccessException {
-        logger.info("Updating policies discovered by {}. Got {} policies.",
-            targetId, policyInfos.size());
-
-        final DiscoveredPoliciesMapper mapper = discoveredPoliciesMapperFactory.newMapper(groupOids);
-        final List<PolicyInfo> discoveredPolicies = policyInfos.stream()
-                        .map(mapper::inputPolicy)
-                        .filter(Optional::isPresent).map(Optional::get)
-                        .collect(Collectors.toList());
-        final TargetPolicyUpdate update = new TargetPolicyUpdate(targetId, identityProvider,
-                discoveredPolicies, getDiscoveredByTarget(context, targetId));
-        update.apply(
-                (policy) -> {
-                    policyValidator.validatePolicy(context, policy);
-                    internalCreate(context, policy);
-                    },
-                (policy) -> {
-                    policyValidator.validatePolicy(context, policy);
-                    internalUpdate(context, policy);
-                    },
-                (policy) -> deleteDiscoveredPolicy(context, policy, true));
-        logger.info("Finished updating discovered groups.");
     }
 
     /**
@@ -256,12 +213,11 @@ public class PolicyStore implements DiagsRestorable {
      * group being deleted.
      *
      * @param groupIds ids of the group deleted.
-     * @param context Jooq context to execute operations with. Used for transactions
      */
-    public void deletePoliciesForGroupBeingRemoved(@Nonnull DSLContext context,
-            final Collection<Long> groupIds) {
+    @Override
+    public void deletePoliciesForGroupBeingRemoved(final Collection<Long> groupIds) {
         try {
-            final String userPolicies = context.select(Tables.POLICY.ID, Tables.POLICY.NAME)
+            final String userPolicies = dslContext.select(Tables.POLICY.ID, Tables.POLICY.NAME)
                     .from(Tables.POLICY)
                     .join(Tables.POLICY_GROUP)
                     .on(Tables.POLICY.ID.eq(Tables.POLICY_GROUP.POLICY_ID))
@@ -277,8 +233,8 @@ public class PolicyStore implements DiagsRestorable {
                                 + " of groups {} they are create on top of: [{}]", groupIds,
                         userPolicies);
             }
-            final int rowsDeleeted = context.deleteFrom(Tables.POLICY)
-                    .where(Tables.POLICY.ID.in(context.select(Tables.POLICY_GROUP.POLICY_ID)
+            final int rowsDeleeted = dslContext.deleteFrom(Tables.POLICY)
+                    .where(Tables.POLICY.ID.in(dslContext.select(Tables.POLICY_GROUP.POLICY_ID)
                             .from(Tables.POLICY_GROUP)
                             .where(Tables.POLICY_GROUP.GROUP_ID.in(groupIds))))
                     .execute();
@@ -375,18 +331,6 @@ public class PolicyStore implements DiagsRestorable {
         return POLICIES_DUMP_FILE;
     }
 
-    @Nonnull
-    private Collection<PolicyDTO.Policy> getDiscoveredByTarget(@Nonnull final DSLContext context,
-                                                               final long targetId) {
-        return context.selectFrom(Tables.POLICY)
-                .where(Tables.POLICY.DISCOVERED_BY_ID.eq(targetId))
-                .fetch()
-                .into(Policy.class)
-                .stream()
-                .map(this::toPolicyProto)
-                .collect(Collectors.toList());
-    }
-
     private Optional<PolicyDTO.Policy> internalGet(@Nonnull final DSLContext context,
                                                    final long id) {
         return context.selectFrom(Tables.POLICY)
@@ -415,26 +359,9 @@ public class PolicyStore implements DiagsRestorable {
     private PolicyDTO.Policy internalCreate(@Nonnull final DSLContext context,
                                             @Nonnull final PolicyDTO.Policy policyProto)
             throws DataAccessException, DuplicateNameException {
-
         checkForDuplicates(context, policyProto.getId(), policyProto.getPolicyInfo().getName());
-
-        final Policy policy = new Policy(policyProto.getId(),
-                policyProto.getPolicyInfo().getName(),
-                policyProto.getPolicyInfo().getEnabled(),
-                policyProto.hasTargetId() ? policyProto.getTargetId() : null,
-                policyProto.getPolicyInfo());
-
-        final int returnCode = context.newRecord(Tables.POLICY, policy).store();
-        if (returnCode == 0) {
-            // This should never happen, because we're creating a new record, and store() should
-            // always execute.
-            throw new IllegalStateException("Failed to insert record.");
-        }
-
-        // Create the associations between the policy and the groups it relates to.
-        insertReferencedGroups(context, policy.getId(), GroupProtoUtil.getPolicyGroupIds(policyProto));
-
-        return toPolicyProto(policy);
+        createNewPolicies(context, Collections.singleton(policyProto));
+        return policyProto;
     }
 
     /**
@@ -487,37 +414,26 @@ public class PolicyStore implements DiagsRestorable {
                     .where(Tables.POLICY_GROUP.POLICY_ID.eq(newPolicyProto.getId()))
                     .execute();
             logger.info("Deleted {} existing policy-group associations. Re-creating associations...", deletedRows);
-
-            insertReferencedGroups(context, newPolicyProto.getId(), newReferencedGroups);
+            dslContext.batchInsert(
+                    createReferencedGroups(Collections.singleton(newPolicyProto)))
+                    .execute();
         }
 
         return toPolicyProto(existingRecord.into(Policy.class));
     }
 
-    private void insertReferencedGroups(@Nonnull final DSLContext context,
-                                        final long policyId,
-                                        @Nonnull final Set<Long> referencedGroups) {
-        referencedGroups.forEach(groupId -> {
-            final PolicyGroup policyGroup = new PolicyGroup();
-            policyGroup.setGroupId(groupId);
-            policyGroup.setPolicyId(policyId);
-            final int retCode = context.newRecord(Tables.POLICY_GROUP, policyGroup).store();
-            if (retCode == 0) {
-                // This should never happen, because we're creating a new record, and store() should
-                // always execute.
-                // However, don't throw an exception so we can continue to insert the other records.
-                logger.error("Failed to insert policy-group record for group {} and policy {}!",
-                        groupId, policyId);
+    private Collection<PolicyGroupRecord> createReferencedGroups(
+            @Nonnull Collection<PolicyDTO.Policy> policies) {
+        final Collection<PolicyGroupRecord> result = new ArrayList<>();
+        for (PolicyDTO.Policy policy: policies) {
+            final long policyId = policy.getId();
+            final Set<Long> groupIds = GroupProtoUtil.getPolicyGroupIds(policy);
+            for (long groupId: groupIds) {
+                final PolicyGroupRecord record = new PolicyGroupRecord(policyId, groupId);
+                result.add(record);
             }
-        });
-    }
-
-    @Nonnull
-    private PolicyDTO.Policy deleteDiscoveredPolicy(@Nonnull final DSLContext context,
-                                            final PolicyDTO.Policy policy,
-                                            final boolean allowDiscoveredPolicyDelete)
-            throws PolicyNotFoundException, ImmutablePolicyUpdateException {
-        return internalDelete(context, policy.getId(), allowDiscoveredPolicyDelete);
+        }
+        return result;
     }
 
     @Nonnull
@@ -578,12 +494,77 @@ public class PolicyStore implements DiagsRestorable {
         if (!sameNameDiffId.isEmpty()) {
             if (sameNameDiffId.size() > 1) {
                 // This shouldn't happen, because there is a constraint on the name.
-                logger.error("Multiple policies ({}) exist with the name {}. " +
-                        "This should never happen because the name column is unique.",
+                logger.error("Multiple policies ({}) exist with the name {}. "
+                        + "This should never happen because the name column is unique.",
                     sameNameDiffId, name);
             }
-            // TODO - add metric here
+            POLICY_STORE_DUPLICATE_NAME_COUNT.increment();
             throw new DuplicateNameException(sameNameDiffId.get(0), name);
         }
+    }
+
+    /**
+     * Returns discovered policies stored in this policy store.
+     *
+     * @return map of policy name -> policy Id grouped by target id
+     */
+    @Override
+    @Nonnull
+    public Map<Long, Map<String, Long>> getDiscoveredPolicies() {
+        final Collection<Record3<Long, String, Long>> records = dslContext
+                .select(Tables.POLICY.DISCOVERED_BY_ID, Tables.POLICY.NAME, Tables.POLICY.ID)
+                .from(Tables.POLICY)
+                .where(Tables.POLICY.DISCOVERED_BY_ID.isNotNull())
+                .fetch();
+        final Map<Long, Map<String, Long>> result = new HashMap<>();
+        for (Record3<Long, String, Long> record : records) {
+            final long targetId = record.value1();
+            final String policyName = record.value2();
+            final long policyOid = record.value3();
+            result.computeIfAbsent(targetId, key -> new HashMap<>()).put(policyName, policyOid);
+        }
+        return result;
+    }
+
+    /**
+     * Deletes the specified policies in the store.
+     *
+     * @param policiesToDelete policies OIDs to delete.
+     * @return number of removed policies.
+     */
+    @Override
+    public int deletePolicies(
+            @Nonnull Collection<Long> policiesToDelete) {
+        return dslContext.deleteFrom(Tables.POLICY)
+                .where(Tables.POLICY.ID.in(policiesToDelete))
+                .execute();
+    }
+
+    @Override
+    public int createPolicies(@Nonnull Collection<PolicyDTO.Policy> policies) {
+        return createNewPolicies(dslContext, policies);
+    }
+
+    /**
+     * Creates new policies in DAO.
+     *
+     * @param context transactional DB context
+     * @param policies policies to create
+     * @return number of policies created
+     */
+    private int createNewPolicies(@Nonnull DSLContext context,
+            @Nonnull Collection<PolicyDTO.Policy> policies) {
+        final Collection<PolicyRecord> policyRecords = new ArrayList<>(policies.size());
+        for (PolicyDTO.Policy policyProto : policies) {
+            final PolicyRecord policy = new PolicyRecord(policyProto.getId(),
+                    policyProto.getPolicyInfo().getName(), policyProto.getPolicyInfo().getEnabled(),
+                    policyProto.hasTargetId() ? policyProto.getTargetId() : null,
+                    policyProto.getPolicyInfo());
+            policyRecords.add(policy);
+        }
+        final int policyCount = context.batchInsert(policyRecords).execute().length;
+        Collection<PolicyGroupRecord> referenceRecords = createReferencedGroups(policies);
+        context.batchInsert(referenceRecords).execute();
+        return policyCount;
     }
 }

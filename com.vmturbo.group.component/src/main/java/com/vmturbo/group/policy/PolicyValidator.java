@@ -21,11 +21,16 @@ import com.vmturbo.group.group.GroupDAO;
  * Utility class containing the logic to validate a {@link PolicyDTO.Policy} before saving it in
  * the database.
  */
-class PolicyValidator {
+public class PolicyValidator {
 
     private final GroupDAO groupDAO;
 
-    PolicyValidator(final GroupDAO groupDAO) {
+    /**
+     * Constructs a policy validator.
+     *
+     * @param groupDAO group store to use for querying expected members of a group
+     */
+    public PolicyValidator(final GroupDAO groupDAO) {
         this.groupDAO = groupDAO;
     }
 
