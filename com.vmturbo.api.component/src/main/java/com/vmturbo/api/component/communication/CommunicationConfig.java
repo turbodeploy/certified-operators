@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
@@ -31,6 +30,7 @@ import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.AuthClientConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
+import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.clustermgr.api.ClusterMgrClientConfig;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -75,7 +75,6 @@ import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc.TemplateSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc.ProbeRpcServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceStub;
@@ -100,10 +99,7 @@ import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentRestTemplate;
-import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
-import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
-import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
+import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.group.api.GroupMemberRetriever;
@@ -119,7 +115,6 @@ import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
-import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -136,7 +131,7 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
         GroupClientConfig.class, HistoryClientConfig.class, NotificationClientConfig.class,
         RepositoryClientConfig.class, ReportingClientConfig.class, AuthClientConfig.class,
         CostClientConfig.class, ApiComponentGlobalConfig.class, ClusterMgrClientConfig.class,
-        UserSessionConfig.class, ApiWebsocketConfig.class, BaseKafkaConsumerConfig.class})
+        UserSessionConfig.class, ApiWebsocketConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -163,8 +158,6 @@ public class CommunicationConfig {
     private ApiComponentGlobalConfig apiComponentGlobalConfig;
     @Autowired
     private UserSessionConfig userSessionConfig;
-    @Autowired
-    private BaseKafkaConsumerConfig kafkaConsumerConfig;
 
     /**
      * No explicit import to avoid circular dependency.
@@ -312,15 +305,6 @@ public class CommunicationConfig {
         // depend on the external API package. It may be worth it to have the
         // ApiWebsocketHandler/ApiWebsocketConfig register listeners instead.
         return new ApiComponentPlanListener(websocketConfig.websocketHandler());
-    }
-
-    // overriding the repository client receiver because we don't want to read from beginning.
-    @Primary
-    @Bean
-    protected IMessageReceiver<RepositoryNotification> repositoryClientMessageReceiver() {
-        return kafkaConsumerConfig.kafkaConsumer().messageReceiverWithSettings(
-                new TopicSettings(RepositoryNotificationReceiver.TOPOLOGY_TOPIC, StartFrom.LAST_COMMITTED),
-                RepositoryNotification::parseFrom);
     }
 
     /**

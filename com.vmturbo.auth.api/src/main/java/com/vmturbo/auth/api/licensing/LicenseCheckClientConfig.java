@@ -7,7 +7,6 @@ import java.util.concurrent.ThreadFactory;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -33,9 +32,6 @@ public class LicenseCheckClientConfig {
     @Autowired
     private AuthClientConfig authClientConfig;
 
-    @Value("${licenseSummaryTimeoutMs:60000}")
-    private long licenseSummaryTimeoutMs;
-
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService threadPool() {
         final ThreadFactory threadFactory =
@@ -54,6 +50,6 @@ public class LicenseCheckClientConfig {
     @Bean
     public LicenseCheckClient licenseCheckClient() {
         return new LicenseCheckClient(licenseSummaryConsumer(), threadPool(),
-                authClientConfig.authClientChannel(), licenseSummaryTimeoutMs);
+                authClientConfig.authClientChannel());
     }
 }

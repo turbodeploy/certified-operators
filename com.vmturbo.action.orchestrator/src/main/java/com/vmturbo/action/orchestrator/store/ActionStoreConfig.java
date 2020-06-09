@@ -218,8 +218,7 @@ public class ActionStoreConfig {
             entitySettingsCache(),
             actionTranslationConfig.actionTranslator(),
             realtimeTopologyContextId,
-            actionExecutionConfig.actionTargetSelector(),
-            licenseCheckClientConfig.licenseCheckClient());
+            actionExecutionConfig.actionTargetSelector());
     }
 
     @Bean

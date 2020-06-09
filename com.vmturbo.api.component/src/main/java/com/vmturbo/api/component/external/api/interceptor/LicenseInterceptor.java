@@ -1,15 +1,10 @@
 package com.vmturbo.api.component.external.api.interceptor;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 
 import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.http.entity.ContentType;
 import org.apache.logging.log4j.LogManager;
@@ -18,9 +13,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
+
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 
 /**
  * This interceptor is used to validate license for every request before further execution. It
@@ -37,30 +34,8 @@ public class LicenseInterceptor implements HandlerInterceptor {
 
     private final LicenseCheckClient licenseCheckClient;
 
-    // may contain a set of license features that would all be required to be available in the license
-    // in order to get access to the resource.
-    private final Collection<LicenseFeature> requiredFeatures;
-
-    /**
-     * Construct a license interceptor that checks for the presence of a valid license before granting
-     * access to the protected resources.
-     * @param licenseCheckClient the license check client to use.
-     */
     public LicenseInterceptor(@Nonnull LicenseCheckClient licenseCheckClient) {
         this.licenseCheckClient = licenseCheckClient;
-        this.requiredFeatures = Collections.emptySet();
-    }
-
-    /**
-     * Construct a license interceptor that, in addition to checking license validity, also checks
-     * that a set of features is available before granting access to the protected resources.
-     * @param licenseCheckClient the license check client to make checks with.
-     * @param requiredFeatures the set of {@link LicenseFeature} that are required to access the
-     *                         resources protected by this interceptor.
-     */
-    public LicenseInterceptor(@Nonnull LicenseCheckClient licenseCheckClient, @Nonnull Collection<LicenseFeature> requiredFeatures) {
-        this.licenseCheckClient = licenseCheckClient;
-        this.requiredFeatures = requiredFeatures;
     }
 
     /**
@@ -75,13 +50,6 @@ public class LicenseInterceptor implements HandlerInterceptor {
                              Object handler) throws Exception {
         if (licenseCheckClient.isReady()) {
             if (licenseCheckClient.hasValidLicense()) {
-                if (!requiredFeatures.isEmpty()) {
-                    // if the interceptor also includes a set of required features, check them here.
-                    if (!licenseCheckClient.areFeaturesAvailable(requiredFeatures)) {
-                        sendMissingLicenseFeaturesResponse(response, requiredFeatures);
-                        return false;
-                    }
-                }
                 return true;
             }
             logger.warn("Invalid license: " + request.getMethod() + " " + request.getPathInfo());
@@ -104,16 +72,6 @@ public class LicenseInterceptor implements HandlerInterceptor {
                                 Object handler, Exception ex) throws Exception {
         // nothing to do
     }
-
-    /**
-     * Send the invalid license error DTO in the response.
-     */
-    private void sendMissingLicenseFeaturesResponse(final HttpServletResponse response, Collection<LicenseFeature> features) throws IOException {
-        StringBuilder sbMessage = new StringBuilder("Requires an active license with the following features: ");
-        features.forEach(feature -> sbMessage.append(feature.getKey()).append(" "));
-        sendErrorResponse(response, sbMessage.toString());
-    }
-
 
     /**
      * Send the invalid license error DTO in the response.
