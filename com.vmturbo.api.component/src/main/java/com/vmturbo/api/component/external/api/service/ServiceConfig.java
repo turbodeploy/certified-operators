@@ -526,6 +526,11 @@ public class ServiceConfig {
     }
 
     @Bean
+    public SearchQueryService searchQueryService() {
+        return new SearchQueryService();
+    }
+
+    @Bean
     public SettingsService settingsService() {
         return new SettingsService(communicationConfig.settingRpcService(),
                 communicationConfig.historyRpcService(),
