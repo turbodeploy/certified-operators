@@ -83,6 +83,10 @@ public abstract class TraversalFilter<E extends TopologyGraphEntity<E>> implemen
                 return graph::getOwner;
             case OWNS:
                 return graph::getOwnedEntities;
+            case CONTROLLED_BY:
+                return graph::getControllers;
+            case CONTROLS:
+                return graph::getControlledEntities;
             default:
                 throw new UnsupportedOperationException("Unsupported traversal direction: " +
                         traversalDirection);

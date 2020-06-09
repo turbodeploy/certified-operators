@@ -31,9 +31,9 @@ public class GlobalSupplyChainCalculatorTest {
     /*
      *  Topology on which tests are made:
      *
-     *  VM           Cloud VM      Region aggregates VM and Compute Tier
-     *   |              |
-     *  PM   PM      Compute Tier
+     *  VM - VMSpec         Cloud VM      Region aggregates VM and Compute Tier, WorkloadController controls VM
+     *   |                      |
+     *  PM   PM            Compute Tier
      *   \  /
      *    ST
      *
@@ -47,6 +47,7 @@ public class GlobalSupplyChainCalculatorTest {
     private static final long COMPUTE_TIER_ID = 5;
     private static final long CLOUD_VM_ID = 6;
     private static final long REGION_ID = 7;
+    private static final long VMSpec_ID = 8;
 
     private final TestGraphEntity.Builder storage =
             TestGraphEntity.newBuilder(STORAGE_ID, ApiEntityType.STORAGE)
@@ -65,12 +66,18 @@ public class GlobalSupplyChainCalculatorTest {
                     .setEnvironmentType(EnvironmentType.ON_PREM)
                     .addProviderId(STORAGE_ID);
 
+    private final TestGraphEntity.Builder vmSpec =
+        TestGraphEntity.newBuilder(VMSpec_ID, ApiEntityType.VM_SPEC)
+            .setName("vmspec")
+            .setEnvironmentType(EnvironmentType.ON_PREM);
+
     private final TestGraphEntity.Builder vm =
             TestGraphEntity.newBuilder(VM_ID, ApiEntityType.VIRTUAL_MACHINE)
                    .setName("vm")
                    .setEnvironmentType(EnvironmentType.ON_PREM)
                    .addProviderId(HOST1_ID)
-                   .addProviderId(STORAGE_ID);
+                   .addProviderId(STORAGE_ID)
+                   .addConnectedEntity(VMSpec_ID, ConnectionType.CONTROLLED_BY_CONNECTION);
 
     private final TestGraphEntity.Builder computeTier =
             TestGraphEntity.newBuilder(COMPUTE_TIER_ID, ApiEntityType.COMPUTE_TIER)
@@ -91,7 +98,7 @@ public class GlobalSupplyChainCalculatorTest {
                     .setEnvironmentType(EnvironmentType.CLOUD);
 
     private final Map<Long, TestGraphEntity.Builder> graph =
-            Stream.of(storage, host1, host2, vm, computeTier, cloudVm, region)
+            Stream.of(storage, host1, host2, vmSpec, vm, computeTier, cloudVm, region)
                     .collect(Collectors.toMap(TestGraphEntity.Builder::getOid, Function.identity()));
 
     private final TopologyGraph<TestGraphEntity> topology = TestGraphEntity.newGraph(graph);
@@ -106,6 +113,7 @@ public class GlobalSupplyChainCalculatorTest {
                     GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
 
         assertThat(nodesByType.keySet(), containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE,
+                                                            ApiEntityType.VM_SPEC,
                                                             ApiEntityType.PHYSICAL_MACHINE,
                                                             ApiEntityType.STORAGE));
 
@@ -113,6 +121,7 @@ public class GlobalSupplyChainCalculatorTest {
                    containsInAnyOrder());
         assertThat(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE).getConnectedProviderTypesList(),
                    containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr(),
+                                      ApiEntityType.VM_SPEC.apiStr(),
                                       ApiEntityType.STORAGE.apiStr(),
                                       ApiEntityType.REGION.apiStr())); // appears here because the cloud VM
                                                                       // is included in the supply chain
@@ -132,6 +141,9 @@ public class GlobalSupplyChainCalculatorTest {
                                       ApiEntityType.VIRTUAL_MACHINE.apiStr()));
         assertThat(nodesByType.get(ApiEntityType.STORAGE).getConnectedProviderTypesList(),
                    containsInAnyOrder());
+        //Controlled Entities should be shown as a consumer from controller.
+        assertThat(nodesByType.get(ApiEntityType.VM_SPEC).getConnectedConsumerTypesList(),
+            containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
         assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.STORAGE)),
                    containsInAnyOrder(STORAGE_ID));
     }
@@ -199,6 +211,7 @@ public class GlobalSupplyChainCalculatorTest {
 
     private void assertFullTopology(@Nonnull Map<ApiEntityType, SupplyChainNode> nodesByType) {
         assertThat(nodesByType.keySet(), containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE,
+                                                            ApiEntityType.VM_SPEC,
                                                             ApiEntityType.PHYSICAL_MACHINE,
                                                             ApiEntityType.STORAGE,
                                                             ApiEntityType.REGION));
@@ -207,6 +220,7 @@ public class GlobalSupplyChainCalculatorTest {
                    containsInAnyOrder());
         assertThat(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE).getConnectedProviderTypesList(),
                    containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr(),
+                                      ApiEntityType.VM_SPEC.apiStr(),
                                       ApiEntityType.STORAGE.apiStr(),
                                       ApiEntityType.REGION.apiStr()));
         assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE)),

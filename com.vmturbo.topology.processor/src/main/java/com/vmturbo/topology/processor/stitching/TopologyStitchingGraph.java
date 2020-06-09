@@ -520,6 +520,8 @@ public class TopologyStitchingGraph {
                 return StitchingErrorCode.INVALID_OWNS_CONNECTION;
             case AGGREGATED_BY_CONNECTION:
                 return StitchingErrorCode.INVALID_AGGREGATED_BY_CONNECTION;
+            case CONTROLLED_BY_CONNECTION:
+                return StitchingErrorCode.INVALID_CONTROLLED_BY_CONNECTION;
             default:
                 logger.error("Unknown connection type " + type);
                 return StitchingErrorCode.UNKNOWN;
@@ -534,6 +536,8 @@ public class TopologyStitchingGraph {
                 return ConnectionType.OWNS_CONNECTION;
             case AGGREGATED_BY_CONNECTION:
                 return ConnectionType.AGGREGATED_BY_CONNECTION;
+            case CONTROLLED_BY_CONNECTION:
+                return ConnectionType.CONTROLLED_BY_CONNECTION;
             default:
                 logger.error("Unknown connection type " + type);
                 return ConnectionType.forNumber(type.getNumber());

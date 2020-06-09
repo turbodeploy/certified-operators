@@ -269,7 +269,8 @@ public class SdkToTopologyEntityConverter {
                 .getOrDefault(ConnectionType.AGGREGATED_BY_CONNECTION, Collections.emptySet());
         final Set<StitchingEntity> owners = entity.getConnectedFromByType()
                 .getOrDefault(ConnectionType.OWNS_CONNECTION, Collections.emptySet());
-
+        final Set<StitchingEntity> controlledEntities = entity.getConnectedFromByType()
+            .getOrDefault(ConnectionType.CONTROLLED_BY_CONNECTION, Collections.emptySet());
         // Copy properties map from probe DTO to topology DTO
         // TODO: Support for namespaces and proper handling of duplicate properties (see
         // OM-20545 for description of probe expectations related to duplicate properties).

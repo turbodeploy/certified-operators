@@ -114,7 +114,10 @@ public enum ApiEntityType {
     WORKLOAD_CONTROLLER(StringConstants.WORKLOAD_CONTROLLER, EntityType.WORKLOAD_CONTROLLER),
     /** ContainerSpec entity type.
      * Represents shard definition for container instances managed by a Cloud Native Controller. */
-    CONTAINER_SPEC(StringConstants.CONTAINER_SPEC, EntityType.CONTAINER_SPEC);
+    CONTAINER_SPEC(StringConstants.CONTAINER_SPEC, EntityType.CONTAINER_SPEC),
+    /** VMSpec entity type.
+     * Represents shard definition for VM instances managed by a Workload Controller. */
+    VM_SPEC(StringConstants.VM_SPEC, EntityType.VM_SPEC);
 
     /**
      * These are the entity types that count as "Workloads" in our system.

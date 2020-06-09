@@ -378,6 +378,28 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
     }
 
     /**
+     * Get the entities that are controlled by a given {@link TopologyGraphEntity} in the graph.
+     *
+     * @param topologyEntity The {@link TopologyGraphEntity} whose controlled entities should be retrieved.
+     * @return The entities that are controlled by a {@link TopologyGraphEntity} in the graph.
+     */
+    @Nonnull
+    public Stream<E> getControlledEntities(@Nonnull final E topologyEntity) {
+        return topologyEntity.getControlledEntities().stream();
+    }
+
+    /**
+     * Get the controllers of a given {@link TopologyGraphEntity} in the graph.
+     *
+     * @param topologyEntity The {@link TopologyGraphEntity} whose controllers should be retrieved.
+     * @return The controllers of the {@link TopologyGraphEntity}.
+     */
+    @Nonnull
+    public Stream<E> getControllers(@Nonnull final E topologyEntity) {
+        return topologyEntity.getControllers().stream();
+    }
+
+    /**
      * Get the number of entities in the graph.
      *
      * @return The number of entities in the graph.

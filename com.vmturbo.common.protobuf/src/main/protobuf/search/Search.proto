@@ -139,6 +139,11 @@ message TraversalFilter {
         // This filter accepts only ownerships.
         OWNS = 6;
         OWNED_BY = 7;
+        // WorkloadController ---- Controls   ---> VirtualMachine/Container/Pod
+        // VirtualMachine/Container/Pod  <--- Controlled by ---- WorkloadController
+        // This filter accepts only controls connection.
+        CONTROLS = 8;
+        CONTROLLED_BY = 9;
     }
 }
 
