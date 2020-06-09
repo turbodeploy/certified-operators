@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.topology.pipeline;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -14,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
@@ -208,19 +210,20 @@ public class PlanPipelineFactory {
             @Nonnull final StitchingJournalFactory journalFactory) {
         final TopologyPipelineContext context =
                 new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo, consistentScalingManager);
-        final TopologyPipeline.Builder topoPipelineBuilder =
+        final TopologyPipeline.Builder<EntityStore, TopologyBroadcastInfo, EntityStore> topoPipelineBuilder =
             TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context);
         // if the constructed topology is already in the cache from the realtime topology, just
         // add the stage that will read it from the cache, otherwise add the stitching stage
         // and the construct topology stage so we can build the topology
+        TopologyPipeline.Builder<EntityStore, TopologyBroadcastInfo, Map<Long, Builder>> builderContinuation;
         if (constructTopologyStageCache.isEmpty()) {
-            topoPipelineBuilder.addStage(new StitchingStage(stitchingManager, journalFactory))
+            builderContinuation = topoPipelineBuilder.addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new ConstructTopologyFromStitchingContextStage());
         } else {
-            topoPipelineBuilder.addStage(
+            builderContinuation = topoPipelineBuilder.addStage(
                 new CachingConstructTopologyFromStitchingContextStage(constructTopologyStageCache));
         }
-        return topoPipelineBuilder
+        return builderContinuation
                 .addStage(new ReservationStage(reservationManager))
                 // TODO: Move the ToplogyEditStage after the GraphCreationStage
                 // That way the editstage can work on the graph instead of a
@@ -247,6 +250,7 @@ public class PlanPipelineFactory {
                 .addStage(new RequestCommodityThresholdsStage(requestCommodityThresholdsInjector))
                 .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
+                .addStage(new TopSortStage())
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
                 .build();
     }
@@ -271,19 +275,20 @@ public class PlanPipelineFactory {
             @Nonnull final StitchingJournalFactory journalFactory) {
         final TopologyPipelineContext context =
             new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo, consistentScalingManager);
-        final TopologyPipeline.Builder topoPipelineBuilder =
+        final TopologyPipeline.Builder<EntityStore, TopologyBroadcastInfo, EntityStore> topoPipelineBuilder =
             TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context);
         // if the constructed topology is already in the cache from the realtime topology, just
         // add the stage that will read it from the cache, otherwise add the stitching stage
         // and the construct topology stage so we can build the topology
+        final TopologyPipeline.Builder<EntityStore, TopologyBroadcastInfo, Map<Long, TopologyEntity.Builder>> builderContinuation;
         if (constructTopologyStageCache.isEmpty()) {
-            topoPipelineBuilder.addStage(new StitchingStage(stitchingManager, journalFactory))
+            builderContinuation = topoPipelineBuilder.addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new ConstructTopologyFromStitchingContextStage());
         } else {
-            topoPipelineBuilder.addStage(
+            builderContinuation = topoPipelineBuilder.addStage(
                 new CachingConstructTopologyFromStitchingContextStage(constructTopologyStageCache));
         }
-        return topoPipelineBuilder
+        return builderContinuation
             .addStage(new ReservationStage(reservationManager))
             .addStage(new GraphCreationStage())
             // We need cluster commodities
@@ -297,6 +302,7 @@ public class PlanPipelineFactory {
             .addStage(new SettingsApplicationStage(settingsApplicator))
             .addStage(new PostStitchingStage(stitchingManager))
             .addStage(new ExtractTopologyGraphStage())
+            .addStage(new TopSortStage())
             .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
             .build();
     }
