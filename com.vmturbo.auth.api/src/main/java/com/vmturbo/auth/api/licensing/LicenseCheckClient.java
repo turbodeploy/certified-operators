@@ -1,6 +1,8 @@
 package com.vmturbo.auth.api.licensing;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
@@ -8,6 +10,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.protobuf.Empty;
+import com.google.protobuf.ProtocolStringList;
 
 import io.grpc.Channel;
 
@@ -41,6 +44,10 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
 
     private final Channel authChannel;
 
+    // how long to wait for the first license summary to be retrieved before throwing a
+    // LicenseCheckNotReady exception
+    private long licenseSummaryTimeoutMs;
+
     // cache the most recent license summary
     @GuardedBy("this")
     private LicenseSummary lastLicenseSummary;
@@ -57,9 +64,11 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
 
     public LicenseCheckClient(@Nonnull final IMessageReceiver<LicenseSummary> messageReceiver,
                               @Nonnull final ExecutorService executorService,
-                              @Nullable final Channel authChannel) {
+                              @Nullable final Channel authChannel,
+                              final long licenseSummaryTimeoutMs) {
         super(messageReceiver, executorService);
         this.authChannel = authChannel;
+        this.licenseSummaryTimeoutMs = licenseSummaryTimeoutMs;
         // create a flux that a listener can subscribe to LicenseSummary update events on.
         Flux<LicenseSummary> primaryFlux = Flux.create(emitter -> updateEventEmitter = emitter);
         updateEventFlux = primaryFlux.share(); // create a shareable flux for multicasting.
@@ -104,6 +113,25 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
     }
 
     /**
+     * get the latest license summary received by the check client.
+     */
+    public LicenseSummary getLicenseSummary() {
+        if (lastLicenseSummary == null) {
+            // see if we can wait for it
+            try {
+                updateEventFlux.blockFirstMillis(licenseSummaryTimeoutMs);
+            } catch (IllegalStateException ise) {
+                // this is just a timeout on the block -- no need to log anything. We'll throw the exception later.
+            }
+        }
+        // if still no license, throw an error
+        if (lastLicenseSummary == null) {
+            throw new LicenseCheckNotReadyException();
+        }
+        return lastLicenseSummary;
+    }
+
+    /**
      * Check if a specific feature is available in the registered licenses. If a license summary is
      * not available, this check will always return false.
      *
@@ -115,10 +143,58 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
      * not available.
      */
     public boolean isFeatureAvailable(LicenseFeature feature) {
-        if (lastLicenseSummary != null) {
-            return lastLicenseSummary.getFeatureList().contains(feature.getKey());
+        return getLicenseSummary().getFeatureList().contains(feature.getKey());
+    }
+
+    /**
+     * Check if a collection of features are available in the registered licenses. If a license summary is
+     * not available, this check will always return false.
+     *
+     * <p>TODO: consider throwing something if the license summary is not available yet, vs. no licenses
+     * found.
+     *
+     * @param features the collection of features to check for
+     * @return true, if all of the feature are available. False if any are not available, or a
+     * license summary is not available.
+     */
+    public boolean areFeaturesAvailable(Collection<LicenseFeature> features) {
+        ProtocolStringList licenseFeatures = getLicenseSummary().getFeatureList();
+        // return false if any of the requested features are not present in the license summarya
+        for (LicenseFeature feature : features) {
+            if (!licenseFeatures.contains(feature.getKey())) {
+                return false;
+            }
         }
-        return false;
+        return true;
+    }
+
+    /**
+     * Utility method that will check if a feature is available using {@link #isFeatureAvailable(LicenseFeature)},
+     * and throws a {@link LicenseFeaturesRequiredException} if it is not.
+     *
+     * @param feature the feature to check for
+     * @throws LicenseFeaturesRequiredException if any features are not present in the active licenses
+     */
+    public void checkFeatureAvailable(LicenseFeature feature)
+            throws LicenseFeaturesRequiredException {
+        if (!isFeatureAvailable(feature)) {
+            throw new LicenseFeaturesRequiredException(Collections.singleton(feature));
+        }
+    }
+
+
+    /**
+     * Utility method that will check if a collection of features are available using {@link #areFeaturesAvailable(Collection)},
+     * and throws a {@link LicenseFeaturesRequiredException} if any are not present.
+     *
+     * @param features the set of features to check for
+     * @throws LicenseFeaturesRequiredException if any features are not present in the active licenses
+     */
+    public void checkFeaturesAvailable(Collection<LicenseFeature> features)
+            throws LicenseFeaturesRequiredException {
+        if (!areFeaturesAvailable(features)) {
+            throw new LicenseFeaturesRequiredException(features);
+        }
     }
 
     /**

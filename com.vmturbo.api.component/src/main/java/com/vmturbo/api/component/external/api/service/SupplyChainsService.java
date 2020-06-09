@@ -45,6 +45,8 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
@@ -76,6 +78,7 @@ public class SupplyChainsService implements ISupplyChainsService {
     private final EntityAspectMapper entityAspectMapper;
     private final PlanServiceBlockingStub planRpcService;
     private final SupplyChainStatMapper supplyChainStatMapper;
+    private final LicenseCheckClient licenseCheckClient;
     private final Clock clock;
 
     /**
@@ -93,9 +96,10 @@ public class SupplyChainsService implements ISupplyChainsService {
                         final long realtimeTopologyContextId,
                         @Nonnull final GroupExpander groupExpander,
                         @Nonnull final EntityAspectMapper entityAspectMapper,
+                        @Nonnull final LicenseCheckClient licenseCheckClient,
                         @Nonnull final Clock clock) {
         this(supplyChainFetcherFactory, planRpcService, realtimeTopologyContextId,
-            groupExpander, entityAspectMapper, clock, new SupplyChainStatMapper());
+            groupExpander, entityAspectMapper, clock, new SupplyChainStatMapper(), licenseCheckClient);
     }
 
 
@@ -106,7 +110,8 @@ public class SupplyChainsService implements ISupplyChainsService {
                         @Nonnull final GroupExpander groupExpander,
                         @Nonnull final EntityAspectMapper entityAspectMapper,
                         @Nonnull final Clock clock,
-                        @Nonnull final SupplyChainStatMapper supplyChainStatMapper) {
+                        @Nonnull final SupplyChainStatMapper supplyChainStatMapper,
+                        @Nonnull final LicenseCheckClient licenseCheckClient) {
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.planRpcService = planRpcService;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -114,6 +119,7 @@ public class SupplyChainsService implements ISupplyChainsService {
         this.entityAspectMapper = entityAspectMapper;
         this.clock = clock;
         this.supplyChainStatMapper = supplyChainStatMapper;
+        this.licenseCheckClient = licenseCheckClient;
     }
 
     @Override
@@ -143,6 +149,8 @@ public class SupplyChainsService implements ISupplyChainsService {
         //if the request is for a plan supply chain, the "seed uuid" should instead be used as the topology context ID.
         Optional<PlanInstance> possiblePlan = getPlanIfRequestIsPlan(uuids);
         if (possiblePlan.isPresent()) {
+            // this is a plan. Before we go any further, we need to validate that the planner feature is available.
+            licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
             PlanInstance plan = possiblePlan.get();
             // if we have a user id in the context, we may prevent access to the plan supply chain
             // if the user is either not an admin user or does not own the plan

@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Table;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -77,6 +79,8 @@ public class StatsQueryExecutor {
 
     private final UuidMapper uuidMapper;
 
+    private final LicenseCheckClient licenseCheckClient;
+
     private final Set<StatsSubQuery> queries = new HashSet<>();
 
     // entity types that don't support historical statistics
@@ -90,11 +94,13 @@ public class StatsQueryExecutor {
     public StatsQueryExecutor(@Nonnull final StatsQueryContextFactory contextFactory,
                               @Nonnull final StatsQueryScopeExpander scopeExpander,
                               @Nonnull final RepositoryApi repositoryApi,
-                              @Nonnull final UuidMapper uuidMapper) {
+                              @Nonnull final UuidMapper uuidMapper,
+                              @Nonnull final LicenseCheckClient licenseCheckClient) {
         this.contextFactory = contextFactory;
         this.scopeExpander = scopeExpander;
         this.repositoryApi = repositoryApi;
         this.uuidMapper = uuidMapper;
+        this.licenseCheckClient = licenseCheckClient;
     }
 
     /**
@@ -137,6 +143,10 @@ public class StatsQueryExecutor {
     public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final ApiId scope,
             @Nonnull final StatPeriodApiInputDTO inputDTO)
             throws OperationFailedException, InterruptedException, ConversionException {
+        if (scope.isPlan()) { // plan stats require the planner feature
+            licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+        }
+
         final StatsQueryScope expandedScope = scopeExpander.expandScope(scope, inputDTO.getStatistics());
 
         // Check if there is anything in the scope.

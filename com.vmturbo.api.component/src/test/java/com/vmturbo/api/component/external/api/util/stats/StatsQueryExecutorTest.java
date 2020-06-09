@@ -12,6 +12,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,6 +47,9 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeature;
+import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -69,7 +73,10 @@ public class StatsQueryExecutorTest {
 
     private UuidMapper uuidMapper = mock(UuidMapper.class);
 
-    private StatsQueryExecutor executor = new StatsQueryExecutor(contextFactory, scopeExpander, repositoryApi, uuidMapper);
+    private LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+
+    private StatsQueryExecutor executor = new StatsQueryExecutor(contextFactory, scopeExpander,
+            repositoryApi, uuidMapper, licenseCheckClient);
 
     private ApiId scope = mock(ApiId.class);
 
@@ -610,6 +617,17 @@ public class StatsQueryExecutorTest {
         final StatSnapshotApiDTO resultSnapshot = results.get(0);
         assertThat(resultSnapshot.getDate(), is(DateTimeUtil.toString(MILLIS)));
         assertThat(resultSnapshot.getStatistics(), containsInAnyOrder(stat));
+    }
+
+    /**
+     * Trying to request plan stats should fail if the planner feature is not available.
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void getPlanStatsUnlicensed() throws Exception {
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(LicenseFeature.PLANNER)))
+                .when(licenseCheckClient).checkFeatureAvailable(LicenseFeature.PLANNER);
+        when(scope.isPlan()).thenReturn(true);
+        executor.getAggregateStats(scope, null);
     }
 
 }

@@ -48,6 +48,8 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -149,6 +151,8 @@ public class PlanActionStore implements ActionStore {
 
     private final ActionTargetSelector actionTargetSelector;
 
+    private final LicenseCheckClient licenseCheckClient;
+
     /**
      * Create a new {@link PlanActionStore}.
      *
@@ -165,7 +169,8 @@ public class PlanActionStore implements ActionStore {
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                            @Nonnull final ActionTranslator actionTranslator,
                            final long realtimeTopologyContextId,
-                           @Nonnull ActionTargetSelector actionTargetSelector) {
+                           @Nonnull ActionTargetSelector actionTargetSelector,
+                           @Nonnull LicenseCheckClient licenseCheckClient) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.dsl = dsl;
         this.actionPlanIdByActionPlanType = Maps.newHashMap();
@@ -176,6 +181,7 @@ public class PlanActionStore implements ActionStore {
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.actionTargetSelector = actionTargetSelector;
+        this.licenseCheckClient = licenseCheckClient;
     }
 
     /**
@@ -232,6 +238,9 @@ public class PlanActionStore implements ActionStore {
     @Nonnull
     @Override
     public Optional<Action> getAction(long actionId) {
+        // this operation requires the planner feature to be enabled
+        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+
         return loadAction(actionId)
             .map(action -> actionFactory.newPlanAction(action.getRecommendation(),
                 recommendationTimeByActionPlanId.get(action.getActionPlanId()),
@@ -257,6 +266,9 @@ public class PlanActionStore implements ActionStore {
     @Nonnull
     @Override
     public Map<Long, Action> getActions() {
+        // this operation requires the planner feature to be enabled
+        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+
         final Map<Long, Action> actions = loadActions().stream()
             .map(action -> actionFactory.newPlanAction(action.getRecommendation(),
                 recommendationTimeByActionPlanId.get(action.getActionPlanId()),
@@ -617,6 +629,7 @@ public class PlanActionStore implements ActionStore {
         private final ActionTranslator actionTranslator;
         private final long realtimeTopologyContextId;
         private final ActionTargetSelector actionTargetSelector;
+        private final LicenseCheckClient licenseCheckClient;
 
         public StoreLoader(@Nonnull final DSLContext dsl,
                            @Nonnull final IActionFactory actionFactory,
@@ -624,7 +637,8 @@ public class PlanActionStore implements ActionStore {
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                            @Nonnull final ActionTranslator actionTranslator,
                            final long realtimeTopologyContextId,
-                           @Nonnull final ActionTargetSelector actionTargetSelector) {
+                           @Nonnull final ActionTargetSelector actionTargetSelector,
+                           @Nonnull final LicenseCheckClient licenseCheckClient) {
             this.dsl = Objects.requireNonNull(dsl);
             this.actionFactory = Objects.requireNonNull(actionFactory);
             this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
@@ -632,6 +646,7 @@ public class PlanActionStore implements ActionStore {
             this.actionTranslator = actionTranslator;
             this.realtimeTopologyContextId = realtimeTopologyContextId;
             this.actionTargetSelector = actionTargetSelector;
+            this.licenseCheckClient = licenseCheckClient;
         }
 
         /**
@@ -649,7 +664,8 @@ public class PlanActionStore implements ActionStore {
                             .computeIfAbsent(actionPlan.getTopologyContextId(),
                                 k -> new PlanActionStore(actionFactory, dsl,
                                     actionPlan.getTopologyContextId(), entitySettingsCache,
-                                    actionTranslator, realtimeTopologyContextId, actionTargetSelector));
+                                    actionTranslator, realtimeTopologyContextId, actionTargetSelector,
+                                    licenseCheckClient));
                         store.setupPlanInformation(actionPlan);
                     });
                 return planActionStoresByTopologyContextId.values().stream().collect(Collectors.toList());

@@ -358,6 +358,13 @@
         </profile>
 
         <profile>
+            <id>licensing</id>
+            <modules>
+                <module>../com.vmturbo.licensing</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>all-separate-probes</id>
             <modules>
                 <module>../com.vmturbo.mediation.actionscript</module>
@@ -857,6 +864,7 @@
             <id>development</id>
             <modules>
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
@@ -939,6 +947,7 @@
             <id>platform</id>
             <modules>
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
@@ -1040,6 +1049,7 @@
                 <module>../nginx</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
@@ -2136,6 +2146,26 @@
                 <version>${flex.lm.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>flexlmutil</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>EccpressoAll</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>flexlmmgmt</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>magellaninfo</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.common</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
@@ -2747,6 +2777,11 @@
             <dependency>
                 <groupId>com.fasterxml.jackson.dataformat</groupId>
                 <artifactId>jackson-dataformat-yaml</artifactId>
+                <version>${jackson-core.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.dataformat</groupId>
+                <artifactId>jackson-dataformat-xml</artifactId>
                 <version>${jackson-core.version}</version>
             </dependency>
             <dependency>
