@@ -146,10 +146,8 @@ public class StorageEntityConstructorTest {
         assertEquals(100.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
             CommodityType.STORAGE_ACCESS_VALUE), epsilon);
         // Verify that latency, provisioned capacity is not set
-        // TODO OM-59504 Implement latency commodity. Capacity cannot be null
-        // anymore, see RB:39285
-        // assertFalse(getCommoditySold(topologyEntityDTO.getCommoditySoldListList(),
-        // CommodityType.STORAGE_LATENCY_VALUE).get().hasCapacity());
+        assertFalse(getCommoditySold(topologyEntityDTO.getCommoditySoldListList(),
+            CommodityType.STORAGE_LATENCY_VALUE).get().hasCapacity());
         assertFalse(getCommoditySold(topologyEntityDTO.getCommoditySoldListList(),
             CommodityType.STORAGE_PROVISIONED_VALUE).get().hasCapacity());
 

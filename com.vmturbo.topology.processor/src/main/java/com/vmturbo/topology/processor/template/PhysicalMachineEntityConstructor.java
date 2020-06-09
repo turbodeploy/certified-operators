@@ -127,7 +127,8 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
         addCommodityConstraints(newHost, commoditySoldConstraints, commodityBoughtConstraints);
 
         if (originalHost != null) {
-            updateRelatedEntityAccesses(originalHost, newHost, commoditySoldConstraints, topology);
+            updateRelatedEntityAccesses(originalHost, newHost.build(),
+                    commoditySoldConstraints, topology);
         }
     }
 

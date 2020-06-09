@@ -125,8 +125,6 @@ data:
         riMinimumDataPoints : 168
         # Number of records to commit in one batch.
         statsRecordsCommitBatchSize : 5000
-        # Number of records to update in one batch.
-        statsRecordsUpdateBatchSize : 5000
         # Number of results to return when fetching lazily.
         statsRecordsQueryBatchSize : 5000
         reservedInstanceStatCleanup.corePoolSize: 1

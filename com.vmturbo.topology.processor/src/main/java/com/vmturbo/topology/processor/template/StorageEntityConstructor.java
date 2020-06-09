@@ -82,7 +82,7 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
                 commodityBoughtConstraints);
         if (originalTopologyEntity != null) {
             updateRelatedEntityAccesses(originalTopologyEntity,
-                    topologyEntityBuilder, commoditySoldConstraints, topology);
+                    topologyEntityBuilder.build(), commoditySoldConstraints, topology);
 
             topologyEntityBuilder.setTypeSpecificInfo(originalTopologyEntity.getTypeSpecificInfo());
         }

@@ -28,7 +28,6 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -43,8 +42,8 @@ public class TemplateConverterFactory {
     private static final Logger logger = LogManager.getLogger();
 
     private final TemplateServiceBlockingStub templateService;
+
     private final IdentityProvider identityProvider;
-    private final SettingPolicyServiceBlockingStub settingPolicyService;
 
     private final Map<Integer, ITopologyEntityConstructor> templateConverterMap = ImmutableMap.of(
             EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(),
@@ -56,11 +55,9 @@ public class TemplateConverterFactory {
             .of(EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(true));
 
     public TemplateConverterFactory(@Nonnull TemplateServiceBlockingStub templateService,
-            @Nonnull final IdentityProvider identityProvider,
-            @Nonnull SettingPolicyServiceBlockingStub settingPolicyService) {
+                                    @Nonnull final IdentityProvider identityProvider) {
         this.templateService = Objects.requireNonNull(templateService);
         this.identityProvider = Objects.requireNonNull(identityProvider);
-        this.settingPolicyService = Objects.requireNonNull(settingPolicyService);
     }
 
     /**
@@ -205,8 +202,7 @@ public class TemplateConverterFactory {
 
         if (template.getTemplateInfo().getEntityType() == EntityType.HCI_PHYSICAL_MACHINE_VALUE) {
             return new HCIPhysicalMachineEntityConstructor(template, topology, entitiesToReplace,
-                    true, identityProvider, settingPolicyService)
-                            .createTopologyEntitiesFromTemplate();
+                    true, identityProvider).createTopologyEntitiesFromTemplate();
         } else {
             List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 

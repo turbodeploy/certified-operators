@@ -65,7 +65,7 @@ public class TemplatesConverterUtilsTest {
 
         // Should add an extra DSPM commodity to the storage that accesses the replacementHost.
         TopologyEntityConstructor.updateRelatedEntityAccesses(originalHost.getEntityBuilder(),
-                replacementHost.getEntityBuilder(),
+                replacementHost.getEntityBuilder().build(),
                 originalHost.getEntityBuilder().getCommoditySoldListList(), topology);
 
         assertEquals(2, storage.getEntityBuilder().getCommoditySoldListCount());

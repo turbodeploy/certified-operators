@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.template;
 
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -30,9 +29,6 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -47,8 +43,6 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 public class TemplateConverterFactoryTest {
 
     private final TemplateServiceMole templateServiceMole = Mockito.spy(new TemplateServiceMole());
-    private final SettingPolicyServiceMole testSettingPolicyService = spy(
-            new SettingPolicyServiceMole());
 
     private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
 
@@ -63,16 +57,12 @@ public class TemplateConverterFactoryTest {
     private Map<Long, TopologyEntity.Builder> topology = Maps.newHashMap();
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateServiceMole,
-            testSettingPolicyService);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateServiceMole);
 
     @Before
     public void setup() {
-        SettingPolicyServiceBlockingStub settingPolicyServiceClient = SettingPolicyServiceGrpc
-                .newBlockingStub(grpcServer.getChannel());
         this.templateConverterFactory = new TemplateConverterFactory(
-                TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()), identityProvider,
-                settingPolicyServiceClient);
+                TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()), identityProvider);
     }
 
     @Test
