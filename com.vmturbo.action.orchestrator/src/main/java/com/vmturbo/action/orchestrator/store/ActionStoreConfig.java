@@ -111,9 +111,6 @@ public class ActionStoreConfig {
     @Value("${actionExecution.concurrentAutomatedActions:5}")
     private int concurrentAutomatedActions;
 
-    @Value("${realtimeTopologyContextId}")
-    public long realtimeTopologyContextId;
-
     @Value("${minsActionAcceptanceTTL:1440}")
     private long minsActionAcceptanceTTL;
 
@@ -217,7 +214,7 @@ public class ActionStoreConfig {
             actionModeCalculator(),
             entitySettingsCache(),
             actionTranslationConfig.actionTranslator(),
-            realtimeTopologyContextId,
+            tpConfig.realtimeTopologyContextId(),
             actionExecutionConfig.actionTargetSelector(),
             licenseCheckClientConfig.licenseCheckClient());
     }

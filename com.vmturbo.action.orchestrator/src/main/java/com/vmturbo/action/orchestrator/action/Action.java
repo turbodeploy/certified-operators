@@ -724,11 +724,14 @@ public class Action implements ActionView {
      * Determine if this Action may be executed directly by Turbonomic, i.e. the mode
      * is either AUTOMATIC or MANUAL.
      *
-     * @return true if this Action may be executed, i.e. mode is either AUTOMATIC or MANUAL
+     * @return true if this Action may be executed, i.e. mode is AUTOMATIC, MANUAL, or
+     *         EXTERNAL_APPROVAL.
      */
     private boolean modePermitsExecution() {
         final ActionMode mode = getMode();
-        return mode == ActionMode.AUTOMATIC || mode == ActionMode.MANUAL;
+        return mode == ActionMode.AUTOMATIC
+            || mode == ActionMode.MANUAL
+            || mode == ActionMode.EXTERNAL_APPROVAL;
     }
 
     /**

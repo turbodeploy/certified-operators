@@ -25,6 +25,8 @@ message ExecuteActionRequest {
 
     // The Action Type that will be mapped to the Probe Action Type.
     optional action.ActionType action_type = 5;
+
+    optional string explanation = 6;
 }
 
 message ExecuteActionResponse {}

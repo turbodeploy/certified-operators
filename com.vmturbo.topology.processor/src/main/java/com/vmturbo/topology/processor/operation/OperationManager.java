@@ -1329,8 +1329,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             CommunicationException {
         final Target target = targetStore.getTarget(targetId).orElseThrow(
                 () -> new TargetNotFoundException(targetId));
-        final GetActionStateRequest request = GetActionStateRequest.newBuilder().setTarget(
-                createTargetId(target)).addAllActionOid(actions).build();
+        final GetActionStateRequest request = GetActionStateRequest.newBuilder()
+            .setTarget(createTargetId(target))
+            .addAllActionOid(actions)
+            .setIncludeAllActionsInTransition(true)
+            .build();
         final GetActionState operation = new GetActionState(target.getProbeId(), target.getId(),
                 identityProvider);
         final OperationCallback<GetActionStateResponse> internalCallback =
