@@ -1,6 +1,17 @@
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
+# Required OpenShift Labels
+LABEL name="db" \
+      vendor="Turbonomic" \
+      version="7" \
+      release="1" \
+      summary="db" \
+      description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
+
+# Required Licenses
+COPY licenses /licenses
+
 RUN groupadd -g 101 mysql && useradd -r -g 101 -s /bin/bash -u 101 mysql
 
 ENV VERSION=10.4.13
