@@ -42,5 +42,22 @@ public class AnalysisFactoryTest {
             assertSame(builder, builder.setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM));
             assertEquals(useQuoteCacheDuringSNM, builder.build().getUseQuoteCacheDuringSNM());
         }
+
+        /**
+         * Tests that the <b>replay provisions during real-time</b> field can be correctly stored by
+         * the {@link Builder} object and retrieved by the built {@link AnalysisConfig} object.
+         */
+        @Test
+        @Parameters({"true", "false"})
+        @TestCaseName("Test #{index}: (set|get)ReplayProvisionsForRealTime({0})")
+        public final void
+                        testGetSetReplayProvisionsForRealTime(boolean replayProvisionsForRealTime) {
+            Builder builder = AnalysisConfig.newBuilder(0, 0,
+                SuspensionsThrottlingConfig.DEFAULT, new HashMap<>());
+            assertSame(builder,
+                builder.setReplayProvisionsForRealTime(replayProvisionsForRealTime));
+            assertEquals(replayProvisionsForRealTime,
+                builder.build().getReplayProvisionsForRealTime());
+        }
     }
 }

@@ -279,8 +279,9 @@ public class TopologyEntitiesHandler {
             // actions on the newly provisioned entities, excluding the provisioned entities will cause those
             // actions to reference entities not actually in the projected topology.
             @NonNull List<Action> secondRoundActions = ede.generateActions(economy, true, true,
-                true, false, true, false, seedActions, marketId,
-                SuspensionsThrottlingConfig.DEFAULT).stream()
+                true, false, true, false,
+                analysisConfig.getReplayProvisionsForRealTime() ? seedActions : new ReplayActions(),
+                marketId, SuspensionsThrottlingConfig.DEFAULT).stream()
                 .filter(action -> (action instanceof ProvisionByDemand
                                 || action instanceof ProvisionBySupply
                                 || action instanceof Activate)
