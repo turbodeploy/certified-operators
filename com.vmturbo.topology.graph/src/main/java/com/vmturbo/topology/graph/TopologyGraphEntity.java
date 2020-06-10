@@ -218,6 +218,23 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     List<E> getAggregatedEntities();
 
     /**
+     * Auxiliary method. Get the controllers of the entity
+     *
+     * @return the entities that control this entity
+     */
+    @Nonnull
+    List<E> getControllers();
+
+    /**
+     * Auxiliary method. Get the {@link TopologyGraphEntity}s
+     * this entity controls
+     *
+     * @return the entities this entity controls
+     */
+    @Nonnull
+    List<E> getControlledEntities();
+
+    /**
      * Applies a function transitively to all entities in a collection
      * and collects the results. This utility function is meant to
      * facilitate traversals in the topology graph.
@@ -280,12 +297,12 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     /**
      * Get all connected entities
      *
-     * @return the owned and aggregated entities.
+     * @return the owned, aggregated and controlled entities.
      */
     @Nonnull
     default List<E> getAllConnectedEntities() {
         return Stream.of(getAggregatedAndOwnedEntities(), getAggregatorsAndOwner(),
-                         getInboundAssociatedEntities(), getOutboundAssociatedEntities())
+                         getInboundAssociatedEntities(), getOutboundAssociatedEntities(), getControllers(), getControlledEntities())
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
     }
@@ -433,6 +450,24 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
          * @return The builder, for chaining
          */
         B addAggregatedEntity(B aggregatedEntity);
+
+        /**
+         * Add an controller {@link Builder}. This should only be used by
+         * {@link TopologyGraphCreator} when constructing the graph.
+         *
+         * @param controller the new controller
+         * @return The builder, for chaining
+         */
+        B addController(B controller);
+
+        /**
+         * Add an controller {@link Builder}. This should only be used by
+         * {@link TopologyGraphCreator} when constructing the graph.
+         *
+         * @param controlledEntity the new controlled entity
+         * @return The builder, for chaining
+         */
+        B addControlledEntity(B controlledEntity);
 
 
         /**

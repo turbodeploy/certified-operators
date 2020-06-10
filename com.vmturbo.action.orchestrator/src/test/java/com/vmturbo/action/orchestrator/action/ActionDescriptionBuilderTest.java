@@ -65,6 +65,8 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action resizeVcpuRecommendationForContainer;
     private ActionDTO.Action resizeVcpuReservationRecommendationForContainer;
     private ActionDTO.Action resizeVemRequestRecommendationForContainer;
+    private ActionDTO.Action resizeStorageAmountRecommendationForVSanStorageUp;
+    private ActionDTO.Action resizeStorageAmountRecommendationForVSanStorageDown;
     private ActionDTO.Action deactivateRecommendation;
     private ActionDTO.Action activateRecommendation;
     private ActionDTO.Action reconfigureReasonCommoditiesRecommendation;
@@ -104,6 +106,10 @@ public class ActionDescriptionBuilderTest {
     private static final String REGION_DISPLAY_NAME = "Manhattan";
     private static final Long CONTAINER1_ID = 11L;
     private static final String CONTAINER1_DISPLAY_NAME = "container1_test";
+    private static final Long VSAN_STORAGE_ID = 333L;
+    private static final String VSAN_STORAGE_DISPLAY_NAME = "vsan_storage";
+    private static final Long VSAN_PM_ID = 444L;
+    private static final String VSAN_PM_DISPLAY_NAME = "vsan_host";
     private static final String SWITCH1_DISPLAY_NAME = "switch1_test";
     private ActionDTO.Action resizePortChannelRecommendation;
 
@@ -144,6 +150,10 @@ public class ActionDescriptionBuilderTest {
         resizeVcpuReservationRecommendationForContainer =
             makeRec(makeResizeReservationVcpuInfo(CONTAINER1_ID, 16.111f, 8.111f), SupportLevel.SUPPORTED).build();
         resizeVemRequestRecommendationForContainer = makeRec(makeVMemRequestInfo(CONTAINER1_ID, 3200f, 2200f), SupportLevel.SUPPORTED).build();
+
+        resizeStorageAmountRecommendationForVSanStorageUp = makeRec(makeVSanStorageAmountRequestInfo(51200f, 76800f), SupportLevel.SUPPORTED).build();
+
+        resizeStorageAmountRecommendationForVSanStorageDown = makeRec(makeVSanStorageAmountRequestInfo(76800f, 51200f), SupportLevel.SUPPORTED).build();
 
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(VM1_ID), SupportLevel.SUPPORTED).build();
@@ -320,6 +330,19 @@ public class ActionDescriptionBuilderTest {
      */
     private ActionInfo.Builder makeVMemRequestInfo(long targetId, float oldCapacity, float newCapacity) {
         return makeResizeInfo(targetId, CommodityDTO.CommodityType.VMEM_REQUEST_VALUE, oldCapacity, newCapacity);
+    }
+
+    /**
+     * Create a resize action for StorageAmount commodity of vsan storage.
+     *
+     * @param oldCapacity the capacity before resize
+     * @param newCapacity the capacity after resize
+     * @return {@link ActionInfo.Builder}
+     */
+    private ActionInfo.Builder makeVSanStorageAmountRequestInfo(float oldCapacity, float newCapacity) {
+        ActionInfo.Builder builder = makeResizeInfo(VSAN_STORAGE_ID, CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, oldCapacity, newCapacity);
+        builder.setResize(builder.getResize().toBuilder().setResizeTriggerTrader(ActionOrchestratorTestUtils.createActionEntity(VSAN_PM_ID)));
+        return builder;
     }
 
     private ActionInfo.Builder makeDeactivateInfo(long targetId) {
@@ -821,6 +844,50 @@ public class ActionDescriptionBuilderTest {
                 entitySettingsCache, resizeDBMem);
         Assert.assertEquals(description,
                 "Resize down DB Mem for Database Server sqlServer1 from 15.1 GB to 5.9 GB");
+    }
+
+    /**
+     * Test vSan Storage StorageAmount resize up action description.
+     * @throws UnsupportedActionException unsupported error
+     */
+    @Test
+    public void testBuildResizeUpVSanStorageAmountActionDescription() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VSAN_STORAGE_ID)))
+        .thenReturn((createEntity(VSAN_STORAGE_ID,
+            EntityType.STORAGE.getNumber(),
+            VSAN_STORAGE_DISPLAY_NAME)));
+        when(entitySettingsCache.getEntityFromOid(eq(VSAN_PM_ID)))
+        .thenReturn((createEntity(VSAN_PM_ID,
+            EntityType.PHYSICAL_MACHINE.getNumber(),
+            VSAN_PM_DISPLAY_NAME)));
+
+    String description = ActionDescriptionBuilder.buildActionDescription(
+        entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageUp);
+
+    Assert.assertEquals(description,
+        "Resize up Storage Amount for Storage vsan_storage from 50.0 GB to 75.0 GB due to Physical Machine vsan_host Provision");
+    }
+
+    /**
+     * Test vSan Storage StorageAmount resize down action description.
+     * @throws UnsupportedActionException unsupported error
+     */
+    @Test
+    public void testBuildResizeDownVSanStorageAmountActionDescription() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VSAN_STORAGE_ID)))
+        .thenReturn((createEntity(VSAN_STORAGE_ID,
+            EntityType.STORAGE.getNumber(),
+            VSAN_STORAGE_DISPLAY_NAME)));
+        when(entitySettingsCache.getEntityFromOid(eq(VSAN_PM_ID)))
+        .thenReturn((createEntity(VSAN_PM_ID,
+            EntityType.PHYSICAL_MACHINE.getNumber(),
+            VSAN_PM_DISPLAY_NAME)));
+
+    String description = ActionDescriptionBuilder.buildActionDescription(
+        entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageDown);
+
+    Assert.assertEquals(description,
+        "Resize down Storage Amount for Storage vsan_storage from 75.0 GB to 50.0 GB due to Physical Machine vsan_host Suspension");
     }
 
     @Test

@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<!-- VMTurbo license file; license created: 2017-08-10 -->
+<license>
+<first-name>Giampiero</first-name>
+<last-name>De Ciantis</last-name>
+<email>gp.deciantis@turbonomic.com</email>
+<vm-total>10000</vm-total>
+<edition>Turbonomic Best</edition>
+<expiration-date>2022-08-18</expiration-date>
+<lock-code>92001124fe07e4f7d0f24cb27bf7c215</lock-code>
+<feature FeatureName="historical_data" />
+<feature FeatureName="custom_reports" />
+<feature FeatureName="planner" />
+<feature FeatureName="optimizer" />
+<feature FeatureName="multiple_vc" />
+<feature FeatureName="scoped_user_view" />
+<feature FeatureName="customized_views" />
+<feature FeatureName="group_editor" />
+<feature FeatureName="vmturbo_api" />
+<feature FeatureName="automated_actions" />
+<feature FeatureName="active_directory" />
+<feature FeatureName="full_policy" />
+<feature FeatureName="action_script" />
+<feature FeatureName="applications" />
+<feature FeatureName="app_control" />
+<feature FeatureName="loadbalancer" />
+<feature FeatureName="deploy" />
+<feature FeatureName="aggregation" />
+<feature FeatureName="fabric" />
+<feature FeatureName="storage" />
+<feature FeatureName="cloud_targets" />
+<feature FeatureName="cluster_flattening" />
+<feature FeatureName="network_control" />
+<feature FeatureName="container_control" />
+<feature FeatureName="public_cloud" />
+<feature FeatureName="vdi_control" />
+<feature FeatureName="scaling" />
+<feature FeatureName="API2" />
+<feature FeatureName="custom_policies" />
+<feature FeatureName="SLA" />
+</license>

@@ -77,7 +77,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
               .map(RelatedEntity::getOid)
               .findAny(),
           ApiEntityType.VIRTUAL_VOLUME.apiStr(), topologyEntityDTO ->
-              topologyEntityDTO.getConnectedToList().stream()
+              topologyEntityDTO.getProvidersList().stream()
               .filter(provider -> provider.getEntityType() == EntityType.STORAGE_TIER_VALUE)
               .map(RelatedEntity::getOid)
               .findFirst()

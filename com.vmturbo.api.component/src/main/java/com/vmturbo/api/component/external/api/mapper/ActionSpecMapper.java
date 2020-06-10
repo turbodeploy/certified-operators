@@ -688,7 +688,9 @@ public class ActionSpecMapper {
                 virtualDisksAspectApiDTO.setVirtualDisks(volumeAspectsList);
                 aspectMap.put(AspectName.VIRTUAL_VOLUME, virtualDisksAspectApiDTO);
                 actionApiDTO.getTarget().setAspectsByName(aspectMap);
+                actionApiDTO.setVirtualDisks(volumeAspectsList);
             }
+            setCurrentAndNewLocation(targetEntityId, context, actionApiDTO);
         }
 
         // add more info for cloud actions
@@ -710,14 +712,7 @@ public class ActionSpecMapper {
                             ? ActionDTOUtil.getPrimaryEntity(action, false).getId()
                             : targetEntityId;
             // set location, which is the region
-            final ApiPartialEntity region = context.getRegion(vmId);
-            if (region != null) {
-                context.getEntity(region.getOid()).ifPresent(regionDTO -> {
-                    // todo: set current and new location to be different if region could be changed
-                    actionApiDTO.setCurrentLocation(regionDTO);
-                    actionApiDTO.setNewLocation(regionDTO);
-                });
-            }
+            setCurrentAndNewLocation(vmId, context, actionApiDTO);
 
             // Filter virtual disks if it is scale virtual volume action.
             final Predicate<VirtualDiskApiDTO> filter = isVirtualVolumeTarget

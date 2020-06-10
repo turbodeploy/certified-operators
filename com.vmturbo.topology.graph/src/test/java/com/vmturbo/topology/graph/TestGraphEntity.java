@@ -50,6 +50,8 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
     private final List<TestGraphEntity> aggregators = new ArrayList<>();
     private final List<TestGraphEntity> ownedEntities = new ArrayList<>();
     private final AtomicReference<TestGraphEntity> owner = new AtomicReference<>();
+    private final List<TestGraphEntity> controlledEntities = new ArrayList<>();
+    private final List<TestGraphEntity> controllers = new ArrayList<>();
 
     private TestGraphEntity(final long oid, final ApiEntityType type) {
         this.oid = oid;
@@ -135,13 +137,13 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
     @Nonnull
     @Override
     public List<TestGraphEntity> getOutboundAssociatedEntities() {
-        return inboundAssociatedEntities;
+        return outboundAssociatedEntities;
     }
 
     @Nonnull
     @Override
     public List<TestGraphEntity> getInboundAssociatedEntities() {
-        return outboundAssociatedEntities;
+        return inboundAssociatedEntities;
     }
 
     @Nonnull
@@ -166,6 +168,18 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
     @Override
     public List<TestGraphEntity> getAggregatedEntities() {
         return aggregatedEntities;
+    }
+
+    @Nonnull
+    @Override
+    public List<TestGraphEntity> getControllers() {
+        return controllers;
+    }
+
+    @Nonnull
+    @Override
+    public List<TestGraphEntity> getControlledEntities() {
+        return controlledEntities;
     }
 
     /**
@@ -316,13 +330,13 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
         @Override
         public Builder addOutboundAssociation(final Builder connectedTo) {
-            entity.inboundAssociatedEntities.add(connectedTo.entity);
+            entity.outboundAssociatedEntities.add(connectedTo.entity);
             return this;
         }
 
         @Override
         public Builder addInboundAssociation(final Builder connectedFrom) {
-            entity.outboundAssociatedEntities.add(connectedFrom.entity);
+            entity.inboundAssociatedEntities.add(connectedFrom.entity);
             return this;
         }
 
@@ -347,6 +361,18 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
         @Override
         public Builder addAggregatedEntity(final Builder aggregatedEntity) {
             entity.aggregatedEntities.add(aggregatedEntity.entity);
+            return this;
+        }
+
+        @Override
+        public Builder addController(final Builder controller) {
+            entity.controllers.add(controller.entity);
+            return this;
+        }
+
+        @Override
+        public Builder addControlledEntity(final Builder controlledEntity) {
+            entity.controlledEntities.add(controlledEntity.entity);
             return this;
         }
 

@@ -144,6 +144,11 @@ public class TopologyGraphCreator<BUILDER extends TopologyGraphEntity.Builder<BU
                             case OWNS_CONNECTION:
                                 entity.addOwnedEntity(connected);
                                 connected.addOwner(entity);
+                                break;
+                            case CONTROLLED_BY_CONNECTION:
+                                entity.addController(connected);
+                                connected.addControlledEntity(entity);
+                                break;
                         }
                     } else {
                         // it can be null as the connectedToEntity may not be in plan because

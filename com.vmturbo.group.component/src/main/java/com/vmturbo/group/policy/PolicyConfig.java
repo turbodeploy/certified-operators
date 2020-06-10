@@ -27,13 +27,13 @@ public class PolicyConfig {
     @Bean
     public PolicyStore policyStore() {
         return new PolicyStore(databaseConfig.dsl(),
-            discoveredPoliciesMapperFactory(),
             identityProviderConfig.identityProvider(),
-            groupConfig.groupStore());
+            policyValidator());
     }
 
     @Bean
-    public DiscoveredPoliciesMapperFactory discoveredPoliciesMapperFactory() {
-        return new DiscoveredPoliciesMapperFactory.DefaultDiscoveredPoliciesMapperFactory();
+    public PolicyValidator policyValidator() {
+        return new PolicyValidator(groupConfig.groupStore());
     }
+
 }

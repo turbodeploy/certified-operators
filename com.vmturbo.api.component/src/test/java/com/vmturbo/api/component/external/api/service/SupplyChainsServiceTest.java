@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,6 +40,9 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeature;
+import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
@@ -86,6 +90,8 @@ public class SupplyChainsServiceTest {
 
     private final SupplyChainStatMapper mockStatMapper = mock(SupplyChainStatMapper.class);
 
+    private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+
     private final MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
     private SupplyChainsService service;
@@ -100,7 +106,7 @@ public class SupplyChainsServiceTest {
 
         service = new SupplyChainsService(supplyChainsFetcherMock, planServiceMock,
                 LIVE_TOPOLOGY_CONTEXT_ID, groupExpanderMock, mock(EntityAspectMapper.class),
-            clock, mockStatMapper);
+            clock, mockStatMapper, licenseCheckClient);
     }
 
     @Test
@@ -161,6 +167,29 @@ public class SupplyChainsServiceTest {
 
         verify(supplyChainMock).topologyContextId(LIVE_TOPOLOGY_CONTEXT_ID);
         verify(supplyChainMock).addSeedUuids(uuids);
+    }
+
+    /**
+     * Test that a request for a plan supply chain fails if the planner feature is unavailable
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetSupplyChainByUuidsPlanUnlicensed() throws Exception {
+        final SupplychainApiDTOFetcherBuilder supplyChainMock = supplyChainTestUtils.mockApiDtoBuilder(supplyChainsFetcherMock);
+
+        final long planId = 123456789;
+        final PlanId planIdObj = PlanId.newBuilder().setPlanId(planId).build();
+        final OptionalPlanInstance planInstance = OptionalPlanInstance.newBuilder()
+                .setPlanInstance(PlanInstance.newBuilder()
+                        .setPlanId(planId).setStatus(PlanStatus.READY)).build();
+
+        when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
+
+        // plot twist -- the planner feature is unavailable
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(LicenseFeature.PLANNER)))
+                .when(licenseCheckClient).checkFeatureAvailable(LicenseFeature.PLANNER);
+        // this should trigger a LicenseFeqturesRequiredException
+        service.getSupplyChainByUuids(Collections.singletonList(Long.toString(planId)), null, null, null, null, null, false);
     }
 
     @Test

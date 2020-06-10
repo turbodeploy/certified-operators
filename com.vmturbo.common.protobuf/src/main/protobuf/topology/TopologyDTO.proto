@@ -891,6 +891,25 @@ message TopologyEntityDTO {
             // in their logic. Note that this is also the reverse of the SDK AGGREGATES_CONNECTION
             // connection type.
             AGGREGATED_BY_CONNECTION = 3;
+
+            // Controlling is a directional relationship between two entities, the "controller"
+            // and the "controlled entity".The semantics of a CONTROLLED_BY_CONNECTION are that the
+            // "controlled" entities participate in the market and the market generates the action on these
+            // "controlled" entities, but the action is actually executed on the "controller" entity.
+            // The controller contains the information like size, number of instances.
+            // When entities are controlled by controller:
+            // 1. A controller may maintain the "desired state" for the controlled entities and will continuously
+            // drive the controlled entities toward that desired state. Executing an action on the controlled entity
+            // without adjusting the controller's desired state is futile because the controller will change the entity back.
+            // 2. Often controlled entities are created as identical replicas specified by a configuration
+            // known to and managed by the controller. When the market generates actions for these replicas, they may be
+            // merged together on the controller where they are executed to minimize disruption and to make the actions
+            // more understandable to the user in the UI.
+            // Examples of Controls:
+            // (a) WorkloadController controls the ContainerSpec
+            // (b) AWS Auto-scaling-group controls the individual VMs under it
+            // (c) Azure ScaleSet controls the individual VMs under it
+            CONTROLLED_BY_CONNECTION = 4;
         }
     }
 
@@ -936,6 +955,9 @@ message TopologyEntityDTO {
 
             // An entity with an aggregated by connection to another entity that does not exist.
             INVALID_AGGREGATED_BY_CONNECTION = 8;
+
+            // An entity with an controlled by connection to another entity that does not exist.
+            INVALID_CONTROLLED_BY_CONNECTION = 9;
         }
     }
 }

@@ -10,9 +10,7 @@ The goal is for the module to become - and remain - clear of violations.
 -->
 
 <suppressions>
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/policy/PolicyStore.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/group/TemporaryGroupCacheTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/common/TargetCollectionUpdateTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/diagnostics/GroupDiagnosticsHandlerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/diagnostics/DiagnosticsControllerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/service/PolicyRpcServiceTest.java" />
@@ -33,7 +31,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/IdentityProviderConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/GroupComponent.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/common/ImmutableUpdateException.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/common/TargetCollectionUpdate.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/common/DuplicateNameException.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/common/InvalidItemException.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/common/ItemNotFoundException.java" />
@@ -56,7 +53,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/SettingPolicyInfoConverter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/GroupToSettingPolicyIndex.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/DefaultGlobalSettingsCreator.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/policy/DiscoveredPoliciesMapperFactory.jav" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/policy/PolicyInfoConverter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/policy/PolicyConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/policy/DiscoveredPoliciesMapper.java" />

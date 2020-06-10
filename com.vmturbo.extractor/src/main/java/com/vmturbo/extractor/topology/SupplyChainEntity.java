@@ -41,6 +41,8 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     private final List<SupplyChainEntity> ownedEntities = new ArrayList<>(0);
     private final List<SupplyChainEntity> aggregators = new ArrayList<>(0);
     private final List<SupplyChainEntity> aggregatedEntities = new ArrayList<>(0);
+    private final List<SupplyChainEntity> controllers = new ArrayList<>(0);
+    private final List<SupplyChainEntity> controlledEntities = new ArrayList<>(0);
     private final List<SupplyChainEntity> providers = new ArrayList<>(0);
     private final List<SupplyChainEntity> consumers = new ArrayList<>(0);
 
@@ -88,6 +90,14 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         this.aggregatedEntities.add(entity);
     }
 
+    private void addController(@Nonnull final SupplyChainEntity entity) {
+        this.controllers.add(entity);
+    }
+
+    private void addControlledEntity(@Nonnull final SupplyChainEntity entity) {
+        this.controlledEntities.add(entity);
+    }
+
     private void addProvider(@Nonnull final SupplyChainEntity entity) {
         this.providers.add(entity);
     }
@@ -104,6 +114,8 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         ownedEntities.clear();
         aggregators.clear();
         aggregatedEntities.clear();
+        controllers.clear();
+        controlledEntities.clear();
     }
 
     @Override
@@ -204,6 +216,18 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     @Override
     public List<SupplyChainEntity> getAggregatedEntities() {
         return Collections.unmodifiableList(aggregatedEntities);
+    }
+
+    @Nonnull
+    @Override
+    public List<SupplyChainEntity> getControllers() {
+        return Collections.unmodifiableList(controllers);
+    }
+
+    @Nonnull
+    @Override
+    public List<SupplyChainEntity> getControlledEntities() {
+        return Collections.unmodifiableList(controlledEntities);
     }
 
     @Nonnull
@@ -317,6 +341,18 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         @Override
         public Builder addAggregatedEntity(final Builder aggregatedEntity) {
             supplyChainEntity.addAggregatedEntity(aggregatedEntity.supplyChainEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addController(final Builder controller) {
+            supplyChainEntity.addController(controller.supplyChainEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addControlledEntity(final Builder controlledEntity) {
+            supplyChainEntity.addControlledEntity(controlledEntity.supplyChainEntity);
             return this;
         }
     }

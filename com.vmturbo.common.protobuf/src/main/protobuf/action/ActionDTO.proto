@@ -325,6 +325,9 @@ message Resize {
 
     // scaling group ID
     optional string scaling_group_id = 8;
+
+    // The supplier who triggers the resize
+    optional ActionEntity resize_trigger_trader = 9;
 }
 
 // Activate an existing deactivated entity.
