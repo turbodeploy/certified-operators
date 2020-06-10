@@ -308,6 +308,14 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     }
 
     /**
+     * Get deletable state of the topology entity. Default is true.
+     *
+     * @return true, means the Market can delete this entity.
+     *         false, means Market will not generate Delete Actions.
+     */
+    boolean getDeletable();
+
+    /**
      * Builder for a {@link TopologyGraphEntity}.
      * Use this to allow {@link TopologyGraphCreator} to work with the {@link TopologyGraphEntity}
      * implementation.
