@@ -114,6 +114,7 @@
         <asciidoctor.plugin.version>1.5.3</asciidoctor.plugin.version>
         <swagger2markup.plugin.version>0.9.3</swagger2markup.plugin.version>
         <commons-validator.version>1.6</commons-validator.version>
+        <memory-metrics.version>0.3.3</memory-metrics.version>
         <!-- END swagger properties -->
 
         <docker.compose.rule.version>1.5.0</docker.compose.rule.version>
@@ -2978,6 +2979,11 @@
                 <groupId>commons-validator</groupId>
                 <artifactId>commons-validator</artifactId>
                 <version>${commons-validator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.jbellis</groupId>
+                <artifactId>jamm</artifactId>
+                <version>${memory-metrics.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.eclipse.jgit</groupId>
