@@ -369,7 +369,7 @@ public class ScopedTopologyTest {
             });
 
         Analysis analysis = runner.scheduleAnalysis(topologyInfo, topologyDTOs, true,
-            Optional.empty(), false, false,rightsizeLowerWatermark, rightsizeUpperWatermark,
+            Optional.empty(), false, false, rightsizeLowerWatermark, rightsizeUpperWatermark,
             discountedComputeCostFactor);
 
         assertThat(analysis.getConfig().getRightsizeLowerWatermark(), is(rightsizeLowerWatermark));

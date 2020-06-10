@@ -308,6 +308,10 @@ public interface AnalysisFactory {
          * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}.
          *
          * @param marketMode              the run mode of the market?
+         * @param useQuoteCacheDuringSNM Whether quotes should be cached for reuse during
+         *                               SNM-enabled placement analysis.
+         * @param replayProvisionsForRealTime Whether provision and activate actions should be
+         *                                    replayed during real-time analysis.
          * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
          *                                it, Market could generate resize down actions.
          * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
