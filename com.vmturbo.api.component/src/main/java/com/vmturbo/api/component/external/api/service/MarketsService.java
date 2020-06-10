@@ -349,31 +349,12 @@ public class MarketsService implements IMarketsService {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isRealtimeMarket()) {
            return createRealtimeMarketApiDTO();
-        } else if (apiId.isPlan()) {
-            licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
-            OptionalPlanInstance response = planRpcService.getPlan(PlanId.newBuilder()
-                    .setPlanId(Long.valueOf(uuid))
-                    .build());
-            if (!response.hasPlanInstance()) {
-                throw new UnknownObjectException(uuid);
-            }
-            MarketApiDTO planDto = marketMapper.dtoFromPlanInstance(response.getPlanInstance());
-            planDto.setEnvironmentType(envType);
-
-            // set unplaced entities
-            try {
-                planDto.setUnplacedEntities(!getUnplacedEntitiesByMarketUuid(uuid).isEmpty());
-            } catch (Exception e) {
-                logger.error("getMarketByUuid(): Error while checking if there are unplaced entities: {}",
-                        e.getMessage());
-            }
-
-            return planDto;
         }
         if (!apiId.isPlan()) {
             throw new UnknownObjectException("The ID " + uuid
                     + " doesn't belong to a plan or a real-time market.");
         }
+        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
         // Look up the plan instance.
         long planId = apiId.oid();
         final PlanInstance planInstance = getPlanInstance(planId);
@@ -388,8 +369,15 @@ public class MarketsService implements IMarketsService {
             marketApiDTO = marketMapper.dtoFromPlanInstance(planInstance);
         }
         marketApiDTO.setEnvironmentType(getEnvironmentType());
-        marketApiDTO.setUnplacedEntities(!getUnplacedEntitiesByMarketUuid(String.valueOf(planId))
-                .isEmpty());
+
+        // set unplaced entities
+        try {
+            marketApiDTO.setUnplacedEntities(!getUnplacedEntitiesByMarketUuid(String.valueOf(planId))
+                    .isEmpty());
+        } catch (Exception e) {
+            logger.error("getMarketByUuid(): Error while checking if there are unplaced entities: {}",
+                    e.getMessage());
+        }
         return marketApiDTO;
     }
 
