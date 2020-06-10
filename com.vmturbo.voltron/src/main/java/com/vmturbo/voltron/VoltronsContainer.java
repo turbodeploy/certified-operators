@@ -25,6 +25,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Sets;
+import com.google.protobuf.AbstractMessage;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
@@ -50,6 +51,7 @@ import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.api.localbus.LocalBus;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.external.api.TurboApiClient;
@@ -218,6 +220,21 @@ public class VoltronsContainer {
                     + "using local bus.");
         }
         return LocalBus.getInstance().messageReceiver(Sets.newHashSet(topics), (foo) -> null);
+    }
+
+    /**
+     * Get a message sender, which can be used to send messages.
+     *
+     * @param topic The topic to send messages to.
+     * @param <T> The type of messages.
+     * @return The {@link IMessageSender}.
+     */
+    public <T extends AbstractMessage> IMessageSender<T> getMessageSender(@Nonnull final String topic) {
+        if (!config.isUseLocalBus()) {
+            throw new IllegalArgumentException("Getting message sender not supported when not"
+                    + "using local bus.");
+        }
+        return LocalBus.getInstance().messageSender(topic);
     }
 
     private final SetOnce<TurboApiClient> apiClient = new SetOnce<>();

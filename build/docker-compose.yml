@@ -628,6 +628,13 @@ services:
       - 5432:5432
     mem_limit: ${TIMESCALE_MEM_LIMIT_MB}M
 
+  # Purely in-memory store.
+  # Currently only used for integration type testing.
+  grafana:
+    image: grafana/grafana:7.0.1
+    ports:
+      - 3000:3000
+
   integration-intersight:
     extends:
       file: common-services.yml
