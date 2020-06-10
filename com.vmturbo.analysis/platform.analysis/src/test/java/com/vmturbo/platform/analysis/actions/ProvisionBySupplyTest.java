@@ -263,19 +263,30 @@ public class ProvisionBySupplyTest {
                         modelSeller, CPU).take();
         assertTrue(provision1.getSubsequentActions().stream().filter(a -> a instanceof Resize)
                         .count() == 3);
+        assertTrue(provision1.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .filter(resize -> ((Resize)resize).getResizeTriggerTraders().get(modelSeller)
+                                        .contains(CPU.getBaseType())).count() == 3);
         @NonNull ProvisionBySupply provision2 = (ProvisionBySupply) new ProvisionBySupply(economy,
                         modelSeller, STORAGE_AMOUNT).take();
         assertTrue(provision2.getSubsequentActions().stream().filter(a -> a instanceof Resize)
                         .count() == 3);
-
+        assertTrue(provision2.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .filter(resize -> ((Resize)resize).getResizeTriggerTraders().get(modelSeller)
+                                        .contains(STORAGE_AMOUNT.getBaseType())).count() == 3);
         @NonNull ProvisionBySupply provision3 = (ProvisionBySupply) new ProvisionBySupply(economy,
                         modelSeller2, CPU).take();
         assertTrue(provision3.getSubsequentActions().stream().filter(a -> a instanceof Resize)
                         .count() == 1);
+        assertTrue(provision3.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .filter(resize -> ((Resize)resize).getResizeTriggerTraders().get(modelSeller2)
+                                        .contains(CPU.getBaseType())).count() == 1);
         @NonNull ProvisionBySupply provision4 = (ProvisionBySupply) new ProvisionBySupply(economy,
                         modelSeller2, STORAGE_AMOUNT).take();
         assertTrue(provision4.getSubsequentActions().stream().filter(a -> a instanceof Resize)
                         .count() == 1);
+        assertTrue(provision4.getSubsequentActions().stream().filter(a -> a instanceof Resize)
+                        .filter(resize -> ((Resize)resize).getResizeTriggerTraders().get(modelSeller2)
+                                        .contains(STORAGE_AMOUNT.getBaseType())).count() == 1);
     }
 
     @SuppressWarnings("unused")
