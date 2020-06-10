@@ -522,7 +522,8 @@ public class ServiceConfig {
                 communicationConfig.serviceEntityMapper(),
                 mapperConfig.entityFilterMapper(),
                 mapperConfig.entityAspectMapper(),
-                searchFilterResolver());
+                searchFilterResolver(),
+                communicationConfig.priceIndexPopulator());
     }
 
     @Bean

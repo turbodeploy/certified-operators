@@ -55,6 +55,7 @@ import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -147,6 +148,7 @@ public class SearchService implements ISearchService {
 
     private final SearchServiceBlockingStub searchServiceRpc;
 
+    private final PriceIndexPopulator priceIndexPopulator;
 
     private final EntitySeverityServiceBlockingStub entitySeverityRpc;
 
@@ -194,7 +196,8 @@ public class SearchService implements ISearchService {
                   @Nonnull final ServiceEntityMapper serviceEntityMapper,
                   @Nonnull final EntityFilterMapper entityFilterMapper,
                   @Nonnull final EntityAspectMapper entityAspectMapper,
-                  @Nonnull final SearchFilterResolver searchFilterResolver) {
+                  @Nonnull final SearchFilterResolver searchFilterResolver,
+                  @Nonnull final PriceIndexPopulator priceIndexPopulator) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
         this.groupsService = Objects.requireNonNull(groupsService);
@@ -214,6 +217,7 @@ public class SearchService implements ISearchService {
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.entityFilterMapper = Objects.requireNonNull(entityFilterMapper);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
+        this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
 
         this.filterResolver = Objects.requireNonNull(searchFilterResolver);
         criteriaOptionProviders = ImmutableMap.<String, CriteriaOptionProvider>builder().put(STATE,
@@ -505,14 +509,18 @@ public class SearchService implements ISearchService {
                 .map(entity -> entity.getConnectedEntityId())
                 .collect(Collectors.toSet());
 
-            List<BaseApiDTO> results = repositoryApi.entitiesRequest(entitiesOid)
+            List<ServiceEntityApiDTO> results = repositoryApi.entitiesRequest(entitiesOid)
                 .getSEMap()
                 .values()
                 .stream()
                 .filter(se -> ApiEntityType.WORKLOAD_ENTITY_TYPES.contains(ApiEntityType.fromString(se.getClassName())))
                 .collect(Collectors.toList());
 
-            return paginationRequest.allResultsResponse(results);
+            priceIndexPopulator.populateRealTimeEntities(results);
+
+            List<BaseApiDTO> apiResults = results.stream().collect(Collectors.toList());
+
+            return paginationRequest.allResultsResponse(apiResults);
         } else {
             // this isn't a group search after all -- use a generic search method instead.
             return searchEntitiesByParameters(inputDTO, query, paginationRequest, aspectNames);
