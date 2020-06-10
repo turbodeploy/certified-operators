@@ -61,9 +61,6 @@ KAFKA_PARAMS="$KAFKA_PARAMS --override log.message.timestamp.type=LogAppendTime"
 # override the zookeeper session timeout. This should help us with noisy / resource-congested environments.
 KAFKA_PARAMS="$KAFKA_PARAMS --override zookeeper.session.timeout.ms=$KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS"
 
-# turn off auto-created topics
-KAFKA_PARAMS="$KAFKA_PARAMS --override auto.create.topics.enable=false"
-
 echo Executing kafka with options: $KAFKA_PARAMS | $LOGGER_COMMAND
 
 # disable GC logging in order, as we do not have any space to write it.

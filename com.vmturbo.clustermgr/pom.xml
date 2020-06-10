@@ -245,11 +245,6 @@
                                     <targetPath>/swagger</targetPath>
                                     <directory>${project.build.directory}/generated-docs/swagger</directory>
                                 </resource>
-                                <resource>
-                                    <targetPath>/config</targetPath>
-                                    <directory>${project.build.directory}/classes</directory>
-                                    <include>kafka-config.yml</include>
-                                </resource>
                             </resources>
                         </configuration>
                         <executions>
