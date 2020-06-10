@@ -25,7 +25,16 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileIn
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse.TargetProfileIdentities;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
@@ -538,26 +547,24 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
     }
 
     private ReservationDTO.Reservation buildReservation(long templateId) {
-        return ReservationDTO.Reservation.newBuilder()
+        return Reservation.newBuilder()
                 .setName("Test-first-reservation")
                 .setStartDate(1543105352845L)
                 .setExpirationDate(1553105352845L)
-                .setStatus(ReservationDTO.ReservationStatus.FUTURE)
-                .setReservationTemplateCollection(ReservationDTO.ReservationTemplateCollection.newBuilder()
-                        .addReservationTemplate(ReservationDTO.ReservationTemplateCollection.ReservationTemplate.newBuilder()
+                .setStatus(ReservationStatus.FUTURE)
+                .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                        .addReservationTemplate(ReservationTemplate.newBuilder()
                                 .setCount(1)
-                                .setTemplateId(templateId)
-                                .addReservationInstance(ReservationDTO.ReservationTemplateCollection
-                                        .ReservationTemplate.ReservationInstance.newBuilder()
+                                .setTemplate(Template.newBuilder().setId(templateId))
+                                .addReservationInstance(ReservationInstance.newBuilder()
                                         .setEntityId(456)
-                                        .addPlacementInfo(ReservationDTO.ReservationTemplateCollection
-                                                .ReservationTemplate.ReservationInstance.PlacementInfo.newBuilder()
+                                        .addPlacementInfo(PlacementInfo.newBuilder()
                                                 .setProviderId(678)
                                                 .setProviderId(14)))))
-                .setConstraintInfoCollection(ReservationDTO.ConstraintInfoCollection.newBuilder()
-                        .addReservationConstraintInfo(ScenarioOuterClass.ReservationConstraintInfo.newBuilder()
+                .setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
+                        .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
                                 .setConstraintId(100)
-                                .setType(ScenarioOuterClass.ReservationConstraintInfo.Type.DATA_CENTER)))
+                                .setType(Type.DATA_CENTER)))
                 .build();
     }
 

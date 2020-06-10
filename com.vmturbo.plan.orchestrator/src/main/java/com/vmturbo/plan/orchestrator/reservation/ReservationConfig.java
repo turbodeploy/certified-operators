@@ -5,8 +5,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc;
+import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTOREST.ReservationServiceController;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.market.PlanOrchestratorMarketConfig;
@@ -22,7 +25,8 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
     RepositoryConfig.class,
     TemplatesConfig.class,
     BaseKafkaProducerConfig.class,
-    PlanOrchestratorMarketConfig.class
+    PlanOrchestratorMarketConfig.class,
+        MarketClientConfig.class
 })
 public class ReservationConfig {
     @Autowired
@@ -43,6 +47,9 @@ public class ReservationConfig {
     @Autowired
     private PlanOrchestratorMarketConfig planOrchestratorMarketConfig;
 
+    @Autowired
+    private MarketClientConfig marketClientConfig;
+
     @Bean
     public ReservationRpcService reservationRpcService() {
         return new ReservationRpcService(planConfig.planDao(), templatesConfig.templatesDao(),
@@ -61,13 +68,23 @@ public class ReservationConfig {
     }
 
     /**
+     * Create a {@link InitialPlacementServiceBlockingStub}.
+     *
+     * @return the InitialPlacementServiceBlockingStub.
+     */
+    @Bean
+    public InitialPlacementServiceBlockingStub initialPlacementService() {
+        return InitialPlacementServiceGrpc.newBlockingStub(marketClientConfig.marketChannel());
+    }
+
+    /**
      * create a ReservationManager.
      * @return a new ReservationManager
      */
     @Bean
     public ReservationManager reservationManager() {
         ReservationManager reservationManager = new ReservationManager(planConfig.planDao(),
-                dbConfig.reservationDao(), planConfig.planService(), reservationNotificationSender());
+                dbConfig.reservationDao(), planConfig.planService(), reservationNotificationSender(), initialPlacementService(), templatesConfig.templatesDao());
         planConfig.planDao().addStatusListener(reservationManager);
         return reservationManager;
     }

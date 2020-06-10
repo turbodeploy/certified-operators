@@ -1,6 +1,7 @@
 package com.vmturbo.market;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -22,6 +23,7 @@ import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration;
 import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.market.api.MarketApiConfig;
+import com.vmturbo.market.rpc.MarketRpcConfig;
 import com.vmturbo.market.topology.PlanOrchestratorConfig;
 import com.vmturbo.market.topology.TopologyListenerConfig;
 import com.vmturbo.trax.TraxConfiguration;
@@ -37,7 +39,8 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     TopologyListenerConfig.class,
     PlanOrchestratorConfig.class,
     MarketApiConfig.class,
-    SpringSecurityConfig.class
+    SpringSecurityConfig.class,
+    MarketRpcConfig.class
 })
 public class MarketComponent extends BaseVmtComponent {
 
@@ -46,6 +49,10 @@ public class MarketComponent extends BaseVmtComponent {
 
     @Autowired
     private MarketGlobalConfig marketGlobalConfig;
+
+    @Autowired
+    private MarketRpcConfig marketRpcConfig;
+
 
     /**
      * JWT token verification and decoding.
@@ -81,7 +88,10 @@ public class MarketComponent extends BaseVmtComponent {
     @Nonnull
     @Override
     public List<BindableService> getGrpcServices() {
-        return Collections.singletonList(marketGlobalConfig.traxConfigurationRpcService());
+        final List<BindableService> services = new ArrayList<>();
+        services.add(marketGlobalConfig.traxConfigurationRpcService());
+        services.add(marketRpcConfig.initialPlacementRpcService());
+        return services;
     }
 
     @Nonnull

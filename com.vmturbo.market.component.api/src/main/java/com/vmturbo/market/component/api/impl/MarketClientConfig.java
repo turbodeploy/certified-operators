@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -18,6 +19,8 @@ import org.springframework.context.annotation.Lazy;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import io.grpc.Channel;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
@@ -25,6 +28,7 @@ import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotif
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
@@ -42,11 +46,28 @@ import com.vmturbo.market.component.api.impl.MarketSubscription.Topic;
 @Import(BaseKafkaConsumerConfig.class)
 public class MarketClientConfig {
 
+    @Value("${marketHost}")
+    private String marketHost;
+
+    @Value("${serverGrpcPort}")
+    private int grpcPort;
+
+
+    @Value("${grpcPingIntervalSeconds}")
+    private long grpcPingIntervalSeconds;
+
     @Autowired
     private BaseKafkaConsumerConfig baseKafkaConfig;
 
     @Value("${kafkaReceiverTimeoutSeconds:3600}")
     private int kafkaReceiverTimeoutSeconds;
+
+    @Bean
+    public Channel marketChannel() {
+        return ComponentGrpcServer.newChannelBuilder(marketHost, grpcPort)
+                .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
+                .build();
+    }
 
     @Bean
     protected IMessageReceiver<ActionPlan> actionPlanReceiver(final Optional<StartFrom> startFromOverride) {

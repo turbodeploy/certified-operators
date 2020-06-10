@@ -334,7 +334,7 @@ public class ReservationManager {
             return Collections.emptyList();
         }
         final Map<Long, Long> templateCountMap =
-                ImmutableMap.of(reservationTemplate.getTemplateId(),
+                ImmutableMap.of(reservationTemplate.getTemplate().getId(),
                         reservationTemplate.getCount());
         //TODO: Handle the case that if templates are deleted, we should decide whether mark
         // Reservation inactive or delete reservations.
@@ -349,7 +349,7 @@ public class ReservationManager {
                     topology);
         } catch (TopologyEntityConstructorException e) {
             logger.error("Error constructing topology entity from template: "
-                    + reservationTemplate.getTemplateId() + ". Ignore the reservation templates.");
+                    + reservationTemplate.getTemplate().getId() + ". Ignore the reservation templates.");
             return Collections.emptyList();
         }
     }
@@ -607,7 +607,7 @@ public class ReservationManager {
             long instanceCount,
             final long reservationID) {
         final Map<Long, Long> templateCountMap =
-                ImmutableMap.of(reservationTemplate.getTemplateId(),
+                ImmutableMap.of(reservationTemplate.getTemplate().getId(),
                         reservationTemplate.getCount());
         //TODO: Handle the case that if templates are deleted, we should decide whether mark
         // Reservation inactive or delete reservations.
@@ -651,7 +651,7 @@ public class ReservationManager {
                     .build();
         } catch (TopologyEditorException | TopologyEntityConstructorException e) {
             logger.error("Error constructing topology entity from template "
-                    + reservationTemplate.getTemplateId() + ". Ignore the reservation templates.");
+                    + reservationTemplate.getTemplate().getId() + ". Ignore the reservation templates.");
         }
     }
 

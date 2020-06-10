@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -15,13 +16,20 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.grpc.stub.StreamObserver;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import io.grpc.stub.StreamObserver;
+
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
+import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
+import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -31,6 +39,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
@@ -42,9 +51,17 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.ReservationProtoUtil;
@@ -52,6 +69,9 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.plan.PlanStatusListener;
+import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Handle reservation related stuff. This is the place where we check if the current
@@ -64,11 +84,15 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
 
     private final ReservationDao reservationDao;
 
+    private final TemplatesDao templatesDao;
+
     private final PlanDao planDao;
 
     private final PlanRpcService planService;
 
     private final ReservationNotificationSender reservationNotificationSender;
+
+    private final InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub;
 
     private static final String DISABLED = "DISABLED";
 
@@ -80,16 +104,23 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
      * @param reservationDao input reservation dao.
      * @param planRpcService input plan service.
      * @param reservationNotificationSender the reservation notification sender.
+     * @param initialPlacementServiceBlockingStub for grpc call to market component.
+     * @param templatesDao  input template dao
      */
     public ReservationManager(@Nonnull final PlanDao planDao,
                               @Nonnull final ReservationDao reservationDao,
                               @Nonnull final PlanRpcService planRpcService,
-                              @Nonnull final ReservationNotificationSender reservationNotificationSender) {
+                              @Nonnull final ReservationNotificationSender reservationNotificationSender,
+                              @Nonnull final InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub,
+                              @Nonnull final TemplatesDao templatesDao
+    ) {
         this.planDao = Objects.requireNonNull(planDao);
         this.reservationDao = Objects.requireNonNull(reservationDao);
         this.planService = Objects.requireNonNull(planRpcService);
         this.reservationNotificationSender = Objects.requireNonNull(reservationNotificationSender);
         this.reservationDao.addListener(this);
+        this.initialPlacementServiceBlockingStub = Objects.requireNonNull(initialPlacementServiceBlockingStub);
+        this.templatesDao = templatesDao;
     }
 
     public ReservationDao getReservationDao() {
@@ -131,6 +162,7 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
      * then start a new reservation plan.
      */
     public void checkAndStartReservationPlan() {
+        Set<Reservation> currentReservations = new HashSet<>();
         synchronized (reservationSetLock) {
             final Set<Reservation> inProgressSet = new HashSet<>();
             final Set<Reservation> unfulfilledSet = new HashSet<>();
@@ -143,44 +175,233 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                 }
             }
             if (inProgressSet.size() == 0 && unfulfilledSet.size() > 0) {
-                Set<Reservation> updatedReservation = new HashSet<>();
                 for (ReservationDTO.Reservation reservation : unfulfilledSet) {
-                    updatedReservation.add(reservation.toBuilder()
-                            .setStatus(ReservationStatus.INPROGRESS).build());
+                    currentReservations.add(reservation.toBuilder()
+                            .setStatus(ReservationStatus.INPROGRESS)
+                            .build());
                 }
                 try {
-                    reservationDao.updateReservationBatch(updatedReservation);
+                    reservationDao.updateReservationBatch(currentReservations);
                 } catch (NoSuchObjectException e) {
                     logger.error("Reservation update failed" + e);
                 }
-                Set<Long> reservationPlanIDs = planDao.getAllPlanInstances().stream()
-                        .filter(pl -> pl.getProjectType() ==
-                                PlanProjectType.RESERVATION_PLAN)
-                        .map(resPlan -> resPlan.getPlanId())
-                        .collect(Collectors.toSet());
-                for (Long planID : reservationPlanIDs) {
-                    try {
-                        planDao.deletePlan(planID);
-                    } catch (NoSuchObjectException e) {
-                        logger.error("Reservation plan : {} deletion failed" + e, planID);
-                    }
-                }
-                runPlanForBatchReservation();
             }
         }
+        if (!currentReservations.isEmpty()) {
+            // TODO We should have a timeout on this.
+            FindInitialPlacementRequest initialPlacementRequest =
+                    buildIntialPlacementRequest(currentReservations);
+            FindInitialPlacementResponse response = initialPlacementServiceBlockingStub
+                    .findInitialPlacement(initialPlacementRequest);
+            Set<Reservation> updatedReservations = updateProviderInfoForReservations(response);
+            updateReservationResult(updatedReservations);
+        }
+
     }
 
     /**
-     * Update the reservation to UNFULFILLED/FUTURE based on if the reservation is
-     * currently active.
+     * Update the provider info of the reservation using the initial placement response.
+     *
+     * @param response initial placement response from market.
+     * @return all in-progress reservations with the provider info updated.
+     */
+    public Set<Reservation> updateProviderInfoForReservations(final FindInitialPlacementResponse response) {
+        Map<Long, Reservation> updatedReservations = new HashMap<>();
+        reservationDao.getAllReservations().stream()
+                .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
+                .forEach(inProgressRes -> updatedReservations.put(inProgressRes.getId(), inProgressRes));
+        Map<Long, Reservation> buyerIdToReservation = new HashMap<>();
+        for (Reservation reservation : updatedReservations.values()) {
+            for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection().getReservationTemplateList()) {
+                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                    buyerIdToReservation.put(reservationInstance.getEntityId(), reservation);
+                }
+            }
+        }
+        for (InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo : response.getInitialPlacementBuyerPlacementInfoList()) {
+            Reservation currentReservation = buyerIdToReservation.get(initialPlacementBuyerPlacementInfo.getBuyerId());
+            Reservation reservation = (updatedReservations.get(currentReservation.getId()) == null)
+                    ? currentReservation
+                    : updatedReservations.get(currentReservation.getId());
+            Reservation.Builder updatedReservation = reservation.toBuilder();
+            ReservationTemplateCollection.Builder reservationTemplateCollection = updatedReservation.getReservationTemplateCollection().toBuilder();
+
+            //find templateIndex, InstanceIndex and the placementInfoIndex. We have to update the
+            // placementInfo based on initialPlacementBuyerPlacementInfo.
+            int templateIndex = 0;
+            int instanceIndex = 0;
+            int placementInfoIndex = 0;
+            boolean foundPlacementInfo = false;
+            for (ReservationTemplate reservationTemplate : reservationTemplateCollection.getReservationTemplateList()) {
+                instanceIndex = 0;
+                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                    if (reservationInstance.getEntityId() == initialPlacementBuyerPlacementInfo.getBuyerId()) {
+                        for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                            if (placementInfo.getPlacementInfoId()
+                                    == initialPlacementBuyerPlacementInfo
+                                    .getCommoditiesBoughtFromProviderId()) {
+                                foundPlacementInfo = true;
+                                break;
+                            }
+                            placementInfoIndex++;
+                        }
+                        break;
+                    }
+                    instanceIndex++;
+                }
+                if (foundPlacementInfo) {
+                    break;
+                }
+                templateIndex++;
+            }
+
+            if (!foundPlacementInfo) {
+                continue;
+            }
+
+            ReservationTemplate.Builder reservationTemplate = updatedReservation.getReservationTemplateCollection().getReservationTemplateList()
+                    .get(templateIndex).toBuilder();
+            ReservationInstance.Builder reservationInstance = reservationTemplate.getReservationInstanceList()
+                    .get(instanceIndex).toBuilder();
+            PlacementInfo.Builder placementInfo = reservationInstance
+                    .getPlacementInfo(placementInfoIndex)
+                    .toBuilder().setProviderId(initialPlacementBuyerPlacementInfo.getProviderId());
+            reservationInstance.setPlacementInfo(placementInfoIndex, placementInfo);
+            reservationTemplate.setReservationInstance(instanceIndex, reservationInstance);
+            reservationTemplateCollection.setReservationTemplate(templateIndex, reservationTemplate);
+            updatedReservation.setReservationTemplateCollection(reservationTemplateCollection);
+            updatedReservations.put(reservation.getId(), updatedReservation.build());
+        }
+        return updatedReservations.values().stream().collect(Collectors.toSet());
+    }
+
+    /**
+     * build a initial placement request for the given set of reservations.
+     *
+     * @param reservations the input set of reservations.
+     * @return the constructed initial placement request. buyerIdToReservation is updated.
+     */
+    public FindInitialPlacementRequest buildIntialPlacementRequest(Set<Reservation> reservations) {
+        FindInitialPlacementRequest.Builder initialPlacementRequestBuilder = FindInitialPlacementRequest.newBuilder();
+        for (Reservation reservation : reservations) {
+            for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection()
+                    .getReservationTemplateList()) {
+                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                    long buyerId = reservationInstance.getEntityId();
+                    InitialPlacementBuyer.Builder intialPlacementBuyerBuilder =
+                            InitialPlacementBuyer.newBuilder().setBuyerId(buyerId);
+                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                        intialPlacementBuyerBuilder.addInitialPlacementCommoditiesBoughtFromProvider(
+                                InitialPlacementCommoditiesBoughtFromProvider.newBuilder()
+                                        .setCommoditiesBoughtFromProviderId(placementInfo
+                                                .getPlacementInfoId())
+                                        .setCommoditiesBoughtFromProvider(TopologyEntityDTO
+                                                .CommoditiesBoughtFromProvider.newBuilder()
+                                                .setProviderEntityType(placementInfo
+                                                        .getProviderType())
+                                                .addAllCommodityBought(placementInfo
+                                                        .getCommodityBoughtList())));
+                    }
+                    initialPlacementRequestBuilder.addInitialPlacementBuyer(intialPlacementBuyerBuilder);
+                }
+            }
+        }
+        return initialPlacementRequestBuilder.build();
+    }
+
+    /**
+     * add reservation instance/fake entity to the reservation.
+     *
+     * @param reservation the reservation of interest.
+     * @return reservation with the reservation instance updated.
+     */
+    public Reservation addEntityToReservation(Reservation reservation) {
+        List<ReservationTemplate> reservationTemplateList = new ArrayList<>();
+        int entityNameSuffix = 0;
+        for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection()
+                .getReservationTemplateList()) {
+            ReservationTemplate.Builder reservationTemplateBuilder = reservationTemplate.toBuilder();
+            Optional<Template> templateOptional = templatesDao.getTemplate(reservationTemplateBuilder.getTemplate().getId());
+            if (!templateOptional.isPresent()) {
+                return reservation;
+            }
+            final Template template = templateOptional.get();
+            reservationTemplateBuilder.setTemplate(template);
+            final TemplateInfo templateInfo = template.getTemplateInfo();
+            List<Double> diskSizes = new ArrayList<>();
+            double memorySize = 0;
+            double numOfCpu = 0;
+            double cpuSpeed = 0;
+            for (TemplateResource templateResource : templateInfo.getResourcesList()) {
+                for (TemplateField templateField : templateResource.getFieldsList()) {
+                    switch (templateField.getName()) {
+                        case TemplateProtoUtil
+                                .VM_STORAGE_DISK_SIZE:
+                            diskSizes.add(Double.parseDouble(templateField.getValue()));
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED:
+                            cpuSpeed = Double.parseDouble(templateField.getValue());
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_MEM_SIZE:
+                            memorySize = Double.parseDouble(templateField.getValue());
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU:
+                            numOfCpu = Double.parseDouble(templateField.getValue());
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            List<PlacementInfo> placementInfos = new ArrayList<>();
+            placementInfos.add(PlacementInfo.newBuilder().clearProviderId()
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.CPU_PROVISIONED_VALUE, numOfCpu * cpuSpeed))
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.MEM_PROVISIONED_VALUE, memorySize))
+                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setPlacementInfoId(IdentityGenerator.next()).build());
+            for (Double diskSize : diskSizes) {
+                placementInfos.add(PlacementInfo
+                        .newBuilder().clearProviderId()
+                        .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                                .CommodityType.STORAGE_PROVISIONED_VALUE, diskSize))
+                        .setProviderType(EntityType.STORAGE_VALUE)
+                        .setPlacementInfoId(IdentityGenerator.next()).build());
+            }
+
+            for (int i = 0; i < reservationTemplateBuilder.getCount(); i++) {
+                ReservationInstance.Builder reservationInstanceBuilder = ReservationInstance
+                        .newBuilder().setEntityId(IdentityGenerator.next())
+                        .setName(reservation.getName() + "_" + entityNameSuffix);
+                entityNameSuffix++;
+                reservationInstanceBuilder.addAllPlacementInfo(placementInfos);
+                reservationTemplateBuilder.addReservationInstance(ReservationInstance
+                        .newBuilder(reservationInstanceBuilder.build()));
+            }
+
+            reservationTemplateList.add(reservationTemplateBuilder.build());
+        }
+
+        Reservation updatedReservation = reservation.toBuilder()
+                .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                        .addAllReservationTemplate(reservationTemplateList))
+                .build();
+        return updatedReservation;
+    }
+
+    /**
+     * Add entities to the reservation. Update the reservation to UNFULFILLED/FUTURE
+     * based on if the reservation is currently active.
      * @param reservation the reservation of interest
      * @return reservation with updated status
      */
     public Reservation intializeReservationStatus(Reservation reservation) {
         synchronized (reservationSetLock) {
-            Reservation updatedReservation = reservation.toBuilder()
-                    .setStatus(isReservationActiveNow(reservation) ?
-                            ReservationStatus.UNFULFILLED
+            ReservationDTO.Reservation reservationWithEntity = addEntityToReservation(reservation);
+            Reservation updatedReservation = reservationWithEntity.toBuilder()
+                    .setStatus(isReservationActiveNow(reservationWithEntity)
+                            ? ReservationStatus.UNFULFILLED
                             : ReservationStatus.FUTURE)
                     .build();
             try {
@@ -420,6 +641,20 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
     @Override
     public void onPlanDeleted(@Nonnull final PlanInstance plan) throws PlanStatusListenerException {
         // We ignore plan deletions for reservations, since we delete them very eagerly.
+    }
+
+    private CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, double used) {
+        return createCommodityBoughtDTO(commodityType, Optional.empty(), used);
+    }
+
+    private CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, Optional<String> key, double used) {
+        final CommodityType.Builder commType = CommodityType.newBuilder().setType(commodityType);
+        key.ifPresent(commType::setKey);
+        return CommodityBoughtDTO.newBuilder()
+                .setUsed(used)
+                .setActive(true)
+                .setCommodityType(commType)
+                .build();
     }
 
     /**

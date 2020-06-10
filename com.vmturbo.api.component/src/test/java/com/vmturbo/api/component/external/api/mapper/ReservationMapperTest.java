@@ -213,7 +213,7 @@ public class ReservationMapperTest {
                         .setUsed(3000)
                         .build();
         ReservationTemplate reservationTemplate = ReservationTemplate.newBuilder()
-                .setTemplateId(TEMPLATE_ID)
+                .setTemplate(TEMPLATE)
                 .setCount(1)
                 .addReservationInstance(ReservationInstance.newBuilder()
                         .setEntityId(1L)
@@ -229,12 +229,6 @@ public class ReservationMapperTest {
                 ReservationTemplateCollection.newBuilder()
                         .addReservationTemplate(reservationTemplate))
                 .build();
-        when(templateServiceMole.getTemplate(GetTemplateRequest.newBuilder()
-                .setTemplateId(TEMPLATE_ID)
-                .build()))
-                .thenReturn(SingleTemplateResponse.newBuilder()
-                        .setTemplate(TEMPLATE)
-                        .build());
 
         MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
         when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req);

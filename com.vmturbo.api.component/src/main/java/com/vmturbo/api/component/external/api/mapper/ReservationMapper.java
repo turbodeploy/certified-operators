@@ -13,15 +13,15 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.ReservationNotificationDTO;
 import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
@@ -61,11 +61,10 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -150,7 +149,6 @@ public class ReservationMapper {
         return reservationBuilder.build();
     }
 
-
     /**
      * Convert {@link Reservation} to {@link DemandReservationApiDTO}. Right now, it only pick the
      * first ReservationTemplate, because currently Reservation only support one type of template.
@@ -231,9 +229,7 @@ public class ReservationMapper {
         //TODO: need to make sure templates are always available, if templates are deleted, need to
         // mark Reservation not available or also delete related reservations.
         try {
-            final Template template = templateService.getTemplate(GetTemplateRequest.newBuilder()
-                    .setTemplateId(reservationTemplate.getTemplateId())
-                    .build()).getTemplate();
+            final Template template = reservationTemplate.getTemplate();
             final List<PlacementInfo> placementInfos = reservationTemplate.getReservationInstanceList().stream()
                     .map(reservationInstance -> {
                         final List<ProviderInfo> providerInfos = reservationInstance.getPlacementInfoList().stream()
@@ -304,7 +300,8 @@ public class ReservationMapper {
             @Nonnull final PlacementParametersDTO placementParameter) {
         return ReservationTemplate.newBuilder()
                 .setCount(placementParameter.getCount())
-                .setTemplateId(Long.valueOf(placementParameter.getTemplateID()))
+                .setTemplate(Template.newBuilder()
+                        .setId(Long.valueOf(placementParameter.getTemplateID())))
                 .build();
     }
 

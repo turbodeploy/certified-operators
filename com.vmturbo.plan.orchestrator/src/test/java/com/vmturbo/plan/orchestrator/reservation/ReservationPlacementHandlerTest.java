@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
@@ -69,7 +70,7 @@ public class ReservationPlacementHandlerTest {
             .setStatus(ReservationStatus.RESERVED)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
-                                    .setTemplateId(456)
+                                    .setTemplate(Template.newBuilder().setId(456L))
                                     .setCount(1)
                                     .addReservationInstance(ReservationInstance.newBuilder()
                                             .setEntityId(1)
@@ -84,7 +85,7 @@ public class ReservationPlacementHandlerTest {
             .setId(123)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
-                                    .setTemplateId(456)
+                                    .setTemplate(Template.newBuilder().setId(456L))
                                     .setCount(1)
                                     .addReservationInstance(ReservationInstance.newBuilder()
                                             .setEntityId(1)

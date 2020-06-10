@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -79,7 +80,7 @@ public class ReservationManagerTest {
             .setStatus(ReservationStatus.RESERVED)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
-                            .setTemplateId(456)
+                            .setTemplate(Template.newBuilder().setId(456L))
                             .setCount(1)
                             .addReservationInstance(ReservationInstance.newBuilder()
                                     .setEntityId(1)
@@ -117,7 +118,7 @@ public class ReservationManagerTest {
             .setExpirationDate(nextMonth.getTime())
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
-                            .setTemplateId(567)
+                            .setTemplate(Template.newBuilder().setId(567))
                             .setCount(1)))
             .build();
 

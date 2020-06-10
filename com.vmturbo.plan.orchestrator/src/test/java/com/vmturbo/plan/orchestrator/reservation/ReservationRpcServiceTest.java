@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationByIdRequ
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
@@ -65,7 +66,7 @@ public class ReservationRpcServiceTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
-                            .setTemplateId(234L)))
+                            .setTemplate(Template.newBuilder().setId(234L))))
             .build();
 
     @Before

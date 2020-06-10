@@ -103,7 +103,7 @@ public class ReservationDaoImplTest {
                 .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                         .addReservationTemplate(ReservationTemplate.newBuilder()
                                 .setCount(1)
-                                .setTemplateId(123)
+                                .setTemplate(Template.newBuilder().setId(123L))
                                 .addReservationInstance(ReservationInstance.newBuilder()
                                         .setEntityId(456)
                                         .addPlacementInfo(PlacementInfo.newBuilder()
@@ -123,7 +123,7 @@ public class ReservationDaoImplTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1)
-                            .setTemplateId(123)
+                            .setTemplate(Template.newBuilder().setId(123L))
                             .addReservationInstance(ReservationInstance.newBuilder()
                                     .setEntityId(456)
                                     .addPlacementInfo(PlacementInfo.newBuilder()
@@ -272,7 +272,8 @@ public class ReservationDaoImplTest {
         Reservation.Builder builder = reservation.toBuilder();
         builder.getReservationTemplateCollectionBuilder()
                 .getReservationTemplateBuilderList()
-                .forEach(reservationTemplate -> reservationTemplate.setTemplateId(templateId));
+                .forEach(reservationTemplate -> reservationTemplate
+                        .setTemplate(Template.newBuilder().setId(templateId)));
         return builder.build();
     }
 

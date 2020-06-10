@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredRes
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceImplBase;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
@@ -307,7 +308,8 @@ public class ReservationRpcService extends ReservationServiceImplBase {
 
     private Set<Long> getTemplateIds(@Nonnull final Reservation reservation) {
         return reservation.getReservationTemplateCollection().getReservationTemplateList().stream()
-                .map(ReservationTemplate::getTemplateId)
+                .map(ReservationTemplate::getTemplate)
+                .map(Template::getId)
                 .collect(Collectors.toSet());
     }
 }

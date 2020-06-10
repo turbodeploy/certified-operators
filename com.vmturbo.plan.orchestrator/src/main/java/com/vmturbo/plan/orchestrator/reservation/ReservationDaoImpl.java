@@ -32,6 +32,7 @@ import org.jooq.impl.DSL;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.StringDiagnosable;
@@ -389,7 +390,8 @@ public class ReservationDaoImpl implements ReservationDao {
     private Set<Long> getTemplateIds(@Nonnull final ReservationDTO.Reservation reservation) {
         return reservation.getReservationTemplateCollection()
                 .getReservationTemplateList().stream()
-                .map(ReservationTemplate::getTemplateId)
+                .map(ReservationTemplate::getTemplate)
+                .map(Template::getId)
                 .collect(Collectors.toSet());
     }
 

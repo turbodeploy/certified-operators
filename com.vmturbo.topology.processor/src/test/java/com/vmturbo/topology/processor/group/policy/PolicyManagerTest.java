@@ -57,6 +57,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraint
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -223,7 +224,7 @@ public class PolicyManagerTest {
             .setId(reservationId)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                 .addReservationTemplate(ReservationTemplate.newBuilder()
-                    .setTemplateId(77)
+                    .setTemplate(Template.newBuilder().setId(77))
                     .setCount(1)
                     .addReservationInstance(ReservationInstance.newBuilder()
                         .setEntityId(66L))))
@@ -261,7 +262,7 @@ public class PolicyManagerTest {
                         .setId(44)
                         .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                                 .addReservationTemplate(ReservationTemplate.newBuilder()
-                                        .setTemplateId(77)
+                                        .setTemplate(Template.newBuilder().setId(77))
                                         .setCount(1)
                                         .addReservationInstance(ReservationInstance.newBuilder()
                                                 .setEntityId(66L))))

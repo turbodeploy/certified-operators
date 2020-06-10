@@ -1,0 +1,46 @@
+syntax = "proto2";
+
+package market;
+
+option java_package = "com.vmturbo.common.protobuf.market";
+
+import "plan/ReservationDTO.proto";
+import "topology/TopologyDTO.proto";
+
+message FindInitialPlacementRequest {
+    repeated InitialPlacementBuyer initialPlacementBuyer = 1;
+}
+
+message InitialPlacementBuyer {
+    // Id of buyer.
+    optional int64 buyerId = 1;
+
+    // A list of shopping lists.
+    repeated InitialPlacementCommoditiesBoughtFromProvider initialPlacementCommoditiesBoughtFromProvider = 2;
+
+    message InitialPlacementCommoditiesBoughtFromProvider {
+
+        optional int64 commoditiesBoughtFromProviderId = 1;
+
+        // list of commodities bought group
+        optional .topology.TopologyEntityDTO.CommoditiesBoughtFromProvider commoditiesBoughtFromProvider = 2;
+    }
+}
+
+message InitialPlacementBuyerPlacementInfo {
+
+    optional int64 buyer_id = 1;
+
+    optional int64 commoditiesBoughtFromProviderId = 2;
+
+    optional int64 providerId = 3;
+}
+
+message FindInitialPlacementResponse {
+    repeated InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo = 1;
+}
+
+service InitialPlacementService {
+    rpc FindInitialPlacement (FindInitialPlacementRequest) returns (FindInitialPlacementResponse);
+
+}
