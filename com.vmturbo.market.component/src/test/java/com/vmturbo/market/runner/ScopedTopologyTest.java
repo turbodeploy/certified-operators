@@ -71,6 +71,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
@@ -124,6 +125,9 @@ public class ScopedTopologyTest {
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
     private CloudCostData ccd = mock(CloudCostData.class);
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
+
+    private InitialPlacementFinder initialPlacementFinder =
+            mock(InitialPlacementFinder.class);
 
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
@@ -182,7 +186,7 @@ public class ScopedTopologyTest {
             buyRIImpactAnalysisFactory,
             tierExcluderFactory,
             mock(AnalysisRICoverageListener.class),
-            consistentScalingHelperFactory);
+            consistentScalingHelperFactory, initialPlacementFinder);
     }
 
     /**
@@ -330,7 +334,7 @@ public class ScopedTopologyTest {
                 mock(TopologyEntityCloudTopologyFactory.class);
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
         when(topologyCostCalculatorFactory.newCalculator(PLAN_TOPOLOGY_INFO, any())).thenReturn(topologyCostCalculator);
-        MarketRunner runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty(), passthroughGate);
+        MarketRunner runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty(), passthroughGate, initialPlacementFinder);
 
         long topologyContextId = 1000;
         long topologyId = 2000;
@@ -351,7 +355,7 @@ public class ScopedTopologyTest {
         AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap());
-        when(analysisFactory.newAnalysis(eq(topologyInfo), eq(topologyDTOs), any()))
+        when(analysisFactory.newAnalysis(eq(topologyInfo), eq(topologyDTOs), any(), any()))
             .thenAnswer(invocation -> {
                 AnalysisConfigCustomizer configCustomizer =
                         invocation.getArgumentAt(2, AnalysisConfigCustomizer.class);
@@ -365,7 +369,7 @@ public class ScopedTopologyTest {
                         configBuilder.build(), cloudTopologyFactory, topologyCostCalculatorFactory,
                         priceTableFactory, wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory,
                         tierExcluderFactory, mock(AnalysisRICoverageListener.class),
-                        consistentScalingHelperFactory);
+                        consistentScalingHelperFactory, initialPlacementFinder);
             });
 
         Analysis analysis = runner.scheduleAnalysis(topologyInfo, topologyDTOs, true,

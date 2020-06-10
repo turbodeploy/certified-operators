@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 
 import com.vmturbo.common.protobuf.market.InitialPlacementREST.InitialPlacementServiceController;
 import com.vmturbo.common.protobuf.market.MarketDebugREST.MarketDebugServiceController;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
 
 @Configuration
 public class MarketRpcConfig {
@@ -34,7 +35,12 @@ public class MarketRpcConfig {
      */
     @Bean
     public InitialPlacementRpcService initialPlacementRpcService() {
-        return new InitialPlacementRpcService();
+        return new InitialPlacementRpcService(getInitialPlacementFinder());
+    }
+
+    @Bean
+    public InitialPlacementFinder getInitialPlacementFinder() {
+        return new InitialPlacementFinder();
     }
 
     /**

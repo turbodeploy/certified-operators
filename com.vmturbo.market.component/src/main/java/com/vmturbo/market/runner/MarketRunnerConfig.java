@@ -136,7 +136,8 @@ public class MarketRunnerConfig {
             apiConfig.marketApi(),
             analysisFactory(),
             marketRpcConfig.marketDebugRpcService(),
-            analysisGate());
+            analysisGate(),
+            marketRpcConfig.getInitialPlacementFinder());
     }
 
     @Bean

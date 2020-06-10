@@ -17,27 +17,28 @@ import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
-import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
-import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
-import com.vmturbo.topology.processor.api.util.TopologyProcessingGate.Ticket;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
+import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
+import com.vmturbo.topology.processor.api.util.TopologyProcessingGate.Ticket;
 
 /**
  * Orchestrate running of real-time (i.e. live market) and non-real-time analysis runs.
@@ -68,16 +69,20 @@ public class MarketRunner {
             .build()
             .register();
 
+    private final InitialPlacementFinder initialPlacementFinder;
+
     public MarketRunner(@Nonnull final ExecutorService runnerThreadPool,
                         @Nonnull final MarketNotificationSender serverApi,
                         @Nonnull final AnalysisFactory analysisFactory,
                         @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService,
-                        final TopologyProcessingGate topologyProcessingGate) {
+                        final TopologyProcessingGate topologyProcessingGate,
+                        @Nonnull final InitialPlacementFinder initialPlacementFinder) {
         this.runnerThreadPool = Objects.requireNonNull(runnerThreadPool);
         this.serverApi = Objects.requireNonNull(serverApi);
         this.marketDebugRpcService = Objects.requireNonNull(marketDebugRpcService);
         this.analysisFactory = Objects.requireNonNull(analysisFactory);
         this.topologyProcessingGate = Objects.requireNonNull(topologyProcessingGate);
+        this.initialPlacementFinder = Objects.requireNonNull(initialPlacementFinder);
     }
 
     /**
@@ -135,7 +140,8 @@ public class MarketRunner {
                         .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                        .setDiscountedComputeCostFactor(discountedComputeCostFactor));
+                        .setDiscountedComputeCostFactor(discountedComputeCostFactor),
+                        initialPlacementFinder);
 
             if (!analysis.getTopologyInfo().hasPlanInfo()) {
                 Optional<Setting> disbaleAllActionsSetting = analysis.getConfig()

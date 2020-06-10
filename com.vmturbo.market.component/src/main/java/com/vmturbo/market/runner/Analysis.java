@@ -75,6 +75,7 @@ import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.diagnostics.ActionLogger;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -209,6 +210,8 @@ public class Analysis {
 
     private final AnalysisRICoverageListener listener;
 
+    private final InitialPlacementFinder initialPlacementFinder;
+
     // a set of on-prem application entity type
     private static final Set<Integer> entityTypesToSkip =
             new HashSet<>(Collections.singletonList(EntityType.BUSINESS_APPLICATION_VALUE));
@@ -231,6 +234,7 @@ public class Analysis {
      * @param tierExcluderFactory the tier excluder factory
      * @param listener that receives entity ri coverage information availability.
      * @param consistentScalingHelperFactory CSM helper factory
+     * @param initialPlacementFinder the class to perform fast reservation
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
@@ -244,7 +248,8 @@ public class Analysis {
                     @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
                     @Nonnull final TierExcluderFactory tierExcluderFactory,
                     @Nonnull final AnalysisRICoverageListener listener,
-                    @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory) {
+                    @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
+                    @Nonnull final InitialPlacementFinder initialPlacementFinder) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -267,6 +272,7 @@ public class Analysis {
         this.tierExcluderFactory = tierExcluderFactory;
         this.listener = listener;
         this.consistentScalingHelperFactory = consistentScalingHelperFactory;
+        this.initialPlacementFinder = initialPlacementFinder;
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -422,6 +428,17 @@ public class Analysis {
                 if (!stopAnalysis) {
                     final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
                             topologyInfo, config, this);
+                    if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
+                        // whenever market receives entities from realtime broadcast, we update
+                        // cachedEconomy and also pass the commodity type to specification map associated
+                        // with that economy to initialPlacementFinder.
+                        if (converter.getCommodityConverter() != null
+                                && converter.getCommodityConverter().getCommTypeAllocator() != null) {
+                            Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap =
+                                    converter.getCommodityConverter().getCommTypeAllocator().getReservationCommTypeToSpecMapping();
+                            initialPlacementFinder.updateCachedEconomy(topology.getEconomy(), commTypeToSpecMap);
+                        }
+                    }
                     results = TopologyEntitiesHandler.performAnalysis(traderTOs,
                             topologyInfo, config, this, topology);
                     if (config.isEnableSMA()) {

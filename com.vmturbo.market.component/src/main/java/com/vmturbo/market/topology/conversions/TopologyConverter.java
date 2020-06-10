@@ -3097,8 +3097,7 @@ public class TopologyConverter {
         }).map(sf -> valueToReverseScale / sf).orElse(valueToReverseScale);
     }
 
-    @VisibleForTesting
-    CommodityConverter getCommodityConverter() {
+    public CommodityConverter getCommodityConverter() {
         return commodityConverter;
     }
 
