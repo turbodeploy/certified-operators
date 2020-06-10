@@ -30,6 +30,7 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
@@ -54,9 +55,9 @@ public class ActionStorehouseTest {
     private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
     private final ActionModeCalculator actionModeCalculator = mock(ActionModeCalculator.class);
     private final long topologyContextId = 0xCAFE;
+    private ActionApprovalSender actionApprovalSender;
 
-    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            executor, actionStoreLoader, actionModeCalculator);
+    private ActionStorehouse actionStorehouse;
     private final Action moveAction = Action.newBuilder()
         .setId(9999L)
         .setDeprecatedImportance(0)
@@ -78,6 +79,9 @@ public class ActionStorehouseTest {
 
     @Before
     public void setup() {
+        this.actionApprovalSender = Mockito.mock(ActionApprovalSender.class);
+        actionStorehouse = new ActionStorehouse(actionStoreFactory,
+                executor, actionStoreLoader, actionApprovalSender);
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStore);
         when(actionStore.getEntitySeverityCache()).thenReturn(severityCache);
         when(actionStore.allowsExecution()).thenReturn(true);
@@ -129,13 +133,13 @@ public class ActionStorehouseTest {
     }
 
     @Test
-    public void testStoreActionsExecutesAutomaticActions() {
+    public void testStoreActionsExecutesAutomaticActions() throws Exception {
         actionStorehouse.storeActions(actionPlan);
         verify(executor).executeAutomatedFromStore(actionStore);
     }
 
     @Test
-    public void testStoreActionsPopulateRefreshExecuteRefreshFlow() {
+    public void testStoreActionsPopulateRefreshExecuteRefreshFlow() throws Exception {
         InOrder inOrder = Mockito.inOrder(executor, severityCache, actionStore);
         actionStorehouse.storeActions(actionPlan);
         inOrder.verify(actionStore).populateRecommendedActions(actionPlan);
@@ -228,7 +232,7 @@ public class ActionStorehouseTest {
         when(actionStoreLoader.loadActionStores()).thenReturn(ImmutableList.of(persistedStore));
 
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-                executor, actionStoreLoader, actionModeCalculator);
+                executor, actionStoreLoader, actionApprovalSender);
         assertEquals(1, actionStorehouse.size());
         assertEquals(persistedStore, actionStorehouse.getStore(topologyContextId).get());
     }
@@ -269,7 +273,7 @@ public class ActionStorehouseTest {
     }
 
     @Test
-    public void testCancelQueuedActions() {
+    public void testCancelQueuedActions() throws Exception {
         com.vmturbo.action.orchestrator.action.Action action =
                 mock(com.vmturbo.action.orchestrator.action.Action.class);
         List<ActionExecutionTask> actionExecutionTaskList = new ArrayList<>();

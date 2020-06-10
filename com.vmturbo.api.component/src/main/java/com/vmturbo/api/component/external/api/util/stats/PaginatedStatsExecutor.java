@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -406,12 +407,12 @@ public class PaginatedStatsExecutor {
                     getMinimalEntitiesForEntityList(entitiesSet);
 
             //3. Cost Stats -  uses entities from historyStatsResponse to scope query for cost
-            final GetCloudCostStatsResponse costStatsResponse = minimalEntityMap.entrySet()
+            final List<CloudCostStatRecord> costStatsResponse = minimalEntityMap.entrySet()
                 .stream().map(entry -> entry.getValue())
                 .anyMatch(minEntity -> minEntity.getEnvironmentType() == EnvironmentType.CLOUD
                     || minEntity.getEnvironmentType() == EnvironmentType.HYBRID)
                         ? getCloudCostStatsForEntities(entitiesSet)
-                        : GetCloudCostStatsResponse.getDefaultInstance();
+                        : Collections.emptyList();
 
             //4. Combine Stats
             final List<EntityStatsApiDTO> combinedResultsInOrder =
@@ -445,11 +446,11 @@ public class PaginatedStatsExecutor {
          * Gets cloud cost stats from list of entityUuids.
          *
          * @param scope list of entity uuids to query
-         * @return cloud cost stats response
+         * @return stats from cloud cost stats response
          */
-        GetCloudCostStatsResponse getCloudCostStatsForEntities(Set<Long> scope) {
+        List<CloudCostStatRecord> getCloudCostStatsForEntities(Set<Long> scope) {
             if (scope.isEmpty()) {
-                return GetCloudCostStatsResponse.getDefaultInstance();
+                return Collections.emptyList();
             }
 
             return getCloudCostStats(scope, this.inputDto);
@@ -934,29 +935,26 @@ public class PaginatedStatsExecutor {
         /**
          * Paginates cost stats data according to request sortBy.
          *
-         * @param cloudCostStatsResponse the cloud results to paginate
+         * @param cloudCostStatRecords the cloud results to paginate
          * @param expandedScope the scope for an entity stats query.
          * @return PaginatedStats paginated cloud cost results
          */
         PaginatedStats paginateAndSortCostResponse(
-                final GetCloudCostStatsResponse cloudCostStatsResponse,
+                final List<CloudCostStatRecord> cloudCostStatRecords,
                 final Set<Long> expandedScope) {
-            final List<CloudCostStatRecord> cloudCostStatRecords =
-                    cloudCostStatsResponse.getCloudStatRecordList();
-            final int cloudCostStatRecordSize = cloudCostStatRecords.size();
 
             //CloudCostStatRecords Empty - create a default instance
             //CloudCostStatRecords Not Empty - take last array entry,
-            //                                 results based on latest snapshot
-            final CloudCostStatRecord cloudCostStatRecordToBasePaginationOn =
-                    cloudCostStatRecordSize == 0 ? CloudCostStatRecord.getDefaultInstance() :
-                            cloudCostStatsResponse.getCloudStatRecordList()
-                                    .get(cloudCostStatRecordSize - 1);
+            //  results based on latest snapshot
+            final CloudCostStatRecord finalCostStatRecord = cloudCostStatRecords.isEmpty() ?
+                CloudCostStatRecord.getDefaultInstance() :
+                cloudCostStatRecords.get(cloudCostStatRecords.size() - 1);
 
-            final Map<Long, List<StatRecord>> costStats =
-                    cloudCostStatRecordToBasePaginationOn.getStatRecordsList()
-                            .stream()
-                            .collect(groupingBy(StatRecord::getAssociatedEntityId));
+            final Map<Long, List<StatRecord>> costStats = cloudCostStatRecords.stream()
+                .filter(record -> record.getQueryId() == finalCostStatRecord.getQueryId())
+                .filter(record -> record.getSnapshotDate() == finalCostStatRecord.getSnapshotDate())
+                .flatMap(record -> record.getStatRecordsList().stream())
+                .collect(groupingBy(StatRecord::getAssociatedEntityId));
 
 
             final String orderByStat = this.paginationRequest.getOrderByStat().orElse(null);
@@ -1007,9 +1005,9 @@ public class PaginatedStatsExecutor {
          * @param cloudEntityOids Entities to query
          * @param requestInputDto Multiple scope stat request.  Scoping information not
          *                        derived from this object, use cloudEntityOids for scoping query.
-         * @return                {@link GetCloudCostStatsResponse} cloud cost stats response
+         * @return                records from cloud cost stats response
          */
-        private GetCloudCostStatsResponse getCloudCostStats(Set<Long> cloudEntityOids,
+        private List<CloudCostStatRecord> getCloudCostStats(Set<Long> cloudEntityOids,
                 StatScopesApiInputDTO requestInputDto) {
 
             final CloudCostStatsQuery.Builder costStatsBuilder = CloudCostStatsQuery.newBuilder();
@@ -1055,7 +1053,13 @@ public class PaginatedStatsExecutor {
                             .build();
 
             //Make Request
-            return costServiceRpc.getCloudCostStats(getCloudCostStatsRequest);
+            final Iterator<GetCloudCostStatsResponse> response =
+                costServiceRpc.getCloudCostStats(getCloudCostStatsRequest);
+            final List<CloudCostStatRecord> cloudStatRecords = new ArrayList<>();
+            while (response.hasNext()) {
+                cloudStatRecords.addAll(response.next().getCloudStatRecordList());
+            }
+            return cloudStatRecords;
         }
 
         /**
@@ -1087,7 +1091,7 @@ public class PaginatedStatsExecutor {
             //  8. Set the response for access outside of class
 
             //1. Cost Call
-            final GetCloudCostStatsResponse
+            final List<CloudCostStatRecord>
                     getCloudCostStatsResponse = getCloudCostStats(expandedScope, this.inputDto);
 
             //2.3 Paginate and sort cost Results
@@ -1153,11 +1157,11 @@ public class PaginatedStatsExecutor {
          * @return mapped response
          */
         Map<Long, Map<Long, List<StatApiDTO>>> mapCostEntityResults(
-                @Nonnull GetCloudCostStatsResponse cloudCostStatsResponse,
+                @Nonnull List<CloudCostStatRecord> cloudCostStatsResponse,
                 @Nonnull Set<Long> pagedEntities) {
             final Map<Long, Map<Long, List<StatApiDTO>>> entityUuidMap = new HashMap<>();
 
-            for (CloudCostStatRecord cloudCostStatRecord: cloudCostStatsResponse.getCloudStatRecordList()) {
+            for (CloudCostStatRecord cloudCostStatRecord: cloudCostStatsResponse) {
                 long snapShotDate = cloudCostStatRecord.getSnapshotDate();
 
                 for (StatRecord statRecord: cloudCostStatRecord.getStatRecordsList()) {
@@ -1198,7 +1202,7 @@ public class PaginatedStatsExecutor {
          * @return mapped results by entityUuid, snapShotDate with list of stat
          */
         Map<Long, Map<Long, List<StatApiDTO>>> mapAndCombineCloudAndHistoryStats(
-                @Nonnull GetCloudCostStatsResponse cloudCostStatsResponse,
+                @Nonnull List<CloudCostStatRecord> cloudCostStatsResponse,
                 @Nonnull GetEntityStatsResponse historyStatsResponse,
                 @Nonnull Set<Long> pagedEntities) {
             final Map<Long, Map<Long, List<StatApiDTO>>> costEntitiesMap =
@@ -1237,7 +1241,7 @@ public class PaginatedStatsExecutor {
          *
          * @param sortedNextPageEntityIds list of entities in expected sort order
          * @param minimalEntityMap entityUuid to {@link MinimalEntity}
-         * @param cloudCostStatsResponse  cloud cost stas response {@link GetCloudCostStatsResponse}
+         * @param cloudCostStatsResponse  cloud cost stats
          * @param historyStatsResponse history stats response {@link GetEntityStatsResponse}
          * @return entityUuid to {@link EntityStatsApiDTO}
          *
@@ -1245,7 +1249,7 @@ public class PaginatedStatsExecutor {
         List<EntityStatsApiDTO> constructEntityStatsApiDTOFromResults(
                 @Nonnull final List<Long> sortedNextPageEntityIds,
                 @Nonnull final Map<Long, MinimalEntity> minimalEntityMap,
-                @Nonnull final GetCloudCostStatsResponse cloudCostStatsResponse,
+                @Nonnull final List<CloudCostStatRecord> cloudCostStatsResponse,
                 @Nonnull final GetEntityStatsResponse historyStatsResponse) {
 
             List<EntityStatsApiDTO> entityStatsApiDTOS =

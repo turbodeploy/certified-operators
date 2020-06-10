@@ -9,7 +9,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -121,6 +120,7 @@ import com.vmturbo.group.group.ProtobufMessageMatcher;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
 import com.vmturbo.group.service.GroupRpcService.InvalidGroupDefinitionException;
 import com.vmturbo.group.setting.DiscoveredSettingPoliciesUpdater;
 import com.vmturbo.group.stitching.GroupStitchingManager;
@@ -150,6 +150,7 @@ public class GroupRpcServiceTest {
     private GrpcTestServer testServer;
     private IdentityProvider identityProvider;
     private DiscoveredSettingPoliciesUpdater settingPolicyUpdater;
+    private DiscoveredPlacementPolicyUpdater placementPolicyUpdater;
 
     private final GroupDefinition testGrouping = GroupDefinition.newBuilder()
                     .setType(GroupType.REGULAR)
@@ -202,6 +203,7 @@ public class GroupRpcServiceTest {
         transactionProvider = new MockTransactionProvider();
         groupStoreDAO = transactionProvider.getGroupStore();
         settingPolicyUpdater = Mockito.mock(DiscoveredSettingPoliciesUpdater.class);
+        placementPolicyUpdater = Mockito.mock(DiscoveredPlacementPolicyUpdater.class);
         groupRpcService = new GroupRpcService(temporaryGroupCache,
                 searchServiceRpc,
                 userSessionContext,
@@ -210,6 +212,7 @@ public class GroupRpcServiceTest {
                 identityProvider,
                 targetSearchServiceRpc,
                 settingPolicyUpdater,
+                placementPolicyUpdater,
                 2, 120);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
@@ -1401,8 +1404,9 @@ public class GroupRpcServiceTest {
                 .build()));
         assertThat(group.isReverseLookupSupported(), is(true));
 
-        verify(transactionProvider.getPlacementPolicyStore()).updateTargetPolicies(eq(10L),
-                eq(Collections.emptyList()), anyMap());
+        Mockito.verify(placementPolicyUpdater)
+                .updateDiscoveredPolicies(Mockito.eq(transactionProvider.getPlacementPolicyStore()),
+                        Mockito.any(), Mockito.any());
         Mockito.verify(settingPolicyUpdater)
                 .updateSettingPolicies(Mockito.eq(transactionProvider.getSettingPolicyStore()),
                         Mockito.any(), Mockito.any());

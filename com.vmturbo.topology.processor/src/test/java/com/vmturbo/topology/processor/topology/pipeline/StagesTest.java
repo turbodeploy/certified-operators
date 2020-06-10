@@ -493,7 +493,8 @@ public class StagesTest {
         when(broadcastManager2.broadcastLiveTopology(eq(topologyInfo)))
                 .thenReturn(broadcast2);
 
-        final TopologyBroadcastInfo broadcastInfo = stage.execute(createTopologyGraph()).getResult();
+        final TopologyBroadcastInfo broadcastInfo =
+                stage.execute(createTopologyGraph().entities()).getResult();
         assertThat(broadcastInfo.getEntityCount(), is(1L));
         assertThat(broadcastInfo.getTopologyContextId(), is(1L));
         assertThat(broadcastInfo.getTopologyId(), is(2L));
@@ -535,7 +536,8 @@ public class StagesTest {
         when(broadcastManager.broadcastUserPlanTopology(eq(topologyInfo)))
                 .thenReturn(broadcast);
 
-        final TopologyBroadcastInfo broadcastInfo = stage.execute(createTopologyGraph()).getResult();
+        final TopologyBroadcastInfo broadcastInfo
+                = stage.execute(createTopologyGraph().entities()).getResult();
         assertThat(broadcastInfo.getEntityCount(), is(1L));
         assertThat(broadcastInfo.getTopologyContextId(), is(1L));
         assertThat(broadcastInfo.getTopologyId(), is(2L));
@@ -673,6 +675,7 @@ public class StagesTest {
         final TopologyEntity entity = mock(TopologyEntity.class);
         when(entity.getTopologyEntityDtoBuilder()).thenReturn(this.entity);
         when(graph.entities()).thenReturn(Stream.of(entity));
+        when(graph.topSort(any())).thenReturn(Stream.of(entity));
         return graph;
     }
 

@@ -87,6 +87,7 @@ import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
 import com.vmturbo.group.service.TransactionProvider.Stores;
 import com.vmturbo.group.setting.DiscoveredSettingPoliciesUpdater;
 import com.vmturbo.group.stitching.GroupStitchingContext;
@@ -124,6 +125,7 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     private final TargetSearchServiceBlockingStub targetSearchService;
     private final DiscoveredSettingPoliciesUpdater settingPolicyUpdater;
+    private final DiscoveredPlacementPolicyUpdater placementPolicyUpdater;
     private final GrpcTransactionUtil grpcTransactionUtil;
     private final GroupPermit groupRequestPermits;
     private final long groupLoadTimeoutMs;
@@ -139,6 +141,7 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param identityProvider identity provider to assign OIDs to user groups
      * @param targetSearchService target search service for dynamic groups
      * @param settingPolicyUpdater updater for the discovered setting policies
+     * @param placementPolicyUpdater updater for the discovered placement policies
      * @param groupLoadPermits size of group batch used to retrieve groups from the DB
      * @param groupLoadTimeoutSec timeout to await for permits to load groups from DAO. If
      *         this timeout expires, {@link #getGroupsByIds(IGroupStore, List, StreamObserver,
@@ -152,6 +155,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             @Nonnull IdentityProvider identityProvider,
             @Nonnull TargetSearchServiceBlockingStub targetSearchService,
             @Nonnull DiscoveredSettingPoliciesUpdater settingPolicyUpdater,
+            @Nonnull DiscoveredPlacementPolicyUpdater placementPolicyUpdater,
             int groupLoadPermits, long groupLoadTimeoutSec) {
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
@@ -160,6 +164,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.targetSearchService = Objects.requireNonNull(targetSearchService);
         this.settingPolicyUpdater = Objects.requireNonNull(settingPolicyUpdater);
+        this.placementPolicyUpdater = Objects.requireNonNull(placementPolicyUpdater);
         this.grpcTransactionUtil = new GrpcTransactionUtil(transactionProvider, logger);
         if (groupLoadPermits <= 0) {
             throw new IllegalArgumentException(
@@ -1270,11 +1275,8 @@ public class GroupRpcService extends GroupServiceImplBase {
                             stitchingResult.getGroupsToDelete());
             final Table<Long, String, Long> allGroupsMap = createGroupIdTable(stitchingResult);
 
-            for (Entry<Long, List<DiscoveredPolicyInfo>> entry : policiesByTarget.entrySet()) {
-                stores.getPlacementPolicyStore()
-                        .updateTargetPolicies(entry.getKey(), entry.getValue(),
-                                allGroupsMap.row(entry.getKey()));
-            }
+            placementPolicyUpdater.updateDiscoveredPolicies(stores.getPlacementPolicyStore(),
+                    policiesByTarget, allGroupsMap);
             settingPolicyUpdater.updateSettingPolicies(stores.getSettingPolicyStore(),
                     settingPoliciesByTarget, allGroupsMap);
             responseObserver.onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());

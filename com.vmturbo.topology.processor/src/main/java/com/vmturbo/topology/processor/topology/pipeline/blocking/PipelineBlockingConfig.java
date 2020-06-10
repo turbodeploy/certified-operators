@@ -46,19 +46,25 @@ public class PipelineBlockingConfig {
     private boolean enableDiscoveryResponsesCaching;
 
     /**
-     * The maximum number of failures we will allow for a target at startup before allowing
-     * broadcasts.
-     *
-     * <p/>This is set in minutes, because we derive the failure count by dividing this number
-     * by the target's discovery interval. For example, if this is 30 minutes (by default), and
-     * the target's discovery interval is 10 minutes, we will allow up to 3 failures for the target.
-     * If the target's discovery interval is 24 hours, we will allow just 1 failure for the target.
-     *
-     * <p/>Be VERY careful about setting this above 1, because some targets have high re-discovery
-     * intervals (e.g. a whole day for certain Billing probes).
+     * The maximum number of failures we will allow for a target with a fast rediscovery interval
+     * before allowing broadcasts.
      */
-    @Value("${startupDiscovery.targetShortCircuitMinutes:30}")
-    private int startupDiscoveryTargetShortCircuitMinutes;
+    @Value("${startupDiscovery.failureThreshold.fastRediscovery:3}")
+    private int fastRediscoveryFailureThreshold;
+
+    /**
+     * The maximum number of failures we will allow for a target with a slow rediscovery interval
+     * before allowing broadcasts.
+     */
+    @Value("${startupDiscovery.failureThreshold.slowRediscovery:1}")
+    private int slowRediscoveryFailureThreshold;
+
+    /**
+     * The boundary between "fast" and "slow" rediscovery intervals. Anything less than this amount
+     * will be considered fast.
+     */
+    @Value("${startupDiscovery.failureThreshold.fastToSlowBoundaryMin:15}")
+    private int fastRediscoveryIntervalBoundary;
 
     /**
      * How long we will wait to successfully discover targets at startup before allowing broadcasts.
@@ -100,12 +106,17 @@ public class PipelineBlockingConfig {
             case "immediate":
                 return new ImmediateUnblock(topologyConfig.pipelineExecutorService());
             case "discovery": default:
+                final TargetShortCircuitSpec shortCircuitSpec = TargetShortCircuitSpec.newBuilder()
+                        .setFastRediscoveryThreshold(fastRediscoveryFailureThreshold)
+                        .setSlowRediscoveryThreshold(slowRediscoveryFailureThreshold)
+                        .setFastSlowBoundary(fastRediscoveryIntervalBoundary, TimeUnit.MINUTES)
+                        .build();
                 return new DiscoveryBasedUnblock(topologyConfig.pipelineExecutorService(),
                         targetConfig.targetStore(),
                         probeConfig.probeStore(),
                         schedulerConfig.scheduler(),
                         operationConfig.operationManager(),
-                        startupDiscoveryTargetShortCircuitMinutes,
+                        shortCircuitSpec,
                         startupDiscoveryMaxDiscoveryWaitMinutes,
                         maxProbeRegistrationWaitMins,
                         TimeUnit.MINUTES,

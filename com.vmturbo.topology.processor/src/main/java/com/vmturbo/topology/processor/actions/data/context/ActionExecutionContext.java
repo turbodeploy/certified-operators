@@ -1,14 +1,16 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
-import com.vmturbo.topology.processor.operation.ActionConversions;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 
 /**
@@ -69,12 +71,13 @@ public interface ActionExecutionContext {
     long getTargetId();
 
     /**
-     * Indicates whether this action has a workflow associated with it.
+     * Returns the workflow associated with this action.
      * Workflows allow actions to be executed through a third party action orchestrator.
      *
-     * @return true, if this action has a workflow associated with it; otherwise, false.
+     * @return workflow or empty {@link Optional}.
      */
-    boolean hasWorkflow();
+    @Nonnull
+    Optional<Workflow> getWorkflow();
 
     /**
      * Return a Set of entities to that are directly involved in the action
@@ -93,4 +96,13 @@ public interface ActionExecutionContext {
      */
     @Nullable
     Long getSecondaryTargetId() throws TargetNotFoundException;
+
+    /**
+     * Creates {@link ActionExecutionDTO} for this action in a form suitable for SDK probes to
+     * work with.
+     *
+     * @return action execution DTO
+     */
+    @Nonnull
+    ActionExecutionDTO buildActionExecutionDto();
 }

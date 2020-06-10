@@ -55,7 +55,7 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
     @Autowired
     private ClusterMgrConfig clusterMgrConfig;
 
-    @Value("${kafkaConfigFile:/kafka-config.yml}")
+    @Value("${kafkaConfigFile:/config/kafka-config.yml}")
     private String kafkaConfigFile;
 
     @Autowired

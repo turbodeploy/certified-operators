@@ -402,6 +402,7 @@ public class ServiceConfig {
                 communicationConfig.searchServiceBlockingStub(),
                 actionSearchUtil(),
                 entitySettingQueryExecutor(),
+                licenseCheckClientConfig.licenseCheckClient(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -522,7 +523,13 @@ public class ServiceConfig {
                 communicationConfig.serviceEntityMapper(),
                 mapperConfig.entityFilterMapper(),
                 mapperConfig.entityAspectMapper(),
-                searchFilterResolver());
+                searchFilterResolver(),
+                communicationConfig.priceIndexPopulator());
+    }
+
+    @Bean
+    public SearchQueryService searchQueryService() {
+        return new SearchQueryService();
     }
 
     @Bean
@@ -610,6 +617,7 @@ public class ServiceConfig {
             communicationConfig.getRealtimeTopologyContextId(),
             communicationConfig.groupExpander(),
             mapperConfig.entityAspectMapper(),
+            licenseCheckClientConfig.licenseCheckClient(),
             Clock.systemUTC());
     }
 
@@ -818,7 +826,8 @@ public class ServiceConfig {
     @Bean
     public StatsQueryExecutor statsQueryExecutor() {
         return new StatsQueryExecutor(statsQueryContextFactory(), scopeExpander(),
-            communicationConfig.repositoryApi(), mapperConfig.uuidMapper());
+            communicationConfig.repositoryApi(), mapperConfig.uuidMapper(),
+                licenseCheckClientConfig.licenseCheckClient());
     }
 
     @Bean

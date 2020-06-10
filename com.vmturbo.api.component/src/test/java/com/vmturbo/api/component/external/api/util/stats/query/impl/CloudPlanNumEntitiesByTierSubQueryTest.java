@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 
 import java.util.Arrays;
@@ -35,11 +36,10 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -47,7 +47,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * This class tests the functionality in CloudPlanNumEntitiesByTierSubQuery.java.
  *
  */
-//@RunWith(MockitoJUnitRunner.class)
 public class CloudPlanNumEntitiesByTierSubQueryTest {
     private static final String STORAGE_TIER_ST = "ST";
     private static final String STORAGE_TIER_IO = "IO";
@@ -90,7 +89,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
         final RelatedEntity storageTier = RelatedEntity.newBuilder().setOid(tierOid)
                         .setEntityType(EntityType.STORAGE_TIER_VALUE).build();
         final ApiPartialEntity virtualVolume = ApiPartialEntity.newBuilder().setOid(oid)
-                        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).addConnectedTo(storageTier)
+                        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).addProviders(storageTier)
                         .build();
         return Stream.of(virtualVolume);
     }
@@ -125,13 +124,9 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
      */
     @Test
     public void testEntityTypeToGetTierFunction() {
-        final RelatedEntity storage = RelatedEntity.newBuilder()
+        final RelatedEntity storageTier = RelatedEntity.newBuilder()
                         .setEntityType(EntityType.STORAGE_TIER_VALUE)
                         .setOid(7777L)
-                        .build();
-        final TopologyEntityDTO topologyEntityVM = TopologyEntityDTO.newBuilder()
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setOid(77777L)
                         .build();
         final ApiPartialEntity virtualVolume1 = ApiPartialEntity.newBuilder()
                         .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
@@ -139,7 +134,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
                         .build();
         final ApiPartialEntity virtualVolume2 = ApiPartialEntity.newBuilder()
                         .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                        .addConnectedTo(storage)
+                        .addProviders(storageTier)
                         .setOid(7777777L)
                         .build();
 
@@ -154,7 +149,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
 
         // When there are no providers for VIRTUAL_VOLUME, the function to map tier id to number of providers returns 0.
         assertEquals(1, tierIdToNumEntities.size());
-        assertEquals(null, tierIdToNumEntities.get(null));
+        assertNull(tierIdToNumEntities.get(null));
 
         tierIdToNumEntities.clear();
         entities.clear();

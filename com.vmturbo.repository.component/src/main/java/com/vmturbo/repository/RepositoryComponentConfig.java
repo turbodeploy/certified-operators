@@ -227,14 +227,13 @@ public class RepositoryComponentConfig {
                         .useProtocol(Protocol.HTTP_VPACK)
                         .build();
             });
-            // If we are not able to connect to arango, db.exists() returns false, and we try to create the
-            // database. But the database might already exist. It's just that we can't connect.
-            // To check if we can connect, try to get the driver version. If we are not able to
-            // connect to arango, an exception will be thrown right here.
-            driver.getVersion();
-            // We will get here if we are able to connect. Then check if database exists or not.
+
+            // If we are not able to connect to arango, db.exists() returns false. We will try to create the
+            // database, but it's ok since we cannot connect to arango anyway.
+            // Note: arango currently don't support checking if Database(Connection) exists
+            // https://github.com/arangodb/arangodb-java-driver/issues/254
+            final ArangoDatabase db = driver.db(getArangoDatabaseName());
             // If it does not exist, create it.
-            ArangoDatabase db = driver.db(getArangoDatabaseName());
             if (!db.exists()) {
                 logger.info("Arango DB {} does not exist. Creating database.", getArangoDatabaseName());
                 createDatabase(driver);

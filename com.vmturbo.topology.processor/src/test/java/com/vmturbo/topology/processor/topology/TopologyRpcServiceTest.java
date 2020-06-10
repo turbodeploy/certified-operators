@@ -53,6 +53,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
@@ -235,9 +236,10 @@ public class TopologyRpcServiceTest {
 
             TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline =
                 TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
-                    .addStage(new MockGraphStage(entityDto))
-                    .addStage(new BroadcastStage(Collections.singletonList(broadcastManager.get(0)),
-                                                 matrix))
+                        .addStage(new MockGraphStage(entityDto))
+                        .addStage(new TopSortStage())
+                        .addStage(new BroadcastStage(Collections.singletonList(broadcastManager.get(0)),
+                                matrix))
                     .build();
             TopologyBroadcastInfo broadcastInfo = pipeline.run(mock(EntityStore.class));
             TopologyPipelineRequest req = mock(TopologyPipelineRequest.class);
@@ -356,8 +358,10 @@ public class TopologyRpcServiceTest {
         public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull EntityStore entityStore)
             throws PipelineStageException, InterruptedException {
             final TopologyGraph<TopologyEntity> mockGraph = mock(TopologyGraph.class);
-            when(mockGraph.entities()).thenReturn(
-                Stream.of(TopologyEntity.newBuilder(entityDTO).build()));
+            final Stream<TopologyEntity> entityStream = Stream.of(TopologyEntity.newBuilder(entityDTO).build());
+            when(mockGraph.entities()).thenReturn(entityStream);
+            when(mockGraph.topSort()).thenReturn(entityStream);
+            when(mockGraph.topSort(any())).thenReturn(entityStream);
 
             return StageResult.withResult(mockGraph).andStatus(TopologyPipeline.Status.success());
         }

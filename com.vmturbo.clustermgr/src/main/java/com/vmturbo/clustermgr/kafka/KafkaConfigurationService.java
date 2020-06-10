@@ -3,6 +3,8 @@ package com.vmturbo.clustermgr.kafka;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -175,7 +177,7 @@ public class KafkaConfigurationService {
     KafkaConfiguration readKafkaConfiguration(@Nonnull String configFileRelativePath) {
         final KafkaConfiguration kafkaConfiguration;
         log.info("Loading kafka configuration from {}", configFileRelativePath);
-        try (InputStream inputStream = getClass().getResourceAsStream(configFileRelativePath)){
+        try (InputStream inputStream = Files.newInputStream(Paths.get(configFileRelativePath))) {
             if (inputStream == null) {
                 throw new RuntimeException("Couldn't open input stream for " + configFileRelativePath);
             }
@@ -212,14 +214,14 @@ public class KafkaConfigurationService {
             Set<NewTopic> newTopics = configuration.getTopics().stream()
                     .filter(topicConfig -> !topicNames.contains(topicConfig.getTopic())) // only topics that don't exist
                     .map(topicConfig -> new NewTopic(topicConfig.getTopic(),
-                            DEFAULT_TOPIC_PARTITION_COUNT,
-                            DEFAULT_TOPIC_REPLICATION_FACTOR))
+                            topicConfig.getPartitions(),
+                            topicConfig.getReplicationFactor()))
                     .collect(Collectors.toSet());
 
             long startTime = System.currentTimeMillis();
             // create the topics
             if (newTopics.size() > 0) {
-                log.info("Will create new topics for {}", newTopics);
+                log.info("Will create new topics for: {}", newTopics);
                 CreateTopicsResult createTopicsResult = adminClient.createTopics(newTopics);
 
                 // wait until all topics completed.
@@ -269,24 +271,29 @@ public class KafkaConfigurationService {
      */
     static public class TopicConfiguration {
         private String topic;
+        private short replicationFactor = DEFAULT_TOPIC_REPLICATION_FACTOR;
+        private short partitions = DEFAULT_TOPIC_PARTITION_COUNT;
         private Map<String, Object> properties;
 
         public void setTopic(String name) {
             this.topic = name;
         }
-
         public String getTopic() {
             return topic;
         }
 
+        public void setReplicationFactor(short replicationFactor) { this.replicationFactor = replicationFactor; }
+        public short getReplicationFactor() { return replicationFactor; }
+
+        public void setPartitions(short partitions) { this.partitions = partitions; }
+        public short getPartitions() { return partitions; }
+
         boolean hasProperties() {
             return this.properties != null;
         }
-
         public void setProperties(Map<String,Object> newProperties) {
             this.properties = newProperties;
         }
-
         public Map<String,Object> getProperties() {
             return properties;
         }

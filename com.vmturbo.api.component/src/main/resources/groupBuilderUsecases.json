@@ -28,6 +28,27 @@
         ]
     },
 
+    "ComputeTier": {
+        "criteria": [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "computeTiersByName"},
+            {"inputType": "#", "elements": "commoditySoldList[type=Mem,capacity]", "filterCategory": "property", "filterType": "computeTiersByMem"}
+        ]
+    },
+
+    "DatabaseTier": {
+        "criteria": [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseTiersByName"},
+            {"inputType": "#", "elements": "commoditySoldList[type=DBMem,capacity]", "filterCategory": "property", "filterType": "databaseTiersByDBMem"}
+        ]
+    },
+
+    "DatabaseServerTier": {
+        "criteria": [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerTiersByName"},
+            {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "databaseServerTiersByVMem"}
+        ]
+    },
+
     "VirtualDataCenter" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vdcsByName"},

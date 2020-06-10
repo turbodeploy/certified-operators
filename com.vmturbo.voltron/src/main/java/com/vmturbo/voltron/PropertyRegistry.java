@@ -53,6 +53,7 @@ class PropertyRegistry {
         props.put("repositoryHost", "localhost");
         props.put("topologyProcessorHost", "localhost");
         props.put("apiHost", "localhost");
+        props.put("grafanaHost", "localhost");
 
         props.put("authDbPassword", "vmturbo");
         props.put("clustermgrDbPassword", "vmturbo");
@@ -74,6 +75,9 @@ class PropertyRegistry {
         props.put("authRoute", Component.AUTH.getPathPrefix());
         props.put("consul_host", "localhost");
         props.put("consul_port", "8500");
+
+        props.put("grafana.host", "localhost");
+
         props.put("topologyProcessorRoute", Component.TOPOLOGY_PROCESSOR.getShortName());
         if (!namespace.isEmpty()) {
             // Consul

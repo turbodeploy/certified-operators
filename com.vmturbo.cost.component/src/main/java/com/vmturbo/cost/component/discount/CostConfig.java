@@ -51,6 +51,9 @@ public class CostConfig {
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
 
+    @Value("${maxNumberOfInnerStatRecords:43750}")
+    private int maxNumberOfInnerStatRecords;
+
     @Bean
     public AccountExpensesStore accountExpensesStore() {
         return new SqlAccountExpensesStore(databaseConfig.dsl(),
@@ -68,7 +71,8 @@ public class CostConfig {
                 reservedInstanceConfig.timeFrameCalculator(),
                 businessAccountHelper(),
                 Clock.systemUTC(),
-                realtimeTopologyContextId);
+                realtimeTopologyContextId,
+                maxNumberOfInnerStatRecords);
     }
 
     /**

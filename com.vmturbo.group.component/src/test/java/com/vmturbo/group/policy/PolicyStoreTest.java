@@ -21,7 +21,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Table;
+
 import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -85,7 +89,11 @@ public class PolicyStoreTest {
             .setConstraintType(1)
             .build();
 
-    private static final Map<String, Long> GROUP_TO_OID_MAP = Collections.emptyMap();
+    private static final Table<Long, String, Long> GROUP_TO_OID_MAP = ImmutableTable
+            .<Long, String, Long>builder()
+            .put(TARGET_ID, Long.toString(CONSUMER_GROUP_ID), CONSUMER_GROUP_ID)
+            .put(TARGET_ID, Long.toString(PRODUCER_GROUP_ID), PRODUCER_GROUP_ID)
+            .build();
 
     private PolicyStore policyStore;
 
@@ -93,15 +101,12 @@ public class PolicyStoreTest {
 
     private IdentityProvider identityProvider = mock(IdentityProvider.class);
 
-    private DiscoveredPoliciesMapperFactory mapperFactory =
-            mock(DiscoveredPoliciesMapperFactory.class);
-
     private DiscoveredPoliciesMapper discoveredPoliciesMapper = mock(DiscoveredPoliciesMapper.class);
 
     @Before
     public void setup() {
         final DSLContext dslContext = dbConfig.getDslContext();
-        policyStore = new PolicyStore(dslContext, mapperFactory, identityProvider, policyValidator);
+        policyStore = new PolicyStore(dslContext, identityProvider, policyValidator);
         injectGroup(CONSUMER_GROUP_ID);
         injectGroup(PRODUCER_GROUP_ID);
     }
@@ -264,14 +269,12 @@ public class PolicyStoreTest {
         long discoveredPolicyId = 77L;
         when(identityProvider.next()).thenReturn(discoveredPolicyId);
         when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO)).thenReturn(Optional.of(POLICY_INFO));
-        when(mapperFactory.newMapper(GROUP_TO_OID_MAP)).thenReturn(discoveredPoliciesMapper);
-        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID,
-                Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
-
+        final DiscoveredPlacementPolicyUpdater updater = new DiscoveredPlacementPolicyUpdater(identityProvider);
+        updater.updateDiscoveredPolicies(policyStore, Collections.singletonMap(TARGET_ID, Collections.singletonList(DISCOVERED_POLICY_INFO)),
+                GROUP_TO_OID_MAP);
 
         // delete the discovered group
-        policyStore.deletePoliciesForGroupBeingRemoved(dbConfig.getDslContext(),
-                Collections.singleton(CONSUMER_GROUP_ID));
+        policyStore.deletePoliciesForGroupBeingRemoved(Collections.singleton(CONSUMER_GROUP_ID));
 
         // the user policy should have been deleted
         assertFalse(policyStore.get(POLICY_ID).isPresent());
@@ -279,64 +282,6 @@ public class PolicyStoreTest {
         assertFalse(policyStore.get(discoveredPolicyId).isPresent());
         Map<Long, Set<Long>> policyToGroupMap = getPolicyToGroupMapping();
         Assert.assertEquals(Collections.emptyMap(), policyToGroupMap);
-    }
-
-    @Test
-    public void testUpdateDiscoveredPoliciesCreatesNewPolicies() {
-        when(identityProvider.next()).thenReturn(POLICY_ID);
-        when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO)).thenReturn(Optional.of(POLICY_INFO));
-        when(mapperFactory.newMapper(GROUP_TO_OID_MAP)).thenReturn(discoveredPoliciesMapper);
-
-        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID,
-                Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
-
-        final Policy policy = policyStore.get(POLICY_ID).get();
-        assertThat(policy.getPolicyInfo(), is(POLICY_INFO));
-        assertThat(policy.getId(), is(POLICY_ID));
-        assertThat(policy.getTargetId(), is(TARGET_ID));
-    }
-
-    @Test
-    public void testUpdateDiscoveredPoliciesRemovesOldPolicies() {
-        when(identityProvider.next()).thenReturn(POLICY_ID);
-        when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO)).thenReturn(Optional.of(POLICY_INFO));
-        when(mapperFactory.newMapper(GROUP_TO_OID_MAP)).thenReturn(discoveredPoliciesMapper);
-
-        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID,
-                Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
-        assertTrue(policyStore.get(POLICY_ID).isPresent());
-        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID, Collections.emptyList(), GROUP_TO_OID_MAP);
-        assertFalse(policyStore.get(POLICY_ID).isPresent());
-    }
-
-    @Test
-    public void testUpdateDiscoveredPoliciesUpdatesExistingPolicies() {
-        when(identityProvider.next()).thenReturn(POLICY_ID);
-        when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO)).thenReturn(Optional.of(POLICY_INFO));
-        when(mapperFactory.newMapper(GROUP_TO_OID_MAP)).thenReturn(discoveredPoliciesMapper);
-
-        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID,
-                Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
-
-        // Need to inject the new group so the foreign-key constraint doesn't fail.
-        final long newConsumerGroup = CONSUMER_GROUP_ID + 100;
-        injectGroup(newConsumerGroup);
-
-        final PolicyInfo updatedPolicyInfo = PolicyInfo.newBuilder(POLICY_INFO)
-                .setBindToGroup(BindToGroupPolicy.newBuilder(POLICY_INFO.getBindToGroup())
-                        .setConsumerGroupId(newConsumerGroup))
-                .build();
-
-        when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO))
-                .thenReturn(Optional.of(updatedPolicyInfo));
-
-        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID,
-                Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
-
-        final Policy policy = policyStore.get(POLICY_ID).get();
-        assertThat(policy.getPolicyInfo(), is(updatedPolicyInfo));
-        assertThat(policy.getId(), is(POLICY_ID));
-        assertThat(policy.getTargetId(), is(TARGET_ID));
     }
 
     @Test
@@ -348,10 +293,12 @@ public class PolicyStoreTest {
         policyStore.collectDiags(appender);
         final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
         Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
-        dbConfig.getDslContext().deleteFrom(Tables.POLICY);
+        dbConfig.getDslContext().transaction(config -> {
+            DSL.using(config).deleteFrom(Tables.POLICY);
+        });
 
         final PolicyStore newPolicyStore =
-                new PolicyStore(dbConfig.getDslContext(), mapperFactory, identityProvider, policyValidator);
+                new PolicyStore(dbConfig.getDslContext(), identityProvider, policyValidator);
         newPolicyStore.restoreDiags(diags.getAllValues());
 
         final Policy gotPolicy = policyStore.get(POLICY_ID).get();

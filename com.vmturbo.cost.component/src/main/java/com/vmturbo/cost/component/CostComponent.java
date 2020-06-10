@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
@@ -58,7 +59,8 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CostDebugConfig.class,
     CostStatsConfig.class,
     CostPlanListenerConfig.class,
-    ReservedInstanceSpecConfig.class})
+    ReservedInstanceSpecConfig.class,
+    CostDiagnonsticsConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.
@@ -82,6 +84,9 @@ public class CostComponent extends BaseVmtComponent {
 
     @Autowired
     private CostServiceConfig costServiceConfig;
+
+    @Autowired
+    private CostDiagnonsticsConfig diagnosticsConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -167,5 +172,10 @@ public class CostComponent extends BaseVmtComponent {
     @Override
     public List<ServerInterceptor> getServerInterceptors() {
         return Collections.singletonList(new JwtServerInterceptor(securityConfig.apiAuthKVStore()));
+    }
+
+    @Override
+    protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
+        diagnosticsConfig.diagsHandler().dump(diagnosticZip);
     }
 }

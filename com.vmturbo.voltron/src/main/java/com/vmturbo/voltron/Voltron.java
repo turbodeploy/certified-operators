@@ -54,7 +54,7 @@ import com.vmturbo.components.common.utils.EnvironmentUtils;
  * Velocity-Oriented Lightweight Turbo Running On Native.
  */
 @Configuration("theComponent")
-@Import({ApiSecurityConfig.class, ApiWebsocketRedirect.class})
+@Import({ApiSecurityConfig.class, ApiRedirectAdapter.class})
 public class Voltron extends BaseVmtComponent {
 
     static {

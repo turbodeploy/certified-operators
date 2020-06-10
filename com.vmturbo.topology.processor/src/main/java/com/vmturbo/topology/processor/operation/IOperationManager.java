@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.operation;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -8,13 +9,18 @@ import java.util.concurrent.Future;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.platform.common.dto.ActionExecution;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.topology.processor.operation.action.Action;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -205,16 +211,12 @@ public interface IOperationManager {
      * cross-target move (where the destination was not discovered by the same target that
      * discovered the source entity).
      *
-     * @param actionId The id of the overarching action. This is the ID that gets
-     * assigned by the Action Orchestrator.
+     * @param actionExecutionDTO action execution DTO to execute the action. OID must be set
+     *          within this DTO.
      * @param targetId The id of the target containing the entities for the action.
      * @param secondaryTargetId the secondary target involved in this action, or null if no secondary
      *                          target is involved
-     * @param actionType The type of the overarching action
-     * @param actionDtos A list of {@link ActionExecution.ActionItemDTO}s describing the action(s) to execute.
      * @param controlAffectedEntities A set of entities directly affected by this action
-     * @param workflowInfo the Workflow that will override the handling of this action, if one is
-     *                     specified in a Setting
      * @return The {@link Action} requested for the target.
      * @throws TargetNotFoundException When the requested target is not found.
      * @throws ProbeException When the probe corresponding to the target is not connected.
@@ -222,13 +224,10 @@ public interface IOperationManager {
      * @throws InterruptedException If there is an interrupt while sending the request to the
      * probe.
      */
-    Action requestActions(long actionId,
+    Action requestActions(@Nonnull ActionExecutionDTO actionExecutionDTO,
                           long targetId,
                           @Nullable Long secondaryTargetId,
-                          @Nonnull final ActionType actionType,
-                          @Nonnull List<ActionExecution.ActionItemDTO> actionDtos,
-                          @Nonnull Set<Long> controlAffectedEntities,
-                          @Nonnull Optional<WorkflowDTO.WorkflowInfo> workflowInfo)
+                          @Nonnull Set<Long> controlAffectedEntities)
             throws ProbeException, TargetNotFoundException, CommunicationException,
             InterruptedException;
 
@@ -265,4 +264,82 @@ public interface IOperationManager {
      * Check for and clear expired operations.
      */
     void checkForExpiredOperations();
+
+    /**
+     * Sends action approval request to a probe.
+     *
+     * @param targetId target to send request to
+     * @param requests actions to request approval for
+     * @param callback callback to receive operation result
+     * @return action approval operation
+     * @throws TargetNotFoundException if target not found by requested target id
+     * @throws InterruptedException if current thread is interrupted
+     * @throws ProbeException if the probe corresponding to the target is not connected.
+     * @throws CommunicationException if there is an error sending the request to the probe.
+     */
+    @Nonnull
+    ActionApproval approveActions(long targetId, @Nonnull Collection<ActionExecutionDTO> requests,
+            @Nonnull OperationCallback<ActionApprovalResponse> callback)
+            throws TargetNotFoundException, InterruptedException, ProbeException,
+            CommunicationException;
+
+    /**
+     * Sends request to retrieve action states from external action approval backend.
+     *
+     * @param targetId target to send request to
+     * @param request actions OIDs to request states for
+     * @param callback callback to receive operation result
+     * @return operation reflecting operation
+     * @throws TargetNotFoundException if target not found by requested target id
+     * @throws InterruptedException if current thread is interrupted
+     * @throws ProbeException if the probe corresponding to the target is not connected.
+     * @throws CommunicationException if there is an error sending the request to the probe.
+     */
+    @Nonnull
+    GetActionState getExternalActionState(long targetId, @Nonnull Collection<Long> request,
+            @Nonnull OperationCallback<GetActionStateResponse> callback)
+            throws TargetNotFoundException, InterruptedException, ProbeException,
+            CommunicationException;
+
+    /**
+     * Sends request to update action states on external action approval backend.
+     *
+     * @param targetId target to send request to
+     * @param request actions states to send
+     * @param callback callback to receive operation result
+     * @return operation reflecting operation
+     * @throws TargetNotFoundException if target not found by requested target id
+     * @throws InterruptedException if current thread is interrupted
+     * @throws ProbeException if the probe corresponding to the target is not connected.
+     * @throws CommunicationException if there is an error sending the request to the probe.
+     */
+    @Nonnull
+    ActionUpdateState updateExternalAction(long targetId,
+            @Nonnull Collection<ActionResponse> request,
+            @Nonnull OperationCallback<ActionErrorsResponse> callback)
+            throws TargetNotFoundException, InterruptedException, ProbeException,
+            CommunicationException;
+
+    /**
+     * Operation callback to receive success and failure for a requested operation.
+     *
+     * @param <T> type of operation execution result
+     */
+    interface OperationCallback<T> {
+        /**
+         * Method to be called when operation is finished successfully (response has been received
+         * from a probe).
+         *
+         * @param response response
+         */
+        void onSuccess(@Nonnull T response);
+
+        /**
+         * Method to be called when operation failed to execute (response has not been received
+         * from a probe).
+         *
+         * @param error error description
+         */
+        void onFailure(@Nonnull String error);
+    }
 }

@@ -57,7 +57,31 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
         public void apply(@Nonnull E entity, @Nonnull TraversalMode traversalMode, int depth,
                           @Nonnull Queue<TraversalState> frontier) {
             final int newDepth = depth + 1;
-
+            // traverse the inclusion chain outwards
+            // Add all Controllers of the
+            // traversed entity to the frontier.
+            // For example, if the entity is a cloud VM,
+            // this will add the VMSpec(Represending the AWS ASG for example)
+            // for the new traversal state introduced in the frontier,
+            // the traversal mode becomes CONTROLLED_BY
+            // This ensures that further traversal from the
+            // entities newly added to the frontier will only continue
+            // in the same direction.
+            getFilteredControllers(entity, traversalMode).forEach(e ->
+                frontier.add(new TraversalState(e.getOid(), TraversalMode.CONTROLLED_BY, newDepth)));
+            // In the case when a VMSpec controls multiple VM, when one of the VM is the seed,
+            // we don't want to see other vms in the Supply Chain. In this case, when the mode
+            // is CONTROLLED_BY, then nothing else should be added to the frontier
+            if (traversalMode == TraversalMode.CONTROLLED_BY) {
+                return;
+            }
+            // traverse the inclusion chain inwards
+            // traversal mode remains the same
+            // Like with the outwards traversal, when an entity
+            // is traversed, then any other entity it controls
+            // should also be traversed.
+            getFilteredControlledEntities(entity, traversalMode).forEach(e ->
+                frontier.add(new TraversalState(e.getOid(), traversalMode, newDepth)));
             // traverse the inclusion chain outwards
                 // Add all aggregators and the owner of the
                 // traversed entity to the frontier.
@@ -85,7 +109,6 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
             if (traversalMode == TraversalMode.AGGREGATED_BY) {
                 return;
             }
-
             // traverse the inclusion chain inwards
             // traversal mode remains the same
                 // Like with the outwards traversal, when an entity
@@ -101,7 +124,6 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 // applications, anything higher the supply chain, etc.
             getFilteredAggregatedEntities(entity, traversalMode).forEach(e ->
                 frontier.add(new TraversalState(e.getOid(), traversalMode, newDepth)));
-
             // downward traversal of the supply chain
                 // For example, from VMs to PMs.
                 // The downward traversal is marked by traversal mode
@@ -128,6 +150,8 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 getFilteredConsumers(entity, traversalMode).forEach(e ->
                     frontier.add(new TraversalState(e.getOid(), TraversalMode.PRODUCES, newDepth)));
             }
+
+
         }
 
         /**
@@ -200,6 +224,34 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
         protected Stream<E> getFilteredAggregatedEntities(@Nonnull E entity,
                                                           @Nonnull TraversalMode traversalMode) {
             return entity.getAggregatedAndOwnedEntities().stream();
+        }
+
+        /**
+         * Convenience method that allows filtering of controllers
+         * of an entity when overriding this class. Examples of controllers
+         * include: workloadControllers controls vms, containerpods.
+         *
+         * @param entity the entity
+         * @param traversalMode the traversal mode
+         * @return controllers of this entity to be considered
+         *         in the next traversal
+         */
+        protected Stream<E> getFilteredControllers(@Nonnull E entity,
+                                                   @Nonnull TraversalMode traversalMode) {
+            return entity.getControllers().stream();
+        }
+
+        /**
+         * Convenience method that allows filtering of controlled
+         * of an entity when overriding this class.
+         * @param entity the entity
+         * @param traversalMode the traversal mode
+         * @return controlled entities of this entity to be considered
+         *         in the next traversal
+         */
+        protected Stream<E> getFilteredControlledEntities(@Nonnull E entity,
+                                                          @Nonnull TraversalMode traversalMode) {
+            return entity.getControlledEntities().stream();
         }
     }
 }
