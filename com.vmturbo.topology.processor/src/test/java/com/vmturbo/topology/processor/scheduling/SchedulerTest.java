@@ -84,17 +84,26 @@ public class SchedulerTest {
     public static final long INITIAL_BROADCAST_INTERVAL_MINUTES = 1;
     private static final long PROBE_ID_1 = 1L;
     private static final long PROBE_ID_2 = 2L;
+    private static final long PROBE_ID_3 = 3L;
     private static final String PROBE_TYPE_1 = "type 1";
     private static final ProbeInfo PROBE_TYPE_1_INFO = ProbeInfo.newBuilder()
             .setProbeType(PROBE_TYPE_1)
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setFullRediscoveryIntervalSeconds(10)
             .build();
     private static final String PROBE_TYPE_2 = "type 2";
     private static final ProbeInfo PROBE_TYPE_2_INFO = ProbeInfo.newBuilder()
             .setProbeType(PROBE_TYPE_2)
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setFullRediscoveryIntervalSeconds(10)
+            .build();
+    private static final String PROBE_TYPE_3 = "type 3";
+    private static final ProbeInfo PROBE_TYPE_3_INFO = ProbeInfo.newBuilder()
+            .setProbeType(PROBE_TYPE_3)
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .build();
     private final long targetId = 1234;
+    private final long targetId3 = 1235;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -129,9 +138,15 @@ public class SchedulerTest {
         when(target.getId()).thenReturn(targetId);
         when(target.getProbeId()).thenReturn(PROBE_ID_1);
         when(target.getProbeInfo()).thenReturn(PROBE_TYPE_1_INFO);
+        Target target3 = Mockito.mock(Target.class);
+        when(target3.getId()).thenReturn(targetId3);
+        when(target3.getProbeId()).thenReturn(PROBE_ID_3);
+        when(target3.getProbeInfo()).thenReturn(PROBE_TYPE_3_INFO);
         when(targetStore.getTarget(targetId)).thenReturn(Optional.of(target));
+        when(targetStore.getTarget(targetId3)).thenReturn(Optional.of(target3));
         when(probeStore.getProbe(PROBE_ID_1)).thenAnswer(answer -> Optional.of(PROBE_TYPE_1_INFO));
         when(probeStore.getProbe(PROBE_ID_2)).thenAnswer(answer -> Optional.of(PROBE_TYPE_2_INFO));
+        when(probeStore.getProbe(PROBE_ID_3)).thenReturn(Optional.of(PROBE_TYPE_3_INFO));
         when(keyValueStore.get(anyString())).thenReturn(Optional.empty());
 
         when(operationManager.getActionTimeoutMs()).thenReturn(2000L);
@@ -261,6 +276,16 @@ public class SchedulerTest {
         scheduler.onTargetAdded(targetStore.getTarget(targetId).get());
 
         assertTrue(scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
+    }
+
+    /**
+     * Tests that discovery is not scheduled for a target, that is not able to perform discoveries.
+     */
+    @Test
+    public void testOnNonDiscoveryTargetAdded() {
+        Assert.assertFalse(scheduler.getDiscoverySchedule(targetId3, DiscoveryType.FULL).isPresent());
+        scheduler.onTargetAdded(targetStore.getTarget(targetId3).get());
+        Assert.assertFalse(scheduler.getDiscoverySchedule(targetId3, DiscoveryType.FULL).isPresent());
     }
 
     /**

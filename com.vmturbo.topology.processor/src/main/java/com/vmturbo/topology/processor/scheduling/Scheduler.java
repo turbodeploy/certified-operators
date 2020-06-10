@@ -597,7 +597,10 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
         Objects.requireNonNull(target);
 
         try {
-            setDiscoverySchedule(target.getId(), DiscoveryType.FULL, true);
+            final ProbeInfo probeInfo = target.getProbeInfo();
+            if (probeInfo.hasFullRediscoveryIntervalSeconds()) {
+                setDiscoverySchedule(target.getId(), DiscoveryType.FULL, true);
+            }
             // schedule incremental discovery if the probe supports it
             if (target.getProbeInfo().hasIncrementalRediscoveryIntervalSeconds()) {
                 setDiscoverySchedule(target.getId(), DiscoveryType.INCREMENTAL, false);
@@ -880,9 +883,12 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
         targetStore.getAll().forEach(target -> {
             final long targetId = target.getId();
             final ProbeInfo probeInfo = target.getProbeInfo();
-            initializeFullDiscoverySchedule(targetId, probeInfo.getProbeType(),
-                    requireSavedScheduleData);
-            initializeIncrementalDiscoverySchedule(targetId, probeInfo, requireSavedScheduleData);
+            if (probeInfo.hasFullRediscoveryIntervalSeconds()) {
+                initializeFullDiscoverySchedule(targetId, probeInfo.getProbeType(),
+                        requireSavedScheduleData);
+                initializeIncrementalDiscoverySchedule(targetId, probeInfo,
+                        requireSavedScheduleData);
+            }
         });
     }
 
