@@ -23,7 +23,12 @@ import org.springframework.scheduling.TaskScheduler;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
+import com.google.gson.Gson;
 
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -32,7 +37,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 /**
  * An implementation of {@link CloudScopeStore}, backed by a SQL table.
  */
-public class SQLCloudScopeStore implements CloudScopeStore {
+public class SQLCloudScopeStore implements CloudScopeStore, DiagsRestorable {
 
     /**
      * A summary metric collecting the total duration in cleaning up cloud scope records.
@@ -52,6 +57,8 @@ public class SQLCloudScopeStore implements CloudScopeStore {
 
     private final Logger logger = LogManager.getLogger();
 
+    private static final String sqlCloudScopeStoreDump = "sqlCloudScopeStore_dump";
+
     private final DSLContext dslContext;
 
     private final int batchCleanupSize;
@@ -70,7 +77,6 @@ public class SQLCloudScopeStore implements CloudScopeStore {
                               int batchCleanupSize) {
         this.dslContext = dslContext;
         this.batchCleanupSize = batchCleanupSize;
-
         taskScheduler.scheduleWithFixedDelay(this::cleanupCloudScopeRecords, cleanupInterval);
     }
 
@@ -149,5 +155,30 @@ public class SQLCloudScopeStore implements CloudScopeStore {
                 .flatMap(List::stream)
                 .map(ForeignKey::getTable)
                 .collect(ImmutableSet.toImmutableSet());
+    }
+
+    public List<EntityCloudScope> getDiagsForExport() {
+        return dslContext.selectFrom(Tables.ENTITY_CLOUD_SCOPE)
+                .fetch()
+                .map(this::convertRecordToImmutable);
+    }
+
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        //TODO To be implemented as a part of OM-58627
+        return;
+    }
+
+    @Override
+    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+        List<EntityCloudScope> records = getDiagsForExport();
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+        appender.appendString(gson.toJson(records));
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return sqlCloudScopeStoreDump;
     }
 }

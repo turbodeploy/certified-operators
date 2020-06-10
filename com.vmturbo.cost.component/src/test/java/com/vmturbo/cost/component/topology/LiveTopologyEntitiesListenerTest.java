@@ -12,6 +12,7 @@ import java.util.Collections;
 
 import org.junit.Test;
 
+import com.vmturbo.cloud.commitment.analysis.writer.CloudCommitmentDemandWriter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
@@ -35,6 +36,7 @@ public class LiveTopologyEntitiesListenerTest {
         when(cloudTopology.getEntities()).thenReturn(Collections.emptyMap());
         ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate = mock(ReservedInstanceCoverageUpdate.class);
         TopologyInfoTracker topologyInfoTracker = mock(TopologyInfoTracker.class);
+        CloudCommitmentDemandWriter writer = mock(CloudCommitmentDemandWriter.class);
         LiveTopologyEntitiesListener liveTopologyEntitiesListener =
             new LiveTopologyEntitiesListener(
                     computeTierDemandStatsWriter,
@@ -45,7 +47,8 @@ public class LiveTopologyEntitiesListenerTest {
                     mock(BusinessAccountHelper.class),
                     mock(CostJournalRecorder.class),
                     mock(ReservedInstanceAnalysisInvoker.class),
-                    topologyInfoTracker);
+                    topologyInfoTracker,
+                    writer);
         RemoteIterator remoteIterator = mock(RemoteIterator.class);
         when(remoteIterator.hasNext()).thenReturn(false);
         when(topologyCostCalculatorFactory.newCloudTopology(1L, remoteIterator)).thenReturn(cloudTopology);

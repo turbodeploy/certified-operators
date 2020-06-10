@@ -8,6 +8,7 @@ import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -44,6 +45,9 @@ import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocati
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityComputeTierAllocationRecord;
@@ -60,7 +64,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * {@link Tables#ENTITY_CLOUD_SCOPE}. An assumption is made the {@link Tables#ENTITY_COMPUTE_TIER_ALLOCATION}
  * has a foreign key relationship with the {@link Tables#ENTITY_CLOUD_SCOPE} table.
  */
-public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implements ComputeTierAllocationStore {
+public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implements ComputeTierAllocationStore, DiagsRestorable {
 
     private static final ZoneId UTC_ZONE_ID = ZoneId.from(ZoneOffset.UTC);
 
@@ -115,6 +119,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                     .build()
                     .register();
 
+    private static final String entityTierDemandDumpFile = "EntityComputeTierAllocation_dump";
 
     private final Logger logger = LogManager.getLogger();
 
@@ -540,5 +545,30 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
         allocationRecord.setAllocatedComputeTierOid(allocation.cloudTierDemand().cloudTierOid());
 
         return allocationRecord;
+    }
+
+    private String fetchDiagsForExport() {
+        return dslContext.select(DSL.asterisk())
+                .from(Tables.ENTITY_COMPUTE_TIER_ALLOCATION)
+                .fetch().formatJSON();
+    }
+
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        //TODO To be implemented as a part of OM-58627
+        return;
+    }
+
+    @Override
+    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+        String records = fetchDiagsForExport();
+        appender.appendString(records);
+
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return entityTierDemandDumpFile;
     }
 }
