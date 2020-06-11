@@ -129,6 +129,8 @@ data:
         statsRecordsUpdateBatchSize : 5000
         # Number of results to return when fetching lazily.
         statsRecordsQueryBatchSize : 5000
+        # Save Allocation Demand Tables in Diags
+        saveAllocationDemandStores: true
         # Record allocation data for workloads.
         recordCloudAllocationData: true
         reservedInstanceStatCleanup.corePoolSize: 1

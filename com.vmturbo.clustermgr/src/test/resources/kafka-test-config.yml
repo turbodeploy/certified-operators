@@ -12,3 +12,6 @@ topics:
       message.timestamp.type: "CreateTime"
       max.message.bytes: 67108864
   - topic: test-topic2
+  - topic: test-partitions
+    partitions: 3
+    replicationFactor: 2

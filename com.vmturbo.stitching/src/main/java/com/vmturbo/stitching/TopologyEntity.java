@@ -315,6 +315,20 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
     }
 
     /**
+     * Get deletable state of the topology entity. Default is true.
+     *
+     * @return true, means the Market can delete this entity.
+     *         false, means Market will not generate Delete Actions.
+     */
+    @Override
+    public boolean getDeletable() {
+        if (entityBuilder.hasAnalysisSettings()) {
+            return entityBuilder.getAnalysisSettings().getDeletable();
+        }
+        return true;
+    }
+
+    /**
      * Original entity from which current entity was cloned from.
      * @return original entity
      */

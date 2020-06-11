@@ -115,7 +115,7 @@
         <commons-validator.version>1.6</commons-validator.version>
         <!-- END swagger properties -->
 
-        <docker.compose.rule.version>0.31.1</docker.compose.rule.version>
+        <docker.compose.rule.version>1.5.0</docker.compose.rule.version>
         <asciitable.version>0.3.2</asciitable.version>
         <zjsonpatch.version>0.3.6</zjsonpatch.version>
 

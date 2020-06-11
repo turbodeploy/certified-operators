@@ -84,6 +84,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     private List<RepoGraphEntity> controlledEntities = Collections.emptyList();
     private List<RepoGraphEntity> providers = Collections.emptyList();
     private List<RepoGraphEntity> consumers = Collections.emptyList();
+    private boolean deletable = true;
 
     /**
      * The full {@link TopologyEntityDTO}, compressed in case we want to retrieve it.
@@ -103,6 +104,10 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         this.type = src.getEntityType();
         this.environmentType = src.getEnvironmentType();
         this.state = src.getEntityState();
+
+        if (src.hasAnalysisSettings()) {
+            this.deletable = src.getAnalysisSettings().getDeletable();
+        }
 
         // Will be an empty list if the entity was not discovered.
         this.discoveredTargetData = ImmutableMap
@@ -560,6 +565,17 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
                                             .setDisplayName(e.getDisplayName())
                                             .build()));
         return result;
+    }
+
+    /**
+     * Get deletable state of the topology entity. Default is true.
+     *
+     * @return true, means the Market can delete this entity.
+     *         false, means Market will not generate Delete Actions.
+     */
+    @Override
+    public boolean getDeletable() {
+        return deletable;
     }
 
     /**

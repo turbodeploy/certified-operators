@@ -322,6 +322,17 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                                                     false, false));
                 }
             }
+            case SearchableProperties.DELETABLE:
+                // to use this filter, presentation layer needs to send true or false for options,
+                // we need to only depend on the optionsList. When both true and false are send then
+                // we should return all the entities.
+                if (stringCriteria.getOptionsCount() == 1) {
+                    boolean optionValue =
+                            Boolean.parseBoolean(stringCriteria.getOptionsList().get(0)) == stringCriteria.getPositiveMatch();
+                    return new PropertyFilter<>(entity -> entity.getDeletable() == optionValue);
+                } else {
+                    return new PropertyFilter<>(entity -> true);
+                }
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
                         + " with criteria: " + stringCriteria);

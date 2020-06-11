@@ -28,6 +28,9 @@ public class ApiRedirectAdapter extends WebMvcConfigurerAdapter {
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         registry.addRedirectViewController("/", "/app/index.html");
+        // Redirect to a locally running Grafana.
+        // Note - we don't do the "user" authentication, since this is only for development.
+        registry.addRedirectViewController("/reports", "http://localhost:3000");
         registry.addRedirectViewController("/vmturbo/apidoc", "/vmturbo/apidoc/index.html");
         registry.addRedirectViewController("/swagger", "/swagger/index.html");
     }

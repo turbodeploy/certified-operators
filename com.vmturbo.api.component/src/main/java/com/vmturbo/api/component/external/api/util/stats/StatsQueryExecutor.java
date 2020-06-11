@@ -323,6 +323,11 @@ public class StatsQueryExecutor {
                 return false;
             }
             Set<ApiEntityType> entityTypes = cachedGroupInfo.get().getEntityTypes();
+            //Always show when the group contains chassis.
+            if (entityTypes.contains(ApiEntityType.CHASSIS)) {
+                return true;
+            }
+
             // if no host or DC in this group, then do not show
             if (!entityTypes.contains(ApiEntityType.PHYSICAL_MACHINE) &&
                     !entityTypes.contains(ApiEntityType.DATACENTER)) {

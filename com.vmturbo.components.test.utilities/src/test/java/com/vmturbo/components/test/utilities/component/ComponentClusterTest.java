@@ -15,18 +15,18 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+import com.palantir.docker.compose.DockerComposeRule;
+import com.palantir.docker.compose.connection.Cluster;
+import com.palantir.docker.compose.connection.Container;
+import com.palantir.docker.compose.connection.DockerPort;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
-import com.palantir.docker.compose.DockerComposeRule;
-import com.palantir.docker.compose.connection.Cluster;
-import com.palantir.docker.compose.connection.Container;
-import com.palantir.docker.compose.connection.DockerPort;
 
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.test.utilities.component.ComponentCluster.Component;
@@ -46,7 +46,7 @@ public class ComponentClusterTest {
     );
 
     private final ComponentCluster componentRule = new ComponentCluster(
-        components, composeRule, serviceLogger, healthCheck);
+        components, false, composeRule, serviceLogger, healthCheck);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -104,7 +104,7 @@ public class ComponentClusterTest {
         setupMockComponent(componentB, "component-B");
 
         final ComponentCluster componentRule = new ComponentCluster(
-            components, composeRule, serviceLogger, healthCheck);
+            components, false, composeRule, serviceLogger, healthCheck);
         componentRule.up();
 
         final InOrder inOrder = inOrder(componentA, componentB);
@@ -126,7 +126,7 @@ public class ComponentClusterTest {
         setupMockComponent(componentB, "component-B");
 
         final ComponentCluster componentRule = new ComponentCluster(
-            components, composeRule, serviceLogger, healthCheck);
+            components, false, composeRule, serviceLogger, healthCheck);
         componentRule.down();
 
         // Components should be brought down in the reverse order that they are brought up.

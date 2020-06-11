@@ -31,6 +31,8 @@ import com.vmturbo.clustermgr.ClusterMgrMain;
 import com.vmturbo.clustermgr.db.Clustermgr;
 import com.vmturbo.cost.component.CostComponent;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.extractor.ExtractorComponent;
+import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.group.GroupComponent;
 import com.vmturbo.history.HistoryComponent;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
@@ -114,6 +116,15 @@ public enum Component {
      */
     REPOSITORY("repository", "com.vmturbo.repository.component",
             RepositoryComponent.class, Optional.empty()),
+
+    /**
+     * The extractor component.
+     */
+    EXTRACTOR("extractor", "com.vmturbo.extractor",
+            ExtractorComponent.class, Optional.of(Extractor.EXTRACTOR),
+            ImmutableMap.of("dbMigrationLocation", Voltron.migrationLocation("com.vmturbo.extractor.schema"),
+                    // The extractor connects to Postgres.
+                    "dbPort", "5432")),
 
     /**
      * The API component.

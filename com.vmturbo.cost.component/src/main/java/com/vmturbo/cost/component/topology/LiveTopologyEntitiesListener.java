@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.commitment.analysis.writer.CloudCommitmentDemandWriter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -40,6 +41,8 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     private final ComputeTierDemandStatsWriter computeTierDemandStatsWriter;
 
+    private final CloudCommitmentDemandWriter cloudCommitmentDemandWriter;
+
     private final TopologyCostCalculatorFactory topologyCostCalculatorFactory;
 
     private final EntityCostStore entityCostStore;
@@ -66,7 +69,8 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                                         @Nonnull final BusinessAccountHelper businessAccountHelper,
                                         @Nonnull final CostJournalRecorder journalRecorder,
                                         @Nonnull final ReservedInstanceAnalysisInvoker invoker,
-                                        @Nonnull final TopologyInfoTracker liveTopologyInfoTracker) {
+                                        @Nonnull final TopologyInfoTracker liveTopologyInfoTracker,
+                                        @Nonnull final CloudCommitmentDemandWriter cloudCommitmentDemandWriter) {
         this.computeTierDemandStatsWriter = Objects.requireNonNull(computeTierDemandStatsWriter);
         this.cloudTopologyFactory = cloudTopologyFactory;
         this.topologyCostCalculatorFactory = Objects.requireNonNull(topologyCostCalculatorFactory);
@@ -76,6 +80,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         this.journalRecorder = Objects.requireNonNull(journalRecorder);
         this.invoker = Objects.requireNonNull(invoker);
         this.liveTopologyInfoTracker = Objects.requireNonNull(liveTopologyInfoTracker);
+        this.cloudCommitmentDemandWriter = Objects.requireNonNull(cloudCommitmentDemandWriter);
     }
 
     @Override
@@ -149,7 +154,8 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                         + " Partial processing will include Buy RI Analysis only.",
                         topologyInfo.getTopologyId());
             }
-
+            // Store allocation demand in db RI Buy 2.0
+            cloudCommitmentDemandWriter.writeAllocationDemand(cloudTopology, topologyInfo);
             if (runBuyRI) {
                 invoker.invokeBuyRIAnalysis(cloudTopology, businessAccountHelper.getAllBusinessAccounts());
             }
