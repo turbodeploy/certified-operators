@@ -630,7 +630,7 @@ public class TopologyEntityConstructor {
         // TODO OM-59504 Set latency capacity. Capacity cannot be null
         // anymore, see RB:39285
         CommoditySoldDTO storageLatencyCommodity = createCommoditySoldDTO(
-                CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE, 200.0, isResizable);
+                CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE, 100.0, isResizable);
 
         // Because we don't have access to settings at this time, we can't calculate capacities for
         // provisioned commodities. By leaving capacities unset, they will be set later in the
