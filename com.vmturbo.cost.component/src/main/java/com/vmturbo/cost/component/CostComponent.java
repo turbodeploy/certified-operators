@@ -5,13 +5,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.Executors;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
-import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisScheduler;
 import com.vmturbo.cost.component.rpc.MigratedWorkloadCloudCommitmentAnalysisService;
 import io.grpc.BindableService;
 import io.grpc.ServerInterceptor;
