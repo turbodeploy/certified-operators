@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -56,6 +57,7 @@ public class TopologyUtilsTest {
     }
 
     @Test
+    @Ignore
     public void testGenerateTopology() throws Exception {
         final int requestedSize = 600;
         Map<Integer, Long> entityTypeCounts = TopologyUtils.generateTopology(requestedSize).stream()

@@ -37,7 +37,6 @@
     </profiles>
 
     <build>
-
         <plugins>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>

@@ -62,7 +62,8 @@ public class GrafanaConfigurationIT {
                 .setAdminPassword("admin");
         grafanaClient = new GrafanaClient(clientConfig);
 
-        dashboardsOnDisk = new DashboardsOnDisk();
+        dashboardsOnDisk = new DashboardsOnDisk(
+                DashboardsOnDisk.class.getClassLoader().getResource("dashboards").getFile());
 
 
         DbEndpointConfig endpointConfig = new DbEndpointConfig();

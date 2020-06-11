@@ -37,10 +37,6 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>topology-processor</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.platform.sdk.probe</artifactId>
         </dependency>
         <dependency>
@@ -127,10 +123,6 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>market-component</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>history-component-api</artifactId>
         </dependency>
         <dependency>
@@ -175,6 +167,14 @@
         <dependency>
             <groupId>org.antlr</groupId>
             <artifactId>ST4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.components.common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.commons</artifactId>
         </dependency>
     </dependencies>
 </project>
