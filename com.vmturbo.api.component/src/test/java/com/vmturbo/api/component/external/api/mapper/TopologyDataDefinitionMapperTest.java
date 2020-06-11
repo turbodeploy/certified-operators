@@ -12,10 +12,12 @@ import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.TextFormat;
 
 import org.apache.commons.io.IOUtils;
+import org.json.JSONException;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.skyscreamer.jsonassert.JSONAssert;
 
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
@@ -100,11 +102,12 @@ public class TopologyDataDefinitionMapperTest {
      * Test for converting API DTO into XL definition.
      */
     @Test
-    public void convertTopologyDataDefinitionTest() {
+    public void convertTopologyDataDefinitionTest() throws JSONException {
         TopologyDataDefinitionApiDTO manualDefinitionApiDTO = mapper.convertTopologyDataDefinition(manualProto);
         TopologyDataDefinitionApiDTO automatedDefinitionApiDTO = mapper.convertTopologyDataDefinition(automatedProto);
-        assertEquals(automatedApiDTO.toString(), automatedDefinitionApiDTO.toString());
-        assertEquals(manualApiDTO.toString(), manualDefinitionApiDTO.toString());
+        Gson g = new Gson();
+        JSONAssert.assertEquals(g.toJson(automatedApiDTO), g.toJson(automatedDefinitionApiDTO), false);
+        JSONAssert.assertEquals(g.toJson(manualApiDTO), g.toJson(manualDefinitionApiDTO), false);
     }
 
     /**

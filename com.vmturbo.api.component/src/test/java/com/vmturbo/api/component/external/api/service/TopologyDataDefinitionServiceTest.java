@@ -12,10 +12,12 @@ import com.google.gson.Gson;
 import com.google.protobuf.TextFormat;
 
 import org.apache.commons.io.IOUtils;
+import org.json.JSONException;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.skyscreamer.jsonassert.JSONAssert;
 
 import com.vmturbo.api.component.external.api.mapper.TopologyDataDefinitionMapper;
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
@@ -214,14 +216,14 @@ public class TopologyDataDefinitionServiceTest {
      * Get all definitions test.
      */
     @Test
-    public void getAllTopologyDefinitions() {
+    public void getAllTopologyDefinitions() throws JSONException {
         List<TopologyDataDefinitionApiDTO> dtos = service.getAllTopologyDefinitions();
         assertEquals(2, dtos.size());
         Gson g = new Gson();
         manualApiDTO.setUuid("123");
         automatedApiDTO.setUuid("456");
-        assertEquals(g.toJson(manualApiDTO), g.toJson(dtos.get(0)));
-        assertEquals(g.toJson(automatedApiDTO), g.toJson(dtos.get(1)));
+        JSONAssert.assertEquals(g.toJson(manualApiDTO), g.toJson(dtos.get(0)), false);
+        JSONAssert.assertEquals(g.toJson(automatedApiDTO), g.toJson(dtos.get(1)), false);
         manualApiDTO.setUuid(null);
         automatedApiDTO.setUuid(null);
     }
@@ -232,11 +234,11 @@ public class TopologyDataDefinitionServiceTest {
      * @throws UnknownObjectException if cannot find definition by id
      */
     @Test
-    public void getTopologyDefinition() throws UnknownObjectException {
+    public void getTopologyDefinition() throws UnknownObjectException, JSONException {
         TopologyDataDefinitionApiDTO dto = service.getTopologyDefinition("123");
         Gson g = new Gson();
         manualApiDTO.setUuid("123");
-        assertEquals(g.toJson(manualApiDTO), g.toJson(dto));
+        JSONAssert.assertEquals(g.toJson(manualApiDTO), g.toJson(dto), false);
         manualApiDTO.setUuid(null);
         expectedException.expect(UnknownObjectException.class);
         service.getTopologyDefinition("50");
