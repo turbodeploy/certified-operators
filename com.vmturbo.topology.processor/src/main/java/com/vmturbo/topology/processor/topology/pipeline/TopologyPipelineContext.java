@@ -34,10 +34,10 @@ public class TopologyPipelineContext {
     private final ConsistentScalingManager consistentScalingManager;
 
     /**
-     * Some plans (like MCP) clone source entity oids. The oids of these clones are stored here,
-     * so that some of the rest of plan pipeline stages can use it.
+     * For plans like MPC, this is the set of entities that are selected for migration to a
+     * target CSP. This is used by various stages of the plan pipeline, thus stored here.
      */
-    private final Set<Long> cloneEntityOids;
+    private final Set<Long> sourceEntityOids;
 
     public TopologyPipelineContext(@Nonnull final GroupResolver groupResolver,
                                    @Nonnull final TopologyInfo topologyInfo,
@@ -46,7 +46,7 @@ public class TopologyPipelineContext {
         this.topologyInfoBuilder = Objects.requireNonNull(TopologyInfo.newBuilder(topologyInfo));
         this.stitchingJournalContainer = new StitchingJournalContainer();
         this.consistentScalingManager = consistentScalingManager;
-        cloneEntityOids = new HashSet<>();
+        sourceEntityOids = new HashSet<>();
     }
 
     @Nonnull
@@ -64,23 +64,23 @@ public class TopologyPipelineContext {
     }
 
     /**
-     * Sets the set of clone entity oids in this context.
+     * Sets the set of source entity oids in this context.
      *
-     * @param cloneOids Set of clone entity oids.
+     * @param sourceOids Set of source entity oids.
      */
-    public void setCloneEntityOids(@Nonnull final Collection<Long> cloneOids) {
-        cloneEntityOids.clear();
-        cloneEntityOids.addAll(cloneOids);
+    public void setSourceEntityOids(@Nonnull final Collection<Long> sourceOids) {
+        sourceEntityOids.clear();
+        sourceEntityOids.addAll(sourceOids);
     }
 
     /**
-     * Gets the set of clone entity oids.
+     * Gets the set of source entity oids.
      *
-     * @return Set of clone entity oids.
+     * @return Set of source entity oids.
      */
     @Nonnull
-    public Set<Long> getCloneEntityOids() {
-        return Collections.unmodifiableSet(cloneEntityOids);
+    public Set<Long> getSourceEntityOids() {
+        return Collections.unmodifiableSet(sourceEntityOids);
     }
 
     public String getTopologyTypeName() {

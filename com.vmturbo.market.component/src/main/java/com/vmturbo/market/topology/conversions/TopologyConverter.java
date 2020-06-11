@@ -118,6 +118,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
  * Convert topology DTOs to economy DTOs.
  */
 public class TopologyConverter {
+    private static final Logger logger = LogManager.getLogger();
 
     public static final Set<TopologyDTO.EntityState> SKIPPED_ENTITY_STATES = ImmutableSet.of(
             TopologyDTO.EntityState.UNKNOWN,
@@ -131,7 +132,7 @@ public class TopologyConverter {
     // Copy the connected entities of original entity into the projected entity except for the
     // ones in the map, which need to be computed like Availability zone or Region
     // because the AZ or Region might have changed.
-    private Map<Integer, Set<Integer>> projectedConnectedEntityTypesToCompute = ImmutableMap.of(
+    private final Map<Integer, Set<Integer>> projectedConnectedEntityTypesToCompute = ImmutableMap.of(
             EntityType.VIRTUAL_MACHINE_VALUE,
                     ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
             EntityType.DATABASE_VALUE, ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE),
@@ -159,8 +160,6 @@ public class TopologyConverter {
         EntityType.DATABASE_SERVER_VALUE
     );
 
-    private static final Logger logger = LogManager.getLogger();
-
     // TODO: In legacy this is taken from LicenseManager and is currently false
     private boolean includeGuaranteedBuyer = INCLUDE_GUARANTEED_BUYER_DEFAULT;
 
@@ -175,147 +174,25 @@ public class TopologyConverter {
         this.cloudTc = cloudTc;
     }
 
-    private ProjectedRICoverageCalculator projectedRICoverageCalculator;
-
-    /**
-     * A non-shop-together TopologyConverter.
-     *
-     * @param topologyInfo information about topology
-     * @param marketPriceTable market price table
-     * @param cloudCostData cloud cost data
-     * @param commodityIndexFactory commodity index factory
-     * @param tierExcluderFactory tier excluder factory
-     * @param consistentScalingHelperFactory CSM helper factory
-     */
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final MarketPriceTable marketPriceTable,
-                             @Nonnull final CloudCostData cloudCostData,
-                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @NonNull final TierExcluderFactory tierExcluderFactory,
-                             @Nonnull final ConsistentScalingHelperFactory
-                                                consistentScalingHelperFactory) {
-        this.topologyInfo = Objects.requireNonNull(topologyInfo);
-        this.cloudTopology = null;
-        this.consistentScalingHelper = consistentScalingHelperFactory
-            .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
-        this.commodityConverter = new CommodityConverter( new NumericIDAllocator(),
-                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
-                conversionErrorCounts, consistentScalingHelper);
-        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
-            getShoppingListOidToInfos());
-        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
-                marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
-        this.commodityIndex = commodityIndexFactory.newIndex();
-        this.marketMode = MarketMode.M2Only;
-        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
-            oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.actionInterpreter = new ActionInterpreter(commodityConverter,
-            shoppingListOidToInfos,
-            cloudTc,
-            unmodifiableEntityOidToDtoMap,
-            oidToProjectedTraderTOMap,
-            cert,
-            projectedRICoverageCalculator, tierExcluder, commodityIndex);
-    }
+    private final ProjectedRICoverageCalculator projectedRICoverageCalculator;
 
     /**
      * Entities that are providers of containers.
      * Populated only for plans. For realtime market, this set will be empty.
      */
-    private Set<Long> providersOfContainers = Sets.newHashSet();
+    private final Set<Long> providersOfContainers = Sets.newHashSet();
 
     // Set of oids of compute shopping list of the cloud vm. one entry per cloud vm.
-    private Set<Long> cloudVmComputeShoppingListIDs = new HashSet<>();
+    private final Set<Long> cloudVmComputeShoppingListIDs = new HashSet<>();
 
     // Store skipped service entities which need to be added back to projected topology and price
     // index messages.
-    private Map<Long, TopologyEntityDTO> skippedEntities = Maps.newHashMap();
-
-    @VisibleForTesting
-    protected Map<Long, TopologyEntityDTO> getSkippedEntities() {
-        return skippedEntities;
-    }
-
-    // a map keeps shoppinglist oid to ShoppingListInfo which is a container for
-    // shoppinglist oid, buyer oid, seller oid and commodity bought
-    private final Map<Long, ShoppingListInfo> shoppingListOidToInfos = Maps.newHashMap();
-
-    public Set<Long> getCloudVmComputeShoppingListIDs() {
-        return cloudVmComputeShoppingListIDs;
-    }
-
-    /**
-     * Constructor with includeGuaranteedBuyer parameter.
-     *
-     * @param topologyInfo Information about the topology.
-     * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
-     * @param quoteFactor to be used by move recommendations.
-     * @param marketMode the market generates compute scaling action for could vms if false.
-     *                  the SMA (Stable Marriage Algorithm)  library generates them if true.
-     * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
-     * @param marketPriceTable market price table
-     * @param incomingCommodityConverter the commodity converter
-     * @param cloudCostData cloud cost data
-     * @param commodityIndexFactory commodity index factory
-     * @param tierExcluderFactory tierExcluderFactory
-     * @param consistentScalingHelperFactory CSM helper factory
-     * @param cloudTopology instance to look up topology relationships
-     */
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             final boolean includeGuaranteedBuyer,
-                             final float quoteFactor,
-                             final MarketMode marketMode,
-                             final float liveMarketMoveCostFactor,
-                             @Nonnull final MarketPriceTable marketPriceTable,
-                             CommodityConverter incomingCommodityConverter,
-                             final CloudCostData cloudCostData,
-                             final CommodityIndexFactory commodityIndexFactory,
-                             @Nonnull final TierExcluderFactory tierExcluderFactory,
-                             @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
-                             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
-        this.topologyInfo = Objects.requireNonNull(topologyInfo);
-        this.cloudTopology = cloudTopology;
-        this.includeGuaranteedBuyer = includeGuaranteedBuyer;
-        this.quoteFactor = quoteFactor;
-        this.marketMode = marketMode;
-        this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
-        this.consistentScalingHelper = consistentScalingHelperFactory
-            .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
-        this.commodityConverter = incomingCommodityConverter != null ?
-                incomingCommodityConverter : new CommodityConverter(new NumericIDAllocator(),
-                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
-                conversionErrorCounts, consistentScalingHelper);
-        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
-            getShoppingListOidToInfos());
-        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
-                marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
-        this.commodityIndex = commodityIndexFactory.newIndex();
-        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
-            oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
-                cloudTc,
-                unmodifiableEntityOidToDtoMap,
-                oidToProjectedTraderTOMap,
-                cert,
-                projectedRICoverageCalculator, tierExcluder, commodityIndex);
-    }
-
-    /**
-     * get the TopologyEntityDTO OID corresponding to the oid of a TemplateProvider.
-     * @param traderTOOID  oid of a TemplateProvider
-     * @return the OID of corresponding TopologyEntityDTO
-     */
-    public Long convertTraderTOToTopologyEntityDTO(Long traderTOOID) {
-        return cloudTc.getMarketTier(traderTOOID).getTier().getOid();
-    }
-
+    private final Map<Long, TopologyEntityDTO> skippedEntities = Maps.newHashMap();
 
 
     private long shoppingListId = 1000L; // Arbitrary start value
 
-    private AtomicLong cloneIndex = new AtomicLong(0);
+    private final AtomicLong cloneIndex = new AtomicLong(0);
 
     // used in double comparision
     public static final double EPSILON = 1e-5;
@@ -323,14 +200,11 @@ public class TopologyConverter {
     /**
      * Map from entity OID to original topology entity DTO.
      */
-    private Map<Long, com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO> entityOidToDto = Maps.newHashMap();
+    private final Map<Long, com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO>
+            entityOidToDto = Maps.newHashMap();
 
-    private Map<Long, TopologyEntityDTO> unmodifiableEntityOidToDtoMap
+    private final Map<Long, TopologyEntityDTO> unmodifiableEntityOidToDtoMap
             = Collections.unmodifiableMap(entityOidToDto);
-
-    public Map<Long, TopologyEntityDTO> getUnmodifiableEntityOidToDtoMap() {
-        return unmodifiableEntityOidToDtoMap;
-    }
 
     // a map to keep the oid to projected traderTO mapping
     private final Map<Long, EconomyDTOs.TraderTO> oidToProjectedTraderTOMap = Maps.newHashMap();
@@ -341,10 +215,6 @@ public class TopologyConverter {
     private final Map<Long, TraderTO> unmodifiableOidToOriginalTraderTOMap
             = Collections.unmodifiableMap(oidToOriginalTraderTOMap);
 
-    public Map<Long, TraderTO> getUnmodifiableOidToOriginalTraderTOMap() {
-        return unmodifiableOidToOriginalTraderTOMap;
-    }
-
     // Bicliquer created based on datastore
     private final BiCliquer dsBasedBicliquer = new BiCliquer();
     // Bicliquer created based on pm
@@ -354,11 +224,11 @@ public class TopologyConverter {
     private final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable =
             HashBasedTable.create();
     // Map from bcKey to commodity bought
-    private Map<String, CommodityDTOs.CommodityBoughtTO> bcCommodityBoughtMap = Maps.newHashMap();
+    private final Map<String, CommodityDTOs.CommodityBoughtTO> bcCommodityBoughtMap = Maps.newHashMap();
     // a BiMap from DSPMAccess and Datastore commodity sold key to seller oid
     // Note: the commodity key is composed of entity type and entity ID (which is different from
     // OID)
-    private BiMap<String, Long> accessesByKey = HashBiMap.create();
+    private final BiMap<String, Long> accessesByKey = HashBiMap.create();
 
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap = new HashMap<>();
 
@@ -393,13 +263,125 @@ public class TopologyConverter {
      * Index that keeps scaling factors applied during conversion TO market entities, to allow
      * quick lookups to reverse scaling when converting FROM market entities.
      */
-    private CommodityIndex commodityIndex;
+    private final CommodityIndex commodityIndex;
 
     private final TierExcluder tierExcluder;
 
     private final ConsistentScalingHelper consistentScalingHelper;
 
     private final MarketMode marketMode;
+
+    /**
+     * Whether it is a cloud migration plan.
+     */
+    private boolean isCloudMigration;
+
+    /**
+     * Whether resize is enabled, for cloud migration plan.
+     */
+    private boolean isCloudResizeEnabled;
+
+    /**
+     * Constructor with includeGuaranteedBuyer parameter. Entry point from Analysis.
+     *
+     * @param topologyInfo Information about the topology.
+     * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
+     * @param quoteFactor to be used by move recommendations.
+     * @param marketMode the market generates compute scaling action for could vms if false.
+     *                  the SMA (Stable Marriage Algorithm)  library generates them if true.
+     * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
+     * @param marketPriceTable market price table
+     * @param incomingCommodityConverter the commodity converter
+     * @param cloudCostData cloud cost data
+     * @param commodityIndexFactory commodity index factory
+     * @param tierExcluderFactory tierExcluderFactory
+     * @param consistentScalingHelperFactory CSM helper factory
+     * @param cloudTopology instance to look up topology relationships
+     */
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+                             final boolean includeGuaranteedBuyer,
+                             final float quoteFactor,
+                             final MarketMode marketMode,
+                             final float liveMarketMoveCostFactor,
+                             @Nonnull final MarketPriceTable marketPriceTable,
+                             CommodityConverter incomingCommodityConverter,
+                             final CloudCostData cloudCostData,
+                             final CommodityIndexFactory commodityIndexFactory,
+                             @Nonnull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
+                             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
+        this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.cloudTopology = cloudTopology;
+        this.includeGuaranteedBuyer = includeGuaranteedBuyer;
+        this.quoteFactor = quoteFactor;
+        this.marketMode = marketMode;
+        this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
+        this.consistentScalingHelper = consistentScalingHelperFactory
+                .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
+        this.commodityConverter = incomingCommodityConverter != null
+                ? incomingCommodityConverter : new CommodityConverter(new NumericIDAllocator(),
+                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
+                conversionErrorCounts, consistentScalingHelper);
+        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
+                getShoppingListOidToInfos());
+        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
+                pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
+                marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
+        this.commodityIndex = commodityIndexFactory.newIndex();
+        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
+                oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
+        this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
+                cloudTc,
+                unmodifiableEntityOidToDtoMap,
+                oidToProjectedTraderTOMap,
+                cert,
+                projectedRICoverageCalculator, tierExcluder, commodityIndex);
+        this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
+        this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
+    }
+
+    /**
+     * A non-shop-together TopologyConverter.
+     *
+     * @param topologyInfo information about topology
+     * @param marketPriceTable market price table
+     * @param cloudCostData cloud cost data
+     * @param commodityIndexFactory commodity index factory
+     * @param tierExcluderFactory tier excluder factory
+     * @param consistentScalingHelperFactory CSM helper factory
+     */
+    @VisibleForTesting
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+                             @Nonnull final MarketPriceTable marketPriceTable,
+                             @Nonnull final CloudCostData cloudCostData,
+                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
+                             @NonNull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final ConsistentScalingHelperFactory
+                                     consistentScalingHelperFactory) {
+        this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.cloudTopology = null;
+        this.consistentScalingHelper = consistentScalingHelperFactory
+                .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
+        this.commodityConverter = new CommodityConverter( new NumericIDAllocator(),
+                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
+                conversionErrorCounts, consistentScalingHelper);
+        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
+                getShoppingListOidToInfos());
+        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
+                marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
+        this.commodityIndex = commodityIndexFactory.newIndex();
+        this.marketMode = MarketMode.M2Only;
+        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
+                oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
+        this.actionInterpreter = new ActionInterpreter(commodityConverter,
+                shoppingListOidToInfos,
+                cloudTc,
+                unmodifiableEntityOidToDtoMap,
+                oidToProjectedTraderTOMap,
+                cert,
+                projectedRICoverageCalculator, tierExcluder, commodityIndex);
+    }
 
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
@@ -438,7 +420,6 @@ public class TopologyConverter {
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
     }
 
-
     /**
      * Constructor with includeGuaranteedBuyer parameter.
      *
@@ -466,6 +447,36 @@ public class TopologyConverter {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
             marketPriceTable, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null);
+    }
+
+    /**
+     * get the TopologyEntityDTO OID corresponding to the oid of a TemplateProvider.
+     * @param traderTOOID  oid of a TemplateProvider
+     * @return the OID of corresponding TopologyEntityDTO
+     */
+    public Long convertTraderTOToTopologyEntityDTO(Long traderTOOID) {
+        return cloudTc.getMarketTier(traderTOOID).getTier().getOid();
+    }
+
+    public Map<Long, TopologyEntityDTO> getUnmodifiableEntityOidToDtoMap() {
+        return unmodifiableEntityOidToDtoMap;
+    }
+
+    public Map<Long, TraderTO> getUnmodifiableOidToOriginalTraderTOMap() {
+        return unmodifiableOidToOriginalTraderTOMap;
+    }
+
+    @VisibleForTesting
+    protected Map<Long, TopologyEntityDTO> getSkippedEntities() {
+        return skippedEntities;
+    }
+
+    // a map keeps shoppinglist oid to ShoppingListInfo which is a container for
+    // shoppinglist oid, buyer oid, seller oid and commodity bought
+    private final Map<Long, ShoppingListInfo> shoppingListOidToInfos = Maps.newHashMap();
+
+    public Set<Long> getCloudVmComputeShoppingListIDs() {
+        return cloudVmComputeShoppingListIDs;
     }
 
     public ProjectedRICoverageCalculator getProjectedRICoverageCalculator() {
@@ -1534,9 +1545,9 @@ public class TopologyConverter {
 
         // TODO: Need to add check for Cloud migration here. This will apply to Cloud Migration too.
         if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD) {
-            final float[][] onPremResiedCapacity = getOnPremResizedCapacity(histUsed, histPeak,
+            final float[][] onPremResizedCapacity = getOnPremResizedCapacity(histUsed, histPeak,
                     commBought, providerOid, topologyDTO);
-            return new float[][]{onPremResiedCapacity[0], onPremResiedCapacity[1]};
+            return new float[][]{onPremResizedCapacity[0], onPremResizedCapacity[1]};
         }
         final Integer drivingCommSoldType =
                 TopologyConversionConstants.commDependancyMapForCloudResize.get(

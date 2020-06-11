@@ -566,8 +566,7 @@ public class CommoditiesEditorTest {
         dtoBuilder.addAllCommoditiesBoughtFromProviders(commoditiesByProvider);
 
         assertEquals(2, dtoBuilder.getCommoditiesBoughtFromProvidersCount());
-        CommoditiesEditor.skipNonApplicableBoughtCommodities(vmEntity,
-                CommoditiesEditor.CLOUD_MIGRATION_SKIP_COMMODITIES);
+        CommoditiesEditor.skipNonApplicableBoughtCommodities(dtoBuilder);
         // Storage volume provider got removed, as both its instance disk type/size commodities
         // got filtered out. Only PM provider is left.
         assertEquals(1, dtoBuilder.getCommoditiesBoughtFromProvidersCount());
@@ -615,7 +614,6 @@ public class CommoditiesEditorTest {
                                                 CommodityType.newBuilder()
                                                         .setType(CommodityDTO.CommodityType
                                                                 .Q2_VCPU.getNumber())
-                                                        .setKey("")
                                                         .build())
                                         .build())
                         .addCommodityBought(
@@ -625,7 +623,6 @@ public class CommoditiesEditorTest {
                                                 CommodityType.newBuilder()
                                                         .setType(CommodityDTO.CommodityType
                                                                 .CPU.getNumber())
-                                                        .setKey("")
                                                         .build())
                                         .build())
                         .addCommodityBought(
@@ -635,7 +632,6 @@ public class CommoditiesEditorTest {
                                                 CommodityType.newBuilder()
                                                         .setType(CommodityDTO.CommodityType
                                                                 .MEM.getNumber())
-                                                        .setKey("")
                                                         .build())
                                         .build())
                         .build());
@@ -651,7 +647,6 @@ public class CommoditiesEditorTest {
                                                 CommodityType.newBuilder()
                                                         .setType(CommodityDTO.CommodityType
                                                                 .INSTANCE_DISK_SIZE.getNumber())
-                                                        .setKey("")
                                                         .build())
                                         .build())
                         .addCommodityBought(
@@ -661,7 +656,6 @@ public class CommoditiesEditorTest {
                                                 CommodityType.newBuilder()
                                                         .setType(CommodityDTO.CommodityType
                                                                 .INSTANCE_DISK_TYPE.getNumber())
-                                                        .setKey("")
                                                         .build())
                                         .build())
                         .build());

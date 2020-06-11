@@ -1067,9 +1067,13 @@ public class MarketsService implements IMarketsService {
 
         // Get the list of unplaced entities from the repository for this plan
         final PlanInstance plan = getPlanInstance(Long.parseLong(uuid));
+        long projectedTopologyId = plan.getProjectedTopologyId();
+        if (projectedTopologyId == 0) {
+            return Collections.emptyList();
+        }
         final Iterable<RetrieveTopologyResponse> response = () ->
                 repositoryRpcService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
-                        .setTopologyId(plan.getProjectedTopologyId())
+                        .setTopologyId(projectedTopologyId)
                         .setEntityFilter(TopologyEntityFilter.newBuilder()
                                 .setUnplacedOnly(true))
                         .build());

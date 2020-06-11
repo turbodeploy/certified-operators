@@ -3,16 +3,20 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.common.protobuf.utils.StringConstants.AUTOMATIC;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN;
 import static com.vmturbo.common.protobuf.utils.StringConstants.DISABLED;
-import static com.vmturbo.common.protobuf.utils.StringConstants.MIGRATION_ALLOCATION_TYPE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.MIGRATION_CONSUMPTION_TYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.StatusRuntimeException;
 
@@ -47,6 +51,20 @@ class PlanProjectBuilder {
     private final PlanProjectServiceBlockingStub planProjectRpcService;
     private final ScenarioServiceBlockingStub scenarioServiceClient;
     private final PlanServiceBlockingStub planRpcService;
+
+    /**
+     * All resize settings.
+     */
+    private final Set<EntitySettingSpecs> resizeSettings = ImmutableSet.of(
+            EntitySettingSpecs.Resize,
+            EntitySettingSpecs.ResizeVcpuBelowMinThreshold,
+            EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds,
+            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
+            EntitySettingSpecs.ResizeVcpuAboveMaxThreshold,
+            EntitySettingSpecs.ResizeVmemBelowMinThreshold,
+            EntitySettingSpecs.ResizeVmemDownInBetweenThresholds,
+            EntitySettingSpecs.ResizeVmemUpInBetweenThresholds,
+            EntitySettingSpecs.ResizeVmemAboveMaxThreshold);
 
     PlanProjectBuilder(@Nonnull final PlanProjectServiceBlockingStub planProjectRpcService,
                       @Nonnull final ScenarioServiceBlockingStub scenariosService,
@@ -155,6 +173,28 @@ class PlanProjectBuilder {
     }
 
     /**
+     * Get a set of ScenarioChange instances corresponding to all resize settings.
+     * @param enableResize Whether to enable resize or not.
+     * @return Set of ScenarioChange instances.
+     */
+    private Set<ScenarioChange> getResizeSettings(boolean enableResize) {
+        Set<ScenarioChange> allSettings = new HashSet<>();
+        resizeSettings.forEach(setting -> {
+            allSettings.add(ScenarioChange.newBuilder()
+                    .setSettingOverride(SettingOverride.newBuilder()
+                            .setSetting(Setting.newBuilder()
+                                    .setSettingSpecName(setting.getSettingName())
+                                    .setEnumSettingValue(EnumSettingValue.newBuilder()
+                                            .setValue(enableResize ? AUTOMATIC : DISABLED)
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+        });
+        return allSettings;
+    }
+
+    /**
      * Creates and saves a migration plan to DB, belonging to the given plan project.
      *
      * @param enableResize Whether resize in plan is enabled (Consumption) or not (Allocation).
@@ -171,29 +211,12 @@ class PlanProjectBuilder {
         // Make up a name like "Migrate to Public Cloud 1_MIGRATION_ALLOCATION"
         String scenarioName = existingScenario.getScenarioInfo().getName();
         String updatedScenarioName = String.format("%s_%s", scenarioName,
-                enableResize ? MIGRATION_CONSUMPTION_TYPE : MIGRATION_ALLOCATION_TYPE);
+                enableResize ? CLOUD_MIGRATION_PLAN__CONSUMPTION : CLOUD_MIGRATION_PLAN__ALLOCATION);
 
-        // Create an addition resize related settings change, depending on enableResize flag.
-        ScenarioChange settingsChange = ScenarioChange
-                .newBuilder()
-                .setSettingOverride(SettingOverride
-                        .newBuilder()
-                        .setSetting(Setting
-                                .newBuilder()
-                                // Resize flag applies to all entity types - VMs, volumes etc.
-                                .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
-                                .setEnumSettingValue(EnumSettingValue
-                                        .newBuilder()
-                                        .setValue(enableResize ? AUTOMATIC : DISABLED)
-                                        .build())
-                                .build())
-                        .build())
-                .build();
-
-        // Add this additional change to the scenario as well.
+        // Add these additional resizes related changes to the scenario as well.
         final ScenarioInfo planScenarioInfo = ScenarioInfo.newBuilder(
                 existingScenario.getScenarioInfo())
-                .addChanges(settingsChange)
+                .addAllChanges(getResizeSettings(enableResize))
                 .setName(updatedScenarioName)
                 .build();
         Scenario planScenario;

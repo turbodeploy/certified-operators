@@ -1,5 +1,6 @@
 package com.vmturbo.common.protobuf.topology;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION;
 import static com.vmturbo.platform.common.builders.SDKConstants.FREE_STORAGE_CLUSTER;
 
 import java.time.Instant;
@@ -160,8 +161,23 @@ public final class TopologyDTOUtil {
      * @param topologyInfo The {@link TopologyDTO.TopologyInfo} describing a topology.
      * @return true if the plan is MPC
      */
-    public static boolean isMigrateToPublicCloudPlan(@Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
-        return isPlan(topologyInfo) && PlanProjectType.CLOUD_MIGRATION.name().equals(topologyInfo.getPlanInfo().getPlanType());
+    public static boolean isCloudMigrationPlan(@Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
+        return isPlan(topologyInfo) && PlanProjectType.CLOUD_MIGRATION.name().equals(
+                topologyInfo.getPlanInfo().getPlanType());
+    }
+
+    /**
+     * Checks if MCP plan allows for resize - only for consumption (Optimized) plan type.
+     *
+     * @param topologyInfo TopologyInfo to check.
+     * @return Whether plan allows for resize.
+     */
+    public static boolean isResizableCloudMigrationPlan(@Nonnull final TopologyDTO.TopologyInfo
+                                                                topologyInfo) {
+        if (!isCloudMigrationPlan(topologyInfo)) {
+            return false;
+        }
+        return CLOUD_MIGRATION_PLAN__CONSUMPTION.equals(topologyInfo.getPlanInfo().getPlanSubType());
     }
 
     /**

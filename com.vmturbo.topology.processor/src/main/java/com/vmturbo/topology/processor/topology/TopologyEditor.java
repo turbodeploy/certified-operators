@@ -1,7 +1,6 @@
 
 package com.vmturbo.topology.processor.topology;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -64,6 +63,7 @@ import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
  * The {@link TopologyEditor} is responsible for applying a set of changes (reflected
@@ -93,46 +93,22 @@ public class TopologyEditor {
     }
 
     /**
-     * Recursively get provider OIDs corresponding to a given consumer entity in {@param topology}, including the
-     * input {@param consumer}. If {@param consumer} is null, returns an empty set.
-     *
-     * @param consumer the entity OID for which to recursively get providers
-     * @param topology a map of OID to {@link TopologyEntity.Builder} representing a topological graph
-     * @return a set of all recursively computed providers, along with the input {@param consumer}
-     */
-    @Nonnull
-    public static Set<Long> getProvidersRecursive(
-            Long consumer,
-            @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
-        Set<Long> providers = Sets.newHashSet();
-        if (Objects.isNull(consumer)) {
-            return providers;
-        }
-        providers.add(consumer);
-        for (Long providerOid : topology.get(consumer).getProviderIds()) {
-            providers.addAll(getProvidersRecursive(providerOid, topology));
-        }
-        return providers;
-    }
-
-    /**
      * Apply a set of changes to a topology. The method will edit the
      * input topology in-place.
      *
      * @param topology The entities in the topology, arranged by ID.
      * @param changes The list of changes to make. Some of these changes may not be topology-related.
      *                We ignore those.
-     * @param topologyInfo Information describing the topology and its context.
+     * @param context Context containing topology info.
      * @param groupResolver The resolver to use when resolving group membership.
      * @throws GroupResolutionException Thrown when we could not resolve groups.
-     * @return Collection of clone entity oids.
      */
-    @Nonnull
-    public Collection<Long> editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
+    public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
                                          @Nonnull final List<ScenarioChange> changes,
-                                         @Nonnull final TopologyInfo topologyInfo,
+                                         @Nonnull final TopologyPipelineContext context,
                                          @Nonnull final GroupResolver groupResolver)
             throws GroupResolutionException {
+        final TopologyInfo topologyInfo = context.getTopologyInfo();
         // Set shopTogether to false for all entities if it's not a alleviate pressure plan,
         // so SNM is not performed by default.
         // 1. For full scope custom plan,
@@ -159,6 +135,8 @@ public class TopologyEditor {
         Map<Long, Long> entityAdditions = new HashMap<>();
         Set<Long> entitiesToRemove = new HashSet<>();
         Set<Long> entitiesToReplace = new HashSet<>();
+        Set<Long> entitiesToMigrate = new HashSet<>();
+        Set<Long> sourceEntityOids = new HashSet<>();
         final Map<Long, Long> templateToAdd = new HashMap<>();
         // Map key is template id, and value is the replaced topologyEntity.
         final Multimap<Long, Long> templateToReplacedEntity =
@@ -166,8 +144,6 @@ public class TopologyEditor {
         final Map<Long, Grouping> groupIdToGroupMap = getGroups(changes);
         final TopologyGraph<TopologyEntity> topologyGraph =
             TopologyEntityTopologyGraphCreator.newGraph(topology);
-        // Map of source entity ids to the corresponding clone ids, which we save in topology info.
-        Map<Long, Long> sourceToCloneOids = new HashMap<>();
 
         for (ScenarioChange change : changes) {
             if (change.hasTopologyAddition()) {
@@ -211,27 +187,16 @@ public class TopologyEditor {
             } else if (change.hasTopologyMigration()) {
                 // also consider on-prem migration use case
                     TopologyMigration topologyMigration = change.getTopologyMigration();
-                Integer migratingEntityType = topologyMigration.getDestinationEntityType() == TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE
+                Integer migratingEntityType = topologyMigration.getDestinationEntityType()
+                        == TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE
                         ? EntityType.VIRTUAL_MACHINE_VALUE
                         : EntityType.DATABASE_SERVER_VALUE;
 
-                Set<Long> entitiesToMigrate = expandAndFlattenReferences(
-                        topologyMigration.getSourceList(), migratingEntityType, groupIdToGroupMap, groupResolver, topologyGraph);
+                entitiesToMigrate.addAll(expandAndFlattenReferences(
+                        topologyMigration.getSourceList(), migratingEntityType, groupIdToGroupMap,
+                        groupResolver, topologyGraph));
 
-                sourceToCloneOids.putAll(entitiesToMigrate.stream()
-                        .collect(Collectors.toMap(sourceId -> sourceId, sourceId -> 0L)));
-
-                // This is a map of <entity OID to copy> to <number of copies to create>. In this case, each OID will be
-                // mapped to the value 1 because we only ever want to create a single copy of each source entity to
-                // simulate a cloud migration.
-                final Map<Long, Long> additions = entitiesToMigrate.stream()
-                        .flatMap(entityToMigrate ->
-                                // recursively get providers- get volumes associated with VMs, and storages associated
-                                // with volumes to render the Storage Tier Mapping table in plan results
-                                getProvidersRecursive(entityToMigrate, topology).stream())
-                        .distinct()
-                        .collect(Collectors.toMap(Function.identity(), d -> 1L));
-                entityAdditions.putAll(additions);
+                sourceEntityOids.addAll(prepareForCloudMigration(entitiesToMigrate, topology));
 
                 if (topologyMigration.getRemoveNonMigratingWorkloads()) {
                     Set<Long> destinations = expandAndFlattenReferences(
@@ -346,9 +311,6 @@ public class TopologyEditor {
                     // entities aren't counted in plan "current" stats
                     TopologyEntityDTO.Builder clone = clone(entity.getEntityBuilder(),
                             identityProvider, i, topology).setOrigin(entityOrigin);
-                    if (sourceToCloneOids.containsKey(entity.getOid())) {
-                        sourceToCloneOids.put(entity.getOid(), clone.getOid());
-                    }
                     // Set shop together true for added VMs
                     if (clone.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
                         if (topologyInfo.hasPlanInfo() && PlanProjectType.CLOUD_MIGRATION.name().equals(topologyInfo.getPlanInfo().getPlanType())) {
@@ -397,11 +359,36 @@ public class TopologyEditor {
                         entity.setOrigin(entityOrigin);
                         topology.put(entity.getOid(), TopologyEntity.newBuilder(entity));
                     });
-        // Return the cloned source oids to topologyInfo so that they can be set into the
-        // context and accessed by later stages.
-        logger.debug("For plan {}, added source -> clone entity oid mapping: {}",
-                topologyInfo.getTopologyContextId(), sourceToCloneOids);
-        return sourceToCloneOids.values();
+        context.setSourceEntityOids(sourceEntityOids);
+    }
+
+    /**
+     * Preps entities that are being migrated. Checks to make sure all are in topology map.
+     * Sets shopAlone to false for them, will get set to true later after market fixes to support
+     * shopTogether properly.
+     *
+     * @param entities Set of entities being migrated.
+     * @param topology Topology map.
+     * @return Set of source entities, essentially the input set.
+     */
+    @Nonnull
+    private Set<Long> prepareForCloudMigration(@Nonnull final Set<Long> entities,
+                                          @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+        Set<Long> sourceEntities = new HashSet<>();
+        entities.forEach(oid -> {
+            TopologyEntity.Builder entityBuilder = topology.get(oid);
+            if (entityBuilder == null) {
+                logger.warn("Could not get entity with id {} for Cloud Migration.", oid);
+                return;
+            }
+            // Set shopTogether as false till market issue is fixed.
+            entityBuilder.getEntityBuilder().getAnalysisSettingsBuilder().setShopTogether(false);
+            // Remove non-applicable commodities first here, before other stages add some bought
+            // commodities like segmentation.
+            CommoditiesEditor.skipNonApplicableBoughtCommodities(entityBuilder.getEntityBuilder());
+            sourceEntities.add(oid);
+        });
+        return sourceEntities;
     }
 
     /**
@@ -427,7 +414,7 @@ public class TopologyEditor {
                 .collect(Collectors.groupingBy(reference -> reference.hasGroupType(),
                         Collectors.mapping(MigrationReference::getOid, Collectors.toSet())));
 
-        Set<Long> migrationEntities = Sets.newHashSet();
+        final Set<Long> migrationEntities = Sets.newHashSet();
         if (CollectionUtils.isNotEmpty(areGroupsToEntityOids.get(areGroups))) {
             // Add the members of expanded groups
             for (Long groupOid : areGroupsToEntityOids.get(areGroups)) {
@@ -440,10 +427,10 @@ public class TopologyEditor {
                 }
                 if (entityTypeToMembers.containsKey(ApiEntityType.PHYSICAL_MACHINE)) {
                     // We're dealing with a cluster...
-                    Set<Long> workloadsConumingFromCluster = getConsumersOfType(
+                    Set<Long> workloadsComingFromCluster = getConsumersOfType(
                             topologyGraph.getEntities(entityTypeToMembers.get(ApiEntityType.PHYSICAL_MACHINE)),
                             migratingEntityType);
-                    migrationEntities.addAll(workloadsConumingFromCluster);
+                    migrationEntities.addAll(workloadsComingFromCluster);
                 }
             }
         }

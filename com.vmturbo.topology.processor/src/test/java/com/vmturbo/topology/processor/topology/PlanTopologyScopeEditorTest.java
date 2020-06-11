@@ -162,7 +162,6 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder as1 = createHypervisorTopologyEntity(70001L, "as1", EntityType.APPLICATION_SERVER, commBoughtByApp1, basketSoldByAS1);
     private final TopologyEntity.Builder as2 = createHypervisorTopologyEntity(70002L, "as2", EntityType.APPLICATION_SERVER, commBoughtByApp2, basketSoldByAS2);
     private final TopologyEntity.Builder bapp1 = createHypervisorTopologyEntity(80001L, "bapp1", EntityType.BUSINESS_APPLICATION, commBoughtByBA, new ArrayList<>());
-    private final TopologyEntity.Builder vm1InDc1Clone = createClonedEntity(90001L,  vm1InDc1, "vm1InDc1 Clone", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC1PM1DS1, basketSoldByVM1, virtualVolume.getOid());
 
     private static final long VIRTUAL_VOLUME_IN_OHIO_ID = 6001L;
     private static final long VIRTUAL_VOLUME_IN_LONDON_ID = 6002L;
@@ -332,7 +331,7 @@ public class PlanTopologyScopeEditorTest {
                 unattachedVirtualVolumeInLondon, virtualVolume2InCanada);
 
 
-    private final TopologyGraph<TopologyEntity> graphWithClone = TopologyEntityUtils
+    private final TopologyGraph<TopologyEntity> cloudMigrationGraph = TopologyEntityUtils
             .topologyGraphOf(bapp1, app1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
                     pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
                     as2, az1London, az2London, azOhio,
@@ -345,7 +344,7 @@ public class PlanTopologyScopeEditorTest {
                     computeTier2, storageTier2, virtualVolumeInCentralUs,
                     vmInCentralUs, virtualVolumeInCanada, vmInCanada, businessAcc4, cloudService,
                     appAws, appAzure, unattachedVirtualVolumeInCentralUs,
-                    unattachedVirtualVolumeInLondon, virtualVolume2InCanada, vm1InDc1Clone);
+                    unattachedVirtualVolumeInLondon, virtualVolume2InCanada);
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForAwsRegion = Stream
         .of(az1London, az2London, regionLondon, computeTier,
@@ -888,15 +887,15 @@ public class PlanTopologyScopeEditorTest {
     }
 
     /**
-     * Test the migration of an on-prem VM to the cloud. The plan scope should contain:
+     * Test the migration of an on-prem VM to the cloud AWS London region.
+     * The plan scope should contain:
      * 1. The cloud entities of the destination region
-     * 2. The cloned VM - the VM to be migrated
-     * 3. The on-prem VM and its providers
+     * 2. The on-prem VM and its providers
      *
      * @throws Exception any exception
      */
     @Test
-    public void testScopeMigrationPlan() throws Exception {
+    public void testScopeCloudMigrationPlanOnPremToAwsRegion() {
         final TopologyInfo cloudTopologyInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(1)
                 .setTopologyId(1)
@@ -904,17 +903,19 @@ public class PlanTopologyScopeEditorTest {
                 .setPlanInfo(PlanTopologyInfo.newBuilder()
                         .setPlanType(PlanProjectType.CLOUD_MIGRATION.name())
                         .build())
-                .addAllScopeSeedOids(Collections.singleton(2001L))
+                .addAllScopeSeedOids(Collections.singleton(regionLondon.getOid()))
                 .build();
-        final Set<Long> clonedVMOids = new HashSet<>();
-        Set<TopologyEntity.Builder> expectedEntities = new HashSet<>(expectedEntitiesForAwsRegion);
-        expectedEntities.addAll(Arrays.asList(da1, dc1, st1, vm1InDc1, pm1InDc1, vm1InDc1Clone));
-        clonedVMOids.add(90001L);
+        final Set<TopologyEntity.Builder> awsRegionExpectedEntities = Stream
+                .of(vm1InDc1, pm1InDc1, da1, st1, dc1, regionLondon, virtualVolume,
+                        computeTier, storageTier)
+                .collect(Collectors.toSet());
+        final Set<Long> sourceVMOids = new HashSet<>();
+        sourceVMOids.add(vm1InDc1.getOid());
         final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeCloudTopology(
-                cloudTopologyInfo, graphWithClone, clonedVMOids);
-        Assert.assertEquals(expectedEntities.size(), result.size());
-        expectedEntities.forEach(entity -> assertTrue(entity.getOid() + " is missing", result.getEntity(entity.getOid())
-                .isPresent()));
+                cloudTopologyInfo, cloudMigrationGraph, sourceVMOids);
+        Assert.assertEquals(awsRegionExpectedEntities.size(), result.size());
+        awsRegionExpectedEntities.forEach(entity -> assertTrue(entity.getOid()
+                + " is missing", result.getEntity(entity.getOid()).isPresent()));
     }
 
     private static TopologyEntity.Builder createClonedEntity(long oid,

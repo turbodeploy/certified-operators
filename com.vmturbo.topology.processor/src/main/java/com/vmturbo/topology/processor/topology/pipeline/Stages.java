@@ -559,8 +559,7 @@ public class Stages {
             // added or removed during editing.
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
             try {
-                getContext().setCloneEntityOids(topologyEditor.editTopology(input, changes,
-                        getContext().getTopologyInfo(), groupResolver));
+                topologyEditor.editTopology(input, changes, getContext(), groupResolver);
             } catch (GroupResolutionException e) {
                 throw new PipelineStageException(e);
             }
@@ -747,7 +746,7 @@ public class Stages {
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             commoditiesEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo(),
-                    scope, getContext().getCloneEntityOids());
+                    scope, getContext().getSourceEntityOids());
             // TODO (roman, 23 Oct 2018): Add some information about number/type of modified commodities?
             return Status.success();
         }
@@ -891,7 +890,7 @@ public class Stages {
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
             final PolicyApplicator.Results applicationResults =
                     policyManager.applyPolicies(input, getContext().getGroupResolver(), changes,
-                    getContext().getTopologyInfo(), getContext().getCloneEntityOids());
+                    getContext().getTopologyInfo(), getContext().getSourceEntityOids());
             final StringJoiner statusMsg = new StringJoiner("\n")
                 .setEmptyValue("No policies to apply.");
             final boolean errors = applicationResults.getErrors().size() > 0;
@@ -1489,7 +1488,7 @@ public class Stages {
             } else {
                 // cloud plans
                 result = planTopologyScopeEditor.scopeCloudTopology(topologyInfo, graph,
-                        getContext().getCloneEntityOids());
+                        getContext().getSourceEntityOids());
                 return StageResult.withResult(result)
                                 .andStatus(Status.success("PlanScopingStage: Constructed a scoped topology of size "
                                                 + result.size() + " from topology of size " + graph.size()));

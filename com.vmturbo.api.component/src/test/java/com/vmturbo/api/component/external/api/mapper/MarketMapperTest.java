@@ -2,8 +2,8 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static com.vmturbo.common.protobuf.utils.StringConstants.AUTOMATIC;
 import static com.vmturbo.common.protobuf.utils.StringConstants.DISABLED;
-import static com.vmturbo.common.protobuf.utils.StringConstants.MIGRATION_ALLOCATION_TYPE;
-import static com.vmturbo.common.protobuf.utils.StringConstants.MIGRATION_CONSUMPTION_TYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.when;
@@ -250,12 +250,12 @@ public class MarketMapperTest {
 
         // Create both main plan (optimized) and related (Lift & Shift) plans.
         final PlanInstance optimizedPlan = getPlanInstance(optimizedPlanId,
-                optimizedScenarioId, projectId, planName, MIGRATION_CONSUMPTION_TYPE);
+                optimizedScenarioId, projectId, planName, CLOUD_MIGRATION_PLAN__CONSUMPTION);
 
         final Scenario optimizedScenario = optimizedPlan.getScenario();
 
         final PlanInstance liftAndShiftPlan = getPlanInstance(liftAndShiftPlanId,
-                liftAndShiftScenarioId, projectId, planName, MIGRATION_ALLOCATION_TYPE);
+                liftAndShiftScenarioId, projectId, planName, CLOUD_MIGRATION_PLAN__ALLOCATION);
 
         List<PlanInstance> relatedPlans = new ArrayList<>();
         relatedPlans.add(liftAndShiftPlan);
@@ -269,7 +269,7 @@ public class MarketMapperTest {
         assertEquals(planName, marketDTO.getDisplayName());
         ScenarioApiDTO scenarioDTO = marketDTO.getScenario();
         assertNotNull(scenarioDTO);
-        assertEquals(String.format("%s_%s", planName, MIGRATION_CONSUMPTION_TYPE),
+        assertEquals(String.format("%s_%s", planName, CLOUD_MIGRATION_PLAN__CONSUMPTION),
                 scenarioDTO.getDisplayName());
         assertEquals(String.valueOf(optimizedScenarioId), scenarioDTO.getUuid());
         assertEquals(planName, marketDTO.getDisplayName());
@@ -282,7 +282,7 @@ public class MarketMapperTest {
         assertEquals(String.valueOf(liftAndShiftPlanId), relatedMarketDTO.getUuid());
         ScenarioApiDTO relatedScenarioDTO = relatedMarketDTO.getScenario();
         assertNotNull(relatedScenarioDTO);
-        assertEquals(String.format("%s_%s", planName, MIGRATION_ALLOCATION_TYPE),
+        assertEquals(String.format("%s_%s", planName, CLOUD_MIGRATION_PLAN__ALLOCATION),
                 relatedScenarioDTO.getDisplayName());
         assertEquals(String.valueOf(liftAndShiftScenarioId), relatedScenarioDTO.getUuid());
 
@@ -306,7 +306,7 @@ public class MarketMapperTest {
                                         .ResizeVcpuUpInBetweenThresholds.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue
                                         .newBuilder()
-                                        .setValue(MIGRATION_CONSUMPTION_TYPE.equals(changeType)
+                                        .setValue(CLOUD_MIGRATION_PLAN__CONSUMPTION.equals(changeType)
                                                 ? AUTOMATIC : DISABLED)
                                         .build()).build()).build())
                 .build();
