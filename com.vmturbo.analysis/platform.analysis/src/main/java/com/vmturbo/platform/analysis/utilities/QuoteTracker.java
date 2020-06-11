@@ -297,6 +297,29 @@ public class QuoteTracker {
     }
 
     /**
+     * Returns the mapping for commodity specification to IndividualCommodityQuote. The
+     * IndividualCommodityQuote contains the closest seller and the max quantity available.
+     *
+     * @return commodity specification to IndividualCommodityQuote mapping.
+     */
+    public Map<CommoditySpecification, IndividualCommodityQuote> getIndividualCommodityQuotes() {
+        InfiniteQuotesOfInterest quoteOfInterest = new InfiniteQuotesOfInterest(this);
+        return quoteOfInterest.individualCommodityQuotes;
+    }
+
+
+    /**
+     * Returns the list of non commodity quotes.
+     *
+     * @return a list of non commodity quotes.
+     */
+    public List<Quote> getNonCommodityQuotes() {
+        InfiniteQuotesOfInterest quoteOfInterest = new InfiniteQuotesOfInterest(this);
+        return quoteOfInterest.nonCommodityQuotes;
+    }
+
+
+    /**
      * {@link InfiniteQuotesOfInterest}, given a collection of {@link Quote}s for a {@link ShoppingList},
      * determines which of those {@link Quote}s is most relevant and can be used to explain those
      * {@link Quote}s.
@@ -368,7 +391,7 @@ public class QuoteTracker {
      * Used by {@link InfiniteQuotesOfInterest}.
      */
     @Immutable
-    private static class IndividualCommodityQuote {
+    public static class IndividualCommodityQuote {
         public final Quote quote;
         public final double availableQuantity;
 
