@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -20,7 +21,9 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.AtomicDouble;
 
+import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -1081,8 +1084,7 @@ public class CostFunctionFactory {
     /**
      * Calculates the total cost of all resources requested by a shopping list on a seller.
      *
-     * @param priceDataMap the map containing commodity and its pricing information
-     * on a seller
+     * @param priceDataMap the map containing commodity and its pricing information on a seller.
      * @param commCapacity the information of a commodity and its minimum and maximum capacity
      * @param sl the shopping list requests resources
      * @param seller the seller
@@ -1093,18 +1095,59 @@ public class CostFunctionFactory {
                                                           @Nonnull Map<CommoditySpecification, CapacityLimitation> commCapacity,
                                                           @Nonnull ShoppingList sl, Trader seller) {
         // TODO: refactor the PriceData to improve performance for region and business account lookup
-        Long businessAccountChosenId = null;
         com.vmturbo.platform.analysis.economy.Context context = sl.getBuyer().getSettings().getContext();
-        Long regionId = null;
-        BalanceAccount balanceAccount = null;
-        if (context != null) {
-            regionId = context.getRegionId();
-            balanceAccount = sl.getBuyer().getSettings().getContext().getBalanceAccount();
+        if (context == null) {
+            // On-prem entities do not have context can reach here in cloud migration plan.
+            return getCheapestStorageCostWithoutContext(priceDataMap, commCapacity, sl, seller);
         }
-        double cost = 0;
+        final long regionId = context.getRegionId();
+        final BalanceAccount balanceAccount = sl.getBuyer().getSettings().getContext()
+                .getBalanceAccount();
+        final long priceId = balanceAccount.getPriceId();
+        final long balanceAccountId = balanceAccount.getId();
+
+        Pair<Double, Long> costAccountPair = getTotalCost(regionId, balanceAccountId, priceId,
+                priceDataMap, commCapacity, sl);
+        Double cost = costAccountPair.first;
+        Long chosenAccountId = costAccountPair.second;
+        // If no pricing was found for commodities in basket, then return infinite quote for seller.
+        if (cost == Double.MAX_VALUE) {
+            logger.warn("No (cheapest) cost found for storage {} in region {}, account {}.",
+                    seller.getDebugInfoNeverUseInCode(), regionId, balanceAccount);
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
+        return new CommodityCloudQuote(seller, cost, regionId, chosenAccountId);
+    }
+
+    /**
+     * Gets the cost for all commodities in the priceDataMap. Used to calculate cheapest cost
+     * across all regions and accounts.
+     *
+     * @param regionId Region id for which cost needs to be obtained.
+     * @param accountId Business account id.
+     * @param priceId Pricing id for account.
+     * @param priceDataMap Map containing all cost data.
+     * @param commCapacity Capacity map to check how much min amount to get cost for.
+     * @param shoppingList Shopping list with basket and quantities.
+     * @return Pair with first value as the total cost for region, and second value as the chosen
+     * business account (could be the price id if found). If there are no commodities in the pricing
+     * map or if we could not get any costs, then Double.MAX_VALUE is returned for cost.
+     */
+    @Nonnull
+    private static Pair<Double, Long> getTotalCost(
+            long regionId, long accountId, @Nullable Long priceId,
+            @Nonnull final Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
+            @Nonnull final Map<CommoditySpecification, CapacityLimitation> commCapacity,
+            @Nonnull final ShoppingList shoppingList) {
+        // Cost if we didn't get any valid commodity pricing, will be max, so that we don't
+        // mistakenly think this region is cheapest because it is $0.
+        double totalCost = Double.MAX_VALUE;
+        Long businessAccountChosenId = null;
+
         // iterating the priceDataMap for each type of commodity resource
-        for (Entry<CommoditySpecification, Map<Long, List<PriceData>>> commodityPrice : priceDataMap.entrySet()) {
-            int i = sl.getBasket().indexOf(commodityPrice.getKey());
+        for (Entry<CommoditySpecification, Map<Long, List<PriceData>>> commodityPrice
+                : priceDataMap.entrySet()) {
+            int i = shoppingList.getBasket().indexOf(commodityPrice.getKey());
             if (i == -1) {
                 // we iterate over the price data map, which defines the seller commodity price.
                 // The sl is from the buyer, which may not buy all resources sold
@@ -1113,41 +1156,102 @@ public class CostFunctionFactory {
                 continue;
             }
             // calculate cost based on amount that is adjusted due to minimum capacity constraint
-            double requestedAmount = sl.getQuantities()[i];
-            if (commCapacity.containsKey(sl.getBasket().get(i))) {
+            double requestedAmount = shoppingList.getQuantities()[i];
+            if (commCapacity.containsKey(shoppingList.getBasket().get(i))) {
                 requestedAmount = Math.max(requestedAmount,
-                                           commCapacity.get(sl.getBasket().get(i)).getMinCapacity());
+                        commCapacity.get(shoppingList.getBasket().get(i)).getMinCapacity());
             }
             final Map<Long, List<PriceData>> priceMap = commodityPrice.getValue();
-            List<PriceData> pricesScopedToregion = new ArrayList<>();
-            if (balanceAccount != null) {
-                // priceMap may contain PriceData by price id. Price id is the identifier for a price
-                // offering associated with a Balance Account. Different Balance Accounts (i.e.
-                // Balance Accounts with different ids) may have the same price id, if they are
-                // associated with the same price offering. If no entry is found in the priceMap for a
-                // price id, then the Balance Account id is used to lookup the priceMap.
-                final long rId = regionId.longValue();
-                final long priceId = balanceAccount.getPriceId();
-                final long balanceAccountId = balanceAccount.getId();
-                businessAccountChosenId = priceMap.containsKey(priceId) ? priceId : balanceAccountId;
-                final List<PriceData> priceDataList = priceMap.get(businessAccountChosenId);
-                pricesScopedToregion = priceDataList.stream().filter(s -> s.getRegionId() == rId).collect(Collectors.toList());
-                cost += getCostFromPriceDataList(requestedAmount, pricesScopedToregion);
-            } else {
-                // on prem entities without context can reach here, iterate all business account
-                // in price data map to find cheapest cost
-                double cheapestCost = Double.MAX_VALUE;
-                for (Entry<Long, List<PriceData>> entry : priceMap.entrySet()) {
-                    double tempCost = getCostFromPriceDataList(requestedAmount, entry.getValue());
-                   if (cheapestCost > tempCost) {
-                       cheapestCost = tempCost;
-                       businessAccountChosenId = entry.getKey();
-                   }
+            // priceMap may contain PriceData by price id. Price id is the identifier for a price
+            // offering associated with a Balance Account. Different Balance Accounts (i.e.
+            // Balance Accounts with different ids) may have the same price id, if they are
+            // associated with the same price offering. If no entry is found in the priceMap for a
+            // price id, then the Balance Account id is used to lookup the priceMap.
+            businessAccountChosenId = priceId != null && priceMap.containsKey(priceId)
+                    ? priceId : accountId;
+            final List<PriceData> priceDataList = priceMap.get(businessAccountChosenId);
+            if (priceDataList != null) {
+                final List<PriceData> pricesScopedToRegion = priceDataList
+                        .stream()
+                        .filter(s -> s.getRegionId() == regionId)
+                        .collect(Collectors.toList());
+                double cost = getCostFromPriceDataList(requestedAmount, pricesScopedToRegion);
+                if (cost != Double.MAX_VALUE) {
+                    if (totalCost == Double.MAX_VALUE) {
+                        // Initialize cost now that we are getting a valid cost.
+                        totalCost = 0;
+                    }
+                    totalCost += cost;
                 }
-                cost += cheapestCost;
             }
         }
-        return new CommodityCloudQuote(seller, cost, regionId, businessAccountChosenId);
+        if (businessAccountChosenId == null) {
+            businessAccountChosenId = accountId;
+        }
+        return new Pair<>(totalCost, businessAccountChosenId);
+    }
+
+    /**
+     * Used when no context info is available, e.g in on-prem to cloud storage migration.
+     * In such cases, we go over all available regions, and pick the region/account where the
+     * total costs are the least, and quote is returned with that region/account/cost.
+     *
+     * @param priceDataMap Map containing selling pricing data.
+     * @param commCapacity Info about commodities and their capacities.
+     * @param shoppingList Shopping list with basket and quantities.
+     * @param seller Seller whose pricing data is being checked.
+     * @return Quote for the cheapest region/account, or infinite quote if no regions found.
+     */
+    private static CommodityQuote getCheapestStorageCostWithoutContext(
+            @Nonnull final Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
+            @Nonnull final Map<CommoditySpecification, CapacityLimitation> commCapacity,
+            @Nonnull final ShoppingList shoppingList,
+            @Nonnull final Trader seller) {
+        // Get the cheapest cost across all the accounts and regions.
+        AtomicDouble cheapestCost = new AtomicDouble(Double.MAX_VALUE);
+        AtomicLong accountId = new AtomicLong();
+        AtomicLong regionId = new AtomicLong();
+
+        // Map used to avoid getting (same) costs multiple times for same account and region.
+        // Key is '<accountId>-<regionId>', value is cost for that combination.
+        Map<String, Double> accountsRegionsToCosts = new HashMap<>();
+        priceDataMap.values()
+                .stream()
+                .map(Map::entrySet)
+                .flatMap(Set::stream)
+                .forEach(entry -> {
+                    Long currentAccountId = entry.getKey();
+                    entry.getValue()
+                            .stream()
+                            .map(PriceData::getRegionId)
+                            .forEach(currentRegionId -> {
+                                String currentAccountRegion = String.format("%s-%s",
+                                        currentAccountId, currentRegionId);
+                                if (!accountsRegionsToCosts.containsKey(currentAccountRegion)) {
+                                    Double currentCost = getTotalCost(currentRegionId,
+                                            currentAccountId, null, priceDataMap, commCapacity,
+                                            shoppingList).first;
+                                    if (currentCost < cheapestCost.get()) {
+                                        // Update cheapest cost and its region/account,
+                                        // as we found something cheaper.
+                                        cheapestCost.set(currentCost);
+                                        accountId.set(currentAccountId);
+                                        regionId.set(currentRegionId);
+                                    }
+                                    accountsRegionsToCosts.put(currentAccountRegion, currentCost);
+                                }
+                            });
+                });
+        if (accountId.get() == 0 || regionId.get() == 0) {
+            logger.warn("No (cheapest) cost found for storage {}.",
+                    seller.getDebugInfoNeverUseInCode());
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
+        logger.trace("Returning cheapest storage cost {} for seller = {}, account = {}, "
+                + "region = {}, total cost tuples = {}.", cheapestCost,
+                seller.getDebugInfoNeverUseInCode(), accountId.get(), regionId.get(),
+                accountsRegionsToCosts);
+        return new CommodityCloudQuote(seller, cheapestCost.get(), regionId.get(), accountId.get());
     }
 
     /**
@@ -1155,23 +1259,29 @@ public class CostFunctionFactory {
      *
      * @param requestedAmount the requested amount
      * @param priceDataList pricing information
-     * @return the cost for providing the given requested amount
+     * @return the cost for providing the given requested amount. Can be MAX_VALUE if no matching
+     * cost was found (e.g requestedAmount out of bounds).
      */
     private static double getCostFromPriceDataList(final double requestedAmount,
                                                    @NonNull final List<PriceData> priceDataList){
-        double cost = 0;
+        double cost = Double.MAX_VALUE;
         double previousUpperBound = 0;
+        double eachCost;
         for (PriceData priceData : priceDataList) {
             // the list of priceData is sorted based on upper bound
             double currentUpperBound = priceData.getUpperBound();
             if (priceData.isAccumulative()) {
                 // if the price is accumulative, we need to sum up all the cost where
                 // requested amount is more than upper bound till we find the exact range
-                cost += (priceData.isUnitPrice()
+                eachCost = (priceData.isUnitPrice()
                                 ? priceData.getPrice() * Math.min(
                                                                   currentUpperBound - previousUpperBound,
                                                                   requestedAmount - previousUpperBound)
                                                 : priceData.getPrice());
+                if (cost == Double.MAX_VALUE) {
+                    cost = 0;
+                }
+                cost += eachCost;
                 // we find the exact range the requested amount falls
                 if (requestedAmount <= currentUpperBound) {
                     break;
@@ -1180,8 +1290,12 @@ public class CostFunctionFactory {
                             && requestedAmount <= currentUpperBound) {
                 // non accumulative cost only depends on the exact range where the requested
                 // amount falls
-                cost += (priceData.isUnitPrice() ? priceData.getPrice() *
-                                requestedAmount : priceData.getPrice());
+                eachCost = (priceData.isUnitPrice() ? priceData.getPrice()
+                        * requestedAmount : priceData.getPrice());
+                if (cost == Double.MAX_VALUE) {
+                    cost = 0;
+                }
+                cost += eachCost;
             }
             previousUpperBound = currentUpperBound;
         }
