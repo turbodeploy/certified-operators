@@ -110,7 +110,8 @@ public class EntitySettingStore {
 
     private static final List<String> settingSpecsToSave = ImmutableList.of(
             EntitySettingSpecs.PercentileAggressivenessVirtualMachine.getSettingName(),
-            EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingName());
+            EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingName(),
+            EntitySettingSpecs.ExcludedTemplates.getSettingName());
 
 
     public EntitySettingStore(final long realtimeTopologyContextId,

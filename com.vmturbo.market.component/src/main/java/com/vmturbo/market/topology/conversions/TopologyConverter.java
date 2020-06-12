@@ -1543,8 +1543,9 @@ public class TopologyConverter {
         float[] histUsed = histUsedValue.orElseGet(() -> new float[] {});
         float[] histPeak = histPeakValue.orElseGet(() -> new float[] {});
 
-        // TODO: Need to add check for Cloud migration here. This will apply to Cloud Migration too.
-        if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD) {
+
+        // Entities migrating to cloud also should consider on-prem history
+        if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD || isCloudMigration) {
             final float[][] onPremResizedCapacity = getOnPremResizedCapacity(histUsed, histPeak,
                     commBought, providerOid, topologyDTO);
             return new float[][]{onPremResizedCapacity[0], onPremResizedCapacity[1]};

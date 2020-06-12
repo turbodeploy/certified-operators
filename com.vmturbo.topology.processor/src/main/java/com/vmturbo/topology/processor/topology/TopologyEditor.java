@@ -28,6 +28,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.PlanDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -383,6 +384,11 @@ public class TopologyEditor {
             }
             // Set shopTogether as false till market issue is fixed.
             entityBuilder.getEntityBuilder().getAnalysisSettingsBuilder().setShopTogether(false);
+
+            // Analysis needs to treat the entity as if it's a cloud entity for purposes of
+            // applying template exclusions, obtaining pricing, etc.
+            entityBuilder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+
             // Remove non-applicable commodities first here, before other stages add some bought
             // commodities like segmentation.
             CommoditiesEditor.skipNonApplicableBoughtCommodities(entityBuilder.getEntityBuilder());

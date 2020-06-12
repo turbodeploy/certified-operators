@@ -461,7 +461,7 @@ public class EntitySettingsResolver {
                                    @Nonnull final Collection<EntitySettings> entitiesSettings,
                                    @Nonnull final TopologyGraph<TopologyEntity> graph) {
         final CountDownLatch finishLatch = new CountDownLatch(1);
-        // For now, don't upload settings for non-realtime topologies.
+        // For now, don't upload settings for non-realtime topologies other than VMs.
         StreamObserver<UploadEntitySettingsResponse> responseObserver =
             new StreamObserver<UploadEntitySettingsResponse>() {
 
