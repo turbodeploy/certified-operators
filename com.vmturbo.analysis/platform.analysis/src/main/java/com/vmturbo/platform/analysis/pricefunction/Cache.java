@@ -197,8 +197,8 @@ class Cache {
                 // price only makes sense in the context of a specific consumer
                 if (interfaceOptional.isPresent()) {
                     // Find OIds of traders and send them to calculate price
-                    Long buyerOid = topo.getTraderOids().get(shoppingList.getBuyer());
-                    Long sellerOid = topo.getTraderOids().get(seller);
+                    Long buyerOid = shoppingList.getBuyer().getOid();
+                    Long sellerOid = seller.getOid();
                     price = interfaceOptional.get().calculatePrice(buyerOid, sellerOid);
                     // This multiplication done to negate the effect of dividing price by
                     // effective capacity during quote computation. EdeCommon.computeCommodityCost() on M2 side

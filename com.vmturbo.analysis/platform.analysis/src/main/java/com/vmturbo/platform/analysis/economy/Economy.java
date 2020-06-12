@@ -739,16 +739,32 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * </p>
      */
     public void clear() {
+        dropData();
+        forceStop = false;
+    }
+
+    /**
+     * Drops data used by the market to perform analysis.
+     * Does not clear information in the topology needed for action replay.
+     */
+    public void dropData() {
         markets_.clear();
         traders_.clear();
-        sellersInvertedIndex_.clear();
-        settings_.clear();
-        preferentialSls_.clear();
         commodityResizeDependency_.clear();
+        commodityProducesDependency_.clear();
         historyBasedResizeDependencySkipMap_.clear();
         rawMaterialMap_.clear();
         marketsForPlacement_.clear();
-        forceStop = false;
+        preferentialSls_.clear();
+        shopTogetherTraders_.clear();
+        balanceAccountMap.clear();
+        shoppingListToScalingGroup.clear();
+        scalingGroupToPeerInfo.clear();
+        scalingGroupToMembers.clear();
+        sellersInvertedIndex_.clear();
+        commsToAdjustOverhead_.clear();
+        placementEntities_.clear();
+        settings_.clear();
     }
 
     /**
@@ -1236,7 +1252,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             // it to each member's Context.
             for (ShoppingList sl : info.getPeers()) {
                 Long oid = sl.getSupplier() != null
-                                ? getTopology().getTraderOid(sl.getSupplier())
+                                ? sl.getSupplier().getOid()
                                 : null;
                 if (matched && oid != groupSupplierId) {
                     matched = first;

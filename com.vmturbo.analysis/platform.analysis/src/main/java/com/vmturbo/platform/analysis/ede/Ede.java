@@ -79,10 +79,10 @@ public final class Ede {
                     trader = tp;
                 }
                 if (CostFunctionFactory.insufficientCommodityWithinSellerCapacityQuote(shoppingList, trader, -1).isFinite()) {
-                    providerList.add( economy.getTopology().getTraderOids().get(trader));
+                    providerList.add(trader.getOid());
                 }
             }
-            Long buyerID = economy.getTopology().getTraderOids().get(shoppingList.getBuyer());
+            Long buyerID = shoppingList.getBuyer().getOid();
             providerListMap.put(buyerID, providerList);
         }
         return providerListMap;

@@ -7,6 +7,7 @@ import static org.junit.Assert.fail;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.BiMap;
@@ -156,23 +157,32 @@ public class AnalysisToProtobufTest {
         pm2.getCommoditySold(MEM).setCapacity(200).setQuantity(10);
 
         Topology topo = new Topology();
-        BiMap<@NonNull Trader, @NonNull Long> traderOids = null;
+        Map<@NonNull Long, @NonNull Trader> traderOids = null;
         BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOids = null;
         ShoppingList shop1 = null;
         ShoppingList shop2 = null;
         try {
             // set the traderOid_ to be accessible so that we could get manually assign
             // oid to a trader
-            Field traderOidField = Topology.class.getDeclaredField("traderOids_");
+            Field traderOidField = Topology.class.getDeclaredField("tradersByOid_");
             traderOidField.setAccessible(true);
-            traderOids = (BiMap<@NonNull Trader, @NonNull Long>)traderOidField.get(topo);
-            traderOids.put(vm1, 0l);
-            traderOids.put(vm2, 1l);
-            traderOids.put(pm1, 2l);
-            traderOids.put(pm2, 3l);
-            traderOids.put(st1, 4l);
-            traderOids.put(st2, 5l);
-            traderOids.put(vm3, 6l);
+            traderOids = (Map<@NonNull Long, @NonNull Trader>)traderOidField.get(topo);
+
+            vm1.setOid(0L);
+            vm2.setOid(1L);
+            pm1.setOid(2L);
+            pm2.setOid(3L);
+            st1.setOid(4L);
+            st2.setOid(5L);
+            vm3.setOid(6L);
+
+            traderOids.put(0L, vm1);
+            traderOids.put(1L, vm2);
+            traderOids.put(2L, pm1);
+            traderOids.put(3L, pm2);
+            traderOids.put(4L, st1);
+            traderOids.put(5L, st2);
+            traderOids.put(6L, vm3);
 
             shop1 = e.addBasketBought(vm1, basketBought1);
             shop1.move(pm1);
@@ -229,7 +239,8 @@ public class AnalysisToProtobufTest {
         Action provisionByDemand = new ProvisionByDemand(e, shop2, pm2);
         provisionByDemand.take(); // we call take to create provisionedSeller
         // assign -1 as oid for the newly provisioned seller
-        traderOids.put(((ProvisionByDemand)provisionByDemand).getProvisionedSeller(), -1l);
+        Trader provisionedSeller = ((ProvisionByDemand)provisionByDemand).getProvisionedSeller();
+        traderOids.put(-1L, provisionedSeller);
         ActionTO provisionByDemanTO = ActionTO.newBuilder()
                         .setProvisionByDemand(
                                         ProvisionByDemandTO.newBuilder().setModelBuyer(20l)
@@ -258,7 +269,8 @@ public class AnalysisToProtobufTest {
         Action provisionBySupply = new ProvisionBySupply(e, pm1, TestUtils.CPU);
         provisionBySupply.take(); // we call take to create provisionedSeller
         // assign -2 as oid for the newly povisioned seller
-        traderOids.put(((ProvisionBySupply)provisionBySupply).getProvisionedSeller(), -2l);
+        Trader provisionedSeller1 = ((ProvisionBySupply)provisionBySupply).getProvisionedSeller();
+        traderOids.put(-2L, provisionedSeller1);
         ActionTO provisionBySupplyTO = ActionTO.newBuilder()
                         .setProvisionBySupply(
                                         ProvisionBySupplyTO.newBuilder().setModelSeller(2l)
@@ -332,16 +344,16 @@ public class AnalysisToProtobufTest {
                                                         (ActionImpl)compoundMove).getImportance())
                         .setIsNotExecutable(false)
                         .build();
-        return new Object[][] {{activate, traderOids, shoppingListOids, topo, activateTO},
-                        {deactivate, traderOids, shoppingListOids, topo, deActionTO},
-                        {move, traderOids, shoppingListOids, topo, moveTO},
-                        {provisionByDemand, traderOids, shoppingListOids, topo,
+        return new Object[][] {{activate, shoppingListOids, topo, activateTO},
+                        {deactivate, shoppingListOids, topo, deActionTO},
+                        {move, shoppingListOids, topo, moveTO},
+                        {provisionByDemand, shoppingListOids, topo,
                                         provisionByDemanTO},
-                        {provisionBySupply, traderOids, shoppingListOids, topo,
+                        {provisionBySupply, shoppingListOids, topo,
                                         provisionBySupplyTO},
-                        {resize, traderOids, shoppingListOids, topo, resizeTO},
-                        {reconfigure, traderOids, shoppingListOids, topo, reconfigureTO},
-                        {compoundMove, traderOids, shoppingListOids, topo,
+                        {resize, shoppingListOids, topo, resizeTO},
+                        {reconfigure, shoppingListOids, topo, reconfigureTO},
+                        {compoundMove, shoppingListOids, topo,
                                         compoundMoveActionTO}};
     }
 
@@ -349,12 +361,11 @@ public class AnalysisToProtobufTest {
     @Parameters
     @TestCaseName("Test #{index}: AnalysisToProtobuf().actionTO({0},{1},{2},{3}) == {4}")
     public final void testActionTO(@NonNull Action input,
-                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOid,
                     @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                     Topology topo,
                     ActionTO expect) {
         ActionTO actionTO =
-                        AnalysisToProtobuf.actionTO(input, traderOid, shoppingListOid, topo);
+                        AnalysisToProtobuf.actionTO(input, shoppingListOid, topo);
         // we dont know the oid of he provisioned seller because the oid is based on time
         // so comparing other fields one by one
         if (input instanceof ProvisionByDemand) {
@@ -392,18 +403,14 @@ public class AnalysisToProtobufTest {
     @Test
     public final void testActionToNewShoppingLists() throws Exception{
         Topology topology = new Topology();
-        // Use reflection to add vm1 to the traders OID map.
-        Field traderOidField = Topology.class.getDeclaredField("traderOids_");
-        traderOidField.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        BiMap<Trader, Long> traderOids = (BiMap<Trader, Long>)traderOidField.get(topology);
-        traderOids.put(pm1, 100l); // needed when construction the ActionTO
+        Map<Long, Trader> traderOids = topology.getModifiableTraderOids();
+        traderOids.put(100L, pm1); // needed when construction the ActionTO
         // Provision
         ProvisionBySupply prov = new ProvisionBySupply(e, pm1, TestUtils.CPU);
         prov.take();
         BiMap<ShoppingList, Long> shoppingListOids = topology.getShoppingListOids();
         assertTrue(shoppingListOids.isEmpty());
-        AnalysisToProtobuf.actionTO(prov, traderOids, shoppingListOids, topology);
+        AnalysisToProtobuf.actionTO(prov, shoppingListOids, topology);
         Set<ShoppingList> provisionedShoppingLists =
                 topology.getEconomy().getMarketsAsBuyer(prov.getProvisionedSeller()).keySet();
         assertTrue(shoppingListOids.keySet().containsAll(provisionedShoppingLists));
@@ -429,14 +436,13 @@ public class AnalysisToProtobufTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm3, new double[]{50, 0}, pm);
 
-        BiMap<Trader, Long> traderToOidMap = HashBiMap.create();
-        traderToOidMap.put(vm1, 1L);
-        traderToOidMap.put(vm2, 2L);
-        traderToOidMap.put(pm, 3L);
+        vm1.setOid(1L);
+        vm2.setOid(2L);
+        pm.setOid(3L);
 
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         Set<Trader> prefTrader = Sets.newHashSet(vm1);
-        TraderTO traderTO = AnalysisToProtobuf.traderTO(economy, pm, traderToOidMap, HashBiMap.create(), prefTrader);
+        TraderTO traderTO = AnalysisToProtobuf.traderTO(economy, pm, HashBiMap.create(), prefTrader);
         assertEquals(2, traderTO.getNumOfProduces());
     }
 

@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,7 +43,7 @@ public class ActionStatsTest {
     private @NonNull Trader pm1;
     private @NonNull Trader pm2;
 
-    private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
+    private @NonNull Map<@NonNull Long, @NonNull Trader> traderOids = new HashMap<>();
 
     @Before
     public void setUp() throws Exception {
@@ -54,11 +55,18 @@ public class ActionStatsTest {
         pm2.setDebugInfoNeverUseInCode("PhysicalMachine|some-uuid-2");
         Trader st1 = first.addTrader(2, TraderState.ACTIVE, STtoVM);
         Trader st2 = first.addTrader(2, TraderState.ACTIVE, STtoVM);
-        traderOids.put(vm, 1L);
-        traderOids.put(pm1, 2L);
-        traderOids.put(pm2, 3L);
-        traderOids.put(st1, 4L);
-        traderOids.put(st2, 5L);
+
+        vm.setOid(1L);
+        pm1.setOid(2L);
+        pm2.setOid(3L);
+        st1.setOid(4L);
+        st2.setOid(5L);
+
+        traderOids.put(1L, vm);
+        traderOids.put(2L, pm1);
+        traderOids.put(3L, pm2);
+        traderOids.put(4L, st1);
+        traderOids.put(5L, st2);
         ShoppingList[] shoppingLists = first.getMarketsAsBuyer(vm)
                                             .keySet().toArray(new ShoppingList[3]);
         shoppingLists[0].move(pm1);
@@ -69,11 +77,11 @@ public class ActionStatsTest {
 
         firstTopology = new Topology();
         first.setTopology(firstTopology);
-        Field traderOidField = Topology.class.getDeclaredField("traderOids_");
+        Field traderOidField = Topology.class.getDeclaredField("tradersByOid_");
         traderOidField.setAccessible(true);
         traderOidField.set(firstTopology, traderOids);
         Field unmodifiableTraderOidField = Topology.class
-                                                   .getDeclaredField("unmodifiableTraderOids_");
+                                                   .getDeclaredField("unmodifiableTradersByOid_");
         unmodifiableTraderOidField.setAccessible(true);
         unmodifiableTraderOidField.set(firstTopology, traderOids);
 

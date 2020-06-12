@@ -441,7 +441,7 @@ public class ShoppingList implements Serializable {
      */
     public double getTotalAllocatedCoupons(UnmodifiableEconomy economy, Trader seller) {
             return this.getBuyer().getSettings().getContext()
-                .getTotalAllocatedCoupons(economy.getTopology().getTraderOids().get(seller))
+                .getTotalAllocatedCoupons(seller.getOid())
                 .orElse(0.0);
     }
 
@@ -453,7 +453,7 @@ public class ShoppingList implements Serializable {
      */
     public double getTotalRequestedCoupons(UnmodifiableEconomy economy, Trader seller) {
         return this.getBuyer().getSettings().getContext()
-            .getTotalRequestedCoupons(economy.getTopology().getTraderOids().get(seller))
+            .getTotalRequestedCoupons(seller.getOid())
             .orElse(0.0);
     }
 } // end ShoppingList class

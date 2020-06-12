@@ -78,7 +78,7 @@ public class EconomyScopedTopologyTest {
      * @return the oid of the trader
      */
     private static long oid(Trader trader) {
-        return topology.getTraderOids().get(trader);
+        return trader.getOid();
     }
 
     private static int commType = 1000;
