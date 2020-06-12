@@ -6,6 +6,7 @@ option java_package = "com.vmturbo.common.protobuf.repository";
 
 import "topology/TopologyDTO.proto";
 import "common/Pagination.proto";
+import "action/ActionDTO.proto";
 
 // The relation type of the constraint. We only care about BOUGHT.
 enum RelationType {
@@ -81,13 +82,25 @@ message PotentialPlacementsRequest {
 }
 
 message PotentialPlacementsResponse {
-    // total number of potential entities
-    optional int32 num_potential_placements = 1;
+
+    message MatchedEntity {
+        optional int64 oid = 1;
+
+        optional string display_name = 2;
+
+        optional int32 entity_type = 3;
+
+        optional .topology.EntityState entity_state = 4 [default = POWERED_ON];
+
+        optional .action.Severity severity = 5;
+
+        map<int64, .topology.PerTargetEntityInformation> discovered_target_data = 6;
+    }
 
     // A list of matched entities.
-    repeated .topology.PartialEntity entities = 2;
+    repeated MatchedEntity entities = 1;
 
-    optional common.PaginationResponse pagination_response = 3;
+    optional common.PaginationResponse pagination_response = 2;
 }
 
 service EntityConstraintsService {

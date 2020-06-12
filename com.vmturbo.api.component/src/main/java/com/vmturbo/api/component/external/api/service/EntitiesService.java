@@ -38,6 +38,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
@@ -83,7 +84,10 @@ import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
+import com.vmturbo.api.pagination.EntityPaginationRequest;
+import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IEntitiesService;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -96,10 +100,13 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.EntityConstraints;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsRequest;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsResponse;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsRequest;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsResponse;
 import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -117,6 +124,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -170,6 +178,10 @@ public class EntitiesService implements IEntitiesService {
     private final PolicyServiceBlockingStub policyRpcService;
 
     private final ThinTargetCache thinTargetCache;
+
+    private final PaginationMapper paginationMapper;
+
+    private final ServiceEntityMapper serviceEntityMapper;
 
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
@@ -231,7 +243,9 @@ public class EntitiesService implements IEntitiesService {
         final EntitySettingQueryExecutor entitySettingQueryExecutor,
         @Nonnull final EntityConstraintsServiceBlockingStub entityConstraintsRpcService,
         @Nonnull final PolicyServiceBlockingStub policyRpcService,
-        @Nonnull final ThinTargetCache thinTargetCache) {
+        @Nonnull final ThinTargetCache thinTargetCache,
+        @Nonnull final PaginationMapper paginationMapper,
+        @Nonnull final ServiceEntityMapper serviceEntityMapper) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -252,6 +266,8 @@ public class EntitiesService implements IEntitiesService {
         this.entityConstraintsRpcService = entityConstraintsRpcService;
         this.policyRpcService = policyRpcService;
         this.thinTargetCache = thinTargetCache;
+        this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
     }
 
     @Override
@@ -949,8 +965,34 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public List<ServiceEntityApiDTO> getPotentialEntitiesByEntity(String uuid, ConstraintApiInputDTO inputDto) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public EntityPaginationResponse getPotentialEntitiesByEntity(String uuid, ConstraintApiInputDTO inputDto,
+                                                                 EntityPaginationRequest paginationRequest) throws Exception {
+        if (!uuidMapper.fromUuid(uuid).isEntity()) {
+            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
+                "Should be a numeric entity id.", uuid));
+        }
+
+        final PotentialPlacementsResponse response =
+            entityConstraintsRpcService.getPotentialPlacements(PotentialPlacementsRequest.newBuilder()
+                .setOid(uuidMapper.fromUuid(uuid).oid())
+                .setRelationType(EntityConstraints.RelationType.BOUGHT)
+                .addPotentialEntityTypes(EntityType.PHYSICAL_MACHINE_VALUE)
+                .addAllCommodityType(inputDto.getPlacementOptions().stream()
+                    .filter(option -> !"".equals(option.getKey()))
+                    .map(option -> TopologyDTO.CommodityType.newBuilder()
+                        .setType(ClassicEnumMapper.commodityType(option.getConstraintType()).getNumber())
+                        .setKey(option.getKey()).build())
+                    .collect(Collectors.toList()))
+                .setPaginationParams(paginationMapper.toProtoParams(paginationRequest)).build());
+
+        final List<ServiceEntityApiDTO> nextPage = serviceEntityMapper.toServiceEntityApiDTO(
+            response.getEntitiesList());
+
+        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+            .map(nextCursor -> paginationRequest.nextPageResponse(
+                nextPage, nextCursor, response.getPaginationResponse().getTotalRecordCount()))
+            .orElseGet(() -> paginationRequest.finalPageResponse(
+                nextPage, response.getPaginationResponse().getTotalRecordCount()));
     }
 
     private static Link generateLinkTo(@Nonnull Object invocationValue, @Nonnull String relation) {

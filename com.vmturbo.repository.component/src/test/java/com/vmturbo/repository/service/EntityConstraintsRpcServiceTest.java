@@ -3,11 +3,16 @@ package com.vmturbo.repository.service;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -16,22 +21,30 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import io.grpc.StatusRuntimeException;
-
 import org.apache.commons.lang.StringUtils;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import io.grpc.StatusRuntimeException;
 import javafx.util.Pair;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsRequest;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsResponse;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsRequest;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsResponse.MatchedEntity;
 import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc;
 import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -60,20 +73,26 @@ public class EntityConstraintsRpcServiceTest {
     private static final Pair<Long, Integer> ST1 = new Pair(20L, EntityType.STORAGE_VALUE);
     private static final Pair<Long, Integer> ST2 = new Pair(21L, EntityType.STORAGE_VALUE);
     private static final Pair<Long, Integer> ST3 = new Pair(22L, EntityType.STORAGE_VALUE);
-    private final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
-    private final PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
-    EntityConstraintsRpcService constraintsService = new EntityConstraintsRpcService(
-        liveTopologyStore, partialEntityConverter, new ConstraintsCalculator());
+    private final LiveTopologyStore liveTopologyStore = spy(new LiveTopologyStore(new GlobalSupplyChainCalculator()));
+    private EntitySeverityServiceMole entitySeverityMole = spy(EntitySeverityServiceMole.class);
+
     /**
      * No exception is expected by default.
      */
     @Rule
     public ExpectedException exceptionRule = ExpectedException.none();
+
+    /**
+     * Test server.
+     */
+    public GrpcTestServer testServer1;
+
     /**
      * Test server.
      */
     @Rule
-    public GrpcTestServer testServer = GrpcTestServer.newServer(constraintsService);
+    public GrpcTestServer testServer2;
+
     private EntityConstraintsServiceBlockingStub clientStub;
 
     /**
@@ -87,7 +106,7 @@ public class EntityConstraintsRpcServiceTest {
      * ST3 which sells storage cluster and dspm.
      */
     @Before
-    public void setUp() {
+    public void setUp() throws IOException {
         final SourceRealtimeTopologyBuilder topologyBuilder =
             liveTopologyStore.newRealtimeTopology(TopologyInfo.getDefaultInstance());
         topologyBuilder.addEntities(ImmutableList.of(
@@ -124,7 +143,20 @@ public class EntityConstraintsRpcServiceTest {
                 createCommoditySold(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, "PhysicalMachine::PM1")), "ST3")
             ));
         topologyBuilder.finish();
-        clientStub = EntityConstraintsServiceGrpc.newBlockingStub(testServer.getChannel());
+
+        testServer1 = GrpcTestServer.newServer(entitySeverityMole);
+        testServer1.start();
+        EntityConstraintsRpcService entityConstraintsRpcService = new EntityConstraintsRpcService(
+            liveTopologyStore, new ConstraintsCalculator(EntitySeverityServiceGrpc.newBlockingStub(testServer1.getChannel()), 20, 100));
+        testServer2 = GrpcTestServer.newServer(entityConstraintsRpcService);
+        testServer2.start();
+        clientStub = EntityConstraintsServiceGrpc.newBlockingStub(testServer2.getChannel());
+    }
+
+    @After
+    public void teardown() {
+        testServer1.close();
+        testServer2.close();
     }
 
     /**
@@ -186,60 +218,74 @@ public class EntityConstraintsRpcServiceTest {
 
     /**
      * Try getting the constraints when no real time topology exists.
-     * @throws IOException IOException when error starting test server
      */
     @Test
-    public void testGetConstraintsWithNoRealTimeTopology() throws IOException {
+    public void testGetConstraintsWithNoRealTimeTopology() {
         exceptionRule.expect(StatusRuntimeException.class);
-        LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
-        EntityConstraintsRpcService constraintsService = new EntityConstraintsRpcService(
-            liveTopologyStore, partialEntityConverter, new ConstraintsCalculator());
-        GrpcTestServer testServer = GrpcTestServer.newServer(constraintsService);
-        testServer.start();
-        clientStub = EntityConstraintsServiceGrpc.newBlockingStub(testServer.getChannel());
+        when(liveTopologyStore.getSourceTopology()).thenReturn(Optional.empty());
         clientStub.getConstraints(
             EntityConstraintsRequest.newBuilder().setOid(VM1).build());
     }
 
     /**
      * Test getting the potential placements.
-     * Request contains license access and dc. These commodities can be satisfied by PM1 and PM2.
-     * Ensure that we get back PM1 and PM2 in the response.
+     * Request contains dc. These commodities can be satisfied by PM1, PM2 and PM3.
+     * Ensure that we get back PM1, PM2 and PM3 in the responses.
      */
     @Test
     public void testGetPotentialPlacements() {
+        when(entitySeverityMole.getEntitySeverities(any()))
+            .thenReturn(Collections.singletonList(EntitySeveritiesResponse.newBuilder()
+                .setEntitySeverity(EntitySeveritiesChunk.newBuilder()
+                    .addEntitySeverity(EntitySeverity.newBuilder().setEntityId(PM1.getKey()).setSeverity(Severity.CRITICAL))
+                    .addEntitySeverity(EntitySeverity.newBuilder().setEntityId(PM2.getKey()).setSeverity(Severity.MINOR))
+                    .addEntitySeverity(EntitySeverity.newBuilder().setEntityId(PM3.getKey()).setSeverity(Severity.NORMAL)))
+                .build()));
+
         PotentialPlacementsRequest request = PotentialPlacementsRequest.newBuilder()
             .addPotentialEntityTypes(EntityType.PHYSICAL_MACHINE_VALUE)
             .addAllCommodityType(ImmutableList.of(
-                createCommodityType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE, "Linux").build(),
                 createCommodityType(CommodityDTO.CommodityType.DATACENTER_VALUE, "DC1").build()))
+            .setPaginationParams(PaginationParameters.newBuilder().setLimit(2))
             .build();
         PotentialPlacementsResponse response = clientStub.getPotentialPlacements(request);
 
-        assertEquals(2, response.getNumPotentialPlacements());
-        assertEquals(ImmutableSet.of(PM1.getKey(), PM2.getKey()), response
-            .getEntitiesList().stream().map(e -> e.getApi().getOid()).collect(Collectors.toSet()));
+        assertEquals(3, response.getPaginationResponse().getTotalRecordCount());
+        assertEquals("2", response.getPaginationResponse().getNextCursor());
+        assertEquals(2, response.getEntitiesCount());
+        assertEquals(ImmutableList.of(PM1.getKey(), PM2.getKey()), response
+            .getEntitiesList().stream().map(MatchedEntity::getOid).collect(Collectors.toList()));
+
+        // This request is to get the remaining entities.
+        request = PotentialPlacementsRequest.newBuilder()
+            .addPotentialEntityTypes(EntityType.PHYSICAL_MACHINE_VALUE)
+            .addAllCommodityType(ImmutableList.of(
+                createCommodityType(CommodityDTO.CommodityType.DATACENTER_VALUE, "DC1").build()))
+            .setPaginationParams(PaginationParameters.newBuilder().setLimit(2)
+                .setCursor(response.getPaginationResponse().getNextCursor()))
+            .build();
+        response = clientStub.getPotentialPlacements(request);
+
+        assertEquals(3, response.getPaginationResponse().getTotalRecordCount());
+        assertFalse(response.getPaginationResponse().hasNextCursor());
+        assertEquals(1, response.getEntitiesCount());
+        assertEquals(ImmutableList.of(PM3.getKey()), response
+            .getEntitiesList().stream().map(MatchedEntity::getOid).collect(Collectors.toList()));
     }
 
     /**
      * Try getting the potential placements when no real time topology exists.
-     * @throws IOException IOException when error starting test server
      */
     @Test
-    public void testGetPotentialPlacementsWithNoRealTimeTopology() throws IOException {
+    public void testGetPotentialPlacementsWithNoRealTimeTopology() {
         exceptionRule.expect(StatusRuntimeException.class);
-        LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
-        EntityConstraintsRpcService constraintsService = new EntityConstraintsRpcService(
-            liveTopologyStore, partialEntityConverter, new ConstraintsCalculator());
-        GrpcTestServer testServer = GrpcTestServer.newServer(constraintsService);
-        testServer.start();
-        clientStub = EntityConstraintsServiceGrpc.newBlockingStub(testServer.getChannel());
         PotentialPlacementsRequest request = PotentialPlacementsRequest.newBuilder()
             .addPotentialEntityTypes(EntityType.PHYSICAL_MACHINE_VALUE)
             .addAllCommodityType(ImmutableList.of(
                 createCommodityType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE, "Linux").build(),
                 createCommodityType(CommodityDTO.CommodityType.DATACENTER_VALUE, "DC1").build()))
             .build();
+        when(liveTopologyStore.getSourceTopology()).thenReturn(Optional.empty());
         clientStub.getPotentialPlacements(request);
     }
 

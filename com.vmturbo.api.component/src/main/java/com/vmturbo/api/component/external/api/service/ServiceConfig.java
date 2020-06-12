@@ -340,7 +340,9 @@ public class ServiceConfig {
                 entitySettingQueryExecutor(),
                 communicationConfig.entityConstraintRpcService(),
                 communicationConfig.policyRpcService(),
-                communicationConfig.thinTargetCache());
+                communicationConfig.thinTargetCache(),
+                mapperConfig.paginationMapper(),
+                communicationConfig.serviceEntityMapper());
     }
 
     @Bean
