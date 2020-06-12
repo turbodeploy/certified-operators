@@ -258,6 +258,7 @@ public class AnalysisDebuggingTest {
                     analysisInput.getSettingsMap())
                 .setIncludeVDC(analysisInput.getIncludeVdc())
                 .setUseQuoteCacheDuringSNM(analysisInput.getUseQuoteCacheDuringSnm())
+                .setReplayProvisionsForRealTime(analysisInput.getReplayProvisionsForRealTime())
                 .setRightsizeLowerWatermark(analysisInput.getRightSizeLowerWatermark())
                 .setRightsizeUpperWatermark(analysisInput.getRightSizeUpperWatermark());
         if (analysisInput.hasMaxPlacementsOverride()) {
