@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -15,10 +16,13 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.lang.StringUtils;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import javafx.util.Pair;
 
@@ -60,6 +64,11 @@ public class EntityConstraintsRpcServiceTest {
     private final PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
     EntityConstraintsRpcService constraintsService = new EntityConstraintsRpcService(
         liveTopologyStore, partialEntityConverter, new ConstraintsCalculator());
+    /**
+     * No exception is expected by default.
+     */
+    @Rule
+    public ExpectedException exceptionRule = ExpectedException.none();
     /**
      * Test server.
      */
@@ -167,6 +176,32 @@ public class EntityConstraintsRpcServiceTest {
     }
 
     /**
+     * Get the constraints for non-existant entity.
+     */
+    @Test
+    public void testGetConstraintsForNonExistingEntity() {
+        exceptionRule.expect(StatusRuntimeException.class);
+        clientStub.getConstraints(EntityConstraintsRequest.newBuilder().setOid(2L).build());
+    }
+
+    /**
+     * Try getting the constraints when no real time topology exists.
+     * @throws IOException IOException when error starting test server
+     */
+    @Test
+    public void testGetConstraintsWithNoRealTimeTopology() throws IOException {
+        exceptionRule.expect(StatusRuntimeException.class);
+        LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
+        EntityConstraintsRpcService constraintsService = new EntityConstraintsRpcService(
+            liveTopologyStore, partialEntityConverter, new ConstraintsCalculator());
+        GrpcTestServer testServer = GrpcTestServer.newServer(constraintsService);
+        testServer.start();
+        clientStub = EntityConstraintsServiceGrpc.newBlockingStub(testServer.getChannel());
+        clientStub.getConstraints(
+            EntityConstraintsRequest.newBuilder().setOid(VM1).build());
+    }
+
+    /**
      * Test getting the potential placements.
      * Request contains license access and dc. These commodities can be satisfied by PM1 and PM2.
      * Ensure that we get back PM1 and PM2 in the response.
@@ -184,6 +219,28 @@ public class EntityConstraintsRpcServiceTest {
         assertEquals(2, response.getNumPotentialPlacements());
         assertEquals(ImmutableSet.of(PM1.getKey(), PM2.getKey()), response
             .getEntitiesList().stream().map(e -> e.getApi().getOid()).collect(Collectors.toSet()));
+    }
+
+    /**
+     * Try getting the potential placements when no real time topology exists.
+     * @throws IOException IOException when error starting test server
+     */
+    @Test
+    public void testGetPotentialPlacementsWithNoRealTimeTopology() throws IOException {
+        exceptionRule.expect(StatusRuntimeException.class);
+        LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
+        EntityConstraintsRpcService constraintsService = new EntityConstraintsRpcService(
+            liveTopologyStore, partialEntityConverter, new ConstraintsCalculator());
+        GrpcTestServer testServer = GrpcTestServer.newServer(constraintsService);
+        testServer.start();
+        clientStub = EntityConstraintsServiceGrpc.newBlockingStub(testServer.getChannel());
+        PotentialPlacementsRequest request = PotentialPlacementsRequest.newBuilder()
+            .addPotentialEntityTypes(EntityType.PHYSICAL_MACHINE_VALUE)
+            .addAllCommodityType(ImmutableList.of(
+                createCommodityType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE, "Linux").build(),
+                createCommodityType(CommodityDTO.CommodityType.DATACENTER_VALUE, "DC1").build()))
+            .build();
+        clientStub.getPotentialPlacements(request);
     }
 
     private TopologyEntityDTO createConsumer(int entityType, long oid, Map<Pair<Long, Integer>,
