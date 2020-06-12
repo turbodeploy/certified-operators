@@ -285,7 +285,7 @@ public class UuidMapper implements RepositoryListener {
                     && group.getDefinition().hasOptimizationMetadata()
                     && group.getDefinition().getOptimizationMetadata().hasEnvironmentType()) ?
                 group.getDefinition().getOptimizationMetadata().getEnvironmentType()
-                :  envTypeFromMember;
+                : envTypeFromMember;
             this.entityOidsByType = entityOidsByType;
         }
 
@@ -815,25 +815,17 @@ public class UuidMapper implements RepositoryListener {
                         // if there is no type for any members, then the type is unknown
                         // otherwise the type will be hybrid.
                         final EnvironmentType envTypeFromMember;
-                        /*
-                         A resource group discovered (Azure resource groups) can also have application
-                         entity types as discovered by an application probe. However, We want to treat
-                         this as a cloud environment and not Hybrid.
-                         */
-                        if (resp.getGroup().getDefinition().getType() == GroupType.RESOURCE) {
-                            envTypeFromMember = EnvironmentType.CLOUD;
-                        }  else {
-                            switch (envTypes.size()) {
-                                case 0:
-                                    envTypeFromMember = EnvironmentType.UNKNOWN_ENV;
-                                    break;
-                                case 1:
-                                    envTypeFromMember = envTypes.iterator().next();
-                                    break;
-                                default:
-                                    envTypeFromMember = EnvironmentType.HYBRID;
-                            }
+                        switch (envTypes.size()) {
+                            case 0:
+                                envTypeFromMember = EnvironmentType.UNKNOWN_ENV;
+                                break;
+                            case 1:
+                                envTypeFromMember = envTypes.iterator().next();
+                                break;
+                            default:
+                                envTypeFromMember = EnvironmentType.HYBRID;
                         }
+
                         final Set<Long> discoveringTargetIds =
                             minimalMembers.stream()
                                 .flatMap(minEntity -> minEntity.getDiscoveringTargetIdsList().stream())
