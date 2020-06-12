@@ -40,18 +40,13 @@ public class ConstraintsCalculator {
 
     /**
      * Calculate the constraints.
-     * @param entityOid entity oid for which constraints are to be calculated.
+     * @param entity entity for which constraints are to be calculated.
      * @param entityGraph the real time entity graph
      * @return the constraints.
      */
     public Map<Integer, List<ConstraintGrouping>> calculateConstraints(
-        long entityOid, @Nonnull TopologyGraph<RepoGraphEntity> entityGraph) {
-        Optional<RepoGraphEntity> entityOpt = entityGraph.getEntity(entityOid);
-        if (!entityOpt.isPresent()) {
-            logger.error("No entity with oid {} exists to calculate constraints", entityOid);
-            return Maps.newHashMap();
-        }
-        RepoGraphEntity entity = entityOpt.get();
+        @Nonnull RepoGraphEntity entity,
+        @Nonnull TopologyGraph<RepoGraphEntity> entityGraph) {
         Map<Integer, List<ConstraintGrouping>> constraintGroupings = buildEmptyConstraintGroupings(entity);
 
         // Pass through all the entities and if its an entity type of one of the provider types,

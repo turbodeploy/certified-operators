@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
@@ -82,13 +83,23 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
                                @Nonnull final StreamObserver<EntityConstraintsResponse> responseObserver) {
         Optional<SourceRealtimeTopology> realTimeTopology = liveTopologyStore.getSourceTopology();
         if (!realTimeTopology.isPresent()) {
-            logger.warn("No real-time topology exists to calculate constraints");
+            responseObserver.onError(Status.NOT_FOUND
+                .withDescription("No real time source topology present")
+                .asException());
+            return;
+        }
+        TopologyGraph<RepoGraphEntity> entityGraph = realTimeTopology.get().entityGraph();
+        Optional<RepoGraphEntity> entity = entityGraph.getEntity(request.getOid());
+        if (!entity.isPresent()) {
+            responseObserver.onError(Status.NOT_FOUND
+                .withDescription("Oid " + request.getOid() + " not found in source topology")
+                .asException());
             return;
         }
         final DataMetricTimer timer = CALCULATE_CONSTRAINTS_DURATION_SUMMARY.startTimer();
-        TopologyGraph<RepoGraphEntity> entityGraph = realTimeTopology.get().entityGraph();
         Map<Integer, List<ConstraintGrouping>> constraintGroupingsByProviderEntityType =
-            constraintsCalculator.calculateConstraints(request.getOid(), entityGraph);
+            constraintsCalculator.calculateConstraints(entity.get(), entityGraph);
+
         EntityConstraintsResponse response = buildEntityConstraintsResponse(
             constraintGroupingsByProviderEntityType, entityGraph);
         responseObserver.onNext(response);
@@ -160,7 +171,9 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
                                        StreamObserver<PotentialPlacementsResponse> responseObserver) {
         Optional<SourceRealtimeTopology> realTimeTopology = liveTopologyStore.getSourceTopology();
         if (!realTimeTopology.isPresent()) {
-            logger.warn("No real-time topology exists to calculate potential placements");
+            responseObserver.onError(Status.NOT_FOUND
+                .withDescription("No real time source topology present")
+                .asException());
             return;
         }
         final DataMetricTimer timer = CALCULATE_POTENTIAL_PLACEMENTS_DURATION_SUMMARY.startTimer();
@@ -171,7 +184,7 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
             potentialEntityTypes, constraints, entityGraph);
         PotentialPlacementsResponse.Builder response = PotentialPlacementsResponse.newBuilder();
         response.setNumPotentialPlacements(potentialPlacements.size());
-        // Sort them, and filter out 20 entries for paginaiton here.
+        // Sort and filter out 20 entries for paginaiton here.
         potentialPlacements.forEach(t -> response.addEntities(partialEntityConverter.createPartialEntity(t, Type.API)));
         responseObserver.onNext(response.build());
         responseObserver.onCompleted();
