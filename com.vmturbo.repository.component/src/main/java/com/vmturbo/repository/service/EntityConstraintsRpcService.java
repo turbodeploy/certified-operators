@@ -1,5 +1,7 @@
 package com.vmturbo.repository.service;
 
+import static com.vmturbo.common.protobuf.PaginationProtoUtil.DEFAULT_PAGINATION;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +19,9 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.PaginationProtoUtil.PaginatedResults;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.CurrentPlacement;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsRequest;
@@ -24,11 +29,10 @@ import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint
 import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsRequest;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsResponse.MatchedEntity;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.RelationType;
 import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
@@ -44,7 +48,6 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
 
     private final Logger logger = LogManager.getLogger();
     private final LiveTopologyStore liveTopologyStore;
-    private final PartialEntityConverter partialEntityConverter;
     private static final DataMetricSummary CALCULATE_CONSTRAINTS_DURATION_SUMMARY =
         DataMetricSummary.builder()
             .withName("repo_calculate_constraints_duration_seconds")
@@ -63,14 +66,11 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
      * Entity Constraints RPC service. We calculate the constraints only for real-time entities.
      *
      * @param liveTopologyStore live topology store
-     * @param partialEntityConverter partialEntityConverter is needed to return entities of particular {@link Type}
      * @param constraintsCalculator this is used to calculate the constraints
      */
     public EntityConstraintsRpcService(@Nonnull LiveTopologyStore liveTopologyStore,
-                                       @Nonnull PartialEntityConverter partialEntityConverter,
                                        @Nonnull ConstraintsCalculator constraintsCalculator) {
         this.liveTopologyStore = liveTopologyStore;
-        this.partialEntityConverter = partialEntityConverter;
         this.constraintsCalculator = constraintsCalculator;
     }
 
@@ -182,18 +182,33 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
                 .asException());
             return;
         }
+
         final DataMetricTimer timer = CALCULATE_POTENTIAL_PLACEMENTS_DURATION_SUMMARY.startTimer();
+
+        final PaginationParameters paginationParameters = request.hasPaginationParams() ?
+            request.getPaginationParams() : DEFAULT_PAGINATION;
+
+        try {
+            PaginationProtoUtil.validatePaginationParams(paginationParameters);
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription(e.getMessage()).asException());
+            return;
+        }
+
         TopologyGraph<RepoGraphEntity> entityGraph = realTimeTopology.get().entityGraph();
         Set<Integer> potentialEntityTypes = Sets.newHashSet(request.getPotentialEntityTypesList());
         Set<CommodityType> constraints = Sets.newHashSet(request.getCommodityTypeList());
-        List<TopologyEntityDTO> potentialPlacements = constraintsCalculator.calculatePotentialPlacements(
-            potentialEntityTypes, constraints, entityGraph);
-        PotentialPlacementsResponse.Builder response = PotentialPlacementsResponse.newBuilder();
-        response.setNumPotentialPlacements(potentialPlacements.size());
-        // Sort and filter out 20 entries for paginaiton here.
-        potentialPlacements.forEach(t -> response.addEntities(partialEntityConverter.createPartialEntity(t, Type.API)));
-        responseObserver.onNext(response.build());
+        final PaginatedResults<MatchedEntity> paginatedResults = constraintsCalculator.calculatePotentialPlacements(
+            potentialEntityTypes, constraints, entityGraph, paginationParameters,
+            realTimeTopology.get().topologyInfo().getTopologyContextId());
+
+        responseObserver.onNext(PotentialPlacementsResponse.newBuilder()
+            .addAllEntities(paginatedResults.nextPageEntities())
+            .setPaginationResponse(paginatedResults.paginationResponse())
+            .build());
         responseObserver.onCompleted();
+
         timer.observe();
         logger.info("Calculated potential placements for oid {} with constraints {} in {} seconds",
             request.getOid(), constraintsCalculator.getPrintableConstraints(constraints), timer.getTimeElapsedSecs());

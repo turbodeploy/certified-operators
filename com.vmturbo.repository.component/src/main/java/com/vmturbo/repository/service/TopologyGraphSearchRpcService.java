@@ -26,6 +26,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.PaginationProtoUtil.PaginatedResults;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
@@ -49,7 +51,6 @@ import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
-import com.vmturbo.repository.service.LiveTopologyPaginator.PaginatedResults;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
 
@@ -222,7 +223,7 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         }
 
         try {
-            liveTopologyPaginator.validatePaginationParams(request.getPaginationParams());
+            PaginationProtoUtil.validatePaginationParams(request.getPaginationParams());
         } catch (IllegalArgumentException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                 .withDescription(e.getMessage()).asException());
@@ -234,7 +235,7 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             Tracing.log(() -> logParams("Starting entity search with params - ", searchQuery.getSearchParametersList()));
 
             final Stream<RepoGraphEntity> entities = internalSearch(request.getEntityOidList(), searchQuery);
-            final PaginatedResults paginatedResults =
+            final PaginatedResults<RepoGraphEntity> paginatedResults =
                 liveTopologyPaginator.paginate(entities, request.getPaginationParams());
 
             Tracing.log(() -> "Completed search and pagination. Got page with " +

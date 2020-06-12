@@ -2,26 +2,44 @@ package com.vmturbo.repository.service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.ImmutablePaginatedResults;
+import com.vmturbo.common.protobuf.PaginationProtoUtil.PaginatedResults;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.CurrentPlacement;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsResponse.MatchedEntity;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.RelationType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -32,7 +50,29 @@ import com.vmturbo.topology.graph.TopologyGraph;
  * This class houses the business logic for constraints calculation.
  */
 public class ConstraintsCalculator {
+
     private final Logger logger = LogManager.getLogger();
+
+    private final EntitySeverityServiceBlockingStub severityRpcService;
+
+    private final int defaultPaginationLimit;
+
+    private final int maxPaginationLimit;
+
+    /**
+     * The constructor.
+     *
+     * @param severityRpcService {@link EntityConstraintsRpcService}
+     * @param defaultPaginationLimit default pagination limit
+     * @param maxPaginationLimit max pagination limit
+     */
+    public ConstraintsCalculator(
+            @Nonnull final EntitySeverityServiceBlockingStub severityRpcService,
+            final int defaultPaginationLimit, final int maxPaginationLimit) {
+        this.severityRpcService = severityRpcService;
+        this.defaultPaginationLimit = defaultPaginationLimit;
+        this.maxPaginationLimit = maxPaginationLimit;
+    }
 
     /**
      * Calculate the constraints.
@@ -83,29 +123,105 @@ public class ConstraintsCalculator {
      *                             we can send in multiple potential entity types.
      * @param constraints the constraints to be considered for potential placement calculation
      * @param entityGraph real time entity graph
+     * @param paginationParameters the pagination parameters
+     * @param topologyContextId topology context id
      * @return List of potential placements
      */
-    public List<TopologyEntityDTO> calculatePotentialPlacements(
-        @Nonnull final Set<Integer> potentialEntityTypes,
-        @Nonnull final Set<CommodityType> constraints,
-        @Nonnull final TopologyGraph<RepoGraphEntity> entityGraph) {
-        String printableConstraints = getPrintableConstraints(constraints);
-        // We use a List because using a hash set for a TopologyEntityDTO will mean we need to
-        // hash the contents of TopologyEntityDTO, which can be expensive. And we don't expect duplicates.
-        List<TopologyEntityDTO> potentialPlacements = Lists.newArrayList();
-        entityGraph.entities().forEach(repoEntity -> {
-            if (potentialEntityTypes.contains(repoEntity.getEntityType())) {
-                TopologyEntityDTO topoEntity = repoEntity.getTopologyEntity();
-                Set<CommodityType> commTypesSold = topoEntity.getCommoditySoldListList().stream()
-                    .map(c -> c.getCommodityType()).collect(Collectors.toSet());
-                if (commTypesSold.containsAll(constraints)) {
-                    logger.trace("Adding potential seller {} of type {} for constraints = {}",
-                        repoEntity.getDisplayName(), repoEntity.getEntityType(), printableConstraints);
-                    potentialPlacements.add(topoEntity);
-                }
+    PaginatedResults<MatchedEntity> calculatePotentialPlacements(
+            @Nonnull final Set<Integer> potentialEntityTypes,
+            @Nonnull final Set<CommodityType> constraints,
+            @Nonnull final TopologyGraph<RepoGraphEntity> entityGraph,
+            @Nonnull final PaginationParameters paginationParameters,
+            final long topologyContextId) {
+        final long skipCount = (!paginationParameters.hasCursor() || StringUtils.isEmpty(paginationParameters.getCursor())) ?
+            0 : Long.parseLong(paginationParameters.getCursor());
+
+        final long limit;
+        if (paginationParameters.hasLimit()) {
+            if (paginationParameters.getLimit() > maxPaginationLimit) {
+                logger.warn("Client-requested limit {} exceeds maximum!" +
+                    " Lowering the limit to {}!", paginationParameters.getLimit(), maxPaginationLimit);
+                limit = maxPaginationLimit;
+            } else {
+                limit = paginationParameters.getLimit();
             }
+        } else {
+            limit = defaultPaginationLimit;
+        }
+
+        final String printableConstraints = getPrintableConstraints(constraints);
+
+        // Perform the pagination
+        final Map<Long, RepoGraphEntity> potentialPlacements = entityGraph.entities()
+            // Filter by entity type
+            .filter(entity -> potentialEntityTypes.contains(entity.getEntityType()))
+            // Filter by commodity sold type
+            .filter(entity -> entity.getTopologyEntity().getCommoditySoldListList().stream()
+                .map(CommoditySoldDTO::getCommodityType).collect(Collectors.toSet()).containsAll(constraints))
+            // Count every record, pre-pagination to get the total record count
+            .peek(entity -> {
+                logger.trace("Adding potential seller {} of type {} for constraints = {}",
+                    entity.getDisplayName(), entity.getEntityType(), printableConstraints);
+            })
+            .collect(Collectors.toMap(RepoGraphEntity::getOid, Function.identity()));
+
+        final Iterable<EntitySeveritiesResponse> entitySeveritiesResponses =
+            () -> severityRpcService.getEntitySeverities(MultiEntityRequest.newBuilder()
+                .setTopologyContextId(topologyContextId)
+                .addAllEntityIds(potentialPlacements.keySet())
+                .build());
+
+        // Sort by severity, then display name
+        final Comparator<EntitySeverity> comparator = Comparator
+            .comparing((EntitySeverity severity) ->
+                severity.hasSeverity() ? severity.getSeverity() : Severity.NORMAL)
+            .reversed()
+            .thenComparing((EntitySeverity severity) ->
+                potentialPlacements.get(severity.getEntityId()).getDisplayName());
+
+        final List<MatchedEntity> matchedEntities =
+            StreamSupport.stream(entitySeveritiesResponses.spliterator(), false)
+                .flatMap(chunk -> chunk.getEntitySeverity().getEntitySeverityList().stream())
+                .sorted(comparator)
+                .skip(skipCount)
+                // Add 1 so we know if there are more results or not.
+                .limit(limit + 1)
+                .map(severity -> createMatchedEntity(severity,
+                    potentialPlacements.get(severity.getEntityId())))
+                .collect(Collectors.toList());
+
+        final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
+        paginationResponse.setTotalRecordCount(potentialPlacements.size());
+        if (matchedEntities.size() > limit) {
+            final String nextCursor = Long.toString(skipCount + limit);
+            // Remove the last element to conform to limit boundaries.
+            matchedEntities.remove(matchedEntities.size() - 1);
+            paginationResponse.setNextCursor(nextCursor);
+        }
+
+        return ImmutablePaginatedResults.<MatchedEntity>builder()
+            .nextPageEntities(matchedEntities)
+            .paginationResponse(paginationResponse.build())
+            .build();
+    }
+
+    private MatchedEntity createMatchedEntity(final EntitySeverity severity, final RepoGraphEntity repoGraphEntity) {
+        final MatchedEntity.Builder builder = MatchedEntity.newBuilder().setOid(repoGraphEntity.getOid())
+            .setDisplayName(repoGraphEntity.getDisplayName())
+            .setEntityType(repoGraphEntity.getEntityType())
+            .setEntityState(repoGraphEntity.getEntityState())
+            .setSeverity(severity.hasSeverity() ? severity.getSeverity() : Severity.NORMAL);
+
+        repoGraphEntity.getDiscoveringTargetIds().forEach(id -> {
+            String vendorId = repoGraphEntity.getVendorId(id);
+            PerTargetEntityInformation.Builder info = PerTargetEntityInformation.newBuilder();
+            if (vendorId != null) {
+                info.setVendorId(vendorId);
+            }
+            builder.putDiscoveredTargetData(id, info.build());
         });
-        return potentialPlacements;
+
+        return builder.build();
     }
 
     /**

@@ -33,6 +33,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -124,6 +125,9 @@ public class EntitiesServiceTest {
     private EntitySettingQueryExecutor entitySettingQueryExecutor = mock(EntitySettingQueryExecutor.class);
 
     private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
+
+    private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
+
     // gRPC servers
     @Rule
     public final GrpcTestServer grpcServer =
@@ -241,7 +245,9 @@ public class EntitiesServiceTest {
                 repositoryApi, entitySettingQueryExecutor,
                 EntityConstraintsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                thinTargetCache);
+                thinTargetCache,
+                paginationMapper,
+                serviceEntityMapper);
     }
 
     /**

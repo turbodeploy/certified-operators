@@ -30,6 +30,7 @@ import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceImplBase;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServiceController;
@@ -140,6 +141,12 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Value("${repositorySearchPaginationMaxLimit}")
     private int repositorySearchPaginationMaxLimit;
+
+    @Value("${repositoryEntityPaginationDefaultLimit}")
+    private int repositoryEntityPaginationDefaultLimit;
+
+    @Value("${repositoryEntityPaginationMaxLimit}")
+    private int repositoryEntityPaginationMaxLimit;
 
     @Value("${repositoryMaxEntitiesPerChunk:5}")
     private int maxEntitiesPerChunk;
@@ -262,7 +269,10 @@ public class RepositoryComponent extends BaseVmtComponent {
             GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
-
+    @Bean
+    public EntitySeverityServiceBlockingStub entitySeverityService() {
+        return EntitySeverityServiceGrpc.newBlockingStub(actionOrchestratorClientConfig.actionOrchestratorChannel());
+    }
 
     @Bean
     public SupplyChainServiceController supplyChainServiceController()
@@ -360,13 +370,15 @@ public class RepositoryComponent extends BaseVmtComponent {
     public EntityConstraintsServiceImplBase entityConstraintRpcService() {
         return new EntityConstraintsRpcService(
             repositoryComponentConfig.liveTopologyStore(),
-            partialEntityConverter(),
             constraintsCalculator());
     }
 
     @Bean
     public ConstraintsCalculator constraintsCalculator() {
-        return new ConstraintsCalculator();
+        return new ConstraintsCalculator(
+            entitySeverityService(),
+            repositoryEntityPaginationDefaultLimit,
+            repositoryEntityPaginationMaxLimit);
     }
 
     @Nonnull

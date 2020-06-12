@@ -321,6 +321,8 @@ defaultProperties:
         repositorySearchPaginationMaxLimit: 500
         repositoryEntityStatsPaginationDefaultLimit: 100
         repositoryEntityStatsPaginationMaxLimit: 300
+        repositoryEntityPaginationDefaultLimit: 20
+        repositoryEntityPaginationMaxLimit: 100
         # Note - OM-36437 - The price index sorting doesn't actually work right now,
         # but there is no other good universally applicable default commodity.
         repositoryEntityStatsPaginationDefaultSortCommodity: priceIndex
