@@ -8,6 +8,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
@@ -24,6 +25,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -50,6 +53,7 @@ public class CommodityConverterTest {
     private static final Float MARKET_USED = RAW_USED * SCALING_FACTOR;
     private static final Float MARKET_CAPACITY = RAW_CAPACITY * SCALING_FACTOR;
     private static final Float PERCENTILE_USED = 0.65F;
+    private static final Float DELTA = 0.001f;
 
     NumericIDAllocator commodityTypeAllocator;
     Map<String, CommodityType> commoditySpecMap;
@@ -298,6 +302,92 @@ public class CommodityConverterTest {
             .getSettings().getResold(), is(false));
         assertThat(commSoldOfType(result, CommodityDTO.CommodityType.VMEM)
             .getSettings().getResold(), is(true));
+    }
+
+    /**
+     * Test get bought commodity historical utilization.
+     */
+    @Test
+    public void testGetHistoricalUsed() {
+        CommodityBoughtDTO commodityBoughtDTO = CommodityBoughtDTO.newBuilder()
+            .setCommodityType(
+                CommodityType.newBuilder().setType(CommodityDTO.CommodityType.POOL_CPU_VALUE)
+                .build())
+            .build();
+        Optional<float[]> histUsed = CommodityConverter.getHistoricalUsedOrPeak(commodityBoughtDTO,
+            TopologyDTO.CommodityBoughtDTO::getHistoricalUsed);
+        assertFalse(histUsed.isPresent());
+        HistoricalValues historicalValues =  HistoricalValues.newBuilder()
+            .setPercentile(PERCENTILE_USED)
+            .addAllTimeSlot(Arrays.asList(0.1d, 0.2d, 0.3d))
+            .setHistUtilization(RAW_USED)
+            .build();
+        commodityBoughtDTO = commodityBoughtDTO.toBuilder().setHistoricalUsed(historicalValues)
+            .build();
+        histUsed = CommodityConverter.getHistoricalUsedOrPeak(commodityBoughtDTO,
+            TopologyDTO.CommodityBoughtDTO::getHistoricalUsed);
+        assertTrue(histUsed.isPresent());
+        assertEquals(1, histUsed.get().length);
+        assertEquals(PERCENTILE_USED, histUsed.get()[0], DELTA);
+        commodityBoughtDTO = commodityBoughtDTO.toBuilder().setHistoricalUsed(
+            historicalValues.toBuilder().clearPercentile().build()).build();
+        histUsed = CommodityConverter.getHistoricalUsedOrPeak(commodityBoughtDTO,
+            TopologyDTO.CommodityBoughtDTO::getHistoricalUsed);
+        assertTrue(histUsed.isPresent());
+        assertEquals(3, histUsed.get().length);
+        commodityBoughtDTO = commodityBoughtDTO.toBuilder().setHistoricalUsed(
+            historicalValues.toBuilder()
+                .clearPercentile()
+                .clearTimeSlot().build())
+            .build();
+        histUsed = CommodityConverter.getHistoricalUsedOrPeak(commodityBoughtDTO,
+            TopologyDTO.CommodityBoughtDTO::getHistoricalUsed);
+        assertTrue(histUsed.isPresent());
+        assertEquals(1, histUsed.get().length);
+        assertEquals(RAW_USED, histUsed.get()[0], DELTA);
+    }
+
+    /**
+     * Test get bought commodity historical peak.
+     */
+    @Test
+    public void testGetHistoricalPeak() {
+        CommodityBoughtDTO commodityBoughtDTO = CommodityBoughtDTO.newBuilder()
+            .setCommodityType(
+                CommodityType.newBuilder().setType(CommodityDTO.CommodityType.POOL_CPU_VALUE)
+                    .build())
+            .build();
+        Optional<float[]> histPeak = CommodityConverter.getHistoricalUsedOrPeak(commodityBoughtDTO,
+            TopologyDTO.CommodityBoughtDTO::getHistoricalPeak);
+        assertFalse(histPeak.isPresent());
+        HistoricalValues historicalValues =  HistoricalValues.newBuilder()
+            .setPercentile(PERCENTILE_USED)
+            .addAllTimeSlot(Arrays.asList(0.1d, 0.2d, 0.3d))
+            .setHistUtilization(RAW_USED)
+            .build();
+        commodityBoughtDTO = commodityBoughtDTO.toBuilder().setHistoricalUsed(historicalValues)
+            .build();
+        histPeak = CommodityConverter.getHistoricalUsedOrPeak(commodityBoughtDTO,
+            TopologyDTO.CommodityBoughtDTO::getHistoricalUsed);
+        assertTrue(histPeak.isPresent());
+        assertEquals(1, histPeak.get().length);
+        assertEquals(PERCENTILE_USED, histPeak.get()[0], DELTA);
+        commodityBoughtDTO = commodityBoughtDTO.toBuilder().setHistoricalUsed(
+            historicalValues.toBuilder().clearPercentile().build()).build();
+        histPeak = CommodityConverter.getHistoricalUsedOrPeak(commodityBoughtDTO,
+            TopologyDTO.CommodityBoughtDTO::getHistoricalUsed);
+        assertTrue(histPeak.isPresent());
+        assertEquals(3, histPeak.get().length);
+        commodityBoughtDTO = commodityBoughtDTO.toBuilder().setHistoricalUsed(
+            historicalValues.toBuilder()
+                .clearPercentile()
+                .clearTimeSlot().build())
+            .build();
+        histPeak = CommodityConverter.getHistoricalUsedOrPeak(commodityBoughtDTO,
+            TopologyDTO.CommodityBoughtDTO::getHistoricalUsed);
+        assertTrue(histPeak.isPresent());
+        assertEquals(1, histPeak.get().length);
+        assertEquals(RAW_USED, histPeak.get()[0], DELTA);
     }
 
     private CommoditySoldTO commSoldOfType(@Nonnull final Collection<CommoditySoldTO> commoditiesSold,

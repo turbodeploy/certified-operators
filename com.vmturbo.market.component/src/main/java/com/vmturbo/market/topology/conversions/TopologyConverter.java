@@ -1523,11 +1523,25 @@ public class TopologyConverter {
 
         logger.debug("Recalculating new capacity for {}", topologyDTO.getDisplayName());
         Optional<float[]> histUsedValue =
-                CommodityConverter.getHistoricalUsedOrPeak(commBought, TopologyDTO.CommodityBoughtDTO::getUsed,
+                CommodityConverter.getHistoricalUsedOrPeak(commBought,
                         TopologyDTO.CommodityBoughtDTO::getHistoricalUsed);
         Optional<float[]> histPeakValue =
-                CommodityConverter.getHistoricalUsedOrPeak(commBought, TopologyDTO.CommodityBoughtDTO::getPeak,
+                CommodityConverter.getHistoricalUsedOrPeak(commBought,
                         TopologyDTO.CommodityBoughtDTO::getHistoricalPeak);
+        if (logger.isDebugEnabled()) {
+            checkHistValues(commBought, histUsedValue, histPeakValue);
+        }
+        // if no historical values retrieved, use real time values
+        if (!histUsedValue.isPresent()) {
+            logger.debug("Using current used value {} for recalculating resize capacity for {}",
+                commBought.getUsed(), commBought.getCommodityType().getType());
+            histUsedValue = Optional.of(new float[]{(float)commBought.getUsed()});
+        }
+        if (!histPeakValue.isPresent()) {
+            logger.debug("Using current peak value {} for recalculating resize capacity for {}",
+                commBought.getPeak(), commBought.getCommodityType().getType());
+            histPeakValue = Optional.of(new float[]{(float)commBought.getPeak()});
+        }
 
         float[] histUsed = histUsedValue.orElseGet(() -> new float[] {});
         float[] histPeak = histPeakValue.orElseGet(() -> new float[] {});
@@ -1628,6 +1642,37 @@ public class TopologyConverter {
                 new float[]{resizedQuantity[1]}};
     }
 
+    /**
+     * Warn if the number of historical used quantities is different from the number of historical
+     * peak values, and the difference is legitimately unexpected.
+     *
+     * @param commBought commodity bought which values to check
+     * @param histUsed historical used values
+     * @param histPeak historical peak values
+     */
+    private static void checkHistValues(
+        @Nonnull final TopologyDTO.CommodityBoughtDTO commBought,
+        @Nonnull final Optional<float[]> histUsed,
+        @Nonnull final Optional<float[]> histPeak) {
+        if (histUsed.isPresent() && histPeak.isPresent()) {
+            final float[] usedQuantities = histUsed.get();
+            final float[] peakQuantities = histPeak.get();
+            if (usedQuantities.length != peakQuantities.length) {
+                final int histUsedTimeslots = commBought.hasHistoricalUsed()
+                    ? commBought.getHistoricalUsed().getTimeSlotCount() : 0;
+                final int histPeakTimeslots = commBought.hasHistoricalPeak()
+                    ? commBought.getHistoricalPeak().getTimeSlotCount() : 0;
+                // if one set of historical values has timeslots while the other one doesn't,
+                // the difference would be expected
+                if (histUsedTimeslots == histPeakTimeslots && peakQuantities.length > 0) {
+                    logger.warn("Different lengths of used and peak quantities for commodity {}. "
+                            + "Received {} used and {} peak values. ",
+                        commBought::getCommodityType, () -> usedQuantities.length,
+                        () -> peakQuantities.length);
+                }
+            }
+        }
+    }
 
     /**
      * Calculates the new resized  capacities for the bought commodity based on historical
@@ -2763,11 +2808,6 @@ public class TopologyConverter {
         if (newQuantity.length == 0) {
             logger.warn("Received  empty resized quantities for {}", topologyCommBought);
             return newQuantityList;
-        }
-        if (usedQuantities.length != peakQuantities.length) {
-            logger.warn("Different lengths of used and peak quantities." +
-                            "Received {} used and {} peak values. ",
-                    usedQuantities.length, peakQuantities.length);
         }
         int maxLength = Math.max(usedQuantities.length, peakQuantities.length);
         for (int index = 0; index < maxLength; index++) {
