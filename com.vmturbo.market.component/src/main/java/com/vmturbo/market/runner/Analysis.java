@@ -537,6 +537,16 @@ public class Analysis {
                             projectedTraderDTO = smaConverter.getProjectedTraderDTOsWithSMA();
                         }
 
+                        // Clear the Traders and Economy to reduce memory usage in the market component before
+                        // creating the Projected TopologyEntityDTOs.
+                        economy.getValue().ifPresent(e -> {
+                            e.getTraders().forEach(Trader::clearShoppingAndMarketData);
+                            final Topology topology = e.getTopology();
+                            if (topology != null) {
+                                topology.clear();
+                            }
+                        });
+
                         // results can be null if M2Analysis is not run
                         final PriceIndexMessage priceIndexMessage = results != null ?
                                 results.getPriceIndexMsg() : PriceIndexMessage.getDefaultInstance();
@@ -1086,7 +1096,7 @@ public class Analysis {
         while (!suppliersToExpand.isEmpty()) {
             long traderOid = suppliersToExpand.remove();
 
-            if (!topology.getTraderOids().containsValue(traderOid)) {
+            if (!topology.getTradersByOid().containsValue(traderOid)) {
                 // not all entities are guaranteed to be in the traders set -- the
                 // market will exclude entities based on factors such as entitystate, for example.
                 // If we encounter an entity that is not in the market, don't expand it any further.
@@ -1095,17 +1105,17 @@ public class Analysis {
             }
 
             if (logger.isTraceEnabled()) {
-                logger.trace("expand OID {}: {}", traderOid, topology.getTraderOids().inverse()
+                logger.trace("expand OID {}: {}", traderOid, topology.getTradersByOid()
                         .get(traderOid).getDebugInfoNeverUseInCode());
             }
-            Trader thisTrader = topology.getTraderOids().inverse().get(traderOid);
+            Trader thisTrader = topology.getTradersByOid().get(traderOid);
             // remember the trader for this OID in the scoped topology & continue expanding "up"
             scopedTopologyOIDs.add(traderOid);
             // add OIDs of traders THAT buy from this entity which we have not already added
             final List<Long> customerOids = thisTrader.getUniqueCustomers().stream()
-                    .map(trader -> topology.getTraderOids().get(trader))
+                    .map(Trader::getOid)
                     .filter(customerOid -> !scopedTopologyOIDs.contains(customerOid) &&
-                            !suppliersToExpand.contains(customerOid))
+                        !suppliersToExpand.contains(customerOid))
                     .collect(Collectors.toList());
             if (customerOids.size() == 0) {
                 // if no customers, then "start downwards" from here
@@ -1120,8 +1130,8 @@ public class Analysis {
                 suppliersToExpand.addAll(customerOids);
                 if (logger.isTraceEnabled()) {
                     logger.trace("add supplier oids ");
-                    customerOids.forEach(oid -> logger.trace("{}: {}", oid, topology.getTraderOids()
-                            .inverse().get(oid).getDebugInfoNeverUseInCode()));
+                    customerOids.forEach(oid -> logger.trace("{}: {}", oid, topology.getTradersByOid()
+                            .get(oid).getDebugInfoNeverUseInCode()));
                 }
             }
         }
@@ -1132,11 +1142,11 @@ public class Analysis {
         while (!buyersToSatisfy.isEmpty()) {
             long traderOid = buyersToSatisfy.remove();
             providersExpanded.add(traderOid);
-            Trader thisTrader = topology.getTraderOids().inverse().get(traderOid);
+            Trader thisTrader = topology.getTradersByOid().get(traderOid);
             // build list of sellers of markets this Trader buys from; omit Traders already expanded
             Set<Trader> potentialSellers = topology.getEconomy().getPotentialSellers(thisTrader);
             List<Long> sellersOids = potentialSellers.stream()
-                            .map(trader -> topology.getTraderOids().get(trader))
+                            .map(Trader::getOid)
                             .filter(buyerOid -> !providersExpanded.contains(buyerOid))
                             .collect(Collectors.toList());
             scopedTopologyOIDs.addAll(sellersOids);
@@ -1151,8 +1161,8 @@ public class Analysis {
             if (logger.isTraceEnabled()) {
                 if (sellersOids.size() > 0) {
                     logger.trace("add buyer oids: ");
-                    sellersOids.forEach(oid -> logger.trace("{}: {}", oid, topology.getTraderOids()
-                            .inverse().get(oid).getDebugInfoNeverUseInCode()));
+                    sellersOids.forEach(oid -> logger.trace("{}: {}", oid, topology.getTradersByOid()
+                            .get(oid).getDebugInfoNeverUseInCode()));
                 }
             }
         }

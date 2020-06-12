@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,6 +24,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashBiMap;
@@ -206,17 +208,22 @@ public class TopologyConverter {
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
-        this.commodityIndex = commodityIndexFactory.newIndex();
+        // Lazy initialize commodityIndex through Suppliers#memoize. This ensures that all calls to
+        // commmodityIndex#get after the first just return the lazy-initialized commodityIndex.
+        this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
+
         this.marketMode = MarketMode.M2Only;
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
             oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.actionInterpreter = new ActionInterpreter(commodityConverter,
+        // Lazy initialize actionInterpreter. It needs to be lazy-initialized because it refers
+        // to the lazy-initialized commodity index.
+        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
             shoppingListOidToInfos,
             cloudTc,
             unmodifiableEntityOidToDtoMap,
             oidToProjectedTraderTOMap,
             cert,
-            projectedRICoverageCalculator, tierExcluder, commodityIndex);
+            projectedRICoverageCalculator, tierExcluder, commodityIndex));
     }
 
     /**
@@ -291,15 +298,16 @@ public class TopologyConverter {
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
-        this.commodityIndex = commodityIndexFactory.newIndex();
+        this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
             oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
-                cloudTc,
-                unmodifiableEntityOidToDtoMap,
-                oidToProjectedTraderTOMap,
-                cert,
-                projectedRICoverageCalculator, tierExcluder, commodityIndex);
+        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
+            shoppingListOidToInfos,
+            cloudTc,
+            unmodifiableEntityOidToDtoMap,
+            oidToProjectedTraderTOMap,
+            cert,
+            projectedRICoverageCalculator, tierExcluder, commodityIndex));
     }
 
     /**
@@ -310,8 +318,6 @@ public class TopologyConverter {
     public Long convertTraderTOToTopologyEntityDTO(Long traderTOOID) {
         return cloudTc.getMarketTier(traderTOOID).getTier().getOid();
     }
-
-
 
     private long shoppingListId = 1000L; // Arbitrary start value
 
@@ -380,7 +386,7 @@ public class TopologyConverter {
 
     private final CommodityConverter commodityConverter;
 
-    private final ActionInterpreter actionInterpreter;
+    private final Supplier<ActionInterpreter> actionInterpreter;
 
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
@@ -392,8 +398,11 @@ public class TopologyConverter {
     /**
      * Index that keeps scaling factors applied during conversion TO market entities, to allow
      * quick lookups to reverse scaling when converting FROM market entities.
+     * <p/>
+     * Lazily initialized to reduce memory usage in the component until we actually need to
+     * use the CommodityIndex when we convert back from market.
      */
-    private CommodityIndex commodityIndex;
+    private Supplier<CommodityIndex> commodityIndex;
 
     private final TierExcluder tierExcluder;
 
@@ -425,19 +434,20 @@ public class TopologyConverter {
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap,
                 businessAccounts, marketPriceTable, null, tierExcluder, cloudTopology);
-        this.commodityIndex = commodityIndexFactory.newIndex();
+        this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
+
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
             oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
-                cloudTc,
+        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
+            shoppingListOidToInfos,
+            cloudTc,
             unmodifiableEntityOidToDtoMap,
             oidToProjectedTraderTOMap,
             cert,
-            projectedRICoverageCalculator, tierExcluder, commodityIndex);
+            projectedRICoverageCalculator, tierExcluder, commodityIndex));
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
     }
-
 
     /**
      * Constructor with includeGuaranteedBuyer parameter.
@@ -470,6 +480,10 @@ public class TopologyConverter {
 
     public ProjectedRICoverageCalculator getProjectedRICoverageCalculator() {
         return projectedRICoverageCalculator;
+    }
+
+    public CommodityIndex getCommodityIndex() {
+        return commodityIndex.get();
     }
 
     // Read only version
@@ -592,7 +606,6 @@ public class TopologyConverter {
                     .filter(comm -> CommodityConverter.isBicliqueCommodity(comm.getCommodityType()))
                     .forEach(comm -> edge(dto, comm));
                 oidToUuidMap.put(dto.getOid(), String.valueOf(dto.getOid()));
-                commodityIndex.addEntity(dto);
                 populateCommodityConsumesTable(dto);
             }
             // Create market tier traderTO builders
@@ -698,7 +711,7 @@ public class TopologyConverter {
                 priceIndexMessage.getPayloadList().stream()
                     .collect(Collectors.toMap(PriceIndexMessagePayload::getOid, Function.identity()));
             Map<Long, EconomyDTOs.TraderTO> projTraders =
-                    projectedTraders.stream().collect(Collectors.toMap(t -> t.getOid(), Function.identity()));
+                    projectedTraders.stream().collect(Collectors.toMap(TraderTO::getOid, Function.identity()));
             logger.info("Converting {} projectedTraders to topologyEntityDTOs", projectedTraders.size());
             projectedTraders.forEach(t -> oidToProjectedTraderTOMap.put(t.getOid(), t));
             projectedRICoverageCalculator.relinquishCoupons(projectedTraders);
@@ -823,7 +836,7 @@ public class TopologyConverter {
                                      @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
                                      @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
                                      @Nonnull TopologyCostCalculator topologyCostCalculator) {
-        return actionInterpreter.interpretAction(actionTO, projectedTopology, originalCloudTopology,
+        return actionInterpreter.get().interpretAction(actionTO, projectedTopology, originalCloudTopology,
             projectedCosts, topologyCostCalculator);
     }
 
@@ -1826,7 +1839,7 @@ public class TopologyConverter {
         return commodityConverter.marketToTopologyCommodity(commBoughtTO.getSpecification())
                 .map(commType -> {
                     Optional<CommodityBoughtDTO> boughtDTObyTraderFromProjectedSellerInRealTopology =
-                            commodityIndex.getCommBought(traderOid, supplierOid, commType, volumeId);
+                        getCommodityIndex().getCommBought(traderOid, supplierOid, commType, volumeId);
                     float currentUsage = getOriginalUsedValue(commBoughtTO, traderOid,
                             supplierOid, commType, volumeId, originalEntity);
                     final Builder builder = CommodityBoughtDTO.newBuilder();
@@ -1927,11 +1940,11 @@ public class TopologyConverter {
         }
 
         final double originalPercentile = boughtDTO.getHistoricalUsed().getPercentile();
-        final Optional<Double> oldCapacity = commodityIndex.getCommSold(
-                        shoppingListInfo.getSellerId(),
-                        commType).map(CommoditySoldDTO::getCapacity);
+        final Optional<Double> oldCapacity = getCommodityIndex().getCommSold(
+            shoppingListInfo.getSellerId(),
+            commType).map(CommoditySoldDTO::getCapacity);
         final Optional<Double> newCapacity =
-                        commodityIndex.getCommSold(supplierOid, commType)
+            getCommodityIndex().getCommSold(supplierOid, commType)
                                         .map(CommoditySoldDTO::getCapacity)
                                         .filter(capacity -> capacity != 0);
         if (oldCapacity.isPresent() && newCapacity.isPresent()) {
@@ -1979,9 +1992,9 @@ public class TopologyConverter {
                 */
                 if (providerDTO.size() == 1) {
                     Optional<CommodityBoughtDTO> originalCommodityBoughtDTO =
-                            commodityIndex.getCommBought(traderOid,
-                                    providerDTO.stream().findFirst().get().getOid(),
-                                    commType, volumeId);
+                        getCommodityIndex().getCommBought(traderOid,
+                            providerDTO.stream().findFirst().get().getOid(),
+                            commType, volumeId);
                     if (originalCommodityBoughtDTO.isPresent()) {
                         currentUsage = (float)originalCommodityBoughtDTO.get().getUsed();
                     }
@@ -2939,9 +2952,9 @@ public class TopologyConverter {
                 (primaryTierSize > 0) ? cloudTc.getPrimaryMarketTier(projectedTraderTO) : null;
         // find original sold commodity of same type from original entity
         Optional<CommoditySoldDTO> originalCommoditySold =
-                commodityIndex.getCommSold(traderOid, commType);
+            getCommodityIndex().getCommSold(traderOid, commType);
         if (!originalCommoditySold.isPresent() && projectedTraderTO.getCloneOf() != 0) {
-            originalCommoditySold = commodityIndex.getCommSold(projectedTraderTO.getCloneOf(), commType);
+            originalCommoditySold = getCommodityIndex().getCommSold(projectedTraderTO.getCloneOf(), commType);
         }
         CommoditySoldTO adjustedCommSoldTO = commSoldTO.toBuilder()
                 .setQuantity((float)reverseScaleComm(commSoldTO.getQuantity(),
@@ -3242,5 +3255,19 @@ public class TopologyConverter {
             }
         }
         return stream;
+    }
+
+    /**
+     * Create the commodity index from the input TopologyDTO's.
+     *
+     * @param commodityIndexFactory Factory to use to create the commodity index.
+     * @return the commodity index created from the input TopologyDTO's.
+     */
+    private CommodityIndex createCommodityIndex(final CommodityIndexFactory commodityIndexFactory) {
+        final CommodityIndex index = commodityIndexFactory.newIndex();
+        for (TopologyDTO.TopologyEntityDTO dto : entityOidToDto.values()) {
+            index.addEntity(dto);
+        }
+        return index;
     }
 }

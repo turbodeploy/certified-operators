@@ -239,7 +239,7 @@ public class TopologyEntitiesHandler {
                 isRealtime ? analysisConfig.getSuspensionsThrottlingConfig() : SuspensionsThrottlingConfig.DEFAULT);
         final long stop = System.nanoTime();
 
-        results = AnalysisToProtobuf.analysisResults(actions, topology.getTraderOids(),
+        results = AnalysisToProtobuf.analysisResults(actions,
             topology.getShoppingListOids(), stop - start,
             topology, startPriceStatement);
 
@@ -294,7 +294,7 @@ public class TopologyEntitiesHandler {
 
             for (Action action : secondRoundActions) {
                 final ActionTO actionTO = AnalysisToProtobuf.actionTO(
-                    action, topology.getTraderOids(), topology.getShoppingListOids(), topology);
+                    action, topology.getShoppingListOids(), topology);
                 if (actionTO != null) {
                     builder.addActions(actionTO);
                     // After action is added, find the provisioned trader
@@ -361,7 +361,7 @@ public class TopologyEntitiesHandler {
                     Economy economy, Topology topology) {
         for (Trader provisionedTrader : provisionedTraders) {
             TraderTO pTraderTO = AnalysisToProtobuf.traderTO(economy, provisionedTrader,
-                            topology.getTraderOids(), topology.getShoppingListOids(),
+                            topology.getShoppingListOids(),
                             Collections.emptySet());
             if (pTraderTO != null) {
                 analysisResultsBuilder.addProjectedTopoEntityTO(pTraderTO);
