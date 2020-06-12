@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.economy;
 import static com.vmturbo.platform.analysis.testUtilities.TestUtils.VM_TYPE;
 import static org.junit.Assert.*;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -226,6 +227,18 @@ public class EconomyTest {
             assertTrue(economy.getMarkets().isEmpty());
             assertTrue(economy.getTraders().isEmpty());
             assertNotNull(economy.getSettings());
+        }
+
+        @Test
+        public void testResetMarketsPopulatedFlag () throws NoSuchFieldException, SecurityException,
+                IllegalArgumentException, IllegalAccessException {
+            Economy eco = new Economy();
+            eco.populateMarketsWithSellersAndMergeConsumerCoverage();
+            Field marketsPopulated = Economy.class.getDeclaredField("marketsPopulated");
+            marketsPopulated.setAccessible(true);
+            assertTrue((boolean)marketsPopulated.get(eco));
+            eco.resetMarketsPopulatedFlag();
+            assertFalse((boolean)marketsPopulated.get(eco));
         }
 
         @Test
