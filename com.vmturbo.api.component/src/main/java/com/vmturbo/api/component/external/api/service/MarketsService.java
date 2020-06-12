@@ -1396,8 +1396,13 @@ public class MarketsService implements IMarketsService {
     @Override
     public List<SettingsManagerApiDTO> getSettingsByEntityAndMarketId(String marketUuid, String entityUuid) throws Exception {
         final ApiId id = uuidMapper.fromUuid(entityUuid);
+        final ApiId marketId = uuidMapper.fromUuid(marketUuid);
+        if (!marketId.isRealtimeMarket() && !marketId.isPlan()) {
+            throw new UnknownObjectException("The ID " + marketUuid
+                    + " doesn't belong to a plan or a real-time market.");
+        }
         final List<SettingsManagerApiDTO> retMgrs =
-                entitySettingQueryExecutor.getEntitySettings(id, false, null, Long.parseLong(marketUuid));
+                entitySettingQueryExecutor.getEntitySettings(id, false, null, marketId.getTopologyContextId());
         return retMgrs;
     }
 }
