@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import com.arangodb.ArangoDBException;
 import com.arangodb.entity.BaseDocument;
+import com.arangodb.model.CollectionCreateOptions;
 import com.google.gson.Gson;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -26,8 +27,8 @@ public class TopologyProtobufWriter<E> extends TopologyProtobufHandler {
 
     protected TopologyProtobufWriter(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId,
                                      Function<E, String> entityOidMappingFunction,
-                                     String arangoDatabaseName) {
-        super(arangoDatabaseFactory, topologyId, arangoDatabaseName);
+                                     String arangoDatabaseName, CollectionCreateOptions collectionCreateOptions) {
+        super(arangoDatabaseFactory, topologyId, arangoDatabaseName, collectionCreateOptions);
         this.keyMappingFunction = entityOidMappingFunction;
     }
 
