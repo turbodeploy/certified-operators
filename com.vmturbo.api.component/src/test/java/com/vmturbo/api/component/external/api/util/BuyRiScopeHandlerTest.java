@@ -16,6 +16,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.junit.Test;
 
@@ -25,6 +26,7 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -299,6 +301,69 @@ public class BuyRiScopeHandlerTest {
 
         // Assert
         assertThat(result, is(Collections.emptySet()));
+    }
+
+    /**
+     * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId, Set)} method without scope scope.
+     */
+    @Test
+    public void testExtractBuyRiEntitiesForNullApiIdAndEmptyEntityTypeList() {
+        // Given
+        final ApiId apiId = null;
+        final Set<Integer> entityTypeIds = Collections.emptySet();
+        // Act
+        final Set<Long> result = buyRiScopeHandler.extractBuyRiEntities(apiId, entityTypeIds);
+
+        // Assert
+        assertThat(result, is(Collections.emptySet()));
+    }
+
+    /**
+     * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId, Set)} method with
+     * Billing Family scope and empty entity types.
+     */
+    @Test
+    public void testExtractBuyRiEntitiesForBillingFamilyAndEmptyEntityTypeList() {
+        // Given
+        final ApiId apiId = apiIdForBillingFamily();
+        final Set<Integer> entityTypeIds = Collections.emptySet();
+        // Act
+        final Set<Long> result = buyRiScopeHandler.extractBuyRiEntities(apiId, entityTypeIds);
+
+        // Assert
+        assertThat(result, is(ImmutableSet.of(OID_ACCOUNT_1, OID_ACCOUNT_2)));
+    }
+
+    /**
+     * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId, Set)} method with
+     * Billing Family scope and VIRTUAL_VOLUME entity type.
+     */
+    @Test
+    public void testExtractBuyRiEntitiesForBillingFamilyAndOnlyVirtualVolumeType() {
+        // Given
+        final ApiId apiId = apiIdForBillingFamily();
+        final Set<Integer> entityTypeIds = Collections.singleton(EntityType.VIRTUAL_VOLUME_VALUE);
+        // Act
+        final Set<Long> result = buyRiScopeHandler.extractBuyRiEntities(apiId, entityTypeIds);
+
+        // Assert
+        assertThat(result, is(Collections.emptySet()));
+    }
+
+    /**
+     * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId, Set)} method with
+     * Billing Family scope and VM & VV entity types.
+     */
+    @Test
+    public void testExtractBuyRiEntitiesForBillingFamilyAndVirtualVolumeTypeAndVirtualMachineType() {
+        // Given
+        final ApiId apiId = apiIdForBillingFamily();
+        final Set<Integer> entityTypeIds = Sets.newHashSet(EntityType.VIRTUAL_VOLUME_VALUE, EntityType.VIRTUAL_MACHINE_VALUE);
+        // Act
+        final Set<Long> result = buyRiScopeHandler.extractBuyRiEntities(apiId, entityTypeIds);
+
+        // Assert
+        assertThat(result, is(ImmutableSet.of(OID_ACCOUNT_1, OID_ACCOUNT_2)));
     }
 
     private static ApiId apiIdForGlobalScope() {
