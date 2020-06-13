@@ -1,6 +1,17 @@
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
+# Required OpenShift Labels
+LABEL name="zookeeper" \
+      vendor="Turbonomic" \
+      version="7" \
+      release="1" \
+      summary="zookeeper" \
+      description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
+
+# Required Licenses
+COPY licenses /licenses
+
 # This is the release of Zookeeper to pull in.
 ENV ZOOKEEPER_VERSION=3.5.8
 
