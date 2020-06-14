@@ -43,6 +43,9 @@ public class CloudCostConfig {
     @Value("${fullAzureEARIDiscovery:false}")
     private boolean fullAzureEARIDiscovery;
 
+    @Value("${riSupportInPartialCloudEnvironment:false}")
+    private boolean riSupportInPartialCloudEnvironment;
+
     @Bean
     public RIAndExpenseUploadServiceBlockingStub costServiceClient() {
         return RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel());
@@ -62,7 +65,7 @@ public class CloudCostConfig {
     @Bean
     public RICostDataUploader riDataUploader() {
         return new RICostDataUploader(costServiceClient(), minimumRIDataUploadIntervalMins,
-                clockConfig.clock(), fullAzureEARIDiscovery);
+                clockConfig.clock(), fullAzureEARIDiscovery, riSupportInPartialCloudEnvironment);
     }
 
     @Bean

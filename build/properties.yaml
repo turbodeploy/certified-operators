@@ -47,6 +47,8 @@ defaultProperties:
         # string, with individual settings separated by "&". No initial "&" or "?" should appear
         mariadbDriverProperties: useServerPrepStmts=true
         mysqlDriverProperties:
+        # OM-58310: Improve handling partially discovered cloud environment feature flag.
+        riSupportInPartialCloudEnvironment: false
     extractor:
         dbHost: timescaledb
         dbPort: 5432
