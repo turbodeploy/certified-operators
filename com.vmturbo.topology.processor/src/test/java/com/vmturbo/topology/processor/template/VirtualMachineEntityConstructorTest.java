@@ -73,10 +73,9 @@ public class VirtualMachineEntityConstructorTest {
                 .addAllCommoditySoldList(TemplateConverterTestUtil.VM_COMMODITY_SOLD)
                 .addAllCommoditiesBoughtFromProviders(
                         TemplateConverterTestUtil.VM_COMMODITY_BOUGHT_FROM_PROVIDER);
-        TopologyEntity.Builder topologyEntity = TopologyEntity.newBuilder(builder);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, topologyEntity, false,
+                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, builder, false,
                         identityProvider);
 
         assertEquals(4, topologyEntityDTO.getCommoditySoldListCount());

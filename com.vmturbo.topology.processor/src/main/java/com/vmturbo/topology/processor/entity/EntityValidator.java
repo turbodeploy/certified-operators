@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.entity;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -9,14 +11,17 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
+import javax.annotation.concurrent.ThreadSafe;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -25,24 +30,37 @@ import com.vmturbo.stitching.TopologyEntity;
  * Validates {@link TopologyEntity}s during topology pipeline.
  *
  */
+@ThreadSafe
 public class EntityValidator {
+    private static final Logger logger = LogManager.getLogger();
+    private final boolean oldValuesCacheEnabled;
+    /**
+     * All non-access commodity capacities seen during the last live pipeline processing.
+     * Whenever the sold commodity has capacity missing, the previous value may be assumed.
+     * Instead of setting secret magic number into it.
+     * Map node size is 80b so for large topologies this may take significant amount of mem.
+     * TODO consider also caching usages - although they have smaller processing impact
+     */
+    private Map<SoldCommodityReference, Double> capacities = new HashMap<>();
 
     /**
-     * MAD HAX! A very large, but noticeable number that should stand out
-     * in debugging. Use this number instead of something like MAX_DOUBLE
-     * so that it makes sense to do calculations with it in the market.
+     * Construct the entity validator.
+     *
+     * @param oldValuesCacheEnabled whether to keep previous live capacities to
+     * assume values instead of incorrect ones in the current broadcast
      */
-    private static final double HACKED_INFINITE_CAPACITY = 999999999999.999;
-    private static final double HACKED_CAPACITY = 101013370.7;
+    public EntityValidator(boolean oldValuesCacheEnabled) {
+        this.oldValuesCacheEnabled = oldValuesCacheEnabled;
+    }
 
-    private static final Logger logger = LogManager.getLogger();
-
-    private void logCommoditySoldReplacement(final long entityId, @Nonnull final String entityName,
+    private void logCommoditySoldInvalid(final long entityId, @Nonnull final String entityName,
                                      final int entityType,
                                      @Nonnull final CommoditySoldDTO.Builder original,
                                      @Nonnull final String property,
                                      final double illegalAmount) {
-        // TODO chagned from warn to trace to reduce logging load - does it need more visibility?
+        // TODO changed from warn to trace to reduce logging load - does it need more visibility?
+        // yes it needs more visibility, this has to be reverted back to warn
+        // and root causes of missing capacities investigated instead
         logger.trace("Entity {} with name {} of type {} is selling {} commodity {} with illegal {} {}",
                 entityId,
                 entityName,
@@ -71,17 +89,19 @@ public class EntityValidator {
     }
 
     /**
-     * Replace illegal values in each commodity to various hard-coded overrides. We can't send out
-     * illegal values because the market will crash, but we still want to have some resilience
-     * against bugs in the probe's discovery results.
+     * React to illegal values in each commodity to various hard-coded overrides.
+     * We cannot send random capacity values because the market will produce invalid actions.
+     * We can zero out the invalid usage values with less impact.
      *
      * Note: this method modifies in place commodities bought and sold by a topology entity DTO
      * builder passed in as a parameter.
      *
      * @param entity the topology entity DTO builder to modify
+     * @param clonedFrom the source entity for the plan clone
      */
     @VisibleForTesting
-    void replaceIllegalCommodityValues(@Nonnull final TopologyEntityDTO.Builder entity) {
+    void processIllegalCommodityValues(@Nonnull final TopologyEntityDTO.Builder entity,
+                    Optional<TopologyEntityDTO.Builder> clonedFrom) {
         final long id = entity.getOid();
         final String name = entity.getDisplayName();
         final int type = entity.getEntityType();
@@ -93,10 +113,10 @@ public class EntityValidator {
                         final long providerId = fromProvider.getProviderId();
                         if (commodityBought.getPeak() < 0 || Double.isNaN(commodityBought.getPeak())) {
                             // Negative peak values are illegal, but we sometimes get them.
-                            // Replace them with 0.
+                            // unset them - 0 peak with positive usage makes no sense, but absent peak is legitimate
                             logCommodityBoughtReplacement(id, name, type, commodityBought, "peak",
                                 commodityBought.getPeak(), providerId, providerType);
-                            commodityBought.setPeak(0);
+                            commodityBought.clearPeak();
                         }
                         if (commodityBought.getUsed() < 0.0 || Double.isNaN(commodityBought.getUsed())) {
                             // Negative used values are illegal, but we sometimes get them.
@@ -111,34 +131,33 @@ public class EntityValidator {
         entity.getCommoditySoldListBuilderList().forEach(commoditySold -> {
             double used = commoditySold.getUsed();
             double capacity = commoditySold.getCapacity();
-            boolean capacityNaN = Double.isNaN(capacity);
-            boolean usedNaN = Double.isNaN(used);
-            if (!commoditySold.hasCapacity() || commoditySold.getCapacity() == 0) {
-                // capacity of 0 is illegal - replace it with a usable value
-                logCommoditySoldReplacement(id, name, type, commoditySold, "capacity", 0);
-                commoditySold.setCapacity(HACKED_CAPACITY);
-            } else if (commoditySold.getCapacity() < 0) {
-                // Negative capacity sold can, in some cases, indicate
-                // infinite capacity. While this is not officially supported
-                // in the SDK, we do get these values (e.g. from the VC probe)
-                // at the time of this writing - Sept 9, 2016 - and need to
-                // deal with them unless we want to fail the discovery.
-                logCommoditySoldReplacement(id, name, type, commoditySold, "capacity",
-                    commoditySold.getCapacity());
-                commoditySold.setCapacity(HACKED_INFINITE_CAPACITY);
-            } else if (capacityNaN && usedNaN) {
-                commoditySold.setUsed(0);
-                commoditySold.setCapacity(1);
-                logger.warn("Setting used and capacity value for " + EntityType.forNumber(type)
-                                + CommodityType.forNumber(commoditySold.getCommodityType().getType())
-                                + " from NaN to 0 and 1 respectively.");
-            } else if (capacityNaN) {
-                // making sure the capacity is more than the used, we pick 2 for empirical reasons
-                commoditySold.setCapacity(used == 0 ? 1 : 2 * used);
-                logger.warn("Setting capacity value for " + EntityType.forNumber(type)
-                                + CommodityType.forNumber(commoditySold.getCommodityType().getType())
-                                + " from NaN to " + commoditySold.getCapacity());
-            } else if (usedNaN) {
+            // never replace to secret magic numbers, this leads to incorrect decision making
+            // - attempt to get previous value, if enabled and available
+            // - if not, mark entity not controllable (regardless of commodity type)
+            //   and clearly indicate lack of capacity for the components further down the data flow
+            if (!commoditySold.hasCapacity() || Double.isNaN(capacity) || capacity <= 0) {
+                Double oldCapacity = null;
+                if (oldValuesCacheEnabled) {
+                    synchronized (this) {
+                        oldCapacity = capacities.get(new SoldCommodityReference(
+                                        clonedFrom.isPresent() ? clonedFrom.get() : entity,
+                                        commoditySold));
+                    }
+                }
+                if (oldCapacity == null) {
+                    logCommoditySoldInvalid(id, name, type, commoditySold, "capacity", 0);
+                    commoditySold.clearCapacity();
+                    entity.getAnalysisSettingsBuilder().setControllable(false);
+                } else {
+                    logger.warn("Setting capacity value for oid " + id
+                                    + ", commodity "
+                                    + commoditySold.getCommodityType()
+                                    + " to previous value "
+                                    + oldCapacity);
+                    commoditySold.setCapacity(oldCapacity);
+                }
+            }
+            if (Double.isNaN(used)) {
                 commoditySold.setUsed(0);
                 logger.warn("Setting used value for " + EntityType.forNumber(type)
                                 + CommodityType.forNumber(commoditySold.getCommodityType().getType())
@@ -146,15 +165,15 @@ public class EntityValidator {
             }
             if (commoditySold.getPeak() < 0) {
                 // Negative peak values are illegal, but we sometimes get them.
-                // Replace them with 0.
-                logCommoditySoldReplacement(id, name, type, commoditySold, "peak",
+                // unset them - 0 peak with positive usage makes no sense, but absent peak is legitimate
+                logCommoditySoldInvalid(id, name, type, commoditySold, "peak",
                     commoditySold.getPeak());
-                commoditySold.setPeak(0);
+                commoditySold.clearPeak();
             }
             if (commoditySold.getUsed() < 0.0) {
                 // Negative used values are illegal, but we sometimes get them.
                 // Replace them with 0.
-                logCommoditySoldReplacement(id, name, type, commoditySold, "used",
+                logCommoditySoldInvalid(id, name, type, commoditySold, "used",
                     commoditySold.getUsed());
                 commoditySold.setUsed(0);
             }
@@ -165,11 +184,13 @@ public class EntityValidator {
      * Check that the properties of an entity are valid.
      *
      * @param entity the entity to validate
+     * @param validateCapacity whether to check the capacity
      * @return error messages when errors exist, {@link Optional#empty} otherwise.
      */
     @VisibleForTesting
     Optional<EntityValidationFailure> validateSingleEntity(
-                                                @Nonnull final TopologyEntityDTO.Builder entity) {
+                                                @Nonnull final TopologyEntityDTO.Builder entity,
+                                                boolean validateCapacity) {
         final List<String> validationErrors =
             entity.getCommoditiesBoughtFromProvidersList().stream()
                 .map(commodityBought -> {
@@ -192,7 +213,7 @@ public class EntityValidator {
 
         final List<String> commoditiesSoldErrors = entity.getCommoditySoldListList().stream()
                 .flatMap(commoditySold -> {
-                    final List<String> errors = validateCommoditySold(commoditySold).stream()
+                    final List<String> errors = validateCommoditySold(commoditySold, validateCapacity).stream()
                         .map(errorStr -> "Error with commodity sold: " + errorStr)
                         .collect(Collectors.toList());
                     return errors.stream();
@@ -212,7 +233,8 @@ public class EntityValidator {
     }
 
     @Nonnull
-    private List<String> validateCommoditySold(@Nonnull final CommoditySoldDTO commoditySold) {
+    private List<String> validateCommoditySold(@Nonnull final CommoditySoldDTO commoditySold,
+                    boolean validateCapacity) {
         final List<String> errors = new ArrayList<>();
 
         if (commoditySold.hasUsed() && commoditySold.getUsed() < 0) {
@@ -225,13 +247,15 @@ public class EntityValidator {
                 commoditySold.getPeak());
         }
 
-        if (!commoditySold.hasCapacity() || commoditySold.getCapacity() == 0) {
-            errors.add("Capacity " + commoditySold.getCommodityType() + " has a zero value: " +
-                commoditySold.getCapacity());
-        }
-        if (commoditySold.hasCapacity() && commoditySold.getCapacity() < 0) {
-            errors.add("Capacity " + commoditySold.getCommodityType() + " has a negative value: " +
-                commoditySold.getCapacity());
+        if (validateCapacity) {
+            if (!commoditySold.hasCapacity() || commoditySold.getCapacity() == 0) {
+                errors.add("Capacity " + commoditySold.getCommodityType() + " has a zero value: " +
+                    commoditySold.getCapacity());
+            }
+            if (commoditySold.hasCapacity() && commoditySold.getCapacity() < 0) {
+                errors.add("Capacity " + commoditySold.getCommodityType() + " has a negative value: " +
+                    commoditySold.getCapacity());
+            }
         }
 
         return errors;
@@ -282,29 +306,90 @@ public class EntityValidator {
      * Validates a stream of entities from a topology graph.
      *
      * @param entities the stream of entities to validate
+     * @param isPlan whether validation happens for live or plan topology
      * @throws EntitiesValidationException if an entity is invalid and illegal values cannot be replaced
      */
-    public void validateTopologyEntities(@Nonnull final Stream<TopologyEntity> entities)
+    public void validateTopologyEntities(@Nonnull final Stream<TopologyEntity> entities, boolean isPlan)
                                                             throws EntitiesValidationException {
         final List<EntityValidationFailure> validationFailures = new ArrayList<>();
+        Map<SoldCommodityReference, Double> newCapacities = isPlan || !oldValuesCacheEnabled ? null : new HashMap<>();
+
         entities.forEach(entity -> {
             final Optional<EntityValidationFailure> error =
-                validateSingleEntity(entity.getTopologyEntityDtoBuilder());
+                validateSingleEntity(entity.getTopologyEntityDtoBuilder(), true);
             if (error.isPresent()) {
-                replaceIllegalCommodityValues(entity.getTopologyEntityDtoBuilder());
+                processIllegalCommodityValues(entity.getTopologyEntityDtoBuilder(), entity.getClonedFromEntity());
 
                 final Optional<EntityValidationFailure> errorAfterReplacement =
-                    validateSingleEntity(entity.getTopologyEntityDtoBuilder());
+                    validateSingleEntity(entity.getTopologyEntityDtoBuilder(), false);
                 if (errorAfterReplacement.isPresent()) {
                     logger.error("Errors validating entity {}:\n{}", entity.getOid(),
                         error.get().errorMessage);
                     validationFailures.add(error.get());
                 }
             }
+
+            if (newCapacities != null) {
+                // after the validation which can change things
+                // remember all valid capacities of non-access commodities
+                entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().forEach(commoditySold -> {
+                    double capacity = commoditySold.getCapacity();
+                    if (commoditySold.hasCapacity() && !Double.isNaN(capacity) && capacity > 0
+                                    && Math.abs(capacity - SDKConstants.ACCESS_COMMODITY_CAPACITY) > 0.0001) {
+                        newCapacities.put(new SoldCommodityReference(
+                                        entity.getTopologyEntityDtoBuilder(),
+                                        commoditySold), capacity);
+                    }
+                });
+            }
         });
+
+        if (newCapacities != null) {
+            synchronized (this) {
+                capacities = newCapacities;
+            }
+        }
 
         if (!validationFailures.isEmpty()) {
             throw new EntitiesValidationException(validationFailures);
+        }
+    }
+
+    /**
+     * Minimal identity for a sold commodity.
+     * It purposefully does not contain the sold commodity key.
+     * At the moment of writing there is only one non-access commodity sold by 1 provider
+     * with multiple keys - VStorage.
+     */
+    @Immutable
+    private static class SoldCommodityReference {
+        private final long oid;
+        private final int type;
+
+        /**
+         * Construct the sold commodity identity.
+         *
+         * @param entity topology entity builder
+         * @param commSold sold commodity builder
+         */
+        SoldCommodityReference(TopologyEntityDTO.Builder entity, CommoditySoldDTO.Builder commSold) {
+            this.oid = entity.getOid();
+            this.type = commSold.getCommodityType().getType();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(oid, type);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof SoldCommodityReference) {
+                final SoldCommodityReference other = (SoldCommodityReference)obj;
+                return oid == other.oid && type == other.type;
+            } else {
+                return false;
+            }
         }
     }
 }

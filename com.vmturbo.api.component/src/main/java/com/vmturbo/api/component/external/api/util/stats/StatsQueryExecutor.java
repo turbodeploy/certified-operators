@@ -54,6 +54,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.ProbeUseCase;
+import com.vmturbo.platform.sdk.common.util.ProbeUseCaseUtil;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
@@ -300,10 +302,11 @@ public class StatsQueryExecutor {
      */
     private boolean allowCoolingPowerCommodities(@Nonnull ApiId scope, @Nonnull StatsQueryContext context) {
         final Set<Long> fabricTargets = context.getTargets().stream()
-            .filter(thinTargetInfo -> ProbeCategory.FABRIC.getCategory().equalsIgnoreCase(
-                thinTargetInfo.probeInfo().category()))
-            .map(ThinTargetInfo::oid)
-            .collect(Collectors.toSet());
+                .filter(t -> ProbeUseCaseUtil.isUseCaseSupported(
+                        ProbeCategory.create(t.probeInfo().category()),
+                        ProbeUseCase.ALLOW_FABRIC_COMMODITIES))
+                .map(ThinTargetInfo::oid)
+                .collect(Collectors.toSet());
         if (scope.isGroup()) {
             Optional<CachedGroupInfo> cachedGroupInfo = scope.getCachedGroupInfo();
             if (!cachedGroupInfo.isPresent()) {

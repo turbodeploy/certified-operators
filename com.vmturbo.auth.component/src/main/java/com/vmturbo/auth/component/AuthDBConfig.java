@@ -9,9 +9,10 @@ import javax.sql.DataSource;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.commons.codec.binary.Hex;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -53,6 +54,11 @@ public class AuthDBConfig extends SQLDatabaseConfig {
      * The Consul root DB username key.
      */
     public static final String CONSUL_ROOT_DB_USER_KEY = "rootdbUsername";
+
+    /**
+     * The Postgres DB root username key.
+     */
+    public static final String POSTGRES_ROOT_USER_KEY = "postgresRootUsername";
 
     /**
      * The Consul root DB password key.
@@ -157,7 +163,23 @@ public class AuthDBConfig extends SQLDatabaseConfig {
         if (rootDbUser.isPresent()) {
             return rootDbUser.get();
         }
-        return DBPasswordUtil.obtainDefaultRootDbUser();
+        return DBPasswordUtil.obtainDefaultRootDbUser(SQLDialect.MYSQL.toString());
+    }
+
+    /**
+     * Setup the Postgres root username in consul.
+     *
+     * @return The Postgres root username.
+     */
+    @Bean
+    public @Nonnull String getPostgresRootUsername() {
+        Optional<String> postgresRootUsername = authKVConfig.authKeyValueStore().get(POSTGRES_ROOT_USER_KEY);
+        if (postgresRootUsername.isPresent()) {
+            return postgresRootUsername.get();
+        }
+        String defaultRootDbUser = DBPasswordUtil.obtainDefaultRootDbUser(SQLDialect.POSTGRES.toString());
+        authKVConfig.authKeyValueStore().put(POSTGRES_ROOT_USER_KEY, defaultRootDbUser);
+        return defaultRootDbUser;
     }
 
     /**

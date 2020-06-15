@@ -83,6 +83,12 @@ public class EntityFilterMapper {
     /** key of the criteria to query WorkloadController entities by controller types. */
     public static final String WORKLOAD_CONTROLLER_TYPE = SearchableProperties.WC_INFO_REPO_DTO_PROPERTY_NAME
         + "." + SearchableProperties.CONTROLLER_TYPE;
+    /** key of the criteria to query Container entities by controller types. */
+    public static final String CONTAINER_WORKLOAD_CONTROLLER_TYPE = "WorkloadController:" + WORKLOAD_CONTROLLER_TYPE + ":PRODUCES:ContainerPod:PRODUCES";
+    /** key of the criteria to query ContainerPod entities by controller types. */
+    public static final String CONTAINER_POD_WORKLOAD_CONTROLLER_TYPE = "WorkloadController:" + WORKLOAD_CONTROLLER_TYPE + ":PRODUCES";
+    /** key of the criteria to query ContainerSpec entities by controller types. */
+    public static final String CONTAINER_SPEC_WORKLOAD_CONTROLLER_TYPE = "WorkloadController:" + WORKLOAD_CONTROLLER_TYPE + ":AGGREGATES";
 
     public static final String STATE = "state";
     public static final String USER_DEFINED_ENTITY = "UserDefinedEntity";

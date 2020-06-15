@@ -1919,6 +1919,76 @@ public class GroupMapperTest {
     }
 
     /**
+     * Test {@link GroupMapper#toGroupApiDto(List, boolean, SearchPaginationRequest,
+     * EnvironmentType)} when group has ARM members discovered from Cloud and Hybrid targets.
+     * In this case, the group's environment type should be set to the group's
+     * {@link OptimizationMetadata} environment type.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testGetEnvironmentTypeForCloudGroupWithHybridArmEntities() throws Exception {
+        final String displayName = "cloud-group";
+        final int groupType = EntityType.BUSINESS_APPLICATION.getNumber();
+        final long oid = 123L;
+        final long uuid1 = 1L;
+        final long uuid2 = 2L;
+
+        final Grouping group = Grouping.newBuilder()
+                .setId(oid)
+                .addExpectedTypes(MemberType.newBuilder().setEntity(groupType))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName(displayName)
+                        .setOptimizationMetadata(OptimizationMetadata.newBuilder()
+                                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                        .build())
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .addAllMembers(Arrays.asList(uuid1, uuid2))
+                                        .build())
+                                .build()))
+                .build();
+
+        final MinimalEntity awsBA = MinimalEntity.newBuilder()
+                .setOid(uuid1)
+                .setDisplayName("foo1")
+                .addDiscoveringTargetIds(AWS_TARGET.oid())
+                .setEntityType(ApiEntityType.BUSINESS_APPLICATION.typeNumber())
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                .build();
+
+        final MinimalEntity appDynamicsBA = MinimalEntity.newBuilder()
+                .setOid(uuid2)
+                .setDisplayName("foo2")
+                .addDiscoveringTargetIds(APPD_TARGET.oid())
+                .setEntityType(ApiEntityType.BUSINESS_APPLICATION.typeNumber())
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.HYBRID)
+                .build();
+
+        targets.add(AWS_TARGET);
+        targets.add(APPD_TARGET);
+
+        final List<MinimalEntity> listBAs = Arrays.asList(awsBA, appDynamicsBA);
+        final MultiEntityRequest minEntityReq = ApiTestUtils.mockMultiMinEntityReq(listBAs);
+
+        final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(ImmutableSet.of(uuid1, uuid2))
+                .entities(ImmutableSet.of(uuid1, uuid2))
+                .build();
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(minEntityReq);
+
+        final GroupApiDTO groupApiDTO =
+                groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), true,
+                        null, null)
+                        .getObjects()
+                        .iterator()
+                        .next();
+        assertEquals(EnvironmentType.CLOUD, groupApiDTO.getEnvironmentType());
+    }
+
+    /**
      * Test getEnvironmentTypeForGroup returns proper type for a group of resource groups. When
      * all entities from both group have the same {@link EnvironmentType} then group also has that
      * {@link EnvironmentType}.

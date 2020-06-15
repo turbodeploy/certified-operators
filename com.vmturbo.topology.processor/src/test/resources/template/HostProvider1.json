@@ -1,6 +1,6 @@
 {
   "entityType": 12,
-  "oid": "73431846120353",
+  "oid": "73488350794337",
   "displayName": "Datacenter-dc9",
   "commoditySoldList": [{
     "commodityType": {
@@ -15,8 +15,7 @@
     "displayName": ""
   }, {
     "commodityType": {
-      "type": 55,
-      "key": "DataCenter::DataCenter::168ae354321ab71f937cf56e08531f56233138a2"
+      "type": 24
     },
     "used": 1.0,
     "peak": 0.0,
@@ -27,7 +26,8 @@
     "displayName": ""
   }, {
     "commodityType": {
-      "type": 24
+      "type": 55,
+      "key": "DataCenter::DataCenter::168ae354321ab71f937cf56e08531f56233138a2"
     },
     "used": 1.0,
     "peak": 0.0,
@@ -62,9 +62,9 @@
   },
   "origin": {
     "discoveryOrigin": {
-      "lastUpdatedTime": "1587732144210",
+      "lastUpdatedTime": "1590999807913",
       "discoveredTargetData": {
-        "73431844170768": {
+        "73488349925440": {
           "vendorId": "datacenter-21"
         }
       }

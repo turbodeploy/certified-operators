@@ -49,10 +49,12 @@ import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -429,6 +431,11 @@ public class PlanActionStore implements ActionStore {
      */
     private List<ActionAndInfo> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
                                                      @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
+        Set<ActionDTO.Action> deleteVolumeActions = actions.stream()
+                .filter(action -> action.getInfo().getActionTypeCase() == ActionTypeCase.DELETE)
+                .collect(Collectors.toSet());
+        final Set<Long> deleteVolumesToRetrieve = ActionDTOUtil.getInvolvedEntityIds(deleteVolumeActions);
+
         final Set<Long> entitiesToRetrieve =
             new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
         // snapshot contains the entities information that is required for the actions descriptions
@@ -440,13 +447,14 @@ public class PlanActionStore implements ActionStore {
         // TODO: remove hack to go to realtime if source plan topology is not available.  Needed to
         // compute action descriptions.
         EntitiesAndSettingsSnapshot snapshotHack = entitySettingsCache.newSnapshot(
-            entitiesToRetrieve, planContextId);
+                entitiesToRetrieve,deleteVolumesToRetrieve, planContextId);
         if (MapUtils.isEmpty(snapshotHack.getEntityMap())) {
             // Hack: if the plan source topology is not ready, use realtime.
             // This should only occur initially when the plan  created.
             logger.warn("translatePlanActions: failed for topologyContextId={} topologyId={}, try realtime",
                 planContextId, planData.getTopologyId());
-            snapshotHack = entitySettingsCache.newSnapshot(entitiesToRetrieve, realtimeTopologyContextId);
+            snapshotHack = entitySettingsCache.newSnapshot(
+                    entitiesToRetrieve, deleteVolumesToRetrieve, realtimeTopologyContextId);
         }
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
         final List<ActionDTO.Action> actionsStream = new ArrayList<>(actions.size());
@@ -470,9 +478,9 @@ public class PlanActionStore implements ActionStore {
                     final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
                     translatedActionsToAdd.add(ImmutableActionAndInfo.builder()
                         .translatedAction(recommendation)
-                        .description(ActionDescriptionBuilder.buildActionDescription(snapshot, recommendation))
-                        .associatedAccountId(snapshot.getOwnerAccountOfEntity(primaryEntity)
-                            .map(EntityWithConnections::getOid))
+                        .description(ActionDescriptionBuilder.buildActionDescription(snapshot,
+                                                                      recommendation))
+                        .associatedAccountId(PlanActionStore.getAssociatedAccountId(recommendation, snapshot, primaryEntity))
                         .build());
                 } catch (UnsupportedActionException e) {
                     unsupportedActionTypes.add(recommendation.getInfo().getActionTypeCase());
@@ -485,6 +493,21 @@ public class PlanActionStore implements ActionStore {
         }
         return translatedActionsToAdd;
     }
+
+    private static Optional<Long> getAssociatedAccountId(@Nonnull final ActionDTO.Action action,
+                                                         @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                         long primaryEntity) {
+        final ActionInfo actionInfo = action.getInfo();
+        switch (actionInfo.getActionTypeCase()) {
+            case BUYRI:
+                final BuyRI buyRi = actionInfo.getBuyRi();
+                return Optional.of(buyRi.getMasterAccount().getId());
+            default:
+                return entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
+                        .map(EntityWithConnections::getOid);
+        }
+    }
+
 
     /**
      * Load all market actions in the persistent store by their associated topologyContextId.

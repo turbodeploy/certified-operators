@@ -9,7 +9,6 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DAT
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATABASE_SERVER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.SERVICE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
-import static com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType.STRING;
 import static com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants.ID;
 
 import java.util.Collection;
@@ -87,8 +86,8 @@ public class UserDefinedTopologySupplyChain {
             builder.sellingOptionalWithKey(commodity);
         }
         MergedEntityMetadataBuilder mergedMetaData = new MergedEntityMetadataBuilder()
-                .internalMatchingType(STRING).internalMatchingField(ID, Collections.emptyList())
-                .externalMatchingType(STRING).externalMatchingEntityOid();
+                .internalMatchingField(ID, Collections.emptyList())
+                .externalMatchingEntityOid();
         builder.mergedBy(mergedMetaData.build());
         return builder;
     }

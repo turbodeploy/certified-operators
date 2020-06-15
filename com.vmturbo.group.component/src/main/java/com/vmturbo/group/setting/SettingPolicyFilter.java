@@ -1,6 +1,8 @@
 package com.vmturbo.group.setting;
 
 import static com.vmturbo.group.db.Tables.SETTING_POLICY;
+import static com.vmturbo.group.db.Tables.SETTING_POLICY_SETTING_SCHEDULE_IDS;
+import static org.jooq.impl.DSL.select;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -36,7 +38,8 @@ public class SettingPolicyFilter {
     private final Set<Long> desiredIds;
     private final Set<Long> desiredTargetIds;
     private final Set<Integer> desiredEntityTypes;
-    private final Set<Long> schedules;
+    private final Set<Long> activationSchedules;
+    private final Set<Long> executionSchedules;
 
     /**
      * The pre-computed jOOQ conditions representing the filter.
@@ -48,13 +51,15 @@ public class SettingPolicyFilter {
                                 @Nonnull final Set<Long> ids,
                                 @Nonnull final Set<Long> targetIds,
                                 @Nonnull final Set<Integer> entityTypes,
-                                @Nonnull final Set<Long> schedules) {
+                                @Nonnull final Set<Long> activationSchedules,
+                                @Nonnull final Set<Long> executionSchedules) {
         this.desiredTypes = Objects.requireNonNull(type);
         this.desiredNames = Objects.requireNonNull(name);
         this.desiredIds = Objects.requireNonNull(ids);
         this.desiredTargetIds = Objects.requireNonNull(targetIds);
         this.desiredEntityTypes = Objects.requireNonNull(entityTypes);
-        this.schedules = Objects.requireNonNull(schedules);
+        this.activationSchedules = Objects.requireNonNull(activationSchedules);
+        this.executionSchedules = Objects.requireNonNull(executionSchedules);
 
         final ImmutableList.Builder<Condition> condBuilder = ImmutableList.builder();
         if (!type.isEmpty()) {
@@ -78,8 +83,15 @@ public class SettingPolicyFilter {
         if (!entityTypes.isEmpty()) {
             condBuilder.add(SETTING_POLICY.ENTITY_TYPE.in(entityTypes));
         }
-        if (!schedules.isEmpty()) {
-            condBuilder.add(SETTING_POLICY.SCHEDULE_ID.in(schedules));
+        if (!activationSchedules.isEmpty()) {
+            condBuilder.add(SETTING_POLICY.SCHEDULE_ID.in(activationSchedules));
+        }
+        if (!executionSchedules.isEmpty()) {
+            condBuilder.add(SETTING_POLICY.ID.in(
+                    select(SETTING_POLICY_SETTING_SCHEDULE_IDS.POLICY_ID).from(
+                            SETTING_POLICY_SETTING_SCHEDULE_IDS)
+                            .where(SETTING_POLICY_SETTING_SCHEDULE_IDS.EXECUTION_SCHEDULE_ID.in(
+                                    executionSchedules))));
         }
         conditions = condBuilder.build();
     }
@@ -107,7 +119,7 @@ public class SettingPolicyFilter {
     @Override
     public int hashCode() {
         return Objects.hash(desiredTypes, desiredNames, desiredIds, desiredTargetIds,
-                desiredEntityTypes, schedules);
+                desiredEntityTypes, activationSchedules, executionSchedules);
     }
 
     @Override
@@ -119,7 +131,8 @@ public class SettingPolicyFilter {
                 && otherFilter.desiredIds.equals(desiredIds)
                 && otherFilter.desiredTargetIds.equals(desiredTargetIds)
                 && otherFilter.desiredEntityTypes.equals(desiredEntityTypes)
-                && otherFilter.schedules.equals(schedules);
+                && otherFilter.activationSchedules.equals(activationSchedules)
+                && otherFilter.executionSchedules.equals(executionSchedules);
         } else {
             return false;
         }
@@ -145,8 +158,22 @@ public class SettingPolicyFilter {
         return desiredEntityTypes;
     }
 
-    public Set<Long> getSchedules() {
-        return schedules;
+    /**
+     * Return ids of activation schedules.
+     *
+     * @return list of activation schedule ids.
+     */
+    public Set<Long> getActivationSchedules() {
+        return activationSchedules;
+    }
+
+    /**
+     * Return execution schedules.
+     *
+     * @return list of execution schedule ids.
+     */
+    public Set<Long> getExecutionSchedules() {
+        return executionSchedules;
     }
 
     /**
@@ -173,7 +200,8 @@ public class SettingPolicyFilter {
         private Set<String> names = new HashSet<>();
         private Set<Long> targetIds = new HashSet<>();
         private Set<Integer> entityTypes = new HashSet<>();
-        private Set<Long> schedules = new HashSet<>();
+        private Set<Long> activationSchedules = new HashSet<>();
+        private Set<Long> executionSchedules = new HashSet<>();
 
         /**
          * Add a type that the filter will match. This method can be called
@@ -243,18 +271,31 @@ public class SettingPolicyFilter {
          * @param scheduleId The schedule id of the policy to match
          * @return The builder, for chaining.
          */
-        public Builder withScheduleId(final long scheduleId) {
-            this.schedules.add(scheduleId);
+        public Builder withActivationScheduleId(final long scheduleId) {
+            this.activationSchedules.add(scheduleId);
             return this;
         }
 
         /**
-         * Creates a filted based on the builder.
+         * Add a schedule which is used as execution window in one of the settings in a
+         * setting policy. This method can be called multiple times with different entity types.
+         *
+         * @param executionScheduleId the id of a schedule which is used as execution window
+         * @return The builder, for chaining.
+         */
+        public Builder withExecutionScheduleId(final long executionScheduleId) {
+            this.executionSchedules.add(executionScheduleId);
+            return this;
+        }
+
+        /**
+         * Creates a filter based on the builder.
          *
          * @return a filter suitable for {@link ISettingPolicyStore}
          */
         public SettingPolicyFilter build() {
-            return new SettingPolicyFilter(type, names, ids, targetIds, entityTypes, schedules);
+            return new SettingPolicyFilter(type, names, ids, targetIds, entityTypes,
+                    activationSchedules, executionSchedules);
         }
     }
 }

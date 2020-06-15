@@ -1,8 +1,10 @@
 package com.vmturbo.stitching.billing;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -54,13 +56,13 @@ public class AwsBillingStitchingOperation implements StitchingOperation<String, 
     }
 
     @Override
-    public Optional<String> getInternalSignature(@Nonnull final StitchingEntity internalEntity) {
-        return Optional.of(internalEntity.getEntityBuilder().getId());
+    public Collection<String> getInternalSignature(@Nonnull final StitchingEntity internalEntity) {
+        return Collections.singleton(internalEntity.getEntityBuilder().getId());
     }
 
     @Override
-    public Optional<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
-        return Optional.of(externalEntity.getEntityBuilder().getId());
+    public Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+        return Collections.singleton(externalEntity.getEntityBuilder().getId());
     }
 
     @Nonnull

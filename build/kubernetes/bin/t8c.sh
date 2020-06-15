@@ -12,8 +12,10 @@ deploymentBrand=${1}
 # ip values set manually in /opt/local/etc/turbo.conf
 singleNodeIp=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
 sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/local/etc/turbo.conf
-sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
-sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-128gb.yaml
+for i in $(ls /opt/turbonomic/kubernetes/operator/deploy/crds/)
+do 
+  sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/$i
+done
 
 # Check /etc/resolv.conf
 if [[ ! -f /etc/resolv.conf || ! -s /etc/resolv.conf ]]
@@ -396,13 +398,27 @@ then
   if [ X${externalDB} = X0 ]
   then
     externalDB=$(egrep "externalDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml)
-    echo "The database is external from thise server"
+    echo "The database is external from this server"
     echo "${externalDB}"
   else
     /opt/local/bin/configure_mariadb.sh
   fi
 
-  # Create the operator  
+#  todo: uncomment this block once XLR/search is ready
+#  # Setup timescaledb before bringing up XL components
+#  # Check to see if an external timescaledb is being used. If so, do not run timescaledb locally
+#  egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+#  externalTimescaleDB=$(echo $?)
+#  if [ X${externalTimescaleDB} = X0 ]
+#  then
+#    externalTimescaleDB=$(egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml)
+#    echo "The TimescaleDB database is external from this server"
+#    echo "${externalTimescaleDB}"
+#  else
+#    /opt/local/bin/configure_timescaledb.sh
+#  fi
+
+  # Create the operator
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/service_account.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role_binding.yaml -n turbonomic

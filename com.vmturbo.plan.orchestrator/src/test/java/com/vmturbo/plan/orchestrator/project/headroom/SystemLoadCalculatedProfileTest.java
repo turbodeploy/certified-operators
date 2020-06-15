@@ -3,6 +3,7 @@ package com.vmturbo.plan.orchestrator.project.headroom;
 import static org.junit.Assert.*;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -286,7 +287,7 @@ public class SystemLoadCalculatedProfileTest {
             @Nonnull final Operation operation, @Nonnull final Grouping cluster,
             @Nonnull final List<SystemLoadRecord> systemLoadRecordList) {
         return new SystemLoadCalculatedProfile(operation, cluster, systemLoadRecordList,
-                        cluster.getDefinition().getDisplayName(), "");
+                        cluster.getDefinition().getDisplayName(), "", Collections.emptyMap());
     }
 
     private Grouping getClusterWithId(long clusterId) {

@@ -22,6 +22,8 @@ public abstract class ReservedInstanceFilter {
 
     protected final AvailabilityZoneFilter availabilityZoneFilter;
 
+    protected final boolean includeExpired;
+
     /**
      * Construct a {@link ReservedInstanceFilter} instance.
      * @param builder The {@link Builder} instance, used in contructing the filter
@@ -30,6 +32,7 @@ public abstract class ReservedInstanceFilter {
         this.regionFilter = Objects.requireNonNull(builder.regionFilter);
         this.accountFilter = Objects.requireNonNull(builder.accountFilter);
         this.availabilityZoneFilter = Objects.requireNonNull(builder.availabilityZoneFilter);
+        this.includeExpired = builder.includeExpired;
     }
 
     public boolean isZoneFiltered() {
@@ -60,6 +63,8 @@ public abstract class ReservedInstanceFilter {
         protected AccountFilter accountFilter = AccountFilter.getDefaultInstance();
         protected AvailabilityZoneFilter availabilityZoneFilter =
                 AvailabilityZoneFilter.getDefaultInstance();
+
+        protected boolean includeExpired = false;
 
         /**
          * Add a {@link RegionFilter} to this aggregate filter. If both a {@link RegionFilter} and
@@ -96,6 +101,19 @@ public abstract class ReservedInstanceFilter {
         public FILTER_BUILDER_CLASS availabilityZoneFilter(@Nullable AvailabilityZoneFilter azFilter) {
             this.availabilityZoneFilter = Optional.ofNullable(azFilter)
                     .orElseGet(AvailabilityZoneFilter::getDefaultInstance);
+            return (FILTER_BUILDER_CLASS)this;
+        }
+
+        /**
+         * Indicates whether expired RIs (based on the current timestamp) should be included in the
+         * query. By default, expired RIs will be excluded
+         * @param includeExpired If true, expired RIs are included in the query. Else, expired RIs
+         *                       are ignored
+         * @return The instance of {@link Builder} for method chaining
+         */
+        @Nonnull
+        public FILTER_BUILDER_CLASS includeExpired(boolean includeExpired) {
+            this.includeExpired = includeExpired;
             return (FILTER_BUILDER_CLASS)this;
         }
 

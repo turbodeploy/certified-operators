@@ -125,6 +125,17 @@ public interface StitchingScope<ENTITY> {
 
         /**
          * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
+         * discovered by a specific probe category.
+         *
+         * @param probeCategory The category of probe whose entities should be fed to the calculation.
+         *                      Example: HYPERVISOR or STORAGE
+         * @return A {@link StitchingScope} used for retrieving entities of a given type discovered by a given
+         *         category of probe.
+         */
+        StitchingScope<ENTITY> probeCategoryScope(@Nonnull ProbeCategory probeCategory);
+
+        /**
+         * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
          * of a given {@link EntityType} discovered by a specific type of probe category.
          *
          * @param probeCategories The set of categories of probes whose entities should be fed to
@@ -165,8 +176,8 @@ public interface StitchingScope<ENTITY> {
          * This is used for identifying
          * VMs that has a hypervisor target but has no guestosprocesses target, we will disable vmem resizing for such VMs.
          *
-         * @param owningProbeCategory The probe categories that VMs have
-         * @param missingProbeCategory The probe categories that VMs don't have
+         * @param owningProbeCategories The probe categories that VMs have
+         * @param missingProbeCategories The probe categories that VMs don't have
          * @param entityType The type of entity to find.
          * @return Return a {@link StitchingScope} that restricts the calculation to operate on only entities
          * of a given {@link EntityType} NOT discovered by a specific type of probe.

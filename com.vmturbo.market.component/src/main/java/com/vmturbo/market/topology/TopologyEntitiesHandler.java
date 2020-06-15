@@ -259,6 +259,17 @@ public class TopologyEntitiesHandler {
             // provisions (market subcycle 2).
             AnalysisResults.Builder builder = results.toBuilder();
             economy.getSettings().setResizeDependentCommodities(false);
+
+            // Make sure clones and only clones are suspendable. Currently suspend actions generated
+            // in the second sub-cycle are discarded and only useful when collapsed with a provision
+            // or activate action. Since we don't support collapsing of suspends of non-clone and
+            // clone traders, there is no point in spending time to suspend the former. When the
+            // corresponding functionality is implemented we should remove this loop.
+            // Also, it should be fine at the time of this writing to just set suspendable to false
+            // as there shouldn't be any clones in the economy at this point.
+            for (Trader trader : economy.getTraders()) {
+                trader.getSettings().setSuspendable(trader.isClone());
+            }
             // This is a HACK first implemented by the market for OM-31510 in legacy which subsequently
             // caused OM-33185 in XL. Because we don't want the provision actions to affect the projected topology
             // price statements given the assumption above that for real-time, provision actions take a long
@@ -270,7 +281,7 @@ public class TopologyEntitiesHandler {
             // actions to reference entities not actually in the projected topology.
             @NonNull List<Action> secondRoundActions = ede.generateActions(economy, true, true,
                 true, false, true, false, seedActions, marketId,
-                analysisConfig.getSuspensionsThrottlingConfig()).stream()
+                SuspensionsThrottlingConfig.DEFAULT).stream()
                 .filter(action -> (action instanceof ProvisionByDemand
                                 || action instanceof ProvisionBySupply
                                 || action instanceof Activate)

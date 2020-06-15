@@ -28,13 +28,13 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Table.Cell;
 
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.TObjectDoubleMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 import org.jooq.Table;
-
-import gnu.trove.map.TIntObjectMap;
-import gnu.trove.map.TObjectDoubleMap;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -103,8 +103,6 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
 
     private final BulkLoader<HistUtilizationRecord> historicalUtilizationLoader;
     private final Set<String> longCommodityKeys;
-
-    private int queuedRows = 0;
 
     private int numEntitiesCount = 0;
 
@@ -375,12 +373,21 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             if (isExcludedCommodity(mixedCaseCommodityName)) {
                 continue;
             }
+            double capacity = commoditySoldDTO.getCapacity();
+            // all "used" subtype entries should have a capacity
+            if (!commoditySoldDTO.hasCapacity() || capacity <= 0) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Skipping sold commodity with unset capacity {}:{}:{}",
+                                    entityId, commoditySoldDTO.getCommodityType().getType(),
+                                    commoditySoldDTO.getCommodityType().getKey());
+                }
+                continue;
+            }
 
             // if we have a non-null capacity and an effective capacity %, calculate effective capacity
             // otherwise set it to capacity.
-            Double capacity = adjustCapacity(commoditySoldDTO.getCapacity());
             Double effectiveCapacity
-                    = (commoditySoldDTO.hasEffectiveCapacityPercentage() && (capacity != null))
+                    = (commoditySoldDTO.hasEffectiveCapacityPercentage())
                     ? (commoditySoldDTO.getEffectiveCapacityPercentage() / 100.0 * capacity)
                     : capacity;
             Record record = dbTable.newRecord();
@@ -410,34 +417,25 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
     }
 
     private void createPercentileAndTimeslotsQueries(int commodityTypeId, long entityId,
-            Long providerId, String commodityKey, Double capacity,
+            Long providerId, String commodityKey, double capacity,
             HistoricalValues historicalUsed) throws InterruptedException {
         ImmutableTable.Builder<HistoryUtilizationType, Integer, BigDecimal> tableBuilder =
                         ImmutableTable.builder();
-        if (capacity != null) {
-            try {
-                for (int i = 0; i < historicalUsed.getTimeSlotCount(); i++) {
-                    final double timeSlot = historicalUsed.getTimeSlot(i);
-                    tableBuilder.put(HistoryUtilizationType.Timeslot, i, BigDecimal.valueOf(timeSlot / capacity));
-                }
-            } catch (NumberFormatException e) {
-                logger.warn("Value calculation for oid {} failed (provider id is {}). Skipping it. capacity = {}, commodity type ID = {}, commodity key = {}. {}",
-                            entityId,
-                            providerId,
-                            capacity,
-                            commodityTypeId,
-                            commodityKey,
-                            e);
-                // Discard any written timeslots in case if one of them is invalid
-                tableBuilder = ImmutableTable.builder();
+        try {
+            for (int i = 0; i < historicalUsed.getTimeSlotCount(); i++) {
+                final double timeSlot = historicalUsed.getTimeSlot(i);
+                tableBuilder.put(HistoryUtilizationType.Timeslot, i, BigDecimal.valueOf(timeSlot / capacity));
             }
-        } else {
-            logger.warn("Capacity {} is null for oid {} (provider id is {}). Commodity type ID = {}, commodity key = {}",
-                        capacity,
+        } catch (NumberFormatException e) {
+            logger.warn("Value calculation for oid {} failed (provider id is {}). Skipping it. capacity = {}, commodity type ID = {}, commodity key = {}. {}",
                         entityId,
                         providerId,
+                        capacity,
                         commodityTypeId,
-                        commodityKey);
+                        commodityKey,
+                        e);
+            // Discard any written timeslots in case if one of them is invalid
+            tableBuilder = ImmutableTable.builder();
         }
 
         if (historicalUsed.hasPercentile()) {
@@ -463,7 +461,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
     }
 
     private void formInsertOrUpdateQueries(@Nonnull long entityId, @Nullable Long providerId,
-            @Nullable String commodityKey, @Nonnull Double capacity, @Nonnull int commodityTypeId,
+            @Nullable String commodityKey, double capacity, @Nonnull int commodityTypeId,
             @Nonnull Collection<Cell<HistoryUtilizationType, Integer, BigDecimal>> cells)
             throws InterruptedException {
         final Long providerIdValue = providerId == null ? DEFAULT_VALUE_PROVIDER_ID : providerId;
@@ -692,8 +690,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             if (isExcludedCommodity(mixedCaseCommodityName)) {
                 continue;
             }
-            // set default value to -1, it will be adjust to null when commodity bought has no provider id.
-            Double capacity = -1.0;
+            double capacity = 0;
             if (providerId != null) {
                 TIntObjectMap<TObjectDoubleMap<String>> soldCapacities;
                 if (commoditiesBought.hasVolumeId()) {
@@ -715,7 +712,14 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                 capacity = soldCapacities.get(commType).get(commKey);
             }
 
-            capacity = adjustCapacity(capacity);
+            // all "used" subtype entries should have a capacity
+            if (capacity <= 0) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Skipping bought commodity with unset capacity {}:{}:{}:{}",
+                                    entityDTO.getOid(), providerId, commType, commKey);
+                }
+                continue;
+            }
 
             // set the values specific to each row and persist each
             Double used = commodityBoughtDTO.hasUsed() ? commodityBoughtDTO.getUsed() : null;
@@ -762,18 +766,6 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             return Optional.of(Long.toString(commoditiesBought.getVolumeId()));
         }
         return Optional.empty();
-    }
-
-    /**
-     * Apply the business rule where the capacity -1 should be replaced by null.
-     *
-     * <p>See ReportingDatadbIO::addToBatch().</p>
-     *
-     * @param capacity the capacity to check
-     * @return null if the given capacity equals -1; else the given capacity itself
-     */
-    private Double adjustCapacity(double capacity) {
-        return capacity == -1 ? null : capacity;
     }
 
     /**

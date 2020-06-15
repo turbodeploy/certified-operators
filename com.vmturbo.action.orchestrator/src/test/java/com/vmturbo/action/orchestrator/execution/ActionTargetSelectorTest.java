@@ -95,8 +95,8 @@ public class ActionTargetSelectorTest {
         Mockito.when(entitySettingsCache.emptySnapshot())
                 .thenReturn(new EntitiesAndSettingsSnapshot(Collections.emptyMap(),
                         Collections.emptyMap(), null, Collections.emptyMap(),
-                    Collections.emptyMap(), 0,
-                        TopologyType.SOURCE, System.currentTimeMillis()));
+                        Collections.emptyMap(), Collections.emptyMap(), 0, TopologyType.SOURCE,
+                        System.currentTimeMillis()));
         MockitoAnnotations.initMocks(this);
         // The class under test
         actionTargetSelector = new ActionTargetSelector(probeCapabilityCache,

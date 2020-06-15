@@ -28,7 +28,7 @@ import org.springframework.validation.Errors;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.ScheduleMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.settingspolicy.RecurrenceApiDTO;
 import com.vmturbo.api.dto.settingspolicy.ScheduleApiDTO;
@@ -37,6 +37,8 @@ import com.vmturbo.api.enums.RecurrenceType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISchedulesService;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.CreateScheduleRequest;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.CreateScheduleResponse;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.DeleteScheduleRequest;
@@ -71,24 +73,25 @@ public class SchedulesService implements ISchedulesService {
     private final SettingPolicyServiceBlockingStub settingPolicyService;
     private final ScheduleMapper scheduleMapper;
     private final SettingsMapper settingsMapper;
+    private final ActionSearchUtil actionSearchUtil;
 
     /**
      * {@link SchedulesService} constructor.
+     *
      * @param scheduleService RPC Schedule Service
      * @param settingPolicyService RPC Setting Policy Service
      * @param scheduleMapper Schedule Mapper for conversions between XL objects to their API counterparts
      * @param settingsMapper Setting Mapper for conversions between XL setting policy objects to
-     *                       their API counterparts
+     * @param actionSearchUtil Used for searching actions
      */
-    public SchedulesService(
-        @Nonnull final ScheduleServiceBlockingStub scheduleService,
-        @Nonnull final SettingPolicyServiceBlockingStub settingPolicyService,
-        @Nonnull final ScheduleMapper scheduleMapper,
-        @Nonnull final SettingsMapper settingsMapper) {
+    public SchedulesService(@Nonnull final ScheduleServiceBlockingStub scheduleService, @Nonnull final SettingPolicyServiceBlockingStub settingPolicyService,
+            @Nonnull final ScheduleMapper scheduleMapper,
+            @Nonnull final SettingsMapper settingsMapper, @Nonnull ActionSearchUtil actionSearchUtil) {
         this.scheduleService = Objects.requireNonNull(scheduleService);
         this.settingPolicyService = Objects.requireNonNull(settingPolicyService);
         this.scheduleMapper = Objects.requireNonNull(scheduleMapper);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
+        this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
     }
 
     /**
@@ -206,7 +209,11 @@ public class SchedulesService implements ISchedulesService {
      */
     @Override
     public List<ActionApiDTO> getActionsToBeExecutedInSchedule(String uuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        final ActionQueryFilter queryFilter = ActionQueryFilter.newBuilder()
+                .addStates(ActionState.READY)
+                .setAssociatedScheduleId(Long.parseLong(uuid))
+                .build();
+        return actionSearchUtil.callActionServiceWithNoPagination(queryFilter);
     }
 
     /**

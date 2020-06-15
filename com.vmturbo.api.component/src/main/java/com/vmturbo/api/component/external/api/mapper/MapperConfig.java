@@ -219,6 +219,16 @@ public class MapperConfig {
         return new TemplateMapper();
     }
 
+    /**
+     * Bean for {@link TopologyDataDefinitionMapper}.
+     *
+     * @return topology data definition mapper
+     */
+    @Bean
+    public TopologyDataDefinitionMapper topologyDataDefinitionMapper() {
+        return new TopologyDataDefinitionMapper();
+    }
+
     @Bean
     public CloudTypeMapper cloudTypeMapper() {
         return new CloudTypeMapper();

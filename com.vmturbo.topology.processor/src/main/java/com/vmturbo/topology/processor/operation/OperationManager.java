@@ -73,6 +73,7 @@ import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ActionRecordNotFoundException;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumperImpl;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -143,6 +144,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     private final TargetDumpingSettings targetDumpingSettings;
 
     private DiscoveryDumper discoveryDumper = null;
+    private BinaryDiscoveryDumper binaryDiscoveryDumper;
 
     private final SystemNotificationProducer systemNotificationProducer;
 
@@ -205,6 +207,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final Random random = new Random();
 
+    private final boolean enableDiscoveryResponsesCaching;
+
     /**
      * Timeout for acquiring the permit for running a discovering operation
      * on a target.
@@ -241,7 +245,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             final int maxConcurrentTargetIncrementalDiscoveriesPerProbeCount,
                             final int probeDiscoveryPermitWaitTimeoutMins,
                             final int probeDiscoveryPermitWaitTimeoutIntervalMins,
-                            final @Nonnull MatrixInterface matrix) {
+                            final @Nonnull MatrixInterface matrix,
+                            final BinaryDiscoveryDumper binaryDiscoveryDumper,
+                            final boolean enableDiscoveryResponsesCaching) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
@@ -264,17 +270,18 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.probeDiscoveryPermitWaitTimeoutMins = probeDiscoveryPermitWaitTimeoutMins;
         this.probeDiscoveryPermitWaitTimeoutIntervalMins = probeDiscoveryPermitWaitTimeoutIntervalMins;
         this.targetDumpingSettings = targetDumpingSettings;
+        this.enableDiscoveryResponsesCaching = enableDiscoveryResponsesCaching;
+        this.binaryDiscoveryDumper = binaryDiscoveryDumper;
         try {
             this.discoveryDumper = new DiscoveryDumperImpl(DiscoveryDumperSettings.DISCOVERY_DUMP_DIRECTORY, targetDumpingSettings);
+
         } catch (IOException e) {
             logger.warn("Failed to initialized discovery dumper; discovery responses will not be dumped", e);
             this.discoveryDumper = null;
         }
-
         this.probeStore.addListener(this);
         this.targetStore.addListener(this);
         this.matrix = matrix;
-
         // On restart we notify any listeners that all previously existing operations are now
         // cleared.
         operationListener.notifyOperationsCleared();
@@ -1067,6 +1074,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                 }
                                 discoveryDumper.dumpDiscovery(targetName, discoveryType, response,
                                         new ArrayList<>());
+                            }
+                            if (enableDiscoveryResponsesCaching && binaryDiscoveryDumper != null) {
+                                binaryDiscoveryDumper.dumpDiscovery(String.valueOf(targetId),
+                                    discoveryType,
+                                    response,
+                                    new ArrayList<>());
                             }
                             // set discovery context
                             if (response.hasDiscoveryContext()) {

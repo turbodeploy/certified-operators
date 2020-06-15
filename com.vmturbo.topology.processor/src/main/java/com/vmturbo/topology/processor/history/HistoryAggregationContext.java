@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -141,4 +142,17 @@ public class HistoryAggregationContext {
         return isPlan;
     }
 
+    /**
+     * Returns the oid of the live topology of input entity oid.
+     *
+     * @param entityOid the input entity oid.
+     * @return the oid of the live topology oid and empty otherwise.
+     */
+    @Nonnull
+    public Optional<Long> getClonedFromEntityOid(@Nullable Long entityOid) {
+        return Optional.ofNullable(entityOid)
+                .flatMap(graph::getEntity)
+                .flatMap(TopologyEntity::getClonedFromEntity)
+                .map(TopologyEntityDTO.Builder::getOid);
+    }
 }

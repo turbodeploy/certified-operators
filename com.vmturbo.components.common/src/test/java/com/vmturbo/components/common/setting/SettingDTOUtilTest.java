@@ -89,17 +89,17 @@ public class SettingDTOUtilTest {
                 .setPolicyId(456))
             .build();
 
-        final Map<Long, Map<String, Setting>> result =
+        final Map<Long, Map<String, SettingAndPolicies>> result =
             SettingDTOUtil.indexSettingsByEntity(Stream.of(group1, group2, group3));
         assertThat(result.keySet(), containsInAnyOrder(1L, 2L, 3L, 4L));
         assertThat(result.get(1L).keySet(), containsInAnyOrder("name1"));
-        assertThat(result.get(1L).get("name1"), is(setting1));
+        assertThat(result.get(1L).get("name1").getSetting(), is(setting1));
         assertThat(result.get(2L).keySet(), containsInAnyOrder("name1"));
-        assertThat(result.get(2L).get("name1"), is(setting1));
+        assertThat(result.get(2L).get("name1").getSetting(), is(setting1));
         assertThat(result.get(3L).keySet(), containsInAnyOrder("name2"));
-        assertThat(result.get(3L).get("name2"), is(setting2));
+        assertThat(result.get(3L).get("name2").getSetting(), is(setting2));
         assertThat(result.get(4L).keySet(), containsInAnyOrder("name3"));
-        assertThat(result.get(4L).get("name3"), is(setting3));
+        assertThat(result.get(4L).get("name3").getSetting(), is(setting3));
 
     }
 

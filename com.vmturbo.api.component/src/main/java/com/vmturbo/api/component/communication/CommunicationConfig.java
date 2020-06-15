@@ -30,7 +30,6 @@ import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.AuthClientConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
-import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.clustermgr.api.ClusterMgrClientConfig;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -58,6 +57,8 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc;
+import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc.TopologyDataDefinitionServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
@@ -99,7 +100,6 @@ import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentRestTemplate;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.group.api.GroupMemberRetriever;
@@ -207,6 +207,16 @@ public class CommunicationConfig {
     @Bean
     public TopologyServiceBlockingStub topologyService() {
         return TopologyServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
+    }
+
+    /**
+     * Blocking stub for Topology Data Definition service.
+     *
+     * @return blocking stub
+     */
+    @Bean
+    public TopologyDataDefinitionServiceBlockingStub topologyDataDefinitionServiceBlockingStub() {
+        return TopologyDataDefinitionServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     /**

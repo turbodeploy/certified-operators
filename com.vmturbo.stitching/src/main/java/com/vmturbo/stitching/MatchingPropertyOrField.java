@@ -1,14 +1,24 @@
 package com.vmturbo.stitching;
 
-import java.util.Optional;
+import java.util.Collection;
+
+import javax.annotation.Nonnull;
 
 /**
  * An interface that represents either an entity property or field of an entity to be used for
  * matching.
  *
- * @param <RETURN_TYPE> the type returned by the getMatchingValue method.
+ * @param <R> the type returned by the getMatchingValue method.
  */
-public interface MatchingPropertyOrField<RETURN_TYPE> {
+public interface MatchingPropertyOrField<R> {
 
-    Optional<RETURN_TYPE> getMatchingValue(StitchingEntity entity);
+    /**
+     * Returns collection of matching values for specified {@link StitchingEntity} instance.
+     *
+     * @param entity entity for which we want to get values of the matching
+     *                 property.
+     * @return collection of matching values.
+     */
+    @Nonnull
+    Collection<R> getMatchingValue(@Nonnull StitchingEntity entity);
 }

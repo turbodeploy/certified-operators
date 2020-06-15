@@ -740,7 +740,13 @@ public class SdkToTopologyEntityConverter {
                     .filter(prop -> prop.getName().equals(SDKConstants.AGGREGATES))
                     .flatMap(prop -> prop.getValuesList().stream())
                     .collect(Collectors.toList()));
-
+        // retain mediation values here, EntityValidator may change later
+        if (commDTO.hasCapacity()) {
+            retCommSoldBuilder.setCapacity(commDTO.getCapacity());
+        }
+        if (commDTO.hasUsed()) {
+            retCommSoldBuilder.setUsed(adjustedUsed(commDTO));
+        }
         if (commDTO.hasPeak()) {
             retCommSoldBuilder.setPeak(adjustedPeak(commDTO));
         }
@@ -839,9 +845,13 @@ public class SdkToTopologyEntityConverter {
      */
     private static double adjustedUsed(
             @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
-        return commDTO.getIsUsedPct()
-                ? commDTO.getUsed() * commDTO.getCapacity() / 100
-                : commDTO.getUsed();
+        // missing capacity to be processed by EntityValidator
+        if (commDTO.getIsUsedPct() && commDTO.hasCapacity()) {
+            return commDTO.getUsed() * commDTO.getCapacity() / 100;
+        } else {
+            logger.trace("Capacity is unset, unable to calculate pct used for {}", () -> commDTO);
+            return commDTO.getUsed();
+        }
     }
 
     /**
@@ -852,9 +862,13 @@ public class SdkToTopologyEntityConverter {
      */
     private static double adjustedPeak(
             @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
-        return commDTO.getIsPeakPct()
-                ? commDTO.getPeak() * commDTO.getCapacity() / 100
-                : commDTO.getPeak();
+        // missing capacity to be processed by EntityValidator
+        if (commDTO.getIsPeakPct() && commDTO.hasCapacity()) {
+            return commDTO.getPeak() * commDTO.getCapacity() / 100;
+        } else {
+            logger.trace("Capacity is unset, unable to calculate pct peak for {}", () -> commDTO);
+            return commDTO.getPeak();
+        }
     }
 
     /**
@@ -870,9 +884,14 @@ public class SdkToTopologyEntityConverter {
             @Nonnull TopologyDTO.CommodityBoughtDTO.Builder builder,
             @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO,
             @Nonnull Stream<CommodityDTO.Builder> providerSoldCommodities) {
+        if (!commDTO.hasUsed() && !commDTO.hasPeak()) {
+            return;
+        }
         // if used and peak are not percentage based, return the values immediately
         if (!commDTO.getIsUsedPct() && !commDTO.getIsPeakPct()) {
-            builder.setUsed(commDTO.getUsed());
+            if (commDTO.hasUsed()) {
+                builder.setUsed(commDTO.getUsed());
+            }
             if (commDTO.hasPeak()) {
                 builder.setPeak(commDTO.getPeak());
             }
@@ -892,10 +911,13 @@ public class SdkToTopologyEntityConverter {
                     commDTO.getUsed(), commDTO.getPeak());
         }
         double factor = commSold
+                .filter(CommodityDTO.Builder::hasCapacity)
                 .map(CommodityDTO.Builder::getCapacity)
                 .map(capacity -> capacity / 100)
                 .orElse(1.0);
-        builder.setUsed(commDTO.getIsUsedPct() ? commDTO.getUsed() * factor : commDTO.getUsed());
+        if (commDTO.hasUsed()) {
+            builder.setUsed(commDTO.getIsUsedPct() ? commDTO.getUsed() * factor : commDTO.getUsed());
+        }
         if (commDTO.hasPeak()) {
             builder.setPeak(commDTO.getIsPeakPct() ? commDTO.getPeak() * factor : commDTO.getPeak());
         }

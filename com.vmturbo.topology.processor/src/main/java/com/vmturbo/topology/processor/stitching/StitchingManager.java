@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.stitching;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -441,7 +441,7 @@ public class StitchingManager {
                         .internalEntities(internalEntityType, targetId)
                         .map(StitchingEntity.class::cast));
         final List<StitchingPoint> stitchingPoints = scopeEntities
-                .filter(internalEntity -> operation.getInternalSignature(internalEntity).isPresent())
+                .filter(internalEntity -> !operation.getInternalSignature(internalEntity).isEmpty())
                 .map(StitchingPoint::new)
                 .collect(Collectors.toList());
 
@@ -482,9 +482,9 @@ public class StitchingManager {
 
         scopeFactory.getStitchingContext()
                 .internalEntities(internalEntityType, targetId)
-                .forEach(internalEntity -> operation.getInternalSignature(internalEntity)
-                        .ifPresent(internalSignature ->
-                                signaturesToEntities.put(internalSignature, internalEntity)));
+                        .forEach(internalEntity -> operation.getInternalSignature(internalEntity)
+                                        .forEach(internalSignature -> signaturesToEntities
+                                                        .put(internalSignature, internalEntity)));
 
         // Now construct an index that can quickly calculate which internal signatures that an
         // external signature matches. Note that the internal implementation of the index are
@@ -508,10 +508,14 @@ public class StitchingManager {
                                 .map(StitchingEntity.class::cast));
         final MatchMap matchMap = new MatchMap(signaturesToEntities.size());
         externalEntities.forEach(externalEntity -> operation.getExternalSignature(externalEntity)
-            .ifPresent(externalSignature -> stitchingIndex.findMatches(externalSignature)
-                .forEach(internalSignature ->
-                    matchMap.addMatch(signaturesToEntities.get(internalSignature),
-                            externalEntity))));
+                        .forEach(externalSignature -> {
+                            stitchingIndex.findMatches(externalSignature)
+                                            .forEach(internalSignature -> {
+                                                matchMap.addMatch(signaturesToEntities
+                                                                                .get(internalSignature),
+                                                                externalEntity);
+                                            });
+                        }));
 
         // Process the matches.
         final StitchingResultBuilder resultBuilder =
@@ -526,7 +530,7 @@ public class StitchingManager {
      * Unused by stitch alone operations because external entities are ignored in such operations.
      */
     private static class MatchMap {
-        private final Map<StitchingEntity, List<StitchingEntity>> matches;
+        private final Map<StitchingEntity, Collection<StitchingEntity>> matches;
 
         public MatchMap(final int expectedSize) {
             matches = new IdentityHashMap<>(expectedSize);
@@ -541,8 +545,8 @@ public class StitchingManager {
          */
         public void addMatch(@Nonnull final StitchingEntity internalEntity,
                              @Nonnull final StitchingEntity externalEntity) {
-            final List<StitchingEntity> matchList =
-                matches.computeIfAbsent(internalEntity, key -> new ArrayList<>());
+            final Collection<StitchingEntity> matchList =
+                matches.computeIfAbsent(internalEntity, key -> new HashSet<>());
 
             matchList.add(externalEntity);
         }

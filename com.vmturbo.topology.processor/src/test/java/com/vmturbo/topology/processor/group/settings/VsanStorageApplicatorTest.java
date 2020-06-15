@@ -85,38 +85,50 @@ public class VsanStorageApplicatorTest {
 
         // RAID1; All off
         ApplicatorResult raid1AllOff = runApplicator(RAID1, false, 0, 0, HCI_HOST_CAPACITY_RESERVATION_OFF);
-        raid1AllOff.checkStorageAmount(16.25, 10);
+        raid1AllOff.checkStorageAmount(8.125, 10);
         raid1AllOff.checkUtilizationThreshold(50);
 
         // RAID1; Compression is on
         ApplicatorResult raid1Comprsession = runApplicator(RAID1, true, 1.5f, 0, HCI_HOST_CAPACITY_RESERVATION_OFF);
-        raid1Comprsession.checkStorageAmount(24.38, 15);
+        raid1Comprsession.checkStorageAmount(12.19, 15);
         raid1Comprsession.checkUtilizationThreshold(75);
 
         // RAID1; Slack is on; Compression is on
         ApplicatorResult raid1SlackCompression = runApplicator(RAID1, true, 1.5f, 50, HCI_HOST_CAPACITY_RESERVATION_OFF);
-        raid1SlackCompression.checkStorageAmount(24.38, 7.5);
+        raid1SlackCompression.checkStorageAmount(12.19, 7.5);
         raid1SlackCompression.checkUtilizationThreshold(37.5);
 
         // RAID1; Host capacity is on
         ApplicatorResult raid1Host = runApplicator(RAID1, false, 0, 0, HCI_HOST_CAPACITY_RESERVATION_ON);
-        raid1Host.checkStorageAmount(16.25, 5);
+        raid1Host.checkStorageAmount(8.125, 5);
         raid1Host.checkUtilizationThreshold(50);
 
         // RAID1; Host capacity is on; Slack is on
         ApplicatorResult raid1HostSlack = runApplicator(RAID1, false, 0, 50, HCI_HOST_CAPACITY_RESERVATION_ON);
-        raid1HostSlack.checkStorageAmount(16.25, 2.5);
+        raid1HostSlack.checkStorageAmount(8.125, 2.5);
         raid1HostSlack.checkUtilizationThreshold(25);
 
         // RAID1; Host capacity is on; Slack is on; Compression is on
         ApplicatorResult raid1HostSlackCompress = runApplicator(RAID1, true, 2.0f, 50, HCI_HOST_CAPACITY_RESERVATION_ON);
-        raid1HostSlackCompress.checkStorageAmount(32.5, 5);
+        raid1HostSlackCompress.checkStorageAmount(16.25, 5);
         raid1HostSlackCompress.checkUtilizationThreshold(50);
 
         // RAOD1; All on
         ApplicatorResult raid1 = runApplicator(RAID1, true, 1.7f, 13, HCI_HOST_CAPACITY_RESERVATION_ON);
-        raid1.checkStorageAmount(27.62, 7.4);
+        raid1.checkStorageAmount(13.81, 7.4);
         raid1.checkUtilizationThreshold(73.95);
+    }
+
+    /**
+     * Test the situation when Host Capacity Reservation setting is equal to the number of hosts.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testAllHostsReserved() throws Exception {
+        ApplicatorResult result = runApplicator(RAID0, false, 0, 0, 4);
+        result.checkStorageAmount(32.46, 1.0 / 1024);
+        result.checkUtilizationThreshold(100);
     }
 
     private static ApplicatorResult runApplicator(@Nonnull String fileName,

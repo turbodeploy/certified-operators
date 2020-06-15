@@ -6,14 +6,15 @@ import java.util.Base64;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.components.api.ComponentRestTemplate;
 
@@ -27,11 +28,12 @@ public class DBPasswordUtil {
     private static final Logger logger = LogManager.getLogger(
             DBPasswordUtil.class);
 
-    static final String SECURESTORAGE_PATH = "/securestorage/";
-    static final String SQL_DB_ROOT_PASSWORD_PATH = "getSqlDBRootPassword";
-    static final String SQL_DB_ROOT_USERNAME_PATH = "getSqlDBRootUsername";
-    static final String ARANGO_DB_ROOT_PASSWORD_PATH = "getArangoDBRootPassword";
-    static final String INFLUX_DB_ROOT_PASSWORD_PATH = "getInfluxDBRootPassword";
+    public static final String SECURESTORAGE_PATH = "/securestorage/";
+    public static final String SQL_DB_ROOT_PASSWORD_PATH = "getSqlDBRootPassword";
+    public static final String SQL_DB_ROOT_USERNAME_PATH = "getSqlDBRootUsername";
+    public static final String ARANGO_DB_ROOT_PASSWORD_PATH = "getArangoDBRootPassword";
+    public static final String INFLUX_DB_ROOT_PASSWORD_PATH = "getInfluxDBRootPassword";
+    public static final String POSTGRES_DB_ROOT_USERNAME_PATH = "getPostgresDBRootUsername";
 
     /**
      * The database root username.
@@ -128,10 +130,19 @@ public class DBPasswordUtil {
     /**
      * Obtains the default root DB username.
      *
+     * @param sqlDialect type of the sql database
      * @return The default root DB username
      */
-    public static String obtainDefaultRootDbUser() {
-        return "root";
+    public static String obtainDefaultRootDbUser(String sqlDialect) {
+        switch (sqlDialect) {
+            case "POSTGRES":
+                return "postgres";
+            case "MYSQL":
+            case "MARIADB":
+                return "root";
+            default:
+                throw new UnsupportedOperationException("No default root username defined for: " + sqlDialect);
+        }
     }
 
     /**
@@ -158,10 +169,20 @@ public class DBPasswordUtil {
      * If the auth component is down and the database root username has been changed, there will be
      * no security implications, as the component will not be able to access the database..
      *
+     * @param sqlDialect the type of the sql database
      * @return The SQL database root password.
      */
-    public synchronized @Nonnull String getSqlDbRootUsername() {
-        return getRootUser(SQL_DB_ROOT_USERNAME_PATH);
+    public synchronized @Nonnull String getSqlDbRootUsername(String sqlDialect) {
+        switch (sqlDialect) {
+            case "POSTGRES":
+                // for postgres, default root username is postgres
+                return getRootUser(POSTGRES_DB_ROOT_USERNAME_PATH);
+            case "MYSQL":
+            case "MARIADB":
+            default:
+                // for other sql dbs like mysql, mariadb, default root username is root
+                return getRootUser(SQL_DB_ROOT_USERNAME_PATH);
+        }
     }
 
     /**
@@ -210,7 +231,7 @@ public class DBPasswordUtil {
                 ResponseEntity<String> result =
                     restTemplate.getForEntity(request, String.class);
                 dbRootUsername = result.getBody();
-                if (dbRootUsername.isEmpty()) {
+                if (StringUtils.isEmpty(dbRootUsername)) {
                     throw new IllegalArgumentException("root db username is empty");
                 }
             } catch (ResourceAccessException e) {
@@ -254,7 +275,7 @@ public class DBPasswordUtil {
                 ResponseEntity<String> result =
                     restTemplate.getForEntity(request, String.class);
                 dbRootPassword = result.getBody();
-                if (dbRootPassword.isEmpty()) {
+                if (StringUtils.isEmpty(dbRootPassword)) {
                     throw new IllegalArgumentException("root " + databaseType + " db password is empty");
                 }
             } catch (ResourceAccessException e) {

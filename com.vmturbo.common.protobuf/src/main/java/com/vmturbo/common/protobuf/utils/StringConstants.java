@@ -439,4 +439,9 @@ public class StringConstants {
      * Indicates that validation has successfully completed in the topology processor.
      */
     public static final String TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS = "Validated";
+
+    /**
+     * Accepting user type for actions accepted from turbo.
+     */
+    public static final String TURBO_ACCEPTING_USER_TYPE = "TURBO_USER";
 }

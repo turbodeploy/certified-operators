@@ -467,7 +467,8 @@ public class ServiceConfig {
         return new SchedulesService(communicationConfig.scheduleRpcService(),
             communicationConfig.settingPolicyRpcService(),
             mapperConfig.scheduleMapper(),
-            mapperConfig.settingsMapper());
+            mapperConfig.settingsMapper(),
+                actionSearchUtil());
     }
 
     @Bean
@@ -634,6 +635,17 @@ public class ServiceConfig {
             communicationConfig.cpuCapacityServiceBlockingStub(), cpuInfoMapper(),
             mapperConfig.templatesUtils(),
             cpuCatalogLifeHours);
+    }
+
+    /**
+     * Bean for {@link TopologyDataDefinitionService}.
+     *
+     * @return topology data definition service
+     */
+    @Bean
+    public TopologyDataDefinitionService topologyDataDefinitionService() {
+        return new TopologyDataDefinitionService(communicationConfig.topologyDataDefinitionServiceBlockingStub(),
+                mapperConfig.topologyDataDefinitionMapper());
     }
 
     @Bean

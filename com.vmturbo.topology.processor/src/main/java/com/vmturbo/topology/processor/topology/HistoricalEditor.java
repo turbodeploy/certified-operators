@@ -945,16 +945,20 @@ public class HistoricalEditor {
             // Copy historical used values.
             final HistoricalValues.Builder clonedHistoricalUsedBuilder =
                 historicalUsedExtractor.apply(entry.getValue());
-            clonedHistoricalUsedBuilder.clear();
-            clonedHistoricalUsedBuilder.mergeFrom(
-                historicalUsedExtractor.apply(originalCommTypeToCommodity.get(entry.getKey())).build());
+            HistoricalValues.Builder originalCommodityHistoricalUsed =
+                historicalUsedExtractor.apply(originalCommTypeToCommodity.get(entry.getKey()));
+            if (originalCommodityHistoricalUsed.hasHistUtilization()) {
+              clonedHistoricalUsedBuilder.setHistUtilization(originalCommodityHistoricalUsed.getHistUtilization());
+            }
 
             // Copy historical peak values.
             final HistoricalValues.Builder clonedHistoricalPeakBuilder =
                 historicalPeakExtractor.apply(entry.getValue());
-            clonedHistoricalPeakBuilder.clear();
-            clonedHistoricalPeakBuilder.mergeFrom(
-                historicalPeakExtractor.apply(originalCommTypeToCommodity.get(entry.getKey())).build());
+            HistoricalValues.Builder originalCommodityHistoricalPeak =
+                historicalPeakExtractor.apply(originalCommTypeToCommodity.get(entry.getKey()));
+            if (originalCommodityHistoricalPeak.hasHistUtilization()) {
+                clonedHistoricalPeakBuilder.setHistUtilization(originalCommodityHistoricalPeak.getHistUtilization());
+            }
         }
     }
 }

@@ -1,14 +1,14 @@
 package com.vmturbo.topology.processor.entity;
 
-import com.vmturbo.common.protobuf.topology.EntityInfoREST;
-import com.vmturbo.topology.processor.ClockConfig;
-import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
-import com.vmturbo.topology.processor.targets.TargetStore;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.topology.EntityInfoREST;
+import com.vmturbo.topology.processor.ClockConfig;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
@@ -31,6 +31,9 @@ public class EntityConfig {
     @Autowired
     private TopologyProcessorNotificationSender sender;
 
+    @Value("${validationOldValuesCacheEnabled:true}")
+    private boolean oldValuesCacheEnabled;
+
     @Bean
     public EntityStore entityStore() {
         return new EntityStore(targetConfig.targetStore(),
@@ -41,7 +44,7 @@ public class EntityConfig {
 
     @Bean
     public EntityValidator entityValidator() {
-        return new EntityValidator();
+        return new EntityValidator(oldValuesCacheEnabled);
     }
 
     @Bean

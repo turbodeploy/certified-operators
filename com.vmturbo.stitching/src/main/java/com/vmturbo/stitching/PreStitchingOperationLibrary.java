@@ -16,6 +16,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.prestitching.ConnectedNetworkPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedCloudEntityPreStitchingOperation;
+import com.vmturbo.stitching.prestitching.SharedEntityCustomProbePreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedEntityDefaultPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedStoragePreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedVirtualVolumePreStitchingOperation;
@@ -86,8 +87,9 @@ public class PreStitchingOperationLibrary {
                                 SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType(),
                                 EntityType.BUSINESS_USER), Collections.singletonMap(
                         "common_dto.EntityDTO.BusinessUserData.sessionData",
-                        Comparator.comparing(lhs -> ((SessionData)lhs).getVirtualMachine()))))
-                .build();
+                        Comparator.comparing(lhs -> ((SessionData)lhs).getVirtualMachine()))),
+                new SharedEntityCustomProbePreStitchingOperation())
+            .build();
     }
 
     private static Collection<PreStitchingOperation> createCloudEntityPreStitchingOperations() {

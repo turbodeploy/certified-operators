@@ -74,6 +74,7 @@ import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
@@ -244,6 +245,11 @@ public class OperationControllerTest {
         }
 
         @Bean
+        BinaryDiscoveryDumper binaryDiscoveryDumper() {
+            return Mockito.mock(BinaryDiscoveryDumper.class);
+        }
+
+        @Bean
         OperationManager operationManager() {
             return new OperationManager(identityProvider(),
                                         targetStore(),
@@ -262,7 +268,9 @@ public class OperationControllerTest {
                                         systemNotificationProducer(),
                                         10, 10, 10,
                                         5, 10, 1, 1,
-                                        TheMatrix.instance());
+                                        TheMatrix.instance(),
+                                        binaryDiscoveryDumper(),
+                                        false);
         }
 
         @Bean

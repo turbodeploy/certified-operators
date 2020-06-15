@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.operation;
 
-import java.time.Clock;
+import java.io.IOException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +16,7 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.communication.SdkServerConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.cost.CloudCostConfig;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.ComponentBasedTargetDumpingSettingsConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
@@ -111,6 +114,11 @@ public class OperationConfig {
     @Value("${probeDiscoveryPermitWaitTimeoutIntervalMins}")
     private int probeDiscoveryPermitWaitTimeoutIntervalMins;
 
+    @Value("${enableDiscoveryResponsesCaching:true}")
+    private boolean enableDiscoveryResponsesCaching;
+
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * Returns the notification sender implementation used to send notifications
      * to the system like probe failures.
@@ -131,6 +139,22 @@ public class OperationConfig {
     @Bean
     public SystemNotificationProducer systemNotificationProducer() {
         return new SystemNotificationProducer(notificationSender());
+    }
+
+    /**
+     * Returns the BinaryDiscoveryDumper that writes and loads cached discovery responses.
+     *
+     * @return the binaryDiscoveryDumper.
+     */
+    @Bean
+    public BinaryDiscoveryDumper binaryDiscoveryDumper() {
+        try {
+            return new BinaryDiscoveryDumper(DiscoveryDumperSettings.DISCOVERY_CACHE_DIRECTORY);
+        } catch (IOException e) {
+            logger.warn("Failed to initialized binary discovery dumper; discovery responses will "
+                + "not be dumped and target won't be restored after a restart", e);
+        }
+        return null;
     }
 
     @Bean
@@ -157,7 +181,9 @@ public class OperationConfig {
             maxConcurrentTargetIncrementalDiscoveriesPerProbeCount,
             probeDiscoveryPermitWaitTimeoutMins,
             probeDiscoveryPermitWaitTimeoutIntervalMins,
-            matrixConfig.matrixInterface()
+            matrixConfig.matrixInterface(),
+            binaryDiscoveryDumper(),
+            enableDiscoveryResponsesCaching
         );
     }
 }

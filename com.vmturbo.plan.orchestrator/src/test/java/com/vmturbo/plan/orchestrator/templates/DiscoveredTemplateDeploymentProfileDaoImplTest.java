@@ -343,7 +343,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
     }
 
     /**
-     * Test reservations will have "invalid" status, if the depended template is deleted.
+     * Test reservations will be deleted, if the depended template is deleted.
      */
     @Test
     public void testUpdateReservationToInvalidWhenDeletingDependedTemplate() {
@@ -401,15 +401,17 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
                 .map(template -> reservationDao.createReservation(buildReservation(template.getId())))
                 .collect(Collectors.toSet());
         assertEquals(3, reservations.size());
-        reservations.stream().allMatch(reservation -> reservation.getStatus().equals(ReservationDTO.ReservationStatus.FUTURE));
+        assertTrue(reservations.stream().allMatch(reservation ->
+            reservation.getStatus().equals(ReservationDTO.ReservationStatus.INITIAL)));
 
         // delete system templates
         discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
 
         // verify all reservations depend on deleted system templates are set to invalid state.
         Set<ReservationDTO.Reservation> allReservations = reservationDao.getAllReservations();
-        assertEquals(3, allReservations.size());
-        allReservations.stream().allMatch(reservation -> reservation.getStatus().equals(ReservationDTO.ReservationStatus.INVALID));
+        assertEquals(1, allReservations.size());
+        assertTrue(allReservations.stream().allMatch(reservation ->
+            reservation.getStatus().equals(ReservationDTO.ReservationStatus.INITIAL)));
     }
 
     /**

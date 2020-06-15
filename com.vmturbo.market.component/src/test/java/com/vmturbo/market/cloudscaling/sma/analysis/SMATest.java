@@ -124,9 +124,14 @@ public class SMATest {
          */
         testExactResult("1vm2riNameBreaksTie.json");
 
+        // 2 ris merged together since they are identical.
         testExactResult("2vm2riMergeRI.json");
 
+        // 2 instance size flexible ris merged together .
         testExactResult("2vm2riInstanceSFMergeRIs.json");
+
+        // partial coverage should be preferred if it has better savings per coupon.
+        testExactResult("partialoverfullinefficient.json");
 
     }
 

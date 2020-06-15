@@ -30,6 +30,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Functions;
+import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -57,6 +58,7 @@ import org.jooq.impl.DSL;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
@@ -79,7 +81,6 @@ import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
@@ -95,6 +96,7 @@ import com.vmturbo.group.db.tables.records.SettingPolicySettingRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingScheduleIdsRecord;
 import com.vmturbo.group.db.tables.records.SettingsOidsRecord;
 import com.vmturbo.group.service.StoreOperationException;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * The {@link SettingStore} class is used to store settings-related objects, and retrieve them
@@ -309,19 +311,13 @@ public class SettingStore implements DiagsRestorable {
      * @param id The ID of the policy to update.
      * @param newInfo The new {@link SettingPolicyInfo}. This will completely replace the old
      * info, and must pass validation.
-     * @return The updated {@link SettingProto.SettingPolicy}.
-     * @throws SettingPolicyNotFoundException If the policy to update doesn't exist.
-     * @throws InvalidItemException If the update attempt would violate constraints on
-     * the setting policy.
-     * @throws DuplicateNameException If there is already a setting policy with the same name as
-     * the new info (other than the policy to update).
-     * @throws DataAccessException If there is an error interacting with the database.
+     * @return The updated {@link SettingProto.SettingPolicy} and flag which defines should
+     * acceptances for actions associated with policy be removed or not.
+     * @throws StoreOperationException if update failed
      */
     @Nonnull
-    public SettingProto.SettingPolicy updateSettingPolicy(final long id,
-            @Nonnull final SettingPolicyInfo newInfo)
-            throws SettingPolicyNotFoundException, InvalidItemException, DuplicateNameException,
-            DataAccessException {
+    public Pair<SettingProto.SettingPolicy, Boolean> updateSettingPolicy(final long id,
+            @Nonnull final SettingPolicyInfo newInfo) throws StoreOperationException {
         try {
             return dslContext.transactionResult(configuration -> {
                 final DSLContext context = DSL.using(configuration);
@@ -330,12 +326,8 @@ public class SettingStore implements DiagsRestorable {
         } catch (DataAccessException e) {
             // Jooq will rethrow exceptions thrown in the transactionResult call
             // wrapped in a DataAccessException. Check to see if that's why the transaction failed.
-            if (e.getCause() instanceof DuplicateNameException) {
-                throw (DuplicateNameException)e.getCause();
-            } else if (e.getCause() instanceof SettingPolicyNotFoundException) {
-                throw (SettingPolicyNotFoundException)e.getCause();
-            } else if (e.getCause() instanceof InvalidItemException) {
-                throw (InvalidItemException)e.getCause();
+            if (e.getCause() instanceof StoreOperationException) {
+                throw (StoreOperationException)e.getCause();
             } else {
                 throw e;
             }
@@ -343,12 +335,12 @@ public class SettingStore implements DiagsRestorable {
     }
 
     @Nonnull
-    private SettingProto.SettingPolicy updateSettingPolicy(@Nonnull DSLContext context,
+    private Pair<SettingProto.SettingPolicy, Boolean> updateSettingPolicy(@Nonnull DSLContext context,
             final long id, @Nonnull final SettingPolicyInfo newInfo)
-            throws SettingPolicyNotFoundException, InvalidItemException, DuplicateNameException,
-            DataAccessException, StoreOperationException {
+            throws StoreOperationException {
         final SettingProto.SettingPolicy existingPolicy = getSettingPolicy(context, id).orElseThrow(
-                () -> new SettingPolicyNotFoundException(id));
+                () -> new StoreOperationException(Status.NOT_FOUND,
+                        "Setting Policy " + id + " not found."));
 
         final SettingProto.SettingPolicy.Type type = existingPolicy.getSettingPolicyType();
 
@@ -358,13 +350,13 @@ public class SettingStore implements DiagsRestorable {
             // For default setting policies we don't allow changes to names
             // or entity types.
             if (newInfo.getEntityType() != existingPolicy.getInfo().getEntityType()) {
-                throw new InvalidItemException("Illegal attempt to change the " +
-                        " entity type of a default setting policy.");
+                throw new StoreOperationException(Status.INVALID_ARGUMENT, "Illegal attempt to "
+                        + "change the entity type of a default setting policy.");
             }
             if (!newInfo.getName().equals(existingPolicy.getInfo().getName())) {
-                throw new InvalidItemException(
-                        "Illegal attempt to change the name of a default setting policy " +
-                                existingPolicy.getInfo().getName());
+                throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                        "Illegal attempt to change the name of a default setting policy "
+                                + existingPolicy.getInfo().getName());
             }
             Set<String> newSettingNames = newInfo.getSettingsList()
                     .stream()
@@ -413,9 +405,9 @@ public class SettingStore implements DiagsRestorable {
                      */
                     if (!existingSettingName.contains("ActionWorkflow") &&
                             !existingSettingName.contains("ActionScript")) {
-                        throw new InvalidItemException(
-                                "Illegal attempt to remove a default setting " +
-                                        existingSettingName);
+                        throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                                "Illegal attempt to remove a default setting "
+                                        + existingSettingName);
                     }
                 }
             }
@@ -429,19 +421,104 @@ public class SettingStore implements DiagsRestorable {
                     .addAllSettings(settingsToAdd)
                     .build();
 
-                return internalUpdateSettingPolicy(context, existingPolicy.toBuilder()
-                                .setInfo(newNewInfo)
-                                .build());
+                boolean removeAcceptancesForAssociatedActions =
+                        shouldAcceptancesForActionsAssociatedWithPolicyBeRemoved(newInfo,
+                                existingPolicy.getInfo());
+
+                return Pair.create(internalUpdateSettingPolicy(context,
+                        existingPolicy.toBuilder().setInfo(newNewInfo).build()),
+                        removeAcceptancesForAssociatedActions);
             }
         }
 
         if (type.equals(Type.DISCOVERED)) {
-            throw new InvalidItemException(
+            throw new StoreOperationException(Status.INVALID_ARGUMENT,
                     "Illegal attempt to modify a discovered setting policy " + id);
         }
 
-        return internalUpdateSettingPolicy(context,
-                existingPolicy.toBuilder().setInfo(newInfo).build());
+        boolean shouldAcceptancesForAssociatedActionsBeRemoved =
+                shouldAcceptancesForActionsAssociatedWithPolicyBeRemoved(newInfo,
+                        existingPolicy.getInfo());
+
+        return Pair.create(internalUpdateSettingPolicy(context,
+                existingPolicy.toBuilder().setInfo(newInfo).build()),
+                shouldAcceptancesForAssociatedActionsBeRemoved);
+    }
+
+    /**
+     * Detects whether acceptances for actions associated with policy be removed or not, depends on
+     * changes inside setting policy.
+     * Remove acceptances in following cases:
+     * 1. ExecutionSchedule setting was removed or modified
+     * 2. ActionMode setting associated with ExecutionSchedule setting was modified from MANUAL
+     * value to another one
+     *
+     * @param newInfo new policy info
+     * @param existingInfo policy info before updates
+     * @return true if acceptances for actions should be removed otherwise false
+     */
+    private boolean shouldAcceptancesForActionsAssociatedWithPolicyBeRemoved(
+            @Nonnull SettingPolicyInfo newInfo, @Nonnull SettingPolicyInfo existingInfo) {
+        final List<Setting> previousExecutionScheduleSettings = existingInfo.getSettingsList()
+                .stream()
+                .filter(setting -> EntitySettingSpecs.isExecutionScheduleSetting(
+                        setting.getSettingSpecName()))
+                .collect(Collectors.toList());
+        if (previousExecutionScheduleSettings.isEmpty()) {
+            return false;
+        }
+
+        final Map<String, List<Long>> newExecutionScheduleSettings = newInfo.getSettingsList()
+                .stream()
+                .filter(setting -> EntitySettingSpecs.isExecutionScheduleSetting(
+                        setting.getSettingSpecName()))
+                .collect(Collectors.toMap(Setting::getSettingSpecName,
+                        setting -> setting.getSortedSetOfOidSettingValue().getOidsList()));
+
+        final Optional<Setting> removedExecutionScheduleSetting =
+                previousExecutionScheduleSettings.stream()
+                        .filter(setting -> newExecutionScheduleSettings.get(setting.getSettingSpecName()) == null)
+                        .findFirst();
+
+        boolean removeAcceptances = removedExecutionScheduleSetting.isPresent();
+
+        if (!removeAcceptances) {
+            final BiMap<String, String> executionScheduleToActionModeSettings =
+                    EntitySettingSpecs.getActionModeToExecutionScheduleSettings().inverse();
+            final List<String> previousActionModeSettingsNames =
+                    previousExecutionScheduleSettings.stream()
+                            .map(el -> executionScheduleToActionModeSettings.get(
+                                    el.getSettingSpecName()))
+                            .collect(Collectors.toList());
+
+            final List<String> previousActionModeSettingsWithManualValue =
+                    getActionModeSettingsWithManualValue(existingInfo,
+                            previousActionModeSettingsNames);
+
+            final List<String> newActionModeSettingsNames = newExecutionScheduleSettings.keySet()
+                    .stream()
+                    .map(executionScheduleToActionModeSettings::get)
+                    .collect(Collectors.toList());
+
+            final List<String> newActionModeSettingsWithManualValue =
+                    getActionModeSettingsWithManualValue(newInfo, newActionModeSettingsNames);
+            removeAcceptances = !newActionModeSettingsWithManualValue.containsAll(
+                    previousActionModeSettingsWithManualValue);
+        }
+        return removeAcceptances;
+    }
+
+    @Nonnull
+    private List<String> getActionModeSettingsWithManualValue(@Nonnull SettingPolicyInfo settingPolicyInfo,
+            List<String> actionModeSettingsNames) {
+        return settingPolicyInfo.getSettingsList()
+                .stream()
+                .filter(setting -> actionModeSettingsNames.contains(setting.getSettingSpecName())
+                        && setting.getEnumSettingValue()
+                        .getValue()
+                        .equals(ActionMode.MANUAL.name()))
+                .map(Setting::getSettingSpecName)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -453,7 +530,7 @@ public class SettingStore implements DiagsRestorable {
      * @throws IllegalArgumentException If the setting policy ID refers to an invalid policy (i.e.
      *         a non-default policy).
      */
-    public SettingProto.SettingPolicy resetSettingPolicy(final long id)
+    public Pair<SettingProto.SettingPolicy, Boolean> resetSettingPolicy(final long id)
             throws SettingPolicyNotFoundException, IllegalArgumentException {
         try {
             return dslContext.transactionResult(configuration -> {
@@ -462,7 +539,7 @@ public class SettingStore implements DiagsRestorable {
                 final SettingProto.SettingPolicy existingPolicy =
                         getSettingPolicy(context, id).orElseThrow(
                                 () -> new SettingPolicyNotFoundException(id));
-                final SettingProto.SettingPolicy.Type type = existingPolicy.getSettingPolicyType();
+                final Type type = existingPolicy.getSettingPolicyType();
 
                 if (!type.equals(Type.DEFAULT)) {
                     throw new IllegalArgumentException("Cannot reset setting policy " + id +
@@ -479,9 +556,13 @@ public class SettingStore implements DiagsRestorable {
                             "Cannot reset setting policy " + id + " as id does not exist");
                 }
 
-                return internalUpdateSettingPolicy(context, existingPolicy.toBuilder()
-                    .setInfo(newPolicyInfo)
-                    .build());
+                boolean removeAcceptancesForAssociatedActions =
+                        shouldAcceptancesForActionsAssociatedWithPolicyBeRemoved(newPolicyInfo,
+                                existingPolicy.getInfo());
+
+                return Pair.create(internalUpdateSettingPolicy(context,
+                        existingPolicy.toBuilder().setInfo(newPolicyInfo).build()),
+                        removeAcceptancesForAssociatedActions);
             });
         } catch (DataAccessException e) {
             // Jooq will rethrow exceptions thrown in the transactionResult call
@@ -729,16 +810,21 @@ public class SettingStore implements DiagsRestorable {
     private SettingProto.SettingPolicy internalUpdateSettingPolicy(
                 @Nonnull final DSLContext context,
                 @Nonnull final SettingProto.SettingPolicy policy)
-            throws SettingPolicyNotFoundException, DuplicateNameException, InvalidItemException {
+            throws StoreOperationException {
         final SettingPolicyRecord record =
                 context.fetchOne(SETTING_POLICY, SETTING_POLICY.ID.eq(policy.getId()));
         if (record == null) {
-            throw new SettingPolicyNotFoundException(policy.getId());
+            throw new StoreOperationException(Status.NOT_FOUND,
+                    "Setting Policy " + policy.getId() + " not found.");
         }
 
         // Validate the setting policy.
         // This should throw an exception if it's invalid.
-        settingPolicyValidator.validateSettingPolicy(policy.getInfo(), policy.getSettingPolicyType());
+        try {
+            settingPolicyValidator.validateSettingPolicy(policy.getInfo(), policy.getSettingPolicyType());
+        } catch (InvalidItemException e) {
+            throw new StoreOperationException(Status.INVALID_ARGUMENT, e.getMessage(), e);
+        }
 
 
         // Explicitly search for an existing policy with the same name that's NOT
@@ -751,7 +837,8 @@ public class SettingStore implements DiagsRestorable {
                 .and(SETTING_POLICY.ID.ne(policy.getId()))
                 .fetchOne();
         if (existingId != null) {
-            throw new DuplicateNameException(existingId.value1(), policy.getInfo().getName());
+            throw new StoreOperationException(Status.ALREADY_EXISTS,
+                    "Duplicated policy names found: " + policy.getInfo().getName());
         }
 
         record.setId(policy.getId());
@@ -767,22 +854,15 @@ public class SettingStore implements DiagsRestorable {
             record.setScheduleId(policy.getInfo().getScheduleId());
         }
 
-        final Collection<TableRecord<?>> inserts;
-        try {
-            inserts = attachChildRecords(policy.getId(), policy.getInfo());
-        } catch (StoreOperationException e) {
-            logger.warn("Could not create records for policy " + policy.getId(), e);
-            throw new InvalidItemException(
-                    "Could not create records for policy " + policy.getId() + ": " +
-                            e.getMessage());
-        }
+        final Collection<TableRecord<?>> inserts =
+                attachChildRecords(policy.getId(), policy.getInfo());
 
         final int modifiedRecords = record.update();
         if (modifiedRecords == 0) {
             // This should never happen, because we overwrote fields in the record,
             // and update() should always execute an UPDATE statement if some fields
             // got overwritten.
-            throw new IllegalStateException("Failed to update record.");
+            throw new StoreOperationException(Status.INVALID_ARGUMENT, "Failed to update record.");
         }
         context.batch(deleteChildRecords(context, policy.getId())).execute();
         context.batchInsert(inserts).execute();

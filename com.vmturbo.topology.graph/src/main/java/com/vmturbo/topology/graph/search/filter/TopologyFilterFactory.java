@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -17,6 +16,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
@@ -30,13 +30,14 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
@@ -429,20 +430,11 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                         if (commTypeRegex.matcher(UICommodityType.VMEM.apiStr()).matches()) {
                             return new PropertyFilter<>(longPredicate(valueFilter.getValue(),
                                 valueFilter.getComparisonOperator(),
-                                entity -> Optional.ofNullable(entity.soldCommoditiesByType().get(CommodityType.VMEM.getNumber()))
-                                    .filter(sold -> !sold.isEmpty())
-                                    // We expect at most one VMEM.
-                                    .map(sold -> (long)sold.get(0).getCapacity())
-                                    .orElse(-1L))
-                            );
+                                entity -> getLongCapacity(entity, CommodityType.VMEM)));
                         } else if (commTypeRegex.matcher(UICommodityType.MEM.apiStr()).matches()) {
                             return new PropertyFilter<>(longPredicate(valueFilter.getValue(),
                                 valueFilter.getComparisonOperator(),
-                                entity -> Optional.ofNullable(entity.soldCommoditiesByType().get(CommodityType.MEM.getNumber()))
-                                    .filter(sold -> !sold.isEmpty())
-                                    // We expect at most one MEM.
-                                    .map(sold -> (long)sold.get(0).getCapacity())
-                                    .orElse(-1L)));
+                                entity -> getLongCapacity(entity, CommodityType.MEM)));
                         } else {
                             throw new IllegalArgumentException("Unsupported commodity type for search: " + commodityType);
                         }
@@ -500,6 +492,19 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
 
         throw new IllegalArgumentException("Unknown property: " + propertyName + " for ListFilter "
                 + listCriteria);
+    }
+
+    private long getLongCapacity(TopologyGraphEntity<E> entity, CommodityType commType) {
+        List<CommoditySoldDTO> soldOfType = entity.soldCommoditiesByType().get(commType.getNumber());
+        // We expect at most one
+        // By the way why do we expect at most one? VStorages will have different keys
+        if (!CollectionUtils.isEmpty(soldOfType)) {
+            CommoditySoldDTO sold = soldOfType.get(0);
+            if (sold.hasCapacity()) {
+                return (long)sold.getCapacity();
+            }
+        }
+        return -1L;
     }
 
     @Nonnull

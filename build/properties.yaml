@@ -223,7 +223,7 @@ defaultProperties:
         defaultCommodityWhitelist:
             BALLOONING,
             BUFFER_COMMODITY,
-            COLLECTION_TIME,
+            REMAINING_GC_CAPACITY,
             CONNECTION,
             COOLING,
             COUPON,

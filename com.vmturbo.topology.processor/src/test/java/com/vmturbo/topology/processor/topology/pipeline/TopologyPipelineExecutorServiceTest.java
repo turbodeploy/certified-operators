@@ -5,7 +5,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -57,8 +56,6 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutor
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineRequest;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineRunnable;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineWorker;
-import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineUnblockFactory;
-import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineUnblockFactory.PipelineUnblock;
 
 /**
  * Unit tests for {@link TopologyPipelineExecutorService}.
@@ -91,8 +88,6 @@ public class TopologyPipelineExecutorServiceTest {
     private PlanPipelineQueue mockPlanQueue = mock(PlanPipelineQueue.class);
     private RealtimePipelineQueue mockRealtimeQueue = mock(RealtimePipelineQueue.class);
     private TargetStore targetStore = mock(TargetStore.class);
-    private PipelineUnblockFactory
-            unblockBroadcastsFactory = mock(PipelineUnblockFactory.class);
 
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
@@ -111,7 +106,6 @@ public class TopologyPipelineExecutorServiceTest {
             mockEntityStore,
             mockNotificationSender,
             targetStore,
-            unblockBroadcastsFactory,
             false,
             MAX_BLOCK_TIME, TimeUnit.MILLISECONDS);
 
@@ -352,7 +346,6 @@ public class TopologyPipelineExecutorServiceTest {
                 mockEntityStore,
                 mockNotificationSender,
                 targetStore,
-                unblockBroadcastsFactory,
                 // Set this to true.
                 true, MAX_BLOCK_TIME, TimeUnit.MILLISECONDS);
         // Run
@@ -674,44 +667,5 @@ public class TopologyPipelineExecutorServiceTest {
                 throw e;
             }
         }
-    }
-
-    /**
-     * Test that the initialization logic invokes the unblock operation.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testInitialization() throws Exception {
-        final CompletableFuture<Void> future = new CompletableFuture<>();
-        when(unblockBroadcastsFactory.newUnblockOperation(any())).thenAnswer(invocationOnMock ->
-                (PipelineUnblock)() -> {
-                    invocationOnMock.getArgumentAt(0, TopologyPipelineExecutorService.class)
-                            .unblockBroadcasts();
-                    future.complete(null);
-                });
-        pipelineExecutorService.blockBroadcasts(1, TimeUnit.HOURS);
-
-        verify(mockRealtimeQueue).block(1, TimeUnit.HOURS);
-        verify(mockPlanQueue).block(1, TimeUnit.HOURS);
-
-        pipelineExecutorService.initialize();
-        // Make sure the factory got called.
-        verify(unblockBroadcastsFactory).newUnblockOperation(pipelineExecutorService);
-        // Make sure the unblocking happens - this is done asynchronously.
-        future.get(30, TimeUnit.SECONDS);
-
-        verify(mockRealtimeQueue).unblock();
-        verify(mockPlanQueue).unblock();
-    }
-
-    /**
-     * Test initialization priority relative to the target store.
-     */
-    @Test
-    public void testInitializationPriority() {
-        when(targetStore.priority()).thenReturn(1);
-        // Should have a smaller priority, so that it gets initialized later.
-        assertTrue(pipelineExecutorService.priority() < targetStore.priority());
     }
 }

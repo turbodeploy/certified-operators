@@ -76,6 +76,7 @@ public class ActionOrchestratorDiagnosticsTest {
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(
             Optional.of(actionStore));
         when(actionStore.getEntitySeverityCache()).thenReturn(severityCache);
+        IdentityGenerator.initPrefix(0);
     }
 
     @Test

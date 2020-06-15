@@ -44,7 +44,6 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.abstraction.tables.MktSnapshotsStats;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.utils.HistoryStatsUtils;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -316,6 +315,14 @@ public class PlanStatsAggregator {
                 final int commodityType = commoditySoldDTO.getCommodityType().getType();
                 final double used = commoditySoldDTO.getUsed();
                 final double capacity = commoditySoldDTO.getCapacity();
+                if (!commoditySoldDTO.hasCapacity() || capacity <= 0) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Skipping plan sold commodity with unset capacity {}:{}:{}",
+                                        entityDTO.getOid(), commodityType,
+                                        commoditySoldDTO.getCommodityType().getKey());
+                    }
+                    continue;
+                }
                 // Get the record representing the aggregation for this entityType/commodityType combo
                 final CommodityAggregation commodityAggregation = commodityAggregationTable.get(entityType, commodityType);
                 if (commodityAggregation == null) {

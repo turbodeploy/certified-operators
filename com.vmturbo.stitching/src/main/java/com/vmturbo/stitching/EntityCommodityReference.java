@@ -1,6 +1,8 @@
 package com.vmturbo.stitching;
 
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,6 +49,33 @@ public class EntityCommodityReference {
         return providerOid;
     }
 
+    /**
+     * Gets the reference to live topology entity.
+     *
+     * @param liveTopologyEntityOidGetter The function which gets an entity oid and returns live
+     *                                    entity oid.
+     * @return The reference to live topology entity.
+     */
+    @Nonnull
+    public EntityCommodityReference getLiveTopologyCommodityReference(
+            @Nonnull Function<Long, Optional<Long>> liveTopologyEntityOidGetter) {
+        final long entityId = getEntityOid();
+        final Long providerId = getProviderOid();
+
+        // Find the live topology entity id for the plan entity
+        final long liveEntityId = liveTopologyEntityOidGetter.apply(entityId).orElse(entityId);
+        final Long liveProviderId =
+            liveTopologyEntityOidGetter.apply(providerId).orElse(providerId);
+
+        // If the live topology ids are different create a reference with those
+        if (entityId != liveEntityId || !Objects.equals(providerId, liveProviderId)) {
+            return new EntityCommodityReference(liveEntityId, getCommodityType(),
+                liveProviderId);
+        }
+
+        return this;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(entityOid, commodityType, providerOid);
@@ -55,7 +84,7 @@ public class EntityCommodityReference {
     @Override
     public boolean equals(final Object obj) {
         if (obj instanceof EntityCommodityReference) {
-            final EntityCommodityReference other = (EntityCommodityReference) obj;
+            final EntityCommodityReference other = (EntityCommodityReference)obj;
             return (entityOid == other.entityOid
                         && Objects.equals(commodityType, other.commodityType)
                         && Objects.equals(providerOid, other.providerOid));
