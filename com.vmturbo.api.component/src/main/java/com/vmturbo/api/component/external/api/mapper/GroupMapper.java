@@ -54,6 +54,7 @@ import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.group.ResourceGroupApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -789,7 +790,62 @@ public class GroupMapper {
              outputDTO.setEntitiesCount(groupAndMembers.entities().size());
          }
 
+        if (group.hasOrigin() && group.getOrigin().hasDiscovered()) {
+            ThinTargetInfo source = null;
+            for (long targetId : group.getOrigin().getDiscovered().getDiscoveringTargetIdList()) {
+                Optional<ThinTargetInfo> thinTargetInfo = thinTargetCache.getTargetInfo(targetId);
+                if (thinTargetInfo.isPresent()) {
+                    source = chooseTarget(source, thinTargetInfo.get());
+                }
+            }
+            if (source != null) {
+                outputDTO.setSource(createTargetApiDto(source));
+            } else {
+                logger.debug("Failed to locate source target information for {}", outputDTO.getUuid());
+            }
+        }
          return outputDTO;
+    }
+
+    /**
+     * Chooses if we must replace the currently selected target for return.
+     * The logic is that non-hidden targets have priority over hidden targets, and in the case that
+     * there are only targets with the same visibility then the one with the lowest oid will be
+     * returned. In most cases there will be only 1 target, so only the first case will be used.
+     * TODO: this is a **convention** used as a temporary workaround to ensure consistency in the
+     * case of multiple targets; it should be removed when logic for handling multiple targets is
+     * added, see OM-59547.
+     * @param current the currently selected target
+     * @param candidate the candidate target to be selected
+     * @return whether the current target should be replaced.
+     */
+    private ThinTargetInfo chooseTarget(ThinTargetInfo current, ThinTargetInfo candidate) {
+        if (current == null) {
+            return  candidate;
+        } else if (current.isHidden() && !candidate.isHidden()) {
+            return candidate;
+        } else if (!current.isHidden() && candidate.isHidden()) {
+            return current;
+        }
+        // same visibility
+        return candidate.oid() < current.oid() ? candidate : current;
+    }
+
+    /**
+     * Creates a {@link TargetApiDTO} and populated its basic fields using the values from
+     * thinTargetInfo.
+     *
+     * @param thinTargetInfo the {@link ThinTargetInfo} object used as input
+     * @return the newly created TargetApiDTO
+     */
+    @Nonnull
+    private TargetApiDTO createTargetApiDto(@Nonnull final ThinTargetInfo thinTargetInfo) {
+        final TargetApiDTO apiDTO = new TargetApiDTO();
+        apiDTO.setType(thinTargetInfo.probeInfo().type());
+        apiDTO.setUuid(Long.toString(thinTargetInfo.oid()));
+        apiDTO.setDisplayName(thinTargetInfo.displayName());
+        apiDTO.setCategory(thinTargetInfo.probeInfo().category());
+        return apiDTO;
     }
 
     private BillingFamilyApiDTO extractBillingFamilyInfo(GroupAndMembers groupAndMembers)

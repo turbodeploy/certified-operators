@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import org.apache.http.HttpStatus;
 
 import com.arangodb.ArangoDBException;
+import com.arangodb.model.CollectionCreateOptions;
 
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
@@ -24,17 +25,21 @@ public class TopologyProtobufsManager {
 
     private final ArangoDatabaseFactory arangoDatabaseFactory;
     private final String arangoDatabaseName;
+    private final CollectionCreateOptions defaultCollectionOptions;
 
     /**
      * TopologyProtobufsManager to create raw topology readers and writers.
      *
      * @param arangoDatabaseFactory   Functional interface to create ArangoDB driver.
      * @param arangoDatabaseName ArangoDB database name.
+     * @param defaultCollectionOptions the default collection creation options to use
      */
     public TopologyProtobufsManager(ArangoDatabaseFactory arangoDatabaseFactory,
-                                    String arangoDatabaseName) {
+                                    String arangoDatabaseName,
+                                    CollectionCreateOptions defaultCollectionOptions) {
         this.arangoDatabaseFactory = arangoDatabaseFactory;
         this.arangoDatabaseName = arangoDatabaseName;
+        this.defaultCollectionOptions = defaultCollectionOptions;
     }
 
     /**
@@ -47,7 +52,7 @@ public class TopologyProtobufsManager {
     public TopologyProtobufWriter<ProjectedTopologyEntity> createProjectedTopologyProtobufWriter(
         long topologyId) {
         return new TopologyProtobufWriter<ProjectedTopologyEntity>(arangoDatabaseFactory, topologyId,
-            dto -> String.valueOf(dto.getEntity().getOid()), arangoDatabaseName);
+            dto -> String.valueOf(dto.getEntity().getOid()), arangoDatabaseName, defaultCollectionOptions);
     }
 
     /**
@@ -60,7 +65,7 @@ public class TopologyProtobufsManager {
     public TopologyProtobufWriter<TopologyEntityDTO> createSourceTopologyProtobufWriter(
         long topologyId) {
         return new TopologyProtobufWriter<TopologyEntityDTO>(arangoDatabaseFactory, topologyId,
-            dto -> String.valueOf(dto.getOid()), arangoDatabaseName);
+            dto -> String.valueOf(dto.getOid()), arangoDatabaseName, defaultCollectionOptions);
     }
 
     /**
@@ -76,7 +81,7 @@ public class TopologyProtobufsManager {
             throws NoSuchElementException {
         try {
             return new TopologyProtobufReader(arangoDatabaseFactory, topologyId, entityFilter,
-                arangoDatabaseName);
+                arangoDatabaseName, defaultCollectionOptions);
         } catch (ArangoDBException e) {
             if (e.getResponseCode() == HttpStatus.SC_NOT_FOUND
                             && e.getErrorNum() == ERROR_ARANGO_COLLECTION_NOT_FOUND) {
