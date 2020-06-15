@@ -6,7 +6,7 @@
 
     <groupId>com.vmturbo</groupId>
     <artifactId>Turbonomic-XL</artifactId>
-    <version>7.22.3-SNAPSHOT</version>
+    <version>7.22.100-MPC-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
@@ -16,13 +16,13 @@
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>7.22.3-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>7.22.100-MPC-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
-        <apm.probes.branch.version>7.22.3-SNAPSHOT</apm.probes.branch.version>
+        <apm.probes.branch.version>7.22.100-MPC-SNAPSHOT</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>7.22.3-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>7.22.100-MPC-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
         <com.vmturbo.api.version>3.1.5-SNAPSHOT</com.vmturbo.api.version>
