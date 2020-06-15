@@ -194,8 +194,7 @@ public class EntitySettingsResolver {
         // Now that all scaling group members have been identified, call the CSM to build the
         // scaling groups.  This will also populate userSettingsByEntityAndName with pre-merged
         // empty settings entries for all scaling group members.
-        consistentScalingManager.buildScalingGroups(topologyGraph, groupResolver,
-            userSettingsByEntityAndName);
+        consistentScalingManager.buildScalingGroups(userSettingsByEntityAndName);
 
         // Convert proto settings into topology processor settings
         final Map<SettingPolicy, Collection<TopologyProcessorSetting<?>>> policyToSettingsInPolicy =
