@@ -10,7 +10,7 @@
     <packaging>pom</packaging>
 
     <properties>
-        <market.version>3.22.3-SNAPSHOT</market.version>
+        <market.version>3.22.4-SNAPSHOT</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
