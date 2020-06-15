@@ -112,6 +112,12 @@
             "description" : "Disk size"
           },
           {
+            "name" : "diskIopsConsumed",
+            "displayName" : "IOPS Consumed",
+            "valueType" : "NUMERIC",
+            "description" : "Disk IOPS Consumed"
+          },
+          {
             "name" : "diskConsumedFactor",
             "displayName" : "Utilization",
             "units" : "%",

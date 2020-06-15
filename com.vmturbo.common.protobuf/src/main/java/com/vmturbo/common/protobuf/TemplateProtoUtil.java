@@ -44,6 +44,8 @@ public class TemplateProtoUtil {
 
     public static final String VM_STORAGE_DISK_IOPS = "diskIops";
 
+    public static final String VM_STORAGE_DISK_IOPS_CONSUMED = "diskIopsConsumed";
+
     public static final String VM_STORAGE_DISK_CONSUMED_FACTOR = "diskConsumedFactor";
 
     public static final float VM_STORAGE_DISK_CONSUMED_FACTOR_DEFAULT_VALUE = 1.0f;
