@@ -1,5 +1,7 @@
 package com.vmturbo.plan.orchestrator;
 
+import java.util.Optional;
+
 import javax.sql.DataSource;
 
 import com.vmturbo.plan.orchestrator.reservation.ReservationDao;
@@ -9,7 +11,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
@@ -44,12 +45,8 @@ public class PlanOrchestratorDBConfig extends SQLDatabaseConfig {
     @Bean
     @Override
     public DataSource dataSource() {
-        // If no db password specified, use root password by default.
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute,
-            authRetryDelaySecs);
-        String dbPassword = !Strings.isEmpty(planDbPassword) ?
-            planDbPassword : dbPasswordUtil.getSqlDbRootPassword();
-        return dataSourceConfig(dbSchemaName, planDbUsername, dbPassword);
+        return getDataSource(dbSchemaName, planDbUsername, Optional.ofNullable(
+                !Strings.isEmpty(planDbPassword) ? planDbPassword : null));
     }
 
     /**
