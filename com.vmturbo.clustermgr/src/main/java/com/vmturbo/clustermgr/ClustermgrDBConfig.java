@@ -1,7 +1,5 @@
 package com.vmturbo.clustermgr;
 
-import java.util.Optional;
-
 import javax.sql.DataSource;
 
 import org.apache.logging.log4j.util.Strings;
@@ -9,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
@@ -42,8 +41,12 @@ public class ClustermgrDBConfig extends SQLDatabaseConfig {
     @Bean
     @Override
     public DataSource dataSource() {
-        return getDataSource(dbSchemaName, clustermgrDbUsername, Optional.ofNullable(
-                !Strings.isEmpty(clustermgrDbPassword) ? clustermgrDbPassword : null));
+        // If no db password specified, use root password by default.
+        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute,
+            authRetryDelaySecs);
+        String dbPassword = !Strings.isEmpty(clustermgrDbPassword) ?
+            clustermgrDbPassword : dbPasswordUtil.getSqlDbRootPassword();
+        return dataSourceConfig(dbSchemaName, clustermgrDbUsername, dbPassword);
     }
 
     @Override

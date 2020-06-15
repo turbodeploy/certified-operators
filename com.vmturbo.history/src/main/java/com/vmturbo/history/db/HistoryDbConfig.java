@@ -2,7 +2,6 @@ package com.vmturbo.history.db;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -174,8 +173,9 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
     @Bean
     @Override
     public DataSource dataSource() {
-        return getDataSource(dbSchemaName, historyDbUsername, Optional.ofNullable(
-                !Strings.isEmpty(historyDbPassword) ? historyDbPassword : null));
+        String dbPassword = !Strings.isEmpty(historyDbPassword) ?
+                historyDbPassword : dbPasswordUtil().getSqlDbRootPassword();
+        return dataSourceConfig(dbSchemaName, historyDbUsername, dbPassword);
     }
 
     @Override

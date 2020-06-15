@@ -70,15 +70,6 @@ public class ReportingDbConfig extends SQLDatabaseConfig {
     }
 
     /**
-     * This class is obsoleted. Adding the method to avoid compilation error only.
-     * @return empty string.
-     */
-    @Override
-    public String getDbSchemaName() {
-        return "";
-    }
-
-    /**
      * Return DSL context used by ReportingDbConfig.
      *
      * @return DSL context.

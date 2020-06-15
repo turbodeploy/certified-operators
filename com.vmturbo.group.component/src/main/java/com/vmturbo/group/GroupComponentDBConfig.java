@@ -1,7 +1,5 @@
 package com.vmturbo.group;
 
-import java.util.Optional;
-
 import javax.sql.DataSource;
 
 import org.apache.logging.log4j.util.Strings;
@@ -9,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
@@ -38,8 +37,13 @@ public class GroupComponentDBConfig extends SQLDatabaseConfig {
     @Bean
     @Override
     public DataSource dataSource() {
-        return getDataSource(dbSchemaName, groupComponentDbUsername, Optional.ofNullable(
-                !Strings.isEmpty(groupComponentDbPassword) ? groupComponentDbPassword : null));
+        // If no db password specified, use root password by default.
+        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute,
+            authRetryDelaySecs);
+        String dbPassword = !Strings.isEmpty(groupComponentDbPassword)
+                ? groupComponentDbPassword
+                : dbPasswordUtil.getSqlDbRootPassword();
+        return dataSourceConfig(dbSchemaName, groupComponentDbUsername, dbPassword);
     }
 
     @Override
