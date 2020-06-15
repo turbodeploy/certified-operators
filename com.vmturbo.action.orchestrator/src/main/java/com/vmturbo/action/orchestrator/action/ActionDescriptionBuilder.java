@@ -32,20 +32,25 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 
 public class ActionDescriptionBuilder {
 
@@ -78,7 +83,7 @@ public class ActionDescriptionBuilder {
     // gives each thread access to it's own MessageFormat instances.
     //
     private enum ActionMessageFormat {
-        ACTION_DESCRIPTION_PROVISION_BY_SUPPLY("Provision {0}"),
+        ACTION_DESCRIPTION_PROVISION_BY_SUPPLY("Provision {0}{1}"),
         ACTION_DESCRIPTION_PROVISION_BY_DEMAND("Provision {0} similar to {1} with scaled up {2} due to {3}"),
         ACTION_DESCRIPTION_ACTIVATE("Start {0} due to increased demand for resources"),
         ACTION_DESCRIPTION_DEACTIVATE("{0} {1}"),
@@ -442,8 +447,13 @@ public class ActionDescriptionBuilder {
         final ActionPartialEntity entityDTO = entitiesSnapshot.getEntityFromOid(entityId).get();
         if (explanation.getProvisionExplanationTypeCase().getNumber() ==
                         ProvisionExplanation.PROVISION_BY_SUPPLY_EXPLANATION_FIELD_NUMBER) {
-            return ActionMessageFormat.ACTION_DESCRIPTION_PROVISION_BY_SUPPLY.format(
-                beautifyEntityTypeAndName(entityDTO));
+            String provisionedEntity = new StringBuilder()
+                 .append(ApiEntityType.fromType(entityDTO.getEntityType()).displayName())
+                 .append(" similar to ").append(entityDTO.getDisplayName())
+                 .toString();
+            return ActionMessageFormat.ACTION_DESCRIPTION_PROVISION_BY_SUPPLY
+                .format(provisionedEntity, getProvisionedForVSANSuffix(
+                    entityDTO, explanation.getProvisionBySupplyExplanation(), entitiesSnapshot));
         } else {
             final ProvisionByDemandExplanation provisionByDemandExplanation =
                 explanation.getProvisionByDemandExplanation();
@@ -458,6 +468,65 @@ public class ActionDescriptionBuilder {
                 entitiesSnapshot.getEntityFromOid(provisionByDemandExplanation.getBuyerId())
                     .map(ActionPartialEntity::getDisplayName).orElse("high demand"));
         }
+    }
+
+    /**
+     * Check whether scaling up a vSAN storage is the reason and if yes then make a suffix for description.
+     * @param entityDTO the entity for which the description is created.
+     * @param explanation   action explanation.
+     * @param entitiesSnapshot  all the entities for which actions have been generated.
+     * @return  suffix with the name of vSAN or empty string if this has nothing to do with vSAN.
+     */
+    private static String getProvisionedForVSANSuffix(@Nonnull ActionPartialEntity entityDTO,
+                    @Nonnull ProvisionBySupplyExplanation explanation,
+                    @Nonnull EntitiesAndSettingsSnapshot entitiesSnapshot)  {
+        if (entityDTO.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE
+                        || !explanation.hasMostExpensiveCommodityInfo()
+                        || !explanation.getMostExpensiveCommodityInfo().hasCommodityType()
+                        || !explanation.getMostExpensiveCommodityInfo().getCommodityType().hasType()
+                        || entityDTO.getConnectedEntitiesCount() == 0) {
+            return "";
+        }
+        int actionCommodityType = explanation.getMostExpensiveCommodityInfo().getCommodityType().getType();
+        if (!isVSANRelatedCommodity(actionCommodityType)) {
+            return "";
+        }
+        for (ConnectedEntity connected : entityDTO.getConnectedEntitiesList())  {
+            if (connected.hasConnectedEntityType() && connected.hasConnectedEntityId()
+                            && connected.getConnectedEntityType() == EntityType.STORAGE_VALUE) {
+                Optional<ActionPartialEntity> optionalEntity = entitiesSnapshot
+                                .getEntityFromOid(connected.getConnectedEntityId());
+                if (isVSAN(optionalEntity))    {
+                    return " to scale Storage " + optionalEntity.get().getDisplayName();
+                }
+            }
+        }
+        return "";
+    }
+
+    /**
+     * Checks whether the commodity type is of a vSAN storage commodity.
+     * @param commodityType integer value for the commodity type
+     * @return true if the commodity type is related to vSAN storage
+     */
+    private static boolean isVSANRelatedCommodity(int commodityType) {
+        return commodityType == CommodityType.STORAGE_AMOUNT_VALUE
+                        || commodityType == CommodityType.STORAGE_PROVISIONED_VALUE
+                        || commodityType == CommodityType.STORAGE_ACCESS_VALUE
+                        || commodityType == CommodityType.STORAGE_LATENCY_VALUE;
+    }
+
+    /**
+     * Checks whether Optional<{@link ActionPartialEntity}> is a vSAN entity.
+     * @param optionalEntity    the entity we check
+     * @return true if is vSAN
+     */
+    private static boolean isVSAN(Optional<ActionPartialEntity> optionalEntity) {
+        return optionalEntity.isPresent() && optionalEntity.get().hasTypeSpecificInfo()
+                        && optionalEntity.get().getTypeSpecificInfo().hasStorage()
+                        && optionalEntity.get().getTypeSpecificInfo().getStorage().hasStorageType()
+                        && optionalEntity.get().getTypeSpecificInfo().getStorage().getStorageType()
+                            == StorageType.VSAN;
     }
 
     /**
