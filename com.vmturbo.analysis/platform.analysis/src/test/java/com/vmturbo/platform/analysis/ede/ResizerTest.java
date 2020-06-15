@@ -252,7 +252,7 @@ public class ResizerTest {
      * used in the PM also decreases.
      */
     @Test
-    public void testResizeDecisions_resizeDownWithDependency() {
+    public void testResizeDecisions_resizeDownWithDependencyForPlan() {
         Economy economy = setupTopologyForResizeTest(100, 100,
                         100, 100, 70, 70, 20, 20, 0.65, 0.8,
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
@@ -286,6 +286,54 @@ public class ResizerTest {
                         pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
         assertTrue(memUsedOnCommSoldBeforeResize > memUsedOnCommSoldAfterResize);
+    }
+
+    /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
+     * So, the VM's VCPU and VMEM have low ROI.
+     * CommodityResizeDependencyMap is setup such that an increase in VCPU
+     * leads to increase in CPU and vice versa.
+     * Increase in VMEM leads to increase in MEM and vice versa.
+     * Expected result: Resize down the VM's VCPU. Quantity of CPU and MEM
+     * used in the PM does not change.
+     */
+    @Test
+    public void testResizeDecisions_resizeDownWithDependencyForRT() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+                100, 100, 70, 70, 20, 20, 0.65, 0.8,
+                RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+        final double cpuUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        final double memUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        economy.getSettings().setResizeDependentCommodities(false);
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        //Assert that VCPU and VMEM of VM were resized down.
+        assertEquals(2, actions.size());
+        assertEquals(ActionType.RESIZE, actions.get(0).getType());
+        Resize resize1 = (Resize)actions.get(0);
+        assertEquals(resize1.getActionTarget(), vm);
+        assertTrue(resize1.getOldCapacity() > resize1.getNewCapacity());
+        assertEquals(ActionType.RESIZE, actions.get(1).getType());
+        Resize resize2 = (Resize)actions.get(1);
+        assertEquals(resize2.getActionTarget(), vm);
+        assertTrue(resize2.getOldCapacity() > resize2.getNewCapacity());
+        Set<CommoditySpecification> actualCommSpecsResized = new HashSet<>(
+                Arrays.asList(resize1.getResizedCommoditySpec(),
+                        resize2.getResizedCommoditySpec()));
+        assertEquals(EXPECTED_COMM_SPECS_TO_BE_RESIZED, actualCommSpecsResized);
+        //Check that the quantites of the dependent commodities decreased.
+        double cpuUsedOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                        .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        assertEquals(cpuUsedOnCommSoldBeforeResize, cpuUsedOnCommSoldAfterResize, 0);
+        double memUsedOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                        .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        assertEquals(memUsedOnCommSoldBeforeResize, memUsedOnCommSoldAfterResize, 0);
     }
 
     /**

@@ -62,6 +62,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.Com
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTriggerTraderTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -534,6 +535,15 @@ public final class AnalysisToProtobuf {
             String scalingGroupId = resize.getSellingTrader().getScalingGroupId();
             if (!scalingGroupId.isEmpty()) {
                 resizeBuilder.setScalingGroupId(scalingGroupId);
+            }
+            if (!resize.getResizeTriggerTraders().isEmpty()) {
+                resizeBuilder.addAllResizeTriggerTrader(resize.getResizeTriggerTraders().entrySet()
+                    .stream().map(entry -> {
+                    ResizeTriggerTraderTO.Builder resizeTriggerTrader = ResizeTriggerTraderTO.newBuilder();
+                    resizeTriggerTrader.setTrader(traderOid.get(entry.getKey()));
+                    resizeTriggerTrader.addAllRelatedCommodities(entry.getValue());
+                    return resizeTriggerTrader.build();
+                }).collect(Collectors.toList()));
             }
             builder.setResize(resizeBuilder);
         } else if (input instanceof CompoundMove) {

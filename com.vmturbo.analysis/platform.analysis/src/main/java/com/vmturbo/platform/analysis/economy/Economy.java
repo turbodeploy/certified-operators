@@ -292,6 +292,13 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
+     * Reset marketsPopulated to false.
+     */
+    public void resetMarketsPopulatedFlag() {
+        marketsPopulated = false;
+    }
+
+    /**
      * Returns an unmodifiable list of preferential shoppingLists in {@code this} economy.
      *
      * @return An unmodifiable list of preferential shoppingLists
@@ -327,6 +334,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         return Optional.ofNullable(rawMaterialMap_.get(processedCommodityType));
     }
 
+    @Override
     @Pure
     public @ReadOnly @NonNull RawMaterials getAllRawMaterials(@ReadOnly Economy this,
                                                      int processedCommodityType) {
@@ -1153,6 +1161,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * list of peer shopping lists.  If the shopping list is null or does not belong to a scaling
      * group, dummy empty peer information will be returned instead.
      */
+    @Override
     public @NonNull ScalingGroupPeerInfo getScalingGroupPeerInfo(ShoppingList shoppingList) {
         if (shoppingList == null) {
             return ScalingGroupPeerInfo.EMPTY;
@@ -1196,6 +1205,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * UUID is invalid.  This returns only the peers of the group leader, which means the group
      * leader's ShoppingList itself will not be in the returned collection.
      */
+    @Override
     public List<ShoppingList> getPeerShoppingLists(ShoppingList shoppingList) {
         // Returns all peer shopping lists except for the one with UUID = shoppingListId
         return getScalingGroupPeerInfo(shoppingList).getPeers(shoppingList);
@@ -1206,6 +1216,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * @param shoppingList shopping list to check
      * @return true if the scaling group is currently consistently sized, or false if it is not.
      */
+    @Override
     public boolean isScalingGroupConsistentlySized(final ShoppingList shoppingList) {
         return getScalingGroupPeerInfo(shoppingList).isConsistentlySized();
     }

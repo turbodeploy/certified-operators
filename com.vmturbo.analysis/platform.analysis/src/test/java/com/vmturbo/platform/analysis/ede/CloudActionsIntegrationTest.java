@@ -12,6 +12,7 @@ import com.google.common.collect.HashBiMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -27,6 +28,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs;
@@ -997,6 +999,57 @@ public class CloudActionsIntegrationTest {
 
         // The peer relinquishes RI coverage to the RI discounted market tier.
         assertEquals(0.0, sellers[2].getCommoditySold(COUPON).getQuantity(), 0.0);
+    }
+
+    /*
+     * Ensure placement converges.
+     */
+    @Test
+    public void testConvergence() {
+        // VM1, VM2 and VM3 on CBTP1 buying 16 coupons each.
+
+        // desired result:
+        // VM1, VM2 and VM3 on CBTP1 buying 8 coupons each.
+        // The VMs size down from TP2 to TP1.
+        Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
+        Topology t = new Topology();
+        // Setup 3 VMs, each buying 8 CPU, 16 coupons
+        Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);
+        ShoppingList slVM1 = getSl(e, vms[0]);
+        ShoppingList slVM2 = getSl(e, vms[1]);
+        ShoppingList slVM3 = getSl(e, vms[2]);
+        slVM1.setQuantity(1, 16);
+        slVM2.setQuantity(1, 16);
+        slVM3.setQuantity(1, 16);
+
+        // Setup 2 TPs, 2 CBTPs
+        // TP1 has 8 coupon capacity, 50 CPU; TP2 has 16 coupon capacity, 100 CPU
+        Trader[] sellers = setupProviders(e, t, 0, false);
+
+        // CBTP1 is very large, and it has 48 coupons used because all 3 VMs are placed on it.
+        sellers[2].getCommoditySold(COUPON).setCapacity(1000).setQuantity(48);
+
+        // All the 3 VMs are placed on CBTP1.
+        slVM1.move(sellers[2]);
+        slVM2.move(sellers[2]).setMovable(false);
+        slVM3.move(sellers[2]).setMovable(false);
+
+        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 16, 16));
+        vms[1].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 16, 16));
+        vms[2].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 16, 16));
+
+        // Populate markets
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        e.composeMarketSubsetForPlacement();
+
+        PlacementResults result = Placement.runPlacementsTillConverge(e, new Ledger(e), "PlacementFromUnitTest");
+        Assert.assertEquals(3, result.getActions().size());
+        // Make sure the buyer context has 24 requested and allocated coupons
+        Assert.assertEquals(24, vms[0].getSettings().getContext().getTotalRequestedCoupons(traderOids.get(sellers[2])).get(), 0.1);
+        Assert.assertEquals(24, vms[0].getSettings().getContext().getTotalAllocatedCoupons(traderOids.get(sellers[2])).get(), 0.1);
+        // Make sure the CBTP1's coupon comm sold has quantity 24
+        Assert.assertEquals(24, sellers[2].getCommoditySold(COUPON).getQuantity(), 0.1);
     }
 
     @Test

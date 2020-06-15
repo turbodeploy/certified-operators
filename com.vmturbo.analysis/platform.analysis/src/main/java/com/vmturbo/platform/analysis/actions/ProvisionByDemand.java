@@ -204,9 +204,8 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
                             // Generate the resize actions for matching commodities between
                             // the model seller and the resizeThroughSupplier trader.
                             getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(
-                                                                                    getEconomy(),
-                                                                                    getModelSeller(),
-                                                                                    sl, true));
+                                getEconomy(), getModelSeller(), sl, true,
+                                    commodityNewCapacityMap_.keySet()));
                 });
             });
         } catch (Exception e) {

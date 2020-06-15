@@ -181,10 +181,12 @@ public final class Utility {
      * @param seller Seller providing to the resizeThroughSupplier Trader
      * @param buyerSL ShoppingList of the resizeThroughSupplier Trader
      * @param up boolean for resize up or down
+     * @param relatedReasons the related reasons for the resize
+     *
      * @return List of resize actions.
      */
     public static List<Resize> resizeCommoditiesOfTrader(Economy economy, Trader seller,
-                    ShoppingList buyerSL, boolean up) {
+                    ShoppingList buyerSL, boolean up, Set<Integer> relatedReasons) {
         List<Resize> resizeList = new ArrayList<>();
         Trader resizeThroughSupplierTrader = buyerSL.getBuyer();
         buyerSL.getBasket().forEach(buyerCS -> {
@@ -192,15 +194,26 @@ public final class Utility {
             // Scale the capacity of the commodities of the resizeThroughSupplier trader with the
             // capacity of the commodity sold by the supplier of the trader as the added amount.
             if (buyerCommoditySold != null && buyerCommoditySold.getSettings().isResizable()) {
-                Resize resizeAction = new Resize(economy, resizeThroughSupplierTrader, buyerCS,
-                    buyerCommoditySold,
-                    resizeThroughSupplierTrader.getBasketSold().indexOf(buyerCS),
-                    buyerCommoditySold.getCapacity()
-                        + (up ? seller.getCommoditySold(buyerCS).getEffectiveCapacity()
-                                : -seller.getCommoditySold(buyerCS).getEffectiveCapacity()));
-                resizeAction.take();
-                resizeAction.enableExtractAction();
-                resizeList.add(resizeAction);
+                double newCapacity = buyerCommoditySold.getCapacity()
+                                + (up ? seller.getCommoditySold(buyerCS).getEffectiveCapacity()
+                                                : -seller.getCommoditySold(buyerCS).getEffectiveCapacity());
+                // TODO Needs to be improved for scenarios that can lead to the negative capacity:
+                // See OM-59512.
+                if (!up && newCapacity < 0) {
+                    logger.warn("Deactivating supplier {} of trader {}, would lead to negative "
+                        + "capacity for commodity {}", seller.getDebugInfoNeverUseInCode(),
+                            resizeThroughSupplierTrader.getDebugInfoNeverUseInCode(),
+                            buyerCS.getDebugInfoNeverUseInCode());
+                } else {
+                    Resize resizeAction = new Resize(economy, resizeThroughSupplierTrader, buyerCS,
+                        buyerCommoditySold,
+                        resizeThroughSupplierTrader.getBasketSold().indexOf(buyerCS),
+                        newCapacity);
+                    resizeAction.take();
+                    resizeAction.enableExtractAction();
+                    resizeAction.getResizeTriggerTraders().put(seller, relatedReasons);
+                    resizeList.add(resizeAction);
+                }
             } else {
                 if (logger.isDebugEnabled()) {
                     logger.debug("ResizeThroughSupplier Trader SL {} Commodity {} is not resizable",

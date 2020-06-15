@@ -38,8 +38,8 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
@@ -429,10 +429,10 @@ public class TestUtils {
             commodityResizeDependencyMap = economy.getModifiableCommodityResizeDependencyMap();
         CommodityResizeSpecification vCpuDependency =
                         new CommodityResizeSpecification(TestUtils.CPU.getType(),
-                                        M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
+                                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> (b));
         CommodityResizeSpecification vMemDependency =
                         new CommodityResizeSpecification(TestUtils.MEM.getType(),
-                                        M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
+                                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> (b));
         CommodityResizeSpecification vMemQuotaDependency =
                 new CommodityResizeSpecification(TestUtils.VMEMLIMITQUOTA.getType(),
                         M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
@@ -490,8 +490,8 @@ public class TestUtils {
 
     public static CostFunction setUpGP2CostFunction() {
         // create cost function DTO for gp2
-        StorageResourceDependency dependencyDTO =
-                        StorageResourceDependency.newBuilder().setBaseResourceType(stAmtTO)
+        StorageResourceRatioDependency dependencyDTO =
+                StorageResourceRatioDependency.newBuilder().setBaseResourceType(stAmtTO)
                                         .setDependentResourceType(iopsTO).setRatio(3).build();
         StorageTierPriceData stAmtPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(Double.POSITIVE_INFINITY)
                         .setIsUnitPrice(true).setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 0.10)).build();
@@ -506,15 +506,15 @@ public class TestUtils {
                                                .addStorageResourceLimitation(StorageResourceLimitation.newBuilder()
                                                .setResourceType(iopsTO).setMaxCapacity(10000)
                                                .setMinCapacity(100).build())
-                                               .addStorageResourceDependency(dependencyDTO).build())
+                                               .addStorageResourceRatioDependency(dependencyDTO).build())
                         .build();
         return CostFunctionFactory.createCostFunction(costDTO);
     }
 
     public static CostFunction setUpIO1CostFunction() {
         // create cost function DTO for io1
-        StorageResourceDependency dependencyDTO =
-                        StorageResourceDependency.newBuilder().setBaseResourceType(stAmtTO)
+        StorageResourceRatioDependency dependencyDTO =
+                StorageResourceRatioDependency.newBuilder().setBaseResourceType(stAmtTO)
                                         .setDependentResourceType(iopsTO).setRatio(50).build();
         StorageTierPriceData stAmtPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(Double.POSITIVE_INFINITY)
                         .setIsUnitPrice(true).setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 0.125)).build();
@@ -534,7 +534,7 @@ public class TestUtils {
                                                .addStorageResourceLimitation(StorageResourceLimitation.newBuilder()
                                                .setResourceType(iopsTO).setMaxCapacity(20000)
                                                .setMinCapacity(100).build())
-                                               .addStorageResourceDependency(dependencyDTO).build())
+                                               .addStorageResourceRatioDependency(dependencyDTO).build())
                         .build();
         return CostFunctionFactory.createCostFunction(costDTO);
     }
