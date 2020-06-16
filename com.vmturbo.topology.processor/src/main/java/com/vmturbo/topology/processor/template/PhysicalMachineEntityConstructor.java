@@ -53,10 +53,11 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
-            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
+            @Nonnull IdentityProvider identityProvider, @Nullable String nameSuffix)
+            throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
                 template, originalTopologyEntity, isReplaced, identityProvider,
-                EntityType.PHYSICAL_MACHINE_VALUE);
+                EntityType.PHYSICAL_MACHINE_VALUE, nameSuffix);
 
         final Map<String, String> computeTemplateResources = createFieldNameValueMap(
                 getTemplateResources(template, Compute));
@@ -126,8 +127,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
         addCommodityConstraints(newHost, commoditySoldConstraints, commodityBoughtConstraints);
 
         if (originalHost != null) {
-            updateRelatedEntityAccesses(originalHost, newHost.build(),
-                    commoditySoldConstraints, topology);
+            updateRelatedEntityAccesses(originalHost, newHost, commoditySoldConstraints, topology);
         }
     }
 

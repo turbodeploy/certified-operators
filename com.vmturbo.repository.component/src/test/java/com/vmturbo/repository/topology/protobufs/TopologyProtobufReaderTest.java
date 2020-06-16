@@ -22,6 +22,7 @@ import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.BaseDocument;
 import com.arangodb.entity.CollectionEntity;
 import com.arangodb.entity.CollectionPropertiesEntity;
+import com.arangodb.model.CollectionCreateOptions;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
@@ -36,6 +37,7 @@ public class TopologyProtobufReaderTest {
     ArangoDatabaseFactory factory;
     ArangoDB db;
     ArangoDatabase database;
+    CollectionCreateOptions collectionCreateOptions;
     private ArangoCollection collection;
 
     @Before
@@ -44,6 +46,7 @@ public class TopologyProtobufReaderTest {
         factory = mock(ArangoDatabaseFactory.class);
         database = mock(ArangoDatabase.class);
         collection = mock(ArangoCollection.class);
+        collectionCreateOptions = mock(CollectionCreateOptions.class);
         CollectionPropertiesEntity count = mock(CollectionPropertiesEntity.class);
         when(factory.getArangoDriver()).thenReturn(db);
         when(db.getDatabases()).thenReturn(Lists.newArrayList());
@@ -62,7 +65,8 @@ public class TopologyProtobufReaderTest {
         when(doc.getProperties()).thenReturn(Maps.newHashMap());
         when(collection.getDocument(anyString(), any())).thenReturn(doc);
 
-        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory, "Tturbonomic");
+        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory, "Tturbonomic",
+                collectionCreateOptions);
         final TopologyProtobufReader reader = tpm.createTopologyProtobufReader(1111,
                 Optional.empty());
         verify(database).collection(Mockito.eq("topology-dtos-1111"));

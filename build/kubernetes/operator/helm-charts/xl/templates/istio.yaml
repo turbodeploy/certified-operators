@@ -97,6 +97,8 @@ spec:
           number: 8080
   - match:
     - uri:
+        prefix: /vmturbo/messages
+    - uri:
         prefix: /ws/messages
     route:
     - destination:

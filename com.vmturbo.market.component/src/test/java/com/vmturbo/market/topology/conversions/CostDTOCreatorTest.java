@@ -1,5 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -20,6 +22,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.RatioDependency;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -31,7 +34,13 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.RangeDependency;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.RangeTuple;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData.DedicatedStorageNetworkState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -47,6 +56,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 public class CostDTOCreatorTest {
 
     private static final long TIER_ID = 111;
+    private static final long STORAGE_TIER_ID = 123;
     private static final long REGION_ID = 222;
     private static final long BA_ID = 333;
     private static final int IOSPEC_BASE_TYPE = 1;
@@ -199,4 +209,84 @@ public class CostDTOCreatorTest {
         Assert.assertEquals(IOSPEC_TYPE, dependency.getDependentResourceType().getType());
     }
 
+    @Test
+    public void testCreateStorageTierCostDTO() {
+        TopologyEntityDTO storageTier = createStorageTier();
+        CostDTO costDTO = new CostDTOCreator(converter, marketPriceTable)
+                .createStorageTierCostDTO(storageTier, Collections.emptyList(), Collections.emptySet());
+        StorageTierCostDTO storageTierCostDTO = costDTO.getStorageTierCost();
+        assertNotNull(storageTierCostDTO);
+
+        assertEquals(1, storageTierCostDTO.getStorageResourceLimitationCount());
+        StorageResourceLimitation storageResourceLimitation = storageTierCostDTO.getStorageResourceLimitation(0);
+        assertEquals(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, storageResourceLimitation.getResourceType().getType());
+        assertEquals(100, storageResourceLimitation.getMinCapacity(), 0);
+        assertEquals(1000, storageResourceLimitation.getMaxCapacity(), 0);
+        assertTrue(storageResourceLimitation.getCheckMinCapacity());
+
+        assertEquals(1, storageTierCostDTO.getStorageResourceRatioDependencyCount());
+        StorageResourceRatioDependency storageResourceDependency = storageTierCostDTO.getStorageResourceRatioDependency(0);
+        assertEquals(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, storageResourceDependency.getDependentResourceType().getType());
+        assertEquals(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, storageResourceDependency.getBaseResourceType().getType());
+        assertEquals(3, storageResourceDependency.getRatio());
+
+        assertEquals(1, storageTierCostDTO.getStorageResourceRangeDependencyCount());
+        StorageResourceRangeDependency storageResourceRange = storageTierCostDTO.getStorageResourceRangeDependency(0);
+        assertEquals(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, storageResourceRange.getDependentResourceType().getType());
+        assertEquals(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, storageResourceRange.getBaseResourceType().getType());
+        assertEquals(2, storageResourceRange.getRangeTupleCount());
+    }
+
+    private TopologyEntityDTO createStorageTier() {
+        final CommodityType storageAmountType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build();
+        Mockito.when(converter.commoditySpecification(storageAmountType))
+                .thenReturn(CommoditySpecificationTO.newBuilder().setBaseType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build());
+        final CommodityType storageAccessType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).build();
+        Mockito.when(converter.commoditySpecification(storageAccessType))
+                .thenReturn(CommoditySpecificationTO.newBuilder().setBaseType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE)
+                        .setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).build());
+        final CommodityType ioThroughputType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE).build();
+        Mockito.when(converter.commoditySpecification(ioThroughputType))
+                .thenReturn(CommoditySpecificationTO.newBuilder().setBaseType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE)
+                        .setType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE).build());
+        final TopologyDTO.CommoditySoldDTO stAmount =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(storageAmountType)
+                        .setMinAmountForConsumer(100)
+                        .setMaxAmountForConsumer(1000)
+                        .setCheckMinAmountForConsumer(true)
+                        .build();
+
+        final TopologyDTO.CommoditySoldDTO stAccess =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(storageAccessType)
+                        .setRatioDependency(RatioDependency.newBuilder().setBaseCommodity(storageAmountType).setRatio(3))
+                        .build();
+
+        Set<RangeTuple> rangeTuples = new HashSet<>();
+        for (int i = 0; i < 2; i++) {
+            rangeTuples.add(CommodityDTO.RangeTuple.newBuilder()
+                    .setBaseMaxAmountForConsumer(i)
+                    .setDependentMaxAmountForConsumer(i)
+                    .build());
+        }
+        final TopologyDTO.CommoditySoldDTO ioThroughput =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(ioThroughputType)
+                        .setRangeDependency(RangeDependency.newBuilder().setBaseCommodity(CommodityDTO.CommodityType.STORAGE_AMOUNT)
+                                .addAllRangeTuple(rangeTuples).build())
+                        .build();
+
+        return TopologyEntityDTO.newBuilder()
+                .setOid(STORAGE_TIER_ID)
+                .setEntityType(EntityType.STORAGE_TIER_VALUE)
+                .addCommoditySoldList(stAmount)
+                .addCommoditySoldList(stAccess)
+                .addCommoditySoldList(ioThroughput)
+                .build();
+    }
 }

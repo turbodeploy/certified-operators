@@ -6,10 +6,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -1085,10 +1087,67 @@ public class TopologyConverter {
                         storageCommSold.setUsed(Math.max(0, storageCommSold.getUsed() - stAmtToReleaseInMB)));
             });
 
+        overwriteCommoditiesBoughtByVMsFromVolumes(entityDTOBuilder);
+
         TopologyEntityDTO entityDTO = entityDTOBuilder.build();
         topologyEntityDTOs.add(entityDTO);
         topologyEntityDTOs.addAll(createResources(entityDTO));
         return topologyEntityDTOs;
+    }
+
+    /**
+     * This method overwrites projected commodities bought by VMs from volumes using original
+     * commodities. That is each projected commodity bought by VM from volume is replaced with
+     * related commodity from original VM {@code TopologyEntityDTO}.
+     *
+     * @param entityBuilder Projected entity builder.
+     */
+    private void overwriteCommoditiesBoughtByVMsFromVolumes(
+            @Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+        if (entityBuilder.getEntityType() != EntityType.VIRTUAL_MACHINE.getNumber()) {
+            return;
+        }
+
+        final TopologyEntityDTO originalVm = entityOidToDto.get(entityBuilder.getOid());
+        if (originalVm == null) {
+            logger.error("Cannot find original entity for projected VM: " + entityBuilder.getOid());
+            return;
+        }
+
+        // Get original commodities
+        final Queue<CommoditiesBoughtFromProvider> originalCommodities =
+                originalVm.getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        .filter(commBought -> commBought.getProviderEntityType()
+                                == EntityType.VIRTUAL_VOLUME.getNumber())
+                        .collect(Collectors.toCollection(LinkedList::new));
+
+        if (originalCommodities.isEmpty()) {
+            return;
+        }
+
+        // Replace every commodity bought from volume with original commodity. We assume that the
+        // number of commodities hasn't changed.
+        for (int i = 0; i < entityBuilder.getCommoditiesBoughtFromProvidersCount(); i++) {
+            final long providerEntityType = entityBuilder
+                    .getCommoditiesBoughtFromProvidersBuilder(i).getProviderEntityType();
+            if (providerEntityType == EntityType.VIRTUAL_VOLUME.getNumber()) {
+                final CommoditiesBoughtFromProvider nextCommBought = originalCommodities.poll();
+                if (nextCommBought == null) {
+                    logger.error("The number of projected commodities bought by VM {} from "
+                                    + "Volumes is greater than the number of original commodities",
+                            entityBuilder.getOid());
+                    return;
+                }
+                entityBuilder.setCommoditiesBoughtFromProviders(i, nextCommBought.toBuilder());
+            }
+        }
+
+        if (!originalCommodities.isEmpty()) {
+            logger.error("The number of projected commodities bought by VM {} from Volumes "
+                    + "doesn't match the number of original commodities. {} extra original "
+                    + "commodities found", entityBuilder.getOid(), originalCommodities.size());
+        }
     }
 
     /**
@@ -1251,12 +1310,12 @@ public class TopologyConverter {
                             .setEntityType(originalVolume.getEntityType())
                             .setOid(originalVolume.getOid());
 
-                    // connect to storage or storage tier
-                    ConnectedEntity connectedStorageOrStorageTier = ConnectedEntity.newBuilder()
+                    // connect to storage
+                    final ConnectedEntity connectedStorage = ConnectedEntity.newBuilder()
                             .setConnectedEntityId(commBoughtGrouping.getProviderId())
                             .setConnectedEntityType(commBoughtGrouping.getProviderEntityType())
                             .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
-                    volume.addConnectedEntityList(connectedStorageOrStorageTier);
+                    volume.addConnectedEntityList(connectedStorage);
 
                     // Get the AZ or Region the VM is connected to (there is no zone for azure or on-prem)
                     List<TopologyEntityDTO> azOrRegion = TopologyDTOUtil.getConnectedEntitiesOfType(
@@ -1464,11 +1523,25 @@ public class TopologyConverter {
 
         logger.debug("Recalculating new capacity for {}", topologyDTO.getDisplayName());
         Optional<float[]> histUsedValue =
-                CommodityConverter.getHistoricalUsedOrPeak(commBought, TopologyDTO.CommodityBoughtDTO::getUsed,
+                CommodityConverter.getHistoricalUsedOrPeak(commBought,
                         TopologyDTO.CommodityBoughtDTO::getHistoricalUsed);
         Optional<float[]> histPeakValue =
-                CommodityConverter.getHistoricalUsedOrPeak(commBought, TopologyDTO.CommodityBoughtDTO::getPeak,
+                CommodityConverter.getHistoricalUsedOrPeak(commBought,
                         TopologyDTO.CommodityBoughtDTO::getHistoricalPeak);
+        if (logger.isDebugEnabled()) {
+            checkHistValues(commBought, histUsedValue, histPeakValue);
+        }
+        // if no historical values retrieved, use real time values
+        if (!histUsedValue.isPresent()) {
+            logger.debug("Using current used value {} for recalculating resize capacity for {}",
+                commBought.getUsed(), commBought.getCommodityType().getType());
+            histUsedValue = Optional.of(new float[]{(float)commBought.getUsed()});
+        }
+        if (!histPeakValue.isPresent()) {
+            logger.debug("Using current peak value {} for recalculating resize capacity for {}",
+                commBought.getPeak(), commBought.getCommodityType().getType());
+            histPeakValue = Optional.of(new float[]{(float)commBought.getPeak()});
+        }
 
         float[] histUsed = histUsedValue.orElseGet(() -> new float[] {});
         float[] histPeak = histPeakValue.orElseGet(() -> new float[] {});
@@ -1569,6 +1642,37 @@ public class TopologyConverter {
                 new float[]{resizedQuantity[1]}};
     }
 
+    /**
+     * Warn if the number of historical used quantities is different from the number of historical
+     * peak values, and the difference is legitimately unexpected.
+     *
+     * @param commBought commodity bought which values to check
+     * @param histUsed historical used values
+     * @param histPeak historical peak values
+     */
+    private static void checkHistValues(
+        @Nonnull final TopologyDTO.CommodityBoughtDTO commBought,
+        @Nonnull final Optional<float[]> histUsed,
+        @Nonnull final Optional<float[]> histPeak) {
+        if (histUsed.isPresent() && histPeak.isPresent()) {
+            final float[] usedQuantities = histUsed.get();
+            final float[] peakQuantities = histPeak.get();
+            if (usedQuantities.length != peakQuantities.length) {
+                final int histUsedTimeslots = commBought.hasHistoricalUsed()
+                    ? commBought.getHistoricalUsed().getTimeSlotCount() : 0;
+                final int histPeakTimeslots = commBought.hasHistoricalPeak()
+                    ? commBought.getHistoricalPeak().getTimeSlotCount() : 0;
+                // if one set of historical values has timeslots while the other one doesn't,
+                // the difference would be expected
+                if (histUsedTimeslots == histPeakTimeslots && peakQuantities.length > 0) {
+                    logger.warn("Different lengths of used and peak quantities for commodity {}. "
+                            + "Received {} used and {} peak values. ",
+                        commBought::getCommodityType, () -> usedQuantities.length,
+                        () -> peakQuantities.length);
+                }
+            }
+        }
+    }
 
     /**
      * Calculates the new resized  capacities for the bought commodity based on historical
@@ -2304,12 +2408,14 @@ public class TopologyConverter {
             }
             // Create DC comm bought
             createDCCommodityBoughtForCloudEntity(providerOid, buyerOid).ifPresent(values::add);
-            // Create Coupon Comm
-            Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(
-                    providerOid, buyerOid);
-            if (coupon.isPresent()) {
-                values.add(coupon.get());
-                addGroupFactor = true;
+            if (marketMode != MarketMode.SMAOnly) {
+                // Create Coupon Comm
+                Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(
+                        providerOid, buyerOid);
+                if (coupon.isPresent()) {
+                    values.add(coupon.get());
+                    addGroupFactor = true;
+                }
             }
             // Create template exclusion commodity bought
             values.addAll(createTierExclusionCommodityBoughtForCloudEntity(providerOid, buyerOid));
@@ -2702,11 +2808,6 @@ public class TopologyConverter {
         if (newQuantity.length == 0) {
             logger.warn("Received  empty resized quantities for {}", topologyCommBought);
             return newQuantityList;
-        }
-        if (usedQuantities.length != peakQuantities.length) {
-            logger.warn("Different lengths of used and peak quantities." +
-                            "Received {} used and {} peak values. ",
-                    usedQuantities.length, peakQuantities.length);
         }
         int maxLength = Math.max(usedQuantities.length, peakQuantities.length);
         for (int index = 0; index < maxLength; index++) {

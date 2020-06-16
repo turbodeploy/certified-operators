@@ -83,7 +83,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * own Workload entities such as VMs, Databases, etc.</p>
      *
      * <p>This method returns all types of outwards connections: these include normal connections,
-     * owned and aggregated entities.</p>
+     * owned, aggregated entities and controlled entities.</p>
      *
      * @return the map from {@link ConnectionType} to set of {@link StitchingEntity} instances that
      * this entity is connected to.
@@ -100,7 +100,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * as Storage Browsing probes.</p>
      *
      * <p>This method returns all types of inwards connections: these include normal connections,
-     * the owner and aggregating entities.</p>
+     * the owner, aggregating entities and controlling entities.</p>
      *
      * @return the map from {@link ConnectionType} to set of {@link StitchingEntity} instances that
      * are connectedTo this entity.

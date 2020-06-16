@@ -161,7 +161,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 supplyChainService, repositoryService,
-                entitySettingsCache, actionTranslator, realtimeTopologyContextId, actionTargetSelector);
+                entitySettingsCache, actionTranslator, realtimeTopologyContextId, actionTargetSelector,
+                    licenseCheckClient);
         }
     }
 

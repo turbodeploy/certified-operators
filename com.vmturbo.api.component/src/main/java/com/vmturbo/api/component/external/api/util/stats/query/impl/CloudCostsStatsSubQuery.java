@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,15 +75,18 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -453,16 +457,16 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
         Map<Long, List<Long>> storageTierOidToConnectedVVOids = new HashMap<>();
         vvEntities.forEach(vvEntity -> {
-            Optional<TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity> storageTierOpt = vvEntity.getConnectedToList().stream()
-                .filter(relatedEntity -> relatedEntity.getEntityType() == CommonDTO.EntityDTO.EntityType.STORAGE_TIER.getNumber())
-                .findFirst();
+            final RelatedEntity storageTier = vvEntity.getProvidersList().stream()
+                    .filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
+                    .findFirst().orElse(null);
 
-            if (storageTierOpt.isPresent()) {
+            if (storageTier != null) {
                 storageTierOidToConnectedVVOids
-                    .computeIfAbsent(storageTierOpt.get().getOid(), k -> new ArrayList<>())
+                    .computeIfAbsent(storageTier.getOid(), k -> new ArrayList<>())
                     .add(vvEntity.getOid());
             } else {
-                logger.error("Virtual Volume {} with uuid {} has NO storage tier connected to", vvEntity.getDisplayName(), vvEntity.getOid());
+                logger.error("Virtual Volume {} with uuid {} has NO storage tier provider", vvEntity.getDisplayName(), vvEntity.getOid());
             }
         });
 
@@ -779,7 +783,13 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         } else {
             GetCloudCostStatsRequest getCloudExpenseStatsRequest = GetCloudCostStatsRequest.newBuilder()
                     .addAllCloudCostStatsQuery(cloudCostStatsQueries).build();
-            return costServiceRpc.getCloudCostStats(getCloudExpenseStatsRequest).getCloudStatRecordList();
+            final Iterator<GetCloudCostStatsResponse> response =
+                costServiceRpc.getCloudCostStats(getCloudExpenseStatsRequest);
+            final List<CloudCostStatRecord> records = new ArrayList<>();
+            while (response.hasNext()) {
+                records.addAll(response.next().getCloudStatRecordList());
+            }
+            return records;
         }
     }
 

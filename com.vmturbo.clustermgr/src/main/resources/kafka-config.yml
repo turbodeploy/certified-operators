@@ -88,6 +88,22 @@ topics:
   - topic: settings-updates
     properties:
           retention.ms: 360000
+  - topic: external-action-approval-requests
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: external-action-update-state-requests
+    properties:
+      retention.ms: 7200000 # 2 hr
+  - topic: external-action-audit-events
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: tp-external-action-state-updates
+    properties:
+      retention.ms: 7200000 # 2 hr
+  - topic: tp-external-action-approval-responses
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
+
 # the following topics are not in use yet.
 #  - topic: action-status
 #    properties:

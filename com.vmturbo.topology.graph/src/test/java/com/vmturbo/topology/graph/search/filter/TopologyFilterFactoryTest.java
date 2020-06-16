@@ -1259,6 +1259,90 @@ public class TopologyFilterFactoryTest {
     }
 
     /**
+     * Test the filter for a storage volume's deletable property.
+     */
+    @Test
+    public void testSearchFilterVolumeDeletableTrue() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.DELETABLE)
+                        .setStringFilter(StringFilter.newBuilder().addOptions("true").build()))
+                .build();
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_VOLUME)
+                .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_VOLUME)
+                .build();
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_VOLUME)
+                .setDeletable(false)
+                .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+        assertFalse(propertyFilter.test(entity3));
+    }
+
+    /**
+     * Test the filter for a storage volume's deletable property.
+     */
+    @Test
+    public void testSearchFilterVolumeDeletableFalse() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.DELETABLE)
+                        .setStringFilter(StringFilter.newBuilder().addOptions("false").build()))
+                .build();
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_VOLUME)
+                .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_VOLUME)
+                .build();
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_VOLUME)
+                .setDeletable(false)
+                .build();
+
+        assertFalse(propertyFilter.test(entity1));
+        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity3));
+    }
+
+    /**
+     * Test the filter for a storage volume's deletable property.
+     */
+    @Test
+    public void testSearchFilterVolumeDeletableTrueAndFalse() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.DELETABLE)
+                        .setStringFilter(StringFilter.newBuilder().addOptions("true").addOptions("false").build()))
+                .build();
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_VOLUME)
+                .build();
+        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_VOLUME)
+                .build();
+        final TestGraphEntity entity3 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_VOLUME)
+                .setDeletable(false)
+                .build();
+
+        assertTrue(propertyFilter.test(entity1));
+        assertTrue(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity3));
+    }
+
+    /**
      * Test the filter for an entity's vendor ID.
      */
     @Test

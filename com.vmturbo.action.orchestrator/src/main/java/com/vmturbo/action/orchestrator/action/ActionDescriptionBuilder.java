@@ -57,6 +57,8 @@ public class ActionDescriptionBuilder {
     private static final String UP = "up";
     private static final String DOWN = "down";
     private static final String OF = " of ";
+    private static final String PROVISION = "Provision";
+    private static final String SUSPENSION = "Suspension";
     // pass in methodName, name of entity, and entity OID
     private static final String ENTITY_NOT_FOUND_WARN_MSG = "{} {} Entity {} doesn't exist in the entities snapshot";
 
@@ -85,6 +87,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_DELETE_CLOUD("Delete Unattached {0} Volume {1} from {2}"),
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
+        ACTION_DESCRIPTION_RESIZE_TRIGGER_TRADER("Resize {0} {1} for {2} from {3} to {4} due to {5} {6}"),
         ACTION_DESCRIPTION_RESIZE_RESERVATION("Resize {0} {1} reservation for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
@@ -170,12 +173,24 @@ public class ActionDescriptionBuilder {
      */
     private static String getResizeActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
                                               @Nonnull final ActionDTO.Action recommendation) {
+        ActionPartialEntity resizeTriggerTrader = null;
         Resize resize = recommendation.getInfo().getResize();
         long entityId = resize.getTarget().getId();
         Optional<ActionPartialEntity> optEntity = entitiesSnapshot.getEntityFromOid(entityId);
         if (!optEntity.isPresent()) {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getResizeActionDescription ", "entityId", entityId);
             return "";
+        }
+
+        if (resize.hasResizeTriggerTrader()) {
+            Optional<ActionPartialEntity> optTriggerTrader = entitiesSnapshot
+                    .getEntityFromOid(resize.getResizeTriggerTraderOrBuilder().getId());
+            if (!optTriggerTrader.isPresent()) {
+                logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getResizeActionDescription ", "entityId",
+                        resize.getResizeTriggerTraderOrBuilder().getId());
+            } else {
+                resizeTriggerTrader = optTriggerTrader.get();
+            }
         }
 
         ActionPartialEntity entity = optEntity.get();
@@ -189,17 +204,30 @@ public class ActionDescriptionBuilder {
         }
 
         ActionMessageFormat messageFormat =
-            resize.getCommodityAttribute() == CommodityAttribute.CAPACITY ?
-                ActionMessageFormat.ACTION_DESCRIPTION_RESIZE :
-                ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_RESERVATION;
-        return messageFormat.format(
+            resize.getCommodityAttribute() == CommodityAttribute.CAPACITY
+                ? (resizeTriggerTrader != null
+                        ? ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_TRIGGER_TRADER
+                            : ActionMessageFormat.ACTION_DESCRIPTION_RESIZE)
+                                : ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_RESERVATION;
+        return messageFormat != ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_TRIGGER_TRADER
+            ? messageFormat.format(
             resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
             beautifyCommodityType(resize.getCommodityType()),
             beautifyEntityTypeAndName(entity),
             formatResizeActionCommodityValue(
                 commodityType, entity.getEntityType(), resize.getOldCapacity()),
             formatResizeActionCommodityValue(
-                commodityType, entity.getEntityType(), resize.getNewCapacity()));
+                commodityType, entity.getEntityType(), resize.getNewCapacity()))
+                : messageFormat.format(
+                    resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
+                        beautifyCommodityType(resize.getCommodityType()),
+                        beautifyEntityTypeAndName(entity),
+                        formatResizeActionCommodityValue(
+                            commodityType, entity.getEntityType(), resize.getOldCapacity()),
+                        formatResizeActionCommodityValue(
+                            commodityType, entity.getEntityType(), resize.getNewCapacity()),
+                        beautifyEntityTypeAndName(resizeTriggerTrader),
+                        resize.getNewCapacity() > resize.getOldCapacity() ? PROVISION : SUSPENSION);
     }
 
     /**

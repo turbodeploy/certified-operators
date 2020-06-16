@@ -30,6 +30,7 @@ import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
@@ -192,5 +193,18 @@ public class TopologyProcessorClientConfig {
     public Channel topologyProcessorChannel() {
         return ComponentGrpcServer.newChannelBuilder(topologyProcessorHost, topologyProcessorRpcPort)
                 .build();
+    }
+
+    /**
+     * Creates action states message receiver which will be able to receive action state changes
+     * reported from external action approval backend.
+     *
+     * @return the bean created
+     */
+    @Nonnull
+    public IMessageReceiver<GetActionStateResponse> createActionStateReceiver() {
+        return baseKafkaConfig.kafkaConsumer()
+                .messageReceiver(TopologyProcessorClient.EXTERNAL_ACTION_UPDATES_TOPIC,
+                        GetActionStateResponse::parseFrom);
     }
 }

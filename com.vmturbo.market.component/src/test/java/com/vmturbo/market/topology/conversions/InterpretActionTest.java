@@ -74,6 +74,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTriggerTraderTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
@@ -555,6 +556,88 @@ public class InterpretActionTest {
         assertThat(actionInfo.getResize().getCommodityType(), is(topologyCommodity1));
         assertThat(actionInfo.getResize().getOldCapacity(), is(oldCapacity));
         assertThat(actionInfo.getResize().getNewCapacity(), is(newCapacity));
+    }
+
+    @Test
+    public void testInterpretResizeActionRelatedCommMatching() {
+        long entityToResize = 1;
+        int  entityType = 1;
+        long resizeTriggerTrader = 2;
+        int  entityType2 = 2;
+        final Map<Long, ProjectedTopologyEntity> projectedTopology =
+            ImmutableMap.of(entityToResize, entity(entityToResize, entityType, EnvironmentType.ON_PREM),
+                resizeTriggerTrader, entity(resizeTriggerTrader, entityType2, EnvironmentType.ON_PREM));
+        final CommodityConverter commConverter = mock(CommodityConverter.class);
+        final TopologyConverter converter = spy(
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory));
+        Mockito.doReturn(Optional.of(topologyCommodity1))
+               .when(commConverter).marketToTopologyCommodity(eq(economyCommodity1));
+
+        final float oldCapacity = 9;
+        final float newCapacity = 10;
+        final ActionTO resizeAction = ActionTO.newBuilder()
+                .setImportance(0.)
+                .setIsNotExecutable(false)
+                .setResize(ResizeTO.newBuilder()
+                    .setSellingTrader(entityToResize)
+                    .setNewCapacity(newCapacity)
+                    .setOldCapacity(oldCapacity)
+                    .setSpecification(economyCommodity1)
+                    .addResizeTriggerTrader(ResizeTriggerTraderTO.newBuilder()
+                            .setTrader(resizeTriggerTrader)
+                            .addRelatedCommodities(economyCommodity1.getBaseType())))
+                .build();
+        final ActionInfo actionInfo =
+                converter.interpretAction(resizeAction, projectedTopology, null, null, null).get().getInfo();
+
+        assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.RESIZE));
+        assertThat(actionInfo.getResize().getTarget().getId(), is(entityToResize));
+        assertThat(actionInfo.getResize().getTarget().getType(), is(entityType));
+        assertThat(actionInfo.getResize().getTarget().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertThat(actionInfo.getResize().getCommodityType(), is(topologyCommodity1));
+        assertThat(actionInfo.getResize().getOldCapacity(), is(oldCapacity));
+        assertThat(actionInfo.getResize().getNewCapacity(), is(newCapacity));
+    }
+
+    @Test
+    public void testInterpretResizeActionRelatedCommNotMatching() {
+        long entityToResize = 1;
+        int  entityType = 1;
+        long resizeTriggerTrader = 2;
+        int  entityType2 = 2;
+        final Map<Long, ProjectedTopologyEntity> projectedTopology =
+            ImmutableMap.of(entityToResize, entity(entityToResize, entityType, EnvironmentType.ON_PREM),
+                resizeTriggerTrader, entity(resizeTriggerTrader, entityType2, EnvironmentType.ON_PREM));
+        final CommodityConverter commConverter = mock(CommodityConverter.class);
+        final TopologyConverter converter = spy(
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory));
+        Mockito.doReturn(Optional.of(topologyCommodity1))
+               .when(commConverter).marketToTopologyCommodity(eq(economyCommodity1));
+
+        final float oldCapacity = 9;
+        final float newCapacity = 10;
+        final ActionTO resizeAction = ActionTO.newBuilder()
+                .setImportance(0.)
+                .setIsNotExecutable(false)
+                .setResize(ResizeTO.newBuilder()
+                    .setSellingTrader(entityToResize)
+                    .setNewCapacity(newCapacity)
+                    .setOldCapacity(oldCapacity)
+                    .setSpecification(economyCommodity1)
+                    .addResizeTriggerTrader(ResizeTriggerTraderTO.newBuilder()
+                            .setTrader(resizeTriggerTrader)
+                            .addRelatedCommodities(economyCommodity2.getBaseType())))
+                .build();
+        final Optional<Action> action =
+                converter.interpretAction(resizeAction, projectedTopology, null, null, null);
+
+        assertTrue(!action.isPresent());
     }
 
     @Test

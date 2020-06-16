@@ -205,8 +205,8 @@ public class CoverageTopologyImpl implements CoverageTopology {
      */
     @Nonnull
     @Override
-    public Collection<TopologyEntityDTO> getConnectedVolumes(final long entityId) {
-        return cloudTopology.getConnectedVolumes(entityId);
+    public Collection<TopologyEntityDTO> getAttachedVolumes(final long entityId) {
+        return cloudTopology.getAttachedVolumes(entityId);
     }
 
     /**

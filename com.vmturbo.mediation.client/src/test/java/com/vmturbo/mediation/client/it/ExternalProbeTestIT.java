@@ -5,9 +5,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -17,21 +17,21 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.vmturbo.mediation.common.ProbeConfigurationLoadException;
 import com.vmturbo.mediation.common.tests.probes.AccountValuesWithDflt;
 import com.vmturbo.mediation.common.tests.probes.EternalWorkingProbe;
 import com.vmturbo.mediation.common.tests.probes.NullAccountDefinitionsProbe;
 import com.vmturbo.mediation.common.tests.probes.NullSupplyChainProbe;
 import com.vmturbo.mediation.common.tests.probes.PredefinedAccountProbe;
 import com.vmturbo.mediation.common.tests.probes.ProbeWithDefaultAccValues;
+import com.vmturbo.mediation.common.tests.util.IntegrationTestProbeConfiguration;
 import com.vmturbo.mediation.common.tests.util.NotValidatableProbe;
 import com.vmturbo.mediation.common.tests.util.ProbeConfig;
-import com.vmturbo.mediation.common.tests.util.IntegrationTestProbeConfiguration;
 import com.vmturbo.mediation.common.tests.util.ProbeValidator;
 import com.vmturbo.mediation.common.tests.util.SdkProbe;
 import com.vmturbo.mediation.common.tests.util.SdkTarget;
 import com.vmturbo.mediation.common.tests.util.TestConstants;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
+import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
@@ -200,12 +200,13 @@ public class ExternalProbeTestIT extends AbstractIntegrationTest {
         EternalWorkingProbe.getLatch(target.getTargetId())
                 .await(TestConstants.TIMEOUT, TimeUnit.SECONDS);
         closeAllContainers();
-        try {
-            validation.get(TestConstants.TIMEOUT, TimeUnit.SECONDS);
-            Assert.fail("Expected connection closed exception");
-        } catch (Exception e) {
-            assertConnectionClosed(e);
-        }
+        final ValidationResponse response = validation.get(TestConstants.TIMEOUT, TimeUnit.SECONDS);
+        Assert.assertEquals(
+                Collections.singletonList("Communication transport to remote probe closed."),
+                response.getErrorDTOList()
+                        .stream()
+                        .map(ErrorDTO::getDescription)
+                        .collect(Collectors.toList()));
     }
 
     /**
@@ -223,12 +224,13 @@ public class ExternalProbeTestIT extends AbstractIntegrationTest {
         EternalWorkingProbe.getLatch(target.getTargetId())
                 .await(TestConstants.TIMEOUT, TimeUnit.SECONDS);
         closeAllContainers();
-        try {
-            discovery.get(TestConstants.TIMEOUT, TimeUnit.SECONDS);
-            Assert.fail("Expected connection closed exception");
-        } catch (ExecutionException e) {
-            assertConnectionClosed(e);
-        }
+        final DiscoveryResponse response = discovery.get(TestConstants.TIMEOUT, TimeUnit.SECONDS);
+        Assert.assertEquals(
+                Collections.singletonList("Communication transport to remote probe closed."),
+                response.getErrorDTOList()
+                        .stream()
+                        .map(ErrorDTO::getDescription)
+                        .collect(Collectors.toList()));
     }
 
     /**

@@ -26,6 +26,7 @@ import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOpe
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PropagatePowerStatePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.PropagatedUpUsedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.ProtectSharedStorageWastedFilesPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityCapacityFromSettingPostStitchingOperation;
@@ -105,10 +106,8 @@ public class PostStitchingOperationLibrary {
             new StorageAccessCapacityPostStitchingOperation(EntityType.LOGICAL_POOL, diskCapacityCalculator),
             new StorageAccessCapacityPostStitchingOperation(EntityType.STORAGE_CONTROLLER, diskCapacityCalculator),
             new StorageEntityAccessCapacityPostStitchingOperation(),
-            new ComputedUsedValuePostStitchingOperation(
-                EntityType.STORAGE, CommodityType.STORAGE_LATENCY),
-            new ComputedUsedValuePostStitchingOperation(
-                EntityType.STORAGE, CommodityType.STORAGE_ACCESS),
+            new PropagatedUpUsedPostStitchingOperation(EntityType.STORAGE, CommodityType.STORAGE_LATENCY),
+            new PropagatedUpUsedPostStitchingOperation(EntityType.STORAGE, CommodityType.STORAGE_ACCESS),
             new SetCommodityMaxQuantityPostStitchingOperation(commodityPostStitchingOperationConfig),
             new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation(),
             new UseHypervisorVmemForResizingPostStitchingOperation(),

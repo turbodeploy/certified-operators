@@ -938,7 +938,8 @@ public class ActionSpecMapperTest {
 
         ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
             ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
-        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(serviceResult);
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
+            .thenReturn(Collections.singletonList(serviceResult));
 
         // test RI coverage before/after
         // mock responses
@@ -985,6 +986,56 @@ public class ActionSpecMapperTest {
             .setExclusionFilter(true)
             .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
             .build()));
+    }
+
+    /**
+     * Test that the streaming response chunks from the cloud cost RPC are processed correctly.
+     * Specifically, if the response chunks cumulatively contain exactly two records, the action
+     * should have on-demand before and after costs drawn from these records. However, if a chunk
+     * (or a series of chunks) contains more than two records, all remaining chunks are discarded
+     * without being processed, and the action will not have these costs listed. (This also happens
+     * if the total number of records from all chunks is less than two.)
+     */
+    @Test
+    public void testCloudResizeOnDemandCosts() {
+        final long targetId = 1;
+        final Cost.CloudCostStatRecord record1 = Cost.CloudCostStatRecord.newBuilder()
+            .addStatRecords(Cost.CloudCostStatRecord.StatRecord.newBuilder()
+                .setValues(Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                    .setAvg(10f)
+                    .setTotal(10f)))
+            .build();
+        final Cost.CloudCostStatRecord record2 = Cost.CloudCostStatRecord.newBuilder()
+            .addStatRecords(Cost.CloudCostStatRecord.StatRecord.newBuilder()
+                .setValues(Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                    .setAvg(20f)
+                    .setTotal(20f)))
+            .build();
+        final Cost.CloudCostStatRecord record3 = Cost.CloudCostStatRecord.newBuilder()
+            .addStatRecords(Cost.CloudCostStatRecord.StatRecord.newBuilder()
+                .setValues(Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                    .setAvg(30f)
+                    .setTotal(30f)))
+            .build();
+        final Cost.GetCloudCostStatsResponse serviceResult = Cost.GetCloudCostStatsResponse
+                .newBuilder()
+                .addCloudStatRecord(record1)
+                .addCloudStatRecord(record2)
+                .addCloudStatRecord(record3)
+                .build();
+        Cost.GetCloudCostStatsResponse extraChunk1 =
+            Cost.GetCloudCostStatsResponse.getDefaultInstance();
+        Cost.GetCloudCostStatsResponse extraChunk2 =
+            Cost.GetCloudCostStatsResponse.getDefaultInstance();
+
+        when(costServiceMole.getCloudCostStats(any()))
+            .thenReturn(Arrays.asList(serviceResult, extraChunk1, extraChunk2));
+
+        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO =
+            mapper.createCloudResizeActionDetailsDTO(targetId, null);
+
+        assertEquals(0, cloudResizeActionDetailsApiDTO.getOnDemandCostBefore(), 0);
+        assertEquals(0, cloudResizeActionDetailsApiDTO.getOnDemandCostAfter(), 0);
     }
 
     @Test

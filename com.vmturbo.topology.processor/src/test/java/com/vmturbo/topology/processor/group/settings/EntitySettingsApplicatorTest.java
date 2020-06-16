@@ -35,6 +35,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
@@ -55,8 +56,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -619,7 +618,7 @@ public class EntitySettingsApplicatorTest {
 
         final TopologyEntityDTO.Builder entity = new VirtualMachineEntityConstructor()
                 .createTopologyEntityFromTemplate(VM_TEMPLATE, Collections.emptyMap(), null, false,
-                        identityProvider);
+                        identityProvider, null);
         entity.setEnvironmentType(EnvironmentType.ON_PREM);
         final long entityId = entity.getOid();
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator
@@ -700,34 +699,31 @@ public class EntitySettingsApplicatorTest {
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setOid(vmId)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(PARENT_ID)
-                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(PARENT_ID).setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .setVolumeId(vvId)
-                .setMovable(false))
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(PARENT_ID + 1)
-                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                .setVolumeId(stId)
-                .setMovable(false))
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                .setConnectedEntityId(vvId)
-                .setConnectedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
-                .build());
+            );
 
         final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                .setConnectedEntityId(vmId)
-                .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
-                .build())
-            .setOid(vvId);
+            .setOid(vvId)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(stId).setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .build());
 
-        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, MOVE_RECOMMEND_SETTING);
-        assertThat(vmEntity.getCommoditiesBoughtFromProvidersList().size(), is(2));
+        final TopologyEntityDTO.Builder stEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .setOid(stId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, stEntity, applicator, MOVE_RECOMMEND_SETTING);
+
+        // assert that move flag only apply to volume, not vm
+        assertThat(vmEntity.getCommoditiesBoughtFromProvidersList().size(), is(1));
         assertThat(vmEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
-        assertThat(vmEntity.getCommoditiesBoughtFromProviders(1).getMovable(), is(false));
+
+        assertThat(vvEntity.getCommoditiesBoughtFromProvidersList().size(), is(1));
+        assertThat(vvEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
+
+        assertThat(stEntity.getCommoditiesBoughtFromProvidersList().size(), is(0));
     }
 
     /**
@@ -737,21 +733,24 @@ public class EntitySettingsApplicatorTest {
     public void testMoveApplicatorForUnattachedVolume() {
         final long vvId = 123456L;
         final long stId = 345678L;
-        final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(PARENT_ID)
-                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                .setVolumeId(stId));
 
+        // VV not attached to VM
         final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .setOid(vvId);
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setOid(vvId)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(stId)
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE));
 
-        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, MOVE_RECOMMEND_SETTING);
-        assertThat(vmEntity.getCommoditiesBoughtFromProvidersList().size(), is(1));
-        assertFalse(vmEntity.getCommoditiesBoughtFromProviders(0).hasMovable());
-        assertThat(vmEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+        final TopologyEntityDTO.Builder stEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .setOid(stId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, stEntity, applicator, MOVE_RECOMMEND_SETTING);
+
+        assertThat(vvEntity.getCommoditiesBoughtFromProvidersList().size(), is(1));
+        assertThat(vvEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
+
+        assertThat(stEntity.getCommoditiesBoughtFromProvidersList().size(), is(0));
     }
 
     /**
@@ -760,22 +759,25 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testDeleteApplicatorForManualSettingWithEntityConsumerPolicyDeletableTrue() {
         final long vvId = 123456L;
+        final long vmId = 234567L;
         final long stId = 345678L;
-        final boolean isVvDeletable = true;
+
+        // Given
+        final boolean originalAnalysisSettingForVVDeletable = true;
+        final Setting manualSettingForDeleteVolume = DELETE_MANUAL_SETTING;
+
         final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(vmId)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(PARENT_ID)
-                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                .setVolumeId(stId)
-                .setMovable(false));
-        final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .setAnalysisSettings(AnalysisSettings.newBuilder()
-                .setDeletable(isVvDeletable)
-                .build())
-            .setOid(vvId);
-        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, DELETE_MANUAL_SETTING);
+                .setProviderId(vvId)
+                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeId(vvId)
+            );
+        final TopologyEntityDTO.Builder vvEntity = createVirtualVolumeEntity(vvId, stId, originalAnalysisSettingForVVDeletable);
+        final TopologyEntityDTO.Builder stEntity = createStorageTierEntity(stId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, stEntity, applicator, manualSettingForDeleteVolume);
 
         assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(true));
     }
@@ -787,22 +789,24 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testDeleteApplicatorForManualSettingWithEntityConsumerPolicyDeletableFalse() {
         final long vvId = 123456L;
+        final long vmId = 234567L;
         final long stId = 345678L;
-        final boolean isVvDeletable = false;
+
+        // Given
+        final boolean originalAnalysisSettingForVVDeletable = false;
+        final Setting manualSettingForDeleteVolume = DELETE_MANUAL_SETTING;
+
         final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(vmId)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(PARENT_ID)
-                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                .setVolumeId(stId)
-                .setMovable(false));
-        final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .setAnalysisSettings(AnalysisSettings.newBuilder()
-                .setDeletable(isVvDeletable)
-                .build())
-            .setOid(vvId);
-        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, DELETE_MANUAL_SETTING);
+                .setProviderId(vvId)
+                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeId(vvId));
+        final TopologyEntityDTO.Builder vvEntity = createVirtualVolumeEntity(vvId, stId, originalAnalysisSettingForVVDeletable);
+        final TopologyEntityDTO.Builder stEntity = createStorageTierEntity(stId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, stEntity, applicator, manualSettingForDeleteVolume);
 
         assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(false));
     }
@@ -813,24 +817,48 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testDeleteApplicatorForDisabledSetting() {
         final long vvId = 123456L;
+        final long vmId = 234567L;
         final long stId = 345678L;
-        final boolean isVvDeletable = true;
+
+        // Given
+        final boolean originalAnalysisSettingForVVDeletable = true;
+        final Setting manualSettingForDeleteVolume = DELETE_DISABLED_SETTING;
+
         final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(vmId)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(PARENT_ID)
-                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                .setVolumeId(stId)
-                .setMovable(true));
-        final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
+                .setProviderId(vvId)
+                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeId(vvId)
+                .setMovable(false));
+        final TopologyEntityDTO.Builder vvEntity = createVirtualVolumeEntity(vvId, stId, originalAnalysisSettingForVVDeletable);
+        final TopologyEntityDTO.Builder stEntity = createStorageTierEntity(stId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, stEntity, applicator, manualSettingForDeleteVolume);
+
+        assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(false));
+    }
+
+    private static TopologyEntityDTO.Builder createStorageTierEntity(long stId) {
+        return TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .setOid(stId);
+    }
+
+    private static TopologyEntityDTO.Builder createVirtualVolumeEntity(long vvId,
+                                                                       long stId,
+                                                                       boolean originalAnalysisSettingForVVDeletable) {
+        return TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
             .setOid(vvId)
             .setAnalysisSettings(AnalysisSettings.newBuilder()
-                .setDeletable(isVvDeletable)
+                .setDeletable(originalAnalysisSettingForVVDeletable)
+                .build())
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(stId)
                 .build());
-        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, DELETE_DISABLED_SETTING);
-
-        assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(false));
     }
 
     private Object parametersForShopTogether() {
@@ -1730,6 +1758,32 @@ public class EntitySettingsApplicatorTest {
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
             entityId, topologyEntityBuilder(entity),
             PARENT_ID, topologyEntityBuilder(PARENT_OBJECT.toBuilder())));
+        applySettings(topologyInfo, applicator, graph, entityId, settings);
+    }
+
+    /**
+     * Applies the specified settings to the specified topology builder. Add additional entities
+     * to construct topology graph.
+     *
+     * @param topologyInfo {@link TopologyInfo}
+     * @param entity {@link TopologyEntityDTO} the entity to apply the setting
+     * @param otherEntity1 {@link TopologyEntityDTO} first other entity
+     * @param otherEntity2 {@link TopologyEntityDTO} second toher entity
+     * @param applicator the applicator to apply the setting
+     * @param settings setting to be applied
+     */
+    private static void applySettings(@Nonnull final TopologyInfo topologyInfo,
+                                      @Nonnull TopologyEntityDTO.Builder entity,
+                                      @Nonnull TopologyEntityDTO.Builder otherEntity1,
+                                      @Nonnull TopologyEntityDTO.Builder otherEntity2,
+                                      @Nonnull EntitySettingsApplicator applicator,
+                                      @Nonnull Setting... settings) {
+        final long entityId = entity.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
+            entityId, topologyEntityBuilder(entity),
+            PARENT_ID, topologyEntityBuilder(PARENT_OBJECT.toBuilder()),
+            otherEntity1.getOid(), topologyEntityBuilder(otherEntity1),
+            otherEntity2.getOid(), topologyEntityBuilder(otherEntity2)));
         applySettings(topologyInfo, applicator, graph, entityId, settings);
     }
 

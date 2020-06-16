@@ -16,6 +16,7 @@ import com.google.common.collect.Maps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -36,6 +37,9 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.RangeTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
@@ -434,33 +438,55 @@ public class CostDTOCreator {
                 }
                 tier.getCommoditySoldListList().forEach(c -> {
                     CommodityType commType = c.getCommodityType();
-                    // populates the min and max capacity for a given commodity
-                    if (c.hasMaxAmountForConsumer() && c.hasMinAmountForConsumer()) {
-                        storageDTO.addStorageResourceLimitation(StorageTierCostDTO
-                                .StorageResourceLimitation.newBuilder()
-                                .setResourceType(commodityConverter.commoditySpecification(commType))
-                                .setMaxCapacity(c.getMaxAmountForConsumer())
-                                .setMinCapacity(c.getMinAmountForConsumer())
-                                .build());
-                    }
-                    // populates the ratio dependency between max this commodity and its base commodity
-                    if (c.hasRatioDependency()) {
-                        storageDTO.addStorageResourceDependency(StorageTierCostDTO
-                                .StorageResourceDependency.newBuilder()
-                                .setBaseResourceType(commodityConverter
-                                        .commoditySpecification(c.getRatioDependency().getBaseCommodity()))
-                                .setDependentResourceType(commodityConverter.commoditySpecification(commType))
-                                .setRatio(c.getRatioDependency().getRatio())
-                                .build());
-                    }
-                    if (!storageCostBundle.getPrices(commType).isEmpty()) {
+                    List<StorageTierPriceData> priceDataList = storageCostBundle.getPrices(commType);
+                    if (!priceDataList.isEmpty()) {
                         builder.setResourceType(commodityConverter.commoditySpecification(commType));
-                        storageCostBundle.getPrices(commType).forEach(p -> builder.addStorageTierPriceData(p));
+                        priceDataList.forEach(p -> builder.addStorageTierPriceData(p));
                         storageDTO.addStorageResourceCost(builder.build());
                     }
                 });
             }
         }
+        tier.getCommoditySoldListList().forEach(c -> {
+            CommodityType commType = c.getCommodityType();
+            // populates the min and max capacity for a given commodity
+            if (c.hasMaxAmountForConsumer() && c.hasMinAmountForConsumer()) {
+                storageDTO.addStorageResourceLimitation(StorageTierCostDTO
+                        .StorageResourceLimitation.newBuilder()
+                        .setResourceType(commodityConverter.commoditySpecification(commType))
+                        .setMaxCapacity(c.getMaxAmountForConsumer())
+                        .setMinCapacity(c.getMinAmountForConsumer())
+                        .setCheckMinCapacity(c.getCheckMinAmountForConsumer())
+                        .build());
+            }
+            // populates the ratio dependency between max this commodity and its base commodity
+            if (c.hasRatioDependency()) {
+                storageDTO.addStorageResourceRatioDependency(StorageTierCostDTO
+                        .StorageResourceRatioDependency.newBuilder()
+                        .setBaseResourceType(commodityConverter
+                                .commoditySpecification(c.getRatioDependency().getBaseCommodity()))
+                        .setDependentResourceType(commodityConverter.commoditySpecification(commType))
+                        .setRatio(c.getRatioDependency().getRatio())
+                        .build());
+            }
+            // populates the ranged capacity which is dependent on base commodity
+            if (c.hasRangeDependency()) {
+                StorageResourceRangeDependency.Builder storageResourceRangeBuilder =
+                        StorageTierCostDTO.StorageResourceRangeDependency.newBuilder()
+                                .setBaseResourceType(commodityConverter
+                                        .commoditySpecification(TopologyDTO.CommodityType.newBuilder()
+                                                        .setType(c.getRangeDependency().getBaseCommodity().getNumber())
+                                                        .build()))
+                                .setDependentResourceType(commodityConverter.commoditySpecification(commType));
+                for (CommodityDTO.RangeTuple rangeTuple : c.getRangeDependency().getRangeTupleList()) {
+                    storageResourceRangeBuilder.addRangeTuple(RangeTuple.newBuilder()
+                            .setBaseMaxCapacity(rangeTuple.getBaseMaxAmountForConsumer())
+                            .setDependentMaxCapacity(rangeTuple.getDependentMaxAmountForConsumer())
+                            .build());
+                }
+                storageDTO.addStorageResourceRangeDependency(storageResourceRangeBuilder.build());
+            }
+        });
         return CostDTO.newBuilder().setStorageTierCost(storageDTO.build()).build();
     }
 

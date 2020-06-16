@@ -44,6 +44,8 @@ message AnalysisInput {
 
     optional bool use_quote_cache_during_snm = 10;
 
+    optional bool replay_provisions_for_real_time = 11;
+
     optional float right_size_lower_watermark = 5;
 
     optional float right_size_upper_watermark = 6;

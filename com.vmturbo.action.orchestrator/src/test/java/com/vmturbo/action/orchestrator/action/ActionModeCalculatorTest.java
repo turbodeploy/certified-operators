@@ -58,6 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -1624,13 +1625,18 @@ public class ActionModeCalculatorTest {
         assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID_3));
     }
 
+    @Nonnull
     private Map<String, Setting> createScheduleSettings(List<Long> scheduleIds) {
-        Setting vCpuUpInBetweenThresholds = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholdsExecutionSchedule.getSettingName())
-            .setSortedSetOfOidSettingValue(SettingProto.SortedSetOfOidSettingValue.newBuilder().addAllOids(scheduleIds).build())
+        final Setting vCpuUpInBetweenThresholds = Setting.newBuilder()
+            .setSettingSpecName(ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds))
+            .setSortedSetOfOidSettingValue(SettingProto.SortedSetOfOidSettingValue.newBuilder()
+                .addAllOids(scheduleIds).build())
             .build();
-        return ImmutableMap.of(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholdsExecutionSchedule.getSettingName(),
-            vCpuUpInBetweenThresholds);
+        return ImmutableMap.of(
+            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds),
+                vCpuUpInBetweenThresholds);
     }
 
 }

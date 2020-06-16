@@ -66,6 +66,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsUploadSta
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupFixupStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadActionConstraintsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadCloudCostDataStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
@@ -288,6 +289,7 @@ public class LivePipelineFactory {
                 .addStage(new RequestCommodityThresholdsStage(requestCommodityThresholdsInjector))
                 .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
+                .addStage(new TopSortStage())
                 .addStage(new BroadcastStage(managers, mi))
                 .build();
     }
@@ -328,6 +330,7 @@ public class LivePipelineFactory {
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new SupplyChainValidationStage(supplyChainValidator))
                 .addStage(new ExtractTopologyGraphStage())
+                .addStage(new TopSortStage())
                 .addStage(new BroadcastStage(managers, matrix))
                 .build();
     }

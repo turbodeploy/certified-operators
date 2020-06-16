@@ -25,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.ITransport;
-import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -41,6 +40,12 @@ import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
  */
 @ThreadSafe
 public class RemoteProbeStore implements ProbeStore {
+
+    /**
+     * The prefix used in the error message when we try to get the transport of a probe that has
+     * no registered transports (e.g. at startup, before probes register).
+     */
+    public static final String TRANSPORT_NOT_REGISTERED_PREFIX = "Probe for requested id is not registered: ";
 
     @GuardedBy("dataLock")
     private final KeyValueStore keyValueStore;
@@ -223,7 +228,7 @@ public class RemoteProbeStore implements ProbeStore {
                     long probeId) throws ProbeException {
         synchronized (dataLock) {
             if (!probes.containsKey(probeId)) {
-                throw new ProbeException("Probe for requested id is not registered: " + probeId);
+                throw new ProbeException(TRANSPORT_NOT_REGISTERED_PREFIX + probeId);
             }
             return probes.get(probeId);
         }

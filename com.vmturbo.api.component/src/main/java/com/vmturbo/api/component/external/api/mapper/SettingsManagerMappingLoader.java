@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -31,12 +32,14 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 
+import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.GsonPostProcessable;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
@@ -110,7 +113,8 @@ public class SettingsManagerMappingLoader {
         /**
          * (manager uuid) -> Information about that manager.
          */
-        private final Map<String, SettingsManagerInfo> managersByUuid;
+        @Nonnull
+        private Map<String, SettingsManagerInfo> managersByUuid;
 
         /**
          * A map to quickly look up the manager for a particular setting name.
@@ -118,6 +122,7 @@ public class SettingsManagerMappingLoader {
          * serialization, and is initialized as part
          * of {@link SettingsManagerMapping#postDeserialize()}.
          */
+        @Nonnull
         private transient Map<String, String> settingToManager;
 
         /**
@@ -209,6 +214,41 @@ public class SettingsManagerMappingLoader {
          */
         @Override
         public void postDeserialize() {
+            // add generated sub settings for action mode
+            final ImmutableMap.Builder<String, SettingsManagerInfo> managersByUuidBuilder =
+                ImmutableMap.<String, SettingsManagerInfo>builder();
+            managersByUuid.forEach((key, value) -> {
+                // We do not add AUTOMATION_MANAGER nor CONTROL_MANAGER here because
+                // we will add them later with the settings from settingManagers.json
+                // and the generated settings from ActionSettingSpecs.
+                // If we added them here, the immutable map builder would complain about
+                // duplicate keys.
+                if (!SettingsService.AUTOMATION_MANAGER.equals(key)
+                        && !SettingsService.CONTROL_MANAGER.equals(key)) {
+                    managersByUuidBuilder.put(key, value);
+                }
+            });
+
+            final Set<String> executionModeSettings =
+                ActionSettingSpecs.getSettingSpecs().stream()
+                    .map(SettingSpec::getName)
+                    .filter(ActionSettingSpecs::isExecutionScheduleSetting)
+                    .collect(Collectors.toSet());
+            replaceManagerSettings(SettingsService.AUTOMATION_MANAGER,
+                executionModeSettings,
+                managersByUuidBuilder);
+            final Set<String> actionWorkflowSettings =
+                ActionSettingSpecs.getSettingSpecs().stream()
+                    .map(SettingSpec::getName)
+                    .filter(
+                        settingName -> !ActionSettingSpecs.isExecutionScheduleSetting(settingName))
+                    .collect(Collectors.toSet());
+            replaceManagerSettings(SettingsService.CONTROL_MANAGER,
+                actionWorkflowSettings,
+                managersByUuidBuilder);
+
+            managersByUuid = managersByUuidBuilder.build();
+
             ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
             managersByUuid.forEach((mgrName, mgrInfo) -> {
                 mgrInfo.getSettings().forEach((settingName) -> {
@@ -218,6 +258,32 @@ public class SettingsManagerMappingLoader {
                 });
             });
             settingToManager = builder.build();
+        }
+
+        private void replaceManagerSettings(
+                final String managerUuid,
+                final Set<String> newSettings,
+                ImmutableMap.Builder<String, SettingsManagerInfo> managersByUuidBuilder) {
+            SettingsManagerInfo originalManagerInfo = managersByUuid.get(managerUuid);
+            if (originalManagerInfo == null) {
+                // This manager doesn't exist so we don't need to replace it. Some unit tests
+                // don't provide a control manager even though the real file will always have a
+                // control manager.
+                return;
+            }
+            final Set<String> executionSettingIds = ImmutableSet.<String>builder()
+                .addAll(originalManagerInfo.getSettings())
+                .addAll(newSettings)
+                .build();
+            managersByUuidBuilder.put(managerUuid,
+                new SettingsManagerInfo(
+                    originalManagerInfo.getDisplayName(),
+                    originalManagerInfo.getDefaultCategory(),
+                    executionSettingIds,
+                    originalManagerInfo.getPlanSettingInfo().orElseThrow(() ->
+                        new IllegalArgumentException(
+                            "settingManagers.json did not have a planSettingInfo"
+                                + " for " + managerUuid))));
         }
 
         /**

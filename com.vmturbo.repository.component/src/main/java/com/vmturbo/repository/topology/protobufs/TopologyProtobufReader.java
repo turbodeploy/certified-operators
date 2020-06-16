@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 
 import com.arangodb.ArangoCollection;
 import com.arangodb.entity.BaseDocument;
+import com.arangodb.model.CollectionCreateOptions;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
@@ -38,8 +39,9 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
     protected TopologyProtobufReader(@Nonnull final ArangoDatabaseFactory arangoDatabaseFactory,
                                      final long topologyId,
                                      @Nonnull final Optional<TopologyEntityFilter> entityFilter,
-                                     @Nonnull final String arangoDatabaseName) {
-        super(arangoDatabaseFactory, topologyId, arangoDatabaseName);
+                                     @Nonnull final String arangoDatabaseName,
+                                     @Nonnull final CollectionCreateOptions collectionCreateOptions) {
+        super(arangoDatabaseFactory, topologyId, arangoDatabaseName, collectionCreateOptions);
         count = topologyCollection.count().getCount();
         this.entityFilter = entityFilter;
     }
@@ -48,7 +50,8 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
      * Get a handle to the collection.
      */
     @Override
-    protected ArangoCollection collection(@Nonnull final String collectionName) {
+    protected ArangoCollection collection(@Nonnull final String collectionName,
+                                          @Nonnull final CollectionCreateOptions collectionCreateOptions) {
         return database.collection(collectionName);
     }
 

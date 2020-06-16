@@ -1,24 +1,18 @@
 package com.vmturbo.sql.utils;
 
 import java.sql.SQLException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.function.UnaryOperator;
 
 import javax.sql.DataSource;
 
-import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableMap;
-
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.api.callback.FlywayCallback;
-import org.jetbrains.annotations.NotNull;
 import org.jooq.Configuration;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
@@ -28,12 +22,9 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.DataSourceConnectionProvider;
 import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultExecuteListenerProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
-import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 
@@ -52,7 +43,9 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
  * and for that component, config properties are un-prefixed.</p>
  *
  * <p>Each endpoint is defined with a {@link SQLDialect} value that identifies the type of database
- * server accessed by the endpoint. Some config property defaults are based on this value.</p>
+ * server accessed by the endpoint. Some config property defaults are based on this value. Defaults
+ * are used when the Spring {@link Environment} constructed during application context creation does
+ * not supply a value.</p>
  *
  * <p>Relevant properties include:</p>
  * <dl>
@@ -73,6 +66,9 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
  *     <dt>dbPassword</dt>
  *     <dd>The password for the non-root user. Defaults to the root DB password obtained from the
  *     auth component.</dd>
+ *     <dt>dbAccess</dt>
+ *     <dd>Specifies the access level required for this endpoint, selected from the
+ *     {@link DbEndpointAccess} enum. Default is READ_ONLY.</dd>
  *     <dt>dbRootUserName</dt>
  *     <dd>The name of a DB user with root (super) privileges that will be used to create and set up
  *     this endpoint's database, schema, and non-root user, if needed. Defaults to the user name
@@ -87,204 +83,97 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
  *     <dt>dbSecure</dt>
  *     <dd>Boolean indicating whether the database should be accessed with a secure (SSL) connection.
  *     Default is false.</dd>
- *     <dt>dbMigrationLocation</dt>
+ *     <dt>dbMigrationLocations</dt>
  *     <dd>Package name (or names, separated by commas) defining the location where Flyway can find
  *     migrations for this database. Defaults to "db.migration".</dd>
+ *     <dt>dbFlywayCallbacks</dt>
+ *     <dd>Array of {@link FlywayCallback} instances to be invoked during migration processing.
+ *     This cannot be specified via configuration, but must be supplied in the endpoint definition
+ *     using the {@link DbEndpointBuilder#withDbFlywayCallbacks(FlywayCallback...)} method.
+ *     Defaults to no callbacks.
+ *     </dd>
+ *     <dt>dbDestructiveProvisioningEnabled</dt>
+ *     <dd>True if provisioning of this endpoint (creationg of databases, schemas, etc.) may make
+ *     use of destructive operations, like dropping an existing user prior to recreating it, in order
+ *     to clean up presumed issues with the current object. Defaults to false.</dd>
+ *     <dt>dbEndpointEnabled</dt>
+ *     <dd>Whether this endpoint should be initialized at all. Defaults to true.</dd>
  * </dl>
  *
- * <p>Some items that may seem like configuration are, like the `SQLDialect` value, treated as
- * un-injectable and left as part of the endpoint definition in the code. These are intimately
- * tied with a component's programmatic use of the database, and so exposing them to injectable
- * configuration is probably just asking for trouble. This includes:</p>
- *
- * <ul>
- *     <li>Access level (r/w, r/o, etc.)</li>
- *     <li>Enable/disable migrations</li>
- * </ul>
+ * <p>Endpoints are constructed using a builder pattern where values for selected properties can be
+ * explicitly provided. Any such property will be used in place of spring-injected property values
+ * or built-in defaults.</p>
  */
 public class DbEndpoint {
-    private static final Logger logger = LogManager.getLogger();
-    private static final SpelExpressionParser spel = new SpelExpressionParser();
 
-    // names of properties for endpoint configuration (minus tag prefixes)
+    static final List<Pair<DbEndpointConfig, CompletableFuture<DbEndpoint>>> pendingEndpoints
+            = new ArrayList<>();
 
-    /** dbHost property. */
-    public static final String DB_HOST_PROPERTY = "dbHost";
-    /** dbPort property. */
-    public static final String DB_PORT_PROPERTY = "dbPort";
-    /** dbDatabaseName property. */
-    public static final String DB_DATABASE_NAME_PROPERTY = "dbDatabaseName";
-    /** dbSchemaName property. */
-    public static final String DB_SCHEMA_NAME_PROPERTY = "dbSchemaName";
-    /** dbUserName property. */
-    public static final String DB_USER_NAME_PROPERTY = "dbUserName";
-    /** dbPassword property. */
-    public static final String DB_PASSWORD_PROPERTY = "dbPassword";
-    /** dbRootUserName property. */
-    public static final String DB_ROOT_USER_NAME_PROPERTY = "dbRootUserName";
-    /** dbRootPassword property. */
-    public static final String DB_ROOT_PASSWORD_PROPERTY = "dbRootPassword";
-    /** dbDriverProperties property. */
-    public static final String DRIVER_PROPERTIES_PROPERTY = "dbDriverProperties";
-    /** dbSecure property. */
-    public static final String SECURE_PROPERTY_NAME = "dbSecure";
-    /** dbMigrationLocation property. */
-    public static final String DB_MIGRATION_LOCATION_PROPERTY = "dbMigrationLocation";
+    static UnaryOperator<String> resolver;
+    private static DBPasswordUtil dbPasswordUtil;
 
-    // default values for some properties
-
-    /** default port for MariaDB and MySql. */
-    public static final int DEFAULT_MARIADB_MYSQL_PORT = 3306;
-    /** default port for PostgreSQL. */
-    public static final int DEFAULT_POSTGRES_PORT = 5432;
-    /** default for secure connection. */
-    public static final Boolean DEFAULT_SECURE_VALUE = Boolean.FALSE;
-    /** default migration location. */
-    public static final String DB_MIGRATION_LOCATION_DEFAULT = "db.migration";
-
-    /** separator between tag name and property name when configuring tagged endpoints. */
-    public static final String TAG_PREFIX_SEPARATOR = "_";
-
-    private final String tag;
-    private final SQLDialect dialect;
-    private final DBPasswordUtil dbPasswordUtil;
-    private final AtomicReference<UnaryOperator<String>> resolver;
+    private final DbEndpointConfig config;
     private final DbAdapter adapter;
 
-    private boolean initialized = false;
-    private FlywayCallback[] flywayCallbacks = new FlywayCallback[0];
-    private DbEndpointAccess access = DbEndpointAccess.ALL;
-    private boolean isMigrationEnabled = true;
-    private DbEndpoint template;
-    private final CountDownLatch initLatch1 = new CountDownLatch(1);
-    private final CountDownLatch initLatch2 = new CountDownLatch(1);
-
-    /**
-     * Internal constructor for a new endpoint instance.
-     *
-     * <p>Client code should use {@link SQLDatabaseConfig2#primaryDbEndpoint(SQLDialect)} or
-     * {@link SQLDatabaseConfig2#secondaryDbEndpoint(String, SQLDialect)} to declare endpoints.</p>
-     *
-     * @param tag            tag for secondary endpoint, or null for primary
-     * @param dialect        server type, identified by {@link SQLDialect}
-     * @param dbPasswordUtil a {@link DBPasswordUtil instance} for obtaining credentials from auth
-     *                       component
-     * @param resolver       method to resolve property names against Spring {@link Environment} and
-     *                       {@link Value}-injected config fields
-     * @throws UnsupportedDialectException if the server type is not supported
-     */
-    DbEndpoint(String tag, SQLDialect dialect, final DBPasswordUtil dbPasswordUtil,
-            AtomicReference<UnaryOperator<String>> resolver)
-            throws UnsupportedDialectException {
-        this.tag = tag;
-        this.dialect = dialect;
-        this.dbPasswordUtil = dbPasswordUtil;
-        this.resolver = resolver;
-        this.adapter = DbAdapter.of(this);
-    }
-
-    /**
-     * Use another endpoint as a template from which to obtain some default parameters for this
-     * endpoint.
-     *
-     * <p>Explicit configuration of the property will be used in preference to the template values,
-     * but the template values, if any, will be preferred over any built-in defaults.</p>
-     *
-     * <p>Properties that make use of template values include:</p>
-     * <ul>
-     *     <li>dbHost</li>
-     *     <li>dbPort</li>
-     *     <li>dbDatabaseName</li>
-     *     <li>dbSchemaName</li>
-     *     <li>dbRootUserName</li>
-     *     <li>dbRootPassword</li>
-     *     <li>dbDriverProperties</li>
-     *     <li>dbSecure</li>
-     * </ul>
-     *
-     * @param template endpoint to use as a template
-     * @return this endpoint
-     */
-    public DbEndpoint like(final DbEndpoint template) {
-        if (template.getDialect() != dialect) {
-            throw new IllegalArgumentException(
-                    String.format("Cannot create a %s database that is \"like()\" a %s database",
-                            dialect, template.getDialect()));
-        }
-        this.template = template;
-        this.isMigrationEnabled = false;
-        return this;
-    }
-
-    /**
-     * Specify database access level for this endpoint.
-     *
-     * @param access required access level
-     * @return this endpoint
-     */
-    public DbEndpoint withAccess(DbEndpointAccess access) {
-        this.access = access;
-        return this;
-    }
-
-    public DbEndpointAccess getAccess() {
-        return access;
-    }
-
-    /**
-     * Specify tha this endpoint does not perform migrations.
-     *
-     * @return this endpoint
-     */
-    public DbEndpoint noMigration() {
-        this.isMigrationEnabled = false;
-        return this;
-    }
-
-    /**
-     * Specify flyway callbacks that should be active during migrations for this endpoint.
-     *
-     * @param flywayCallbacks flyway callback objects
-     * @return this endpoint
-     */
-    public DbEndpoint withFlywayCallbacks(FlywayCallback... flywayCallbacks) {
-        this.flywayCallbacks = flywayCallbacks;
-        return this;
-    }
-
-    public boolean isMigrationEnabled() {
-        return isMigrationEnabled;
-    }
-
-    /**
-     * Initialize this endpoint.
-     *
-     * <p>Initialization entails:</p>
-     * <li>
-     *     <ul>Resolving all endpoint properties</ul>
-     *     <ul>Performing any necessary endpoint setup through database operations, e.g. creating
-     *     database, schema and/or user; configuring user privileges; running migrations.</ul>
-     * </li>
-     *
-     * @throws UnsupportedDialectException if the endpoint is mis-configured
-     * @throws SQLException                if an error occurs performing database operations
-     * @throws InterruptedException if interrupted
-     */
-    public void init() throws UnsupportedDialectException, SQLException, InterruptedException {
-        // if we depend on another endpoint, make sure it's initialized first.
-        if (!initialized) {
-            if (template != null) {
-                template.init();
+    static Future<DbEndpoint> register(DbEndpointConfig config) {
+        final CompletableFuture<DbEndpoint> future = new CompletableFuture<>();
+        if (resolver == null) {
+            pendingEndpoints.add(Pair.of(config, future));
+        } else {
+            synchronized (pendingEndpoints) {
+                completeEndpoint(config, future);
             }
-            // open up access to property resolvers, but don't allow client connectivity
-            // yet
-            initLatch1.countDown();
-            adapter.init();
-            initialized = true;
-            // now open up fully
-            initLatch2.countDown();
+        }
+        return future;
+    }
+
+    static void setResolver(UnaryOperator<String> resolver, DBPasswordUtil dbPasswordUtil) {
+        synchronized (pendingEndpoints) {
+            DbEndpoint.resolver = resolver;
+            DbEndpoint.dbPasswordUtil = dbPasswordUtil;
+            completePendingEndpoints();
         }
     }
+
+    private static void completePendingEndpoints() {
+        for (Pair<DbEndpointConfig, CompletableFuture<DbEndpoint>> pair : pendingEndpoints) {
+            completeEndpoint(pair.getLeft(), pair.getRight());
+        }
+    }
+
+    private static void completeEndpoint(DbEndpointConfig config,
+            CompletableFuture<DbEndpoint> future) {
+        logger.info("Completing endpoint with tag {}", config.getTag());
+        try {
+            resolveConfig(config);
+            final DbAdapter adapter = DbAdapter.of(config);
+            adapter.init();
+            future.complete(new DbEndpoint(config, adapter));
+        } catch (UnsupportedDialectException | SQLException | InterruptedException e) {
+            String label = config.getTag() == null ? "untagged DbEndpoint"
+                    : String.format("DbEndpoint tagged '%s'", config.getTag());
+            logger.error("Failed to create {}", label, e);
+            future.completeExceptionally(e);
+        }
+    }
+
+    private static void resolveConfig(DbEndpointConfig config)
+            throws UnsupportedDialectException {
+        new DbEndpointResolver(config, resolver, dbPasswordUtil).resolve();
+    }
+
+    private DbEndpoint(DbEndpointConfig config, DbAdapter adapter) {
+        this.config = config;
+        this.adapter = adapter;
+    }
+
+    public DbEndpointConfig getConfig() {
+        return config;
+    }
+
+
+    // TODO add some debug logging
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Create a {@link DSLContext} bound to this endpoint.
@@ -292,15 +181,14 @@ public class DbEndpoint {
      * @return dsl context
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      * @throws SQLException                if there's a problem gaining access
-     * @throws InterruptedException if interrupted
+     * @throws InterruptedException        if interrupted
      */
     public DSLContext dslContext() throws UnsupportedDialectException, SQLException, InterruptedException {
-        try {
-            initLatch2.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        if (config.getDbEndpointEnabled()) {
+            return DSL.using(getConfiguration());
+        } else {
+            throw new IllegalStateException("Attempt to use disabled database endpoint");
         }
-        return DSL.using(getConfiguration());
     }
 
     /**
@@ -309,11 +197,14 @@ public class DbEndpoint {
      * @return dataSource data source
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      * @throws SQLException                if there's a problem gaining access
-     * @throws InterruptedException if interrupted
+     * @throws InterruptedException        if interrupted
      */
     public DataSource datasource() throws UnsupportedDialectException, SQLException, InterruptedException {
-        initLatch2.await();
-        return adapter.getDataSource();
+        if (config.getDbEndpointEnabled()) {
+            return adapter.getDataSource();
+        } else {
+            throw new IllegalStateException("Attempt to use disabled database endpoint");
+        }
     }
 
     /**
@@ -322,7 +213,7 @@ public class DbEndpoint {
      * @return the configuration object
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      * @throws SQLException                if there's a problem creating the configuration
-     * @throws InterruptedException if interrupted
+     * @throws InterruptedException        if interrupted
      */
     private Configuration getConfiguration() throws UnsupportedDialectException, SQLException, InterruptedException {
         DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
@@ -336,7 +227,7 @@ public class DbEndpoint {
                 // multi-tenant database.
                 .withRenderSchema(false));
         jooqConfiguration.set(new DefaultExecuteListenerProvider(exceptionTranslator()));
-        jooqConfiguration.set(dialect);
+        jooqConfiguration.set(config.getDialect());
         return jooqConfiguration;
     }
 
@@ -346,302 +237,23 @@ public class DbEndpoint {
      * @return the connection provider
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      * @throws SQLException                if there's a problem gaining access
-     * @throws InterruptedException if interrupted
+     * @throws InterruptedException        if interrupted
      */
     private DataSourceConnectionProvider connectionProvider()
             throws UnsupportedDialectException, SQLException, InterruptedException {
-        init();
         return new DataSourceConnectionProvider(
                 new TransactionAwareDataSourceProxy(
                         new LazyConnectionDataSourceProxy(
                                 adapter.getDataSource())));
     }
 
-    public SQLDialect getDialect() {
-        return dialect;
-    }
-
     /**
-     * Resolve the dbHost property for this endpoint.
+     * Get the adapter for this endpoint.
      *
-     * @return the dbHost value
-     * @throws InterruptedException if interrupted
+     * @return {@link DbAdapter}
      */
-    public String getHost() throws InterruptedException {
-        final String fromTemplate = template != null ? template.getHost() : null;
-        return getTaggedPropertyValue(DB_HOST_PROPERTY, fromTemplate);
-    }
-
-    /**
-     * Resolve the dbPort property for this endpoint.
-     *
-     * @return the port number
-     * @throws UnsupportedDialectException if this endpoint is mis-configured
-     * @throws InterruptedException if interrupted
-     */
-    public int getPort() throws UnsupportedDialectException, InterruptedException {
-        final String propValue = getPortAsString();
-        return !Strings.isNullOrEmpty(propValue) ? Integer.parseInt(propValue) : getDefaultPort();
-    }
-
-    private String getPortAsString() throws UnsupportedDialectException, InterruptedException {
-        final String fromTemplate = template != null ? template.getPortAsString() : null;
-        final String fromDefault = Integer.toString(getDefaultPort());
-        return getTaggedPropertyValue(DB_PORT_PROPERTY, fromTemplate, fromDefault);
-    }
-
-    /**
-     * Resolve the dbDatabaseName property for this endpoint.
-     *
-     * @return the database name
-     * @throws InterruptedException if interrupted
-     */
-    public String getDatabaseName() throws InterruptedException {
-        final String fromTemplate = template != null ? template.getDatabaseName() : null;
-        return getTaggedPropertyValue(DB_DATABASE_NAME_PROPERTY, fromTemplate, tag, getComponentName());
-    }
-
-    /**
-     * Resolve the dbSchemaName for this endpoint.
-     *
-     * @return the schema name
-     * @throws InterruptedException if interrupted
-     */
-    public String getSchemaName() throws InterruptedException {
-        final String fromTemplate = template != null ? template.getSchemaName() : null;
-        return getTaggedPropertyValue(DB_SCHEMA_NAME_PROPERTY, fromTemplate, tag, getComponentName());
-    }
-
-    /**
-     * Resolve the dbUserName property for this endpoint.
-     *
-     * @return the user name
-     * @throws InterruptedException if interrupted
-     */
-    public String getUserName() throws InterruptedException {
-        return getTaggedPropertyValue(DB_USER_NAME_PROPERTY, tag, getComponentName());
-    }
-
-    /**
-     * Resolve the dbPassword property for this endpoint.
-     *
-     * @return the password
-     * @throws InterruptedException if interrupted
-     */
-    public String getPassword() throws InterruptedException {
-        return getTaggedPropertyValue(DB_PASSWORD_PROPERTY, dbPasswordUtil.getSqlDbRootPassword());
-    }
-
-    /**
-     * Resolve the dbRootUserName property for this endpoint.
-     *
-     * @return the root user name
-     * @throws InterruptedException if interrupted
-     */
-    public String getRootUserName() throws InterruptedException {
-        final String fromTemplate = template != null ? template.getRootUserName() : null;
-        return getTaggedPropertyValue(DB_ROOT_USER_NAME_PROPERTY, fromTemplate,
-                dbPasswordUtil.getSqlDbRootUsername(dialect.toString()));
-    }
-
-    /**
-     * Resolve the dbRootPassword for this endpoint.
-     *
-     * @return the root password
-     * @throws InterruptedException if interrupted
-     */
-    public String getRootPassword() throws InterruptedException {
-        final String fromTemplate = template != null ? template.getRootPassword() : null;
-        return getTaggedPropertyValue(DB_ROOT_PASSWORD_PROPERTY, fromTemplate, dbPasswordUtil.getSqlDbRootPassword());
-    }
-
-
-    /**
-     * Resolve the dbDriverProperties property for this endpoint.
-     *
-     * @return the driver properties map
-     * @throws UnsupportedDialectException if this endpoint is mis-configured
-     * @throws InterruptedException if interrupted
-     */
-    public Map<String, String> getDriverProperties() throws UnsupportedDialectException, InterruptedException {
-        final Map<String, String> fromTemplate = template != null ? template.getDriverProperties() : null;
-        if (fromTemplate != null) {
-            return fromTemplate;
-        }
-        Map<String, String> props = new HashMap<>(getDefaultDriverProperties());
-        final String injectedProperties = getTaggedPropertyValue(DRIVER_PROPERTIES_PROPERTY);
-        if (injectedProperties != null) {
-            @SuppressWarnings("unchecked")
-            final Map<? extends String, ? extends String> injectedMap
-                    = (Map<? extends String, ? extends String>)spel.parseRaw(injectedProperties).getValue();
-            props.putAll(injectedMap != null ? injectedMap : Collections.emptyMap());
-        }
-        return props;
-    }
-
-    /**
-     * Resolve the dbSecure property for this endpoint.
-     *
-     * @return true if secure connection is required
-     * @throws InterruptedException if interrupted
-     */
-    public boolean isSecureConnectionRequired() throws InterruptedException {
-        return Boolean.parseBoolean(
-                getTaggedPropertyValue(SECURE_PROPERTY_NAME, DEFAULT_SECURE_VALUE.toString()));
-    }
-
-    /**
-     * Resolve the dbMigrationLocation property for this endpoint.
-     *
-     * @return the migration location(s)
-     * @throws InterruptedException if interrupted
-     */
-    public String getMigrationLocation() throws InterruptedException {
-        return getTaggedPropertyValue(DB_MIGRATION_LOCATION_PROPERTY, DB_MIGRATION_LOCATION_DEFAULT);
-    }
-
-    /**
-     * Get the flyway callbacks declared for this endpoint.
-     *
-     * @return flyway callbacks
-     */
-    public FlywayCallback[] getFlywayCallbacks() {
-        return flywayCallbacks;
-    }
-
-    /**
-     * Obtain a value for the given property, prefixing the name with this endpoint's tag if it has
-     * one.
-     *
-     * <p>If the property cannot be resolved to a configuration value, the first non-null value
-     * among the supplied defaults is returned (if any)</p>
-     *
-     * @param name          property name
-     * @param defaultValues default values
-     * @return configured or first non-null default value for property
-     * @throws InterruptedException if interrupted
-     */
-    private String getTaggedPropertyValue(final String name, String... defaultValues) throws InterruptedException {
-        // don't resolve any properties until we've begun initialization
-        initLatch1.await();
-        final String value;
-        value = resolver.get().apply(taggedPropertyName(name));
-        return Strings.isNullOrEmpty(value)
-                ? Arrays.stream(defaultValues).filter(Objects::nonNull).findFirst().orElse(null)
-                : value;
-    }
-
-    private String taggedPropertyName(String propertyName) {
-        return tag != null ? tag + TAG_PREFIX_SEPARATOR + propertyName : propertyName;
-    }
-
-    /**
-     * Get a connection URL for this endpoint, connecting to the endpoint's configured database.
-     *
-     * @return connection URL
-     * @throws UnsupportedDialectException if this endpoint is mis-configured
-     * @throws InterruptedException if interrupted
-     */
-    public String getUrl() throws UnsupportedDialectException, InterruptedException {
-        return getUrl(getDatabaseName());
-    }
-
-    /**
-     * Get a connection URL for this endpoint, connecting to the given database.
-     *
-     * @param database name of database to connect to.
-     * @return connection URL
-     * @throws UnsupportedDialectException if this endpoint is mis-configured
-     * @throws InterruptedException if interrupted
-     */
-    public String getUrl(String database) throws UnsupportedDialectException, InterruptedException {
-        return getUrlBuilder()
-                .path(database != null ? "/" + database : "/")
-                .build().toUriString();
-    }
-
-    @NotNull
-    private UriComponentsBuilder getUrlBuilder() throws UnsupportedDialectException, InterruptedException {
-        final UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
-                .scheme("jdbc:" + getJdbcProtocol())
-                .host(getHost())
-                .port(getPort());
-        getDriverProperties().forEach(builder::queryParam);
-        return builder;
-    }
-
-    /**
-     * Get the name of this component from configuration.
-     *
-     * <p>This is used as a default for some properties in an untagged endpoint.</p>
-     *
-     * @return component name, or null if not available
-     */
-    private String getComponentName() {
-        return resolver.get().apply("component_type");
-    }
-
-    /**
-     * Get the default dbPort value based on this endpoint's server type.
-     *
-     * @return default port
-     * @throws UnsupportedDialectException if this endpoint is mis-configured
-     */
-    private int getDefaultPort() throws UnsupportedDialectException {
-        switch (dialect) {
-            case MYSQL:
-            case MARIADB:
-                return DEFAULT_MARIADB_MYSQL_PORT;
-            case POSTGRES:
-                return DEFAULT_POSTGRES_PORT;
-            default:
-                throw new UnsupportedDialectException(dialect);
-        }
-    }
-
-    /**
-     * Get the default driver properties for this endpoint, based on the database type.
-     *
-     * @return default driver properties
-     * @throws UnsupportedDialectException if this endpoint is mis-configured
-     * @throws InterruptedException if interrupted
-     */
-    private Map<String, String> getDefaultDriverProperties() throws UnsupportedDialectException, InterruptedException {
-        switch (dialect) {
-            case MYSQL:
-                return ImmutableMap.of(
-                        "trustServerCertificate", Boolean.toString(isSecureConnectionRequired())
-                );
-            case MARIADB:
-                return ImmutableMap.of(
-                        "trustServerCertificate", Boolean.toString(isSecureConnectionRequired()),
-                        "useServerPrepStmts", "true"
-                );
-            case POSTGRES:
-                // set up for secure connection?
-                return Collections.emptyMap();
-            default:
-                throw new UnsupportedDialectException(dialect);
-        }
-    }
-
-    /**
-     * Get the JDBC protocol string to use in connection URLs for this endpoint, based on the server
-     * type.
-     *
-     * @return protocol string
-     * @throws UnsupportedDialectException if this endpoint is mis-configured
-     */
-    private String getJdbcProtocol() throws UnsupportedDialectException {
-        switch (dialect) {
-            case MARIADB:
-            case MYSQL:
-                return dialect.getNameLC();
-            case POSTGRES:
-                return "postgresql";
-            default:
-                throw new UnsupportedDialectException(dialect);
-        }
+    public DbAdapter getAdapter() {
+        return adapter;
     }
 
     /**

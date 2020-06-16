@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyCollection;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -39,6 +40,9 @@ import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExe
 import com.vmturbo.api.dto.setting.SettingActivePolicyApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
@@ -74,11 +78,13 @@ public class EntitySettingQueryExecutorTest {
 
     private EntitySettingGroupMapper entitySettingGroupMapper = mock(EntitySettingGroupMapper.class);
 
+    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     @Nonnull
     private EntitySettingQueryExecutor newExecutor() {
         return new EntitySettingQueryExecutor(SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             SettingServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
-            groupExpander, entitySettingGroupMapper, settingsManagerMapping);
+            groupExpander, entitySettingGroupMapper, settingsManagerMapping, userSessionContext);
     }
 
     /**
@@ -103,6 +109,8 @@ public class EntitySettingQueryExecutorTest {
         doReturn(Collections.singletonList(GetEntitySettingsResponse.newBuilder()
             .addSettingGroup(SETTING_GROUP)
             .build())).when(settingPolicyServiceBackend).getEntitySettings(any());
+
+        when(userSessionContext.isUserScoped()).thenReturn(false);
     }
 
     @Test
@@ -183,6 +191,63 @@ public class EntitySettingQueryExecutorTest {
         verify(entitySettingGroupMapper).toSettingApiDto(Collections.singletonList(SETTING_GROUP),
             FOO_SETTING_SPEC, Optional.of(scopeType), false, Collections.emptyMap());
         verify(settingsManagerMapping).getManagerInfo(MGR_UUID);
+        assertThat(retMgrs, containsInAnyOrder(MAPPED_MGR_DTO));
+    }
+
+    /**
+     * Test invocation of getEntitySettings by a user with a scoped role. If the entity OID is not
+     * in scope a UserAccessScopeException is expected.
+     */
+    @Test(expected = UserAccessScopeException.class)
+    public void testUserScopeValidation() {
+        // ARRANGE
+        final EntitySettingQueryExecutor executor = newExecutor();
+        final ApiId scope = mock(ApiId.class);
+        final long scopeId = 7;
+        final long groupMember = 77;
+        final ApiEntityType scopeType = ApiEntityType.VIRTUAL_MACHINE;
+        when(scope.isGroup()).thenReturn(true);
+        when(scope.oid()).thenReturn(scopeId);
+        when(scope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(scopeType)));
+
+        when(groupExpander.expandOids(any())).thenReturn(Collections.singleton(groupMember));
+
+        EntityAccessScope userScope = mock(EntityAccessScope.class);
+        when(userScope.contains(anyCollection())).thenReturn(false);
+        when(userSessionContext.getUserAccessScope()).thenReturn(userScope);
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+
+        // ACT
+        final List<SettingsManagerApiDTO> retMgrs = executor.getEntitySettings(scope, false);
+    }
+
+    /**
+     * Test invocation of getEntitySettings by a user with a scoped role. If the entity OID is not
+     * in scope a UserAccessScopeException is expected.
+     */
+    @Test
+    public void testScopedUserAccessingEntityInScope() {
+        // ARRANGE
+        final EntitySettingQueryExecutor executor = newExecutor();
+        final ApiId scope = mock(ApiId.class);
+        final long scopeId = 7;
+        final long groupMember = 77;
+        final ApiEntityType scopeType = ApiEntityType.VIRTUAL_MACHINE;
+        when(scope.isGroup()).thenReturn(true);
+        when(scope.oid()).thenReturn(scopeId);
+        when(scope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(scopeType)));
+
+        when(groupExpander.expandOids(any())).thenReturn(Collections.singleton(groupMember));
+
+        EntityAccessScope userScope = mock(EntityAccessScope.class);
+        when(userScope.contains(anyCollection())).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(userScope);
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+
+        // ACT
+        final List<SettingsManagerApiDTO> retMgrs = executor.getEntitySettings(scope, false);
+
+        // Assert getEntitySettings complete without exception.
         assertThat(retMgrs, containsInAnyOrder(MAPPED_MGR_DTO));
     }
 

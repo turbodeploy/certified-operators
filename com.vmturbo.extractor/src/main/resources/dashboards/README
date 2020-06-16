@@ -1,0 +1,70 @@
+The folders underneath the "dashboards" folder will be created in Grafana at extractor startup.
+
+Inside each folder there can be a "permissions.json" file which will specify permission overrides
+for the folder (see: https://grafana.com/docs/grafana/latest/http_api/folder_permissions/)
+
+The other .json files inside each folder are assumed to be Grafana dashboards, and will be created
+or updated in Grafana under the appropriate folder.
+
+Rules for Dashboards:
+
+1) DO NOT change the UID for dashboards! This is what gets used to detect duplicates. This also
+gets used for saved links, so changing the UID will break any bookmarks the customers have to
+specific dashboards.
+
+2) Do not include references to specific datasources. Leave as "null" to use the default
+data source.
+
+3) For "templating", delete the "current" object, and the "options" (if they are dynamically
+generated - e.g. a list of possible groups/clusters).
+
+BEFORE (in JSON model):
+"templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "test-timescale",
+          "value": "test-timescale"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "DB",
+        "options": [],
+        "query": "postgres",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ...
+
+AFTER:
+"templating": {
+    "list": [
+      {
+        "hide": 0,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "DB",
+        "options": [],
+        "query": "postgres",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ...
+
+4) Remove the "id" and "version" fields - they will be unique per installation. You can leave the
+"uid" field.
+
+5) Remove any explicit "time" fields - they are unique to each installation. e.g.:
+
+  "time": {
+    "from": "2020-01-01T06:00:00.000Z",
+    "to": "2020-01-01T06:59:00.000Z"
+  },

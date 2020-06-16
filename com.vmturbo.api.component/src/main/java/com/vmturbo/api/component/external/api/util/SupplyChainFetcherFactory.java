@@ -1,9 +1,11 @@
 package com.vmturbo.api.component.external.api.util;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -36,7 +38,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -56,6 +57,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
@@ -1232,31 +1234,41 @@ public class SupplyChainFetcherFactory {
                 if (!ApiEntityType.ENTITY_TYPES_WITH_COST.contains(entry.getKey())) {
                     continue;
                 }
-                final Set<Long> entitiesIds = entry.getValue()
-                        .getInstances()
-                        .values()
-                        .stream()
+                final Set<Long> entitiesIds = entry.getValue().getInstances().values().stream()
                         .filter(ent -> ent.getEnvironmentType() ==
                                 com.vmturbo.api.enums.EnvironmentType.CLOUD)
                         .map(ent -> Long.valueOf(ent.getUuid()))
                         .collect(Collectors.toSet());
                 if (!entitiesIds.isEmpty()) {
-                    final GetCloudCostStatsResponse costStatsResponse =
-                            costServiceBlockingStub.getCloudCostStats(
-                                    GetCloudCostStatsRequest.newBuilder()
-                                            .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-                                            .setEntityFilter(EntityFilter.newBuilder()
-                                                    .addAllEntityId(entitiesIds)
-                                                    .build()).build())
-                                            .build());
+                    final Iterator<GetCloudCostStatsResponse> costStatsResponse =
+                        costServiceBlockingStub.getCloudCostStats(
+                            GetCloudCostStatsRequest.newBuilder()
+                                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                                    .setEntityFilter(EntityFilter.newBuilder()
+                                        .addAllEntityId(entitiesIds)))
+                                .build());
+                    // collect all records from responses
+                    final List<CloudCostStatRecord> allRecords = new ArrayList<>();
+                    while (costStatsResponse.hasNext()) {
+                        allRecords.addAll(costStatsResponse.next().getCloudStatRecordList());
+                    }
                     final HashMap<Long, Float> costToEntity = new HashMap<>();
-                    if (!costStatsResponse.getCloudStatRecordList().isEmpty()) {
-                        costStatsResponse.getCloudStatRecordList()
-                                .get(0)
-                                .getStatRecordsList()
-                                .forEach(el -> costToEntity.merge(el.getAssociatedEntityId(),
-                                        el.getValues().getTotal(),
-                                        (costComp1, costComp2) -> costComp1 + costComp2));
+                    if (!allRecords.isEmpty()) {
+                        final long firstQueryId = allRecords.get(0).getQueryId();
+                        final long firstDate = allRecords.get(0).getSnapshotDate();
+                        final List<CloudCostStatRecord.StatRecord> matchingRecords = new ArrayList<>();
+
+                        // collect only stat records associated with the first query and snapshot
+                        // since records are in date order, break after finding a non-matching record
+                        for (final CloudCostStatRecord r : allRecords) {
+                            if (r.getQueryId() == firstQueryId && r.getSnapshotDate() == firstDate) {
+                                matchingRecords.addAll(r.getStatRecordsList());
+                            } else {
+                                break;
+                            }
+                        }
+                        matchingRecords.forEach(el -> costToEntity.merge(el.getAssociatedEntityId(),
+                            el.getValues().getTotal(), Float::sum));
                     }
                     if (!costToEntity.isEmpty()) {
                         entry.getValue().getInstances().forEach((s, serviceEntityApiDTO) -> {

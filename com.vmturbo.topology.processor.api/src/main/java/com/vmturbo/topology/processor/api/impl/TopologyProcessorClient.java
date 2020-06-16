@@ -43,6 +43,17 @@ public class TopologyProcessorClient extends
     public static final String TOPOLOGY_USER_PLAN = "tp-user-plan-topologies";
     public static final String TOPOLOGY_SCHEDULED_PLAN = "tp-scheduled-plan-topologies";
     public static final String TOPOLOGY_SUMMARIES = "topology-summaries";
+    /**
+     * Topic used to notify about new action state updates received from external action approval
+     * backend.
+     */
+    public static final String EXTERNAL_ACTION_UPDATES_TOPIC = "tp-external-action-state-updates";
+    /**
+     * Kafka topic used to notify when approval response is received successfully from external
+     * action approval backend.
+     */
+    public static final String EXTERNAL_ACTION_APPROVAL_RESPONSE =
+            "tp-external-action-approval-responses";
 
     /**
      * Represent the kafka topic containing host state change messages.

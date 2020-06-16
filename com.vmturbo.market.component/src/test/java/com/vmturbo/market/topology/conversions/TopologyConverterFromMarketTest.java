@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.protobuf.util.JsonFormat;
@@ -1841,6 +1842,63 @@ public class TopologyConverterFromMarketTest {
         assertEquals(used, commoditySoldDTO.getHistoricalUsed().getTimeSlot(0), DELTA);
         assertEquals(used, commoditySoldDTO.getHistoricalUsed().getTimeSlot(1), DELTA);
         assertEquals(used, commoditySoldDTO.getHistoricalUsed().getTimeSlot(2), DELTA);
+    }
+
+    /**
+     * Test that {@link TopologyConverter#convertFromMarket(List, Map, PriceIndexMessage, ReservedCapacityAnalysis, WastedFilesAnalysis)}
+     * method preserved original commodities bought by VMs from Volumes.
+     */
+    @Test
+    public void testConvertFromMarketPreservesCommoditiesBoughtByVmsFromVolumes() {
+        final long vmOid = 1L;
+        final long volume1Oid = 2L;
+        final long volume2Oid = 3L;
+        final TopologyDTO.TopologyEntityDTO originalVm = TopologyEntityDTO.newBuilder()
+                .setOid(vmOid)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("")
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .setProviderId(volume1Oid))
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .setProviderId(volume2Oid))
+                .setAnalysisSettings(AnalysisSettings.newBuilder())
+                .build();
+        final TopologyDTO.TopologyEntityDTO originalVolume1 = TopologyEntityDTO.newBuilder()
+                .setOid(volume1Oid)
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .build();
+        final TopologyDTO.TopologyEntityDTO originalVolume2 = TopologyEntityDTO.newBuilder()
+                .setOid(volume2Oid)
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .build();
+        final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology = ImmutableMap.of(
+                vmOid, originalVm,
+                volume1Oid, originalVolume1,
+                volume2Oid, originalVolume2);
+
+        final EconomyDTOs.TraderTO vmTrader = TraderTO.newBuilder()
+                .setOid(vmOid)
+                .setCloneOf(vmOid)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addShoppingLists(ShoppingListTO.newBuilder().setOid(4L).setSupplier(volume1Oid))
+                .addShoppingLists(ShoppingListTO.newBuilder().setOid(4L).setSupplier(volume2Oid))
+                .build();
+        final List<EconomyDTOs.TraderTO> projectedTraders = ImmutableList.of(vmTrader);
+
+        converter.convertToMarket(originalTopology);
+        final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
+                projectedTraders, originalTopology, PriceIndexMessage.getDefaultInstance(),
+                reservedCapacityAnalysis, setUpWastedFileAnalysis());
+
+        final ProjectedTopologyEntity projectedVm = entity.get(vmOid);
+        assertNotNull(projectedVm);
+        final Set<Long> projectedProviders = projectedVm.getEntity()
+                .getCommoditiesBoughtFromProvidersList().stream()
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .collect(Collectors.toSet());
+        assertEquals(ImmutableSet.of(volume1Oid, volume2Oid), projectedProviders);
     }
 
     private CommoditySoldTO createSoldTO(final int typeValue,

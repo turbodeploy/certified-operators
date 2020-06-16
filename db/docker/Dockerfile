@@ -1,6 +1,17 @@
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
+# Required OpenShift Labels
+LABEL name="db" \
+      vendor="Turbonomic" \
+      version="7" \
+      release="1" \
+      summary="db" \
+      description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
+
+# Required Licenses
+COPY licenses /licenses
+
 RUN groupadd -g 101 mysql && useradd -r -g 101 -s /bin/bash -u 101 mysql
 
 ENV VERSION=10.4.13
@@ -12,7 +23,7 @@ RUN echo "[mariadb]" > /etc/yum.repos.d/MariaDB.repo && \
     echo "gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB" >> /etc/yum.repos.d/MariaDB.repo && \
     echo "gpgcheck=1" >> /etc/yum.repos.d/MariaDB.repo && \
     dnf install -y ${BOOST_URL} && \
-    dnf install -y --disablerepo "rhel-8-for-x86_64-appstream-rpms" rsyslog hostname procps-ng MariaDB-server net-tools && \
+    dnf install -y --disablerepo "rhel-8-for-x86_64-appstream-rpms" rsyslog hostname procps-ng MariaDB-server net-tools gnutls && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 

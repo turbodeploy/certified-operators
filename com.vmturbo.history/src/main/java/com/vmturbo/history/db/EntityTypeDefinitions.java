@@ -96,7 +96,7 @@ public class EntityTypeDefinitions {
             VIRTUAL_DATACENTER_ENTITY_TYPE,
             create(ApiEntityType.VIRTUAL_MACHINE, "vm_stats", STANDARD_STATS),
             VIRTUAL_MACHINE_SPEND_ENTITY_TYPE,
-            create(ApiEntityType.VIRTUAL_VOLUME),
+            create(ApiEntityType.VIRTUAL_VOLUME, "virtual_volume_stats", STANDARD_STATS),
             create(ApiEntityType.VPOD, "vpod_stats", STANDARD_STATS),
             create(ApiEntityType.WORKLOAD_CONTROLLER, "wkld_ctl_stats", STANDARD_STATS),
             create(ApiEntityType.SERVICE_PROVIDER)

@@ -21,6 +21,8 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Streams;
 
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -250,11 +252,17 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     .build());
             // filter out the group types we don't care about, build map of all groups, as well
             // as a list of group ids.
-            LongList groupIds = new LongArrayList(Streams.stream(groups)
-                    .filter(g -> !GROUP_TYPE_BLACKLIST.contains(g.getDefinition().getType()))
-                    .peek(g -> groupsById.put(g.getId(), g))
-                    .mapToLong(Grouping::getId)
-                    .toArray());
+            final LongList groupIds = new LongArrayList();
+            try {
+                Streams.stream(groups)
+                        .filter(g -> !GROUP_TYPE_BLACKLIST.contains(g.getDefinition().getType()))
+                        .peek(g -> groupsById.put(g.getId(), g))
+                        .mapToLong(Grouping::getId)
+                        .forEach(groupIds::add);
+            } catch (StatusRuntimeException e) {
+                logger.error("Error retrieving groups from the group component."
+                    + " No group memberships for this round of extraction. Error: {}", e.getMessage());
+            }
 
             // retrieve (flattened) group memberships for all the groups we care about
             if (!groupIds.isEmpty()) {

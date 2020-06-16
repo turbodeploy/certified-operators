@@ -133,10 +133,10 @@ public class TopologyEntityCloudTopologyTest {
                         ConnectedEntity.newBuilder()
                             .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
                             .setConnectedEntityId(AZ_ID))
-                .addConnectedEntityList(
-                        ConnectedEntity.newBuilder()
-                            .setConnectedEntityId(STORAGE_TIER_ID)
-                            .setConnectedEntityType(EntityType.STORAGE_TIER_VALUE))
+                .addCommoditiesBoughtFromProviders(
+                        CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(STORAGE_TIER_ID)
+                            .setProviderEntityType(EntityType.STORAGE_TIER_VALUE))
                 .build();
 
     private static final TopologyEntityDTO VM =
@@ -148,9 +148,8 @@ public class TopologyEntityCloudTopologyTest {
                             .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE))
                 .addCommoditiesBoughtFromProviders(
                         CommoditiesBoughtFromProvider.newBuilder()
-                            .setProviderId(STORAGE_TIER_ID)
-                            .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                            .setVolumeId(VOLUME_ID))
+                            .setProviderId(VOLUME_ID)
+                            .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE))
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
                                             .setConnectedEntityId(AZ_ID)
                                             .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
@@ -162,9 +161,6 @@ public class TopologyEntityCloudTopologyTest {
                             .setGuestOsType(OSType.LINUX)
                             .setGuestOsName(OSType.LINUX.name()))
                             .setTenancy(Tenancy.DEFAULT)))
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                                            .setConnectedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                                            .setConnectedEntityId(VOLUME_ID))
                 .build();
 
     private static final TopologyEntityDTO EMPTY_VM =
@@ -333,14 +329,8 @@ public class TopologyEntityCloudTopologyTest {
     }
 
     @Test
-    public void testGetConnectedVolumes() {
-        assertThat(CLOUD_TOPOLOGY.getConnectedVolumes(VM.getOid()), is(Collections.singletonList(VOLUME)));
-    }
-
-    @Test
-    public void testGetVmStorageTier() {
-        assertThat(CLOUD_TOPOLOGY.getStorageTier(VM.getOid()).get().getEntityType(),
-            is(Optional.of(STORAGE_TIER).get().getEntityType()));
+    public void testGetAttachedVolumes() {
+        assertEquals(CLOUD_TOPOLOGY.getAttachedVolumes(VM.getOid()), Collections.singleton(VOLUME));
     }
 
     @Test

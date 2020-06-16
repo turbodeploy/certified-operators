@@ -17,27 +17,27 @@ import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
-import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
-import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
-import com.vmturbo.topology.processor.api.util.TopologyProcessingGate.Ticket;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
+import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
+import com.vmturbo.topology.processor.api.util.TopologyProcessingGate.Ticket;
 
 /**
  * Orchestrate running of real-time (i.e. live market) and non-real-time analysis runs.
@@ -92,6 +92,8 @@ public class MarketRunner {
      *                               placement analysis. Setting to true can improve performance in
      *                               some cases. Usually those cases involve a high number of
      *                               biclique overlaps and volumes per VM.
+     * @param replayProvisionsForRealTime Whether provision and activate actions from one real-time
+     *                                    analysis cycle should be replayed during the next.
      * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
      *                                it, Market could generate resize down actions.
      * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
@@ -107,6 +109,7 @@ public class MarketRunner {
                                      final boolean includeVDC,
                                      @Nonnull final Optional<Integer> maxPlacementsOverride,
                                      final boolean useQuoteCacheDuringSNM,
+                                     final boolean replayProvisionsForRealTime,
                                      final float rightsizeLowerWatermark,
                                      final float rightsizeUpperWatermark,
                                      final float discountedComputeCostFactor) {
@@ -133,6 +136,7 @@ public class MarketRunner {
                         .setIncludeVDC(includeVDC)
                         .setMaxPlacementsOverride(maxPlacementsOverride)
                         .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
+                        .setReplayProvisionsForRealTime(replayProvisionsForRealTime)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setDiscountedComputeCostFactor(discountedComputeCostFactor));

@@ -164,10 +164,16 @@ public class ServiceConfig {
     private String apiPaginationDefaultSortCommodity;
 
     /**
-     * Feature flag. If it is true than ExecutionSchedule settings are not displayed in UI.
+     * Feature flag. If it is true then ExecutionSchedule settings are not displayed in UI.
      */
     @Value("${hideExecutionScheduleSetting:true}")
     private boolean hideExecutionScheduleSetting;
+
+    /**
+     * Feature flag. If it is true then ExternalApproval settings are not displayed in UI.
+     */
+    @Value("${hideExternalApprovalOrAuditSettings:true}")
+    private boolean hideExternalApprovalOrAuditSettings;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -395,6 +401,7 @@ public class ServiceConfig {
                 communicationConfig.searchServiceBlockingStub(),
                 actionSearchUtil(),
                 entitySettingQueryExecutor(),
+                licenseCheckClientConfig.licenseCheckClient(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -515,7 +522,13 @@ public class ServiceConfig {
                 communicationConfig.serviceEntityMapper(),
                 mapperConfig.entityFilterMapper(),
                 mapperConfig.entityAspectMapper(),
-                searchFilterResolver());
+                searchFilterResolver(),
+                communicationConfig.priceIndexPopulator());
+    }
+
+    @Bean
+    public SearchQueryService searchQueryService() {
+        return new SearchQueryService();
     }
 
     @Bean
@@ -524,7 +537,9 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 mapperConfig.settingsMapper(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
-                settingsPoliciesService(), hideExecutionScheduleSetting);
+                settingsPoliciesService(),
+                hideExecutionScheduleSetting,
+                hideExternalApprovalOrAuditSettings);
     }
 
     @Bean
@@ -564,7 +579,8 @@ public class ServiceConfig {
                 entityStatsPaginator(),
                 paginationParamsFactory(),
                 mapperConfig.paginationMapper(),
-                communicationConfig.costServiceBlockingStub()
+                communicationConfig.costServiceBlockingStub(),
+                statsQueryExecutor()
                 );
     }
 
@@ -600,6 +616,7 @@ public class ServiceConfig {
             communicationConfig.getRealtimeTopologyContextId(),
             communicationConfig.groupExpander(),
             mapperConfig.entityAspectMapper(),
+            licenseCheckClientConfig.licenseCheckClient(),
             Clock.systemUTC());
     }
 
@@ -745,8 +762,7 @@ public class ServiceConfig {
     public HistoricalCommodityStatsSubQuery historicalCommodityStatsSubQuery() {
         final HistoricalCommodityStatsSubQuery historicalStatsQuery =
             new HistoricalCommodityStatsSubQuery(mapperConfig.statsMapper(),
-                communicationConfig.historyRpcService(), userSessionContext(),
-                communicationConfig.repositoryApi());
+                communicationConfig.historyRpcService(), userSessionContext());
         statsQueryExecutor().addSubquery(historicalStatsQuery);
         return historicalStatsQuery;
     }
@@ -820,13 +836,13 @@ public class ServiceConfig {
     @Bean
     public StatsQueryExecutor statsQueryExecutor() {
         return new StatsQueryExecutor(statsQueryContextFactory(), scopeExpander(),
-            communicationConfig.repositoryApi(), mapperConfig.uuidMapper());
+            communicationConfig.repositoryApi(), mapperConfig.uuidMapper(),
+                licenseCheckClientConfig.licenseCheckClient());
     }
 
     @Bean
     public StatsQueryScopeExpander scopeExpander() {
-        return new StatsQueryScopeExpander(communicationConfig.groupExpander(),
-            communicationConfig.repositoryApi(), communicationConfig.supplyChainFetcher(),
+        return new StatsQueryScopeExpander(communicationConfig.supplyChainFetcher(),
             userSessionContext());
     }
 
@@ -866,7 +882,8 @@ public class ServiceConfig {
             communicationConfig.settingRpcService(),
             communicationConfig.groupExpander(),
             mapperConfig.settingsMapper(),
-            mapperConfig.settingManagerMappingLoader().getMapping());
+            mapperConfig.settingManagerMappingLoader().getMapping(),
+            userSessionContext());
     }
 
     /**

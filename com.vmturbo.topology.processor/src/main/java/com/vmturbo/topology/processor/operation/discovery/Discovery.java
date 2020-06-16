@@ -5,7 +5,6 @@ import javax.annotation.Nonnull;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
-import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.Operation;
 
@@ -24,12 +23,6 @@ public class Discovery extends Operation {
      * that discovery which happens later get a larger value.
      */
     private int mediationMessageId;
-
-    /**
-     * The timer used for timing the duration of discoveries.
-     * Mark transient to avoid serialization of this field.
-     */
-    private transient final DataMetricTimer durationTimer;
 
     private static final DataMetricSummary DISCOVERY_DURATION_SUMMARY = DataMetricSummary.builder()
         .withName("tp_discovery_duration_seconds")
@@ -69,9 +62,8 @@ public class Discovery extends Operation {
                      final long targetId,
                      final DiscoveryType discoveryType,
                      @Nonnull final IdentityProvider identityProvider) {
-        super(probeId, targetId, identityProvider);
+        super(probeId, targetId, identityProvider, DISCOVERY_DURATION_SUMMARY);
         this.discoveryType = discoveryType;
-        durationTimer = DISCOVERY_DURATION_SUMMARY.startTimer();
     }
 
     @Override
@@ -80,12 +72,6 @@ public class Discovery extends Operation {
             .append(discoveryType)
             .append(" Discovery ")
             .append(super.toString()).toString();
-    }
-
-    @Nonnull
-    @Override
-    protected DataMetricTimer getMetricsTimer() {
-        return durationTimer;
     }
 
     @Nonnull

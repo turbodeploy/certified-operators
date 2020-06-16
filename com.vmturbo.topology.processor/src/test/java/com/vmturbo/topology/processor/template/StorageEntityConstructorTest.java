@@ -137,7 +137,7 @@ public class StorageEntityConstructorTest {
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
                 .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, null, false,
-                        identityProvider);
+                        identityProvider, null);
 
         // 6 commodities sold: storage latency, provisioned, amount, access and 2 DSPM_ACCESS
         assertEquals(6, topologyEntityDTO.getCommoditySoldListCount());
@@ -146,8 +146,10 @@ public class StorageEntityConstructorTest {
         assertEquals(100.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
             CommodityType.STORAGE_ACCESS_VALUE), epsilon);
         // Verify that latency, provisioned capacity is not set
-        assertFalse(getCommoditySold(topologyEntityDTO.getCommoditySoldListList(),
-            CommodityType.STORAGE_LATENCY_VALUE).get().hasCapacity());
+        // TODO OM-59504 Implement latency commodity. Capacity cannot be null
+        // anymore, see RB:39285
+        // assertFalse(getCommoditySold(topologyEntityDTO.getCommoditySoldListList(),
+        // CommodityType.STORAGE_LATENCY_VALUE).get().hasCapacity());
         assertFalse(getCommoditySold(topologyEntityDTO.getCommoditySoldListList(),
             CommodityType.STORAGE_PROVISIONED_VALUE).get().hasCapacity());
 
@@ -190,7 +192,7 @@ public class StorageEntityConstructorTest {
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
                 .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, builder, false,
-                        identityProvider);
+                        identityProvider, null);
         // 7 commodities sold: storage latency, provisioned, amount and access
         // storage cluster commodity and two dspm access commodities
         assertEquals(7, topologyEntityDTO.getCommoditySoldListCount());

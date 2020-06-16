@@ -1,8 +1,19 @@
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
+# Required OpenShift Labels
+LABEL name="baseimage" \
+      vendor="Turbonomic" \
+      version="7" \
+      release="1" \
+      summary="baseimage" \
+      description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
+
+# Required Licenses
+COPY licenses /licenses
+
 # Install rsyslog and OpenJDK java-11 packages
-RUN dnf install -y rsyslog procps-ng python2 java-11-openjdk-headless net-tools xz && \
+RUN dnf install -y rsyslog procps-ng python2 java-11-openjdk-headless net-tools xz gnutls && \
     dnf clean all && rm -rf /var/cache/dnf
 
 # Install OpenJ9

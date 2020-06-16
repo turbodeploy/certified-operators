@@ -15,9 +15,9 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -201,26 +201,24 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
         if (providers.size() > 1) {
             logger.warn("Entity {} buying from multiple storage tiers. Choosing the first.",
                     entityId);
-        } else if (providers.isEmpty()) {
-            final List<TopologyEntityDTO> connections =
-                    getConnectionsOfType(entityId, EntityType.STORAGE_TIER_VALUE);
-            if (connections.isEmpty()) {
-                return Optional.empty();
-            } else {
-                if (connections.size() > 1) {
-                    logger.warn("Entity {} connected to multiple storage tiers. Choosing the first.",
-                            entityId);
-                }
-                return Optional.of(connections.get(0));
-            }
         }
-        return Optional.of(providers.get(0));
+        return providers.isEmpty() ? Optional.empty() : Optional.of(providers.get(0));
     }
 
     @Nonnull
     @Override
-    public Collection<TopologyEntityDTO> getConnectedVolumes(final long entityId) {
-        return getConnectionsOfType(entityId, EntityType.VIRTUAL_VOLUME_VALUE);
+    public Collection<TopologyEntityDTO> getAttachedVolumes(final long entityId) {
+        // Get attached volumes from bought commodities providers
+        return getEntity(entityId)
+                .map(entity -> entity.getCommoditiesBoughtFromProvidersList().stream()
+                        .filter(commBought -> commBought.getProviderEntityType()
+                                == EntityType.VIRTUAL_VOLUME.getNumber())
+                        .map(CommoditiesBoughtFromProvider::getProviderId)
+                        .map(this::getEntity)
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .collect(Collectors.toSet()))
+                .orElse(Collections.emptySet());
     }
 
     /**

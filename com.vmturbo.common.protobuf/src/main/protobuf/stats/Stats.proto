@@ -199,9 +199,11 @@ message GetMostRecentStatRequest {
     // name of commodity for which stat is requested. E.g. StorageAmount.
     optional string commodity_name = 1;
     // key of the commodity for which stat is requested. E.g. vol-0d4bca84.
-    optional string commodity_key = 2;
+    optional string commodity_key = 2 [deprecated = true];
     // entity type for which the stat is requested. E.g. VirtualMachine.
     optional string entity_type = 3;
+    // oid of the provider of the commodity for which the stat is being requested.
+    optional string provider_id = 4;
 }
 
 // Response for GetMostRecentStat rpc

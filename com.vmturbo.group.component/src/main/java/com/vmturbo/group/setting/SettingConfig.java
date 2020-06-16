@@ -46,9 +46,22 @@ public class SettingConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    /**
+     * Feature flag. If it is true then ExecutionSchedule settings are not displayed in UI.
+     */
+    @Value("${hideExecutionScheduleSetting:true}")
+    private boolean hideExecutionScheduleSetting;
+
+    /**
+     * Feature flag. If it is true then ExternalApproval settings are not displayed in UI.
+     */
+    @Value("${hideExternalApprovalOrAuditSettings:true}")
+    private boolean hideExternalApprovalOrAuditSettings;
+
     @Bean
     public SettingSpecStore settingSpecsStore() {
-        return new EnumBasedSettingSpecStore();
+        return new EnumBasedSettingSpecStore(hideExecutionScheduleSetting,
+            hideExternalApprovalOrAuditSettings);
     }
 
     @Bean

@@ -64,6 +64,8 @@ import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMa
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessUserMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ComputeTierInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.DatabaseServerTierInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.DatabaseTierInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DesktopPoolInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DiskArrayInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.LogicalPoolInfoMapper;
@@ -99,6 +101,8 @@ public class SdkToTopologyEntityConverter {
                     .put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountInfoMapper())
                     .put(EntityType.REGION, new RegionInfoMapper())
                     .put(EntityType.COMPUTE_TIER, new ComputeTierInfoMapper())
+                    .put(EntityType.DATABASE_TIER, new DatabaseTierInfoMapper())
+                    .put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierInfoMapper())
                     // CONTAINER_DATA
                     // CONTAINER_POD_DATA
                     .put(EntityType.PHYSICAL_MACHINE, new PhysicalMachineInfoMapper())
@@ -269,7 +273,8 @@ public class SdkToTopologyEntityConverter {
                 .getOrDefault(ConnectionType.AGGREGATED_BY_CONNECTION, Collections.emptySet());
         final Set<StitchingEntity> owners = entity.getConnectedFromByType()
                 .getOrDefault(ConnectionType.OWNS_CONNECTION, Collections.emptySet());
-
+        final Set<StitchingEntity> controlledEntities = entity.getConnectedFromByType()
+            .getOrDefault(ConnectionType.CONTROLLED_BY_CONNECTION, Collections.emptySet());
         // Copy properties map from probe DTO to topology DTO
         // TODO: Support for namespaces and proper handling of duplicate properties (see
         // OM-20545 for description of probe expectations related to duplicate properties).
@@ -730,8 +735,6 @@ public class SdkToTopologyEntityConverter {
         final TopologyDTO.CommoditySoldDTO.Builder retCommSoldBuilder =
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(commodityType(commDTO))
-                .setUsed(adjustedUsed(commDTO))
-                .setCapacity(commDTO.getCapacity())
                 .setIsThin(commDTO.getThin())
                 .setActive(commDTO.getActive())
                 .setIsResizeable(commDTO.getResizable())
@@ -784,6 +787,12 @@ public class SdkToTopologyEntityConverter {
         if (commDTO.hasMinAmountForConsumer()) {
             retCommSoldBuilder.setMinAmountForConsumer(commDTO.getMinAmountForConsumer());
         }
+        if (commDTO.hasCheckMinAmountForConsumer()) {
+            retCommSoldBuilder.setCheckMinAmountForConsumer(commDTO.getCheckMinAmountForConsumer());
+        }
+        if (commDTO.hasRangeDependency()) {
+            retCommSoldBuilder.setRangeDependency(commDTO.getRangeDependency());
+        }
         if (commDTO.hasRatioDependency()) {
             retCommSoldBuilder.setRatioDependency(TopologyDTO.CommoditySoldDTO.RatioDependency.newBuilder()
                 .setBaseCommodity(TopologyDTO.CommodityType.newBuilder()
@@ -799,7 +808,6 @@ public class SdkToTopologyEntityConverter {
                             .setLastPointTimestampMs(data.getLastPointTimestampMs())
                             .addAllPoint(data.getPointList()));
         }
-
         if (commDTO.getCommodityType() == CommodityDTO.CommodityType.VCPU && commDTO.hasVcpuData()) {
             VCpuData vCPUData = commDTO.getVcpuData();
             retCommSoldBuilder.setHotResizeInfo(HotResizeInfo.newBuilder()

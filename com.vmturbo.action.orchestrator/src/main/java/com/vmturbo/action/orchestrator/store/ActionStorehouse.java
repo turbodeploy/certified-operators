@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.store;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -17,7 +18,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -42,8 +43,8 @@ public class ActionStorehouse {
     private final AutomatedActionExecutor automatedExecutor;
     // Stores the task futures/promises of the actions which have been submitted for execution.
     private final List<ActionExecutionTask> actionExecutionFutures = new ArrayList<>();
-    private final ActionModeCalculator actionModeCalculator;
     private final Object actionExecutionFuturesLock = new Object();
+    private final ActionApprovalSender approvalRequester;
 
     private static final DataMetricSummary STORE_POPULATION_SUMMARY = DataMetricSummary.builder()
         .withName("ao_populate_store_duration_seconds")
@@ -63,18 +64,19 @@ public class ActionStorehouse {
      * Create a new action storehouse.
      *
      * @param actionStoreFactory The factory to use when creating new store instances.
+     * @param automatedActionExecutor action executor for automated actions
      * @param storeLoader The loader to use at startup when loading previously saved action stores.
+     * @param approvalRequester action approval requester for actions that require external approval
      */
     public ActionStorehouse(@Nonnull final IActionStoreFactory actionStoreFactory,
                             @Nonnull final AutomatedActionExecutor automatedActionExecutor,
                             @Nonnull final IActionStoreLoader storeLoader,
-                            @Nonnull final ActionModeCalculator actionModeCalculator) {
+                            @Nonnull final ActionApprovalSender approvalRequester) {
         this.actionStoreFactory = actionStoreFactory;
         this.storehouse = new ConcurrentHashMap<>();
         this.automatedExecutor = automatedActionExecutor;
+        this.approvalRequester = Objects.requireNonNull(approvalRequester);
         storeLoader.loadActionStores().forEach(store -> storehouse.put(store.getTopologyContextId(), store));
-        this.actionModeCalculator = actionModeCalculator;
-
         logger.info("ActionStorehouse initialized with data for {} action stores", size());
     }
 
@@ -89,9 +91,11 @@ public class ActionStorehouse {
      * @param actionPlan The plan whose actions should be stored in a Store in the StoreHouse.
      * @return The store used to store the actions.
      * @throws IllegalArgumentException If the input is invalid.
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
-    public ActionStore storeActions(@Nonnull final ActionPlan actionPlan) {
+    public ActionStore storeActions(@Nonnull final ActionPlan actionPlan)
+            throws InterruptedException {
         final long topologyContextId = ActionDTOUtil.getActionPlanContextId(actionPlan.getInfo());
 
         measureActionPlan(actionPlan);
@@ -114,6 +118,7 @@ public class ActionStorehouse {
                                     actionExecutionTask.getAction().getState() == ActionState.SUCCEEDED);
                     actionExecutionFutures.addAll(automatedExecutor.executeAutomatedFromStore(store));
                 }
+                approvalRequester.sendApprovalRequests(store);
             } catch (RuntimeException e) {
                 logger.info("Unable to execute automated actions: ", e);
             }

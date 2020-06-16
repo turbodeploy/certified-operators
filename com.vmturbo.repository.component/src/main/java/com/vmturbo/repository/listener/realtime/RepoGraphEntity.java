@@ -80,8 +80,11 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     private List<RepoGraphEntity> ownedEntities = Collections.emptyList();
     private List<RepoGraphEntity> aggregators = Collections.emptyList();
     private List<RepoGraphEntity> aggregatedEntities = Collections.emptyList();
+    private List<RepoGraphEntity> controllers = Collections.emptyList();
+    private List<RepoGraphEntity> controlledEntities = Collections.emptyList();
     private List<RepoGraphEntity> providers = Collections.emptyList();
     private List<RepoGraphEntity> consumers = Collections.emptyList();
+    private boolean deletable = true;
 
     /**
      * The full {@link TopologyEntityDTO}, compressed in case we want to retrieve it.
@@ -101,6 +104,10 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         this.type = src.getEntityType();
         this.environmentType = src.getEnvironmentType();
         this.state = src.getEntityState();
+
+        if (src.hasAnalysisSettings()) {
+            this.deletable = src.getAnalysisSettings().getDeletable();
+        }
 
         // Will be an empty list if the entity was not discovered.
         this.discoveredTargetData = ImmutableMap
@@ -201,6 +208,20 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         this.aggregatedEntities.add(entity);
     }
 
+    private void addController(@Nonnull final RepoGraphEntity entity) {
+        if (this.controllers.isEmpty()) {
+            this.controllers = new ArrayList<>(1);
+        }
+        this.controllers.add(entity);
+    }
+
+    private void addControlledEntity(@Nonnull final RepoGraphEntity entity) {
+        if (this.controlledEntities.isEmpty()) {
+            this.controlledEntities = new ArrayList<>(1);
+        }
+        this.controlledEntities.add(entity);
+    }
+
     private void addProvider(@Nonnull final RepoGraphEntity entity) {
         if (this.providers.isEmpty()) {
             this.providers = new ArrayList<>(1);
@@ -241,6 +262,12 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         if (!aggregatedEntities.isEmpty()) {
             ((ArrayList)aggregatedEntities).trimToSize();
         }
+        if (!controllers.isEmpty()) {
+            ((ArrayList)controllers).trimToSize();
+        }
+        if (!controlledEntities.isEmpty()) {
+            ((ArrayList)controlledEntities).trimToSize();
+        }
     }
 
     private void clearConsumersAndProviders() {
@@ -265,6 +292,12 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         }
         if (!aggregatedEntities.isEmpty()) {
             aggregatedEntities.clear();
+        }
+        if (!controllers.isEmpty()) {
+            controllers.clear();
+        }
+        if (!controlledEntities.isEmpty()) {
+            controlledEntities.clear();
         }
     }
 
@@ -428,6 +461,18 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
 
     @Nonnull
     @Override
+    public List<RepoGraphEntity> getControllers() {
+        return Collections.unmodifiableList(controllers);
+    }
+
+    @Nonnull
+    @Override
+    public List<RepoGraphEntity> getControlledEntities() {
+        return Collections.unmodifiableList(controlledEntities);
+    }
+
+    @Nonnull
+    @Override
     public Stream<Long> getDiscoveringTargetIds() {
         return discoveredTargetData.keySet().stream();
     }
@@ -459,6 +504,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
      *     <li>Normal outbound connections of the current entity</li>
      *     <li>Entities owned by the current entity</li>
      *     <li>Entities that aggregate the current entity</li>
+     *     <li>Entities that are controlled by the current entity</li>
      * </ul>
      *
      * <p>Note that the list does not include the reverse of the above connections.
@@ -487,6 +533,12 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
                                         .setConnectedEntityType(e.getEntityType())
                                         .setConnectedEntityId(e.getOid())
                                         .build()));
+        getControllers()
+                .forEach(e -> result.add(ConnectedEntity.newBuilder()
+                                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION)
+                                        .setConnectedEntityType(e.getEntityType())
+                                        .setConnectedEntityId(e.getOid())
+                                        .build()));
         return result;
     }
 
@@ -498,6 +550,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
      *     <li>Normal outbound connections of the current entity</li>
      *     <li>Entities owned by the current entity</li>
      *     <li>Entities that aggregate the current entity</li>
+     *     <li>Entities that controlled by the current entity</li>
      * </ul>
      *
      * @return the list of related entities
@@ -505,13 +558,24 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     public List<RelatedEntity> getBroadcastRelatedEntities() {
         final ArrayList<RelatedEntity> result = new ArrayList<>();
         Stream.concat(getOutboundAssociatedEntities().stream(),
-                      Stream.concat(getOwnedEntities().stream(), getAggregators().stream()))
+                      Stream.concat(getOwnedEntities().stream(), Stream.concat(getAggregators().stream(), getControllers().stream())))
                 .forEach(e -> result.add(RelatedEntity.newBuilder()
                                             .setEntityType(e.getEntityType())
                                             .setOid(e.getOid())
                                             .setDisplayName(e.getDisplayName())
                                             .build()));
         return result;
+    }
+
+    /**
+     * Get deletable state of the topology entity. Default is true.
+     *
+     * @return true, means the Market can delete this entity.
+     *         false, means Market will not generate Delete Actions.
+     */
+    @Override
+    public boolean getDeletable() {
+        return deletable;
     }
 
     /**
@@ -606,6 +670,18 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         @Override
         public Builder addAggregatedEntity(final Builder aggregatedEntity) {
             repoGraphEntity.addAggregatedEntity(aggregatedEntity.repoGraphEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addController(final Builder controller) {
+            repoGraphEntity.addController(controller.repoGraphEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addControlledEntity(final Builder controlledEntity) {
+            repoGraphEntity.addControlledEntity(controlledEntity.repoGraphEntity);
             return this;
         }
     }

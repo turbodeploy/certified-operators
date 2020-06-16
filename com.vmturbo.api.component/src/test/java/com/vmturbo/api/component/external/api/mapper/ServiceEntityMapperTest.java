@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -353,7 +354,7 @@ public class ServiceEntityMapperTest {
                         .setEntityFilter(
                                 EntityFilter.newBuilder().addAllEntityId(entities.keySet())))
                 .build()))
-                .thenReturn(GetCloudCostStatsResponse.newBuilder()
+                .thenReturn(Collections.singletonList(GetCloudCostStatsResponse.newBuilder()
                         .addCloudStatRecord(CloudCostStatRecord.newBuilder()
                                 .addStatRecords(StatRecord.newBuilder()
                                         .setAssociatedEntityId(1)
@@ -375,7 +376,7 @@ public class ServiceEntityMapperTest {
                                         .setCategory(CostCategory.STORAGE)
                                         .setCostSource(CostSource.ON_DEMAND_RATE)
                                         .setValues(StatValue.newBuilder().setAvg(5F))))
-                        .build());
+                        .build()));
 
         mapper.setPriceValuesForEntityComponents(entities);
         Assert.assertEquals(10D, entityApiDTO1.getCostPrice(), 0.001);

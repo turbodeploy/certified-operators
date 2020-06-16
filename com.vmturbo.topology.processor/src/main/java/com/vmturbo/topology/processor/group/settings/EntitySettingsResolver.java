@@ -59,6 +59,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -251,9 +252,9 @@ public class EntitySettingsResolver {
             // distribute settings into different groups
             for (Setting setting : settingsList) {
                 final String settingName = setting.getSettingSpecName();
-                if (EntitySettingSpecs.isExecutionScheduleSetting(settingName)) {
+                if (ActionSettingSpecs.isExecutionScheduleSetting(settingName)) {
                     executionScheduleSettings.put(settingName, setting);
-                } else if (EntitySettingSpecs.isActionModeSetting(settingName)) {
+                } else if (ActionSettingSpecs.isActionModeSetting(settingName)) {
                     actionModeSettings.add(setting);
                 } else {
                     otherSettings.add(setting);
@@ -299,8 +300,8 @@ public class EntitySettingsResolver {
         final List<List<Setting>> relatedSettings = new ArrayList<>();
         for (Setting actionModeSetting : actionModeSettings) {
             final String executionScheduleSpecName =
-                    EntitySettingSpecs.getActionModeToExecutionScheduleSettings()
-                            .get(actionModeSetting.getSettingSpecName());
+                    ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                        actionModeSetting.getSettingSpecName());
             final Setting correspondingExecutionSchedule =
                     executionScheduleSettings.get(executionScheduleSpecName);
             if (correspondingExecutionSchedule != null) {

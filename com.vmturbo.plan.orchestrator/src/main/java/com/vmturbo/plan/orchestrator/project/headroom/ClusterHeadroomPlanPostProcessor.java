@@ -303,11 +303,21 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             new HashMap<>(clusters.size());
 
         final GetMultiSupplyChainsRequest.Builder requestBuilder = GetMultiSupplyChainsRequest.newBuilder();
-        clusters.forEach(cluster -> requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
-            .setSeedOid(cluster.getId())
-            .setScope(SupplyChainScope.newBuilder()
-                .addAllStartingEntityOid(GroupProtoUtil.getAllStaticMembers(cluster.getDefinition()))
-                .addAllEntityTypesToInclude(HEADROOM_ENTITY_TYPES))));
+        clusters.stream()
+            // Skip empty cluster
+            .filter(cluster -> {
+                if (GroupProtoUtil.getAllStaticMembers(cluster.getDefinition()).isEmpty()) {
+                    entitiesByClusterAndType.put(cluster.getId(), new HashMap<>());
+                    return false;
+                } else {
+                    return true;
+                }
+            })
+            .forEach(cluster -> requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
+                .setSeedOid(cluster.getId())
+                .setScope(SupplyChainScope.newBuilder()
+                    .addAllStartingEntityOid(GroupProtoUtil.getAllStaticMembers(cluster.getDefinition()))
+                    .addAllEntityTypesToInclude(HEADROOM_ENTITY_TYPES))));
 
         // Make a supply chain rpc call to fetch supply chain information, which is used to
         // determine which cluster a projected entity belongs to.

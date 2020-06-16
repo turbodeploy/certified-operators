@@ -1,4 +1,4 @@
-apiVersion: charts.helm.k8s.io/v1alpha1
+apiVersion: charts.helm.k8s.io/v1
 kind: Xl
 metadata:
   name: xl-release
@@ -21,8 +21,9 @@ spec:
   global:
     repository: turbonomic
     tag: 7.21.200-EA1
-    externalIP: 10.10.2.15
-    externalDbIP: 10.10.2.15
+    externalIP: 10.0.2.15
+    externalDbIP: 10.0.2.15
+    externalTimescaleDBIP: 10.0.2.15
 
   # Kubeturbo probe
   kubeturbo:

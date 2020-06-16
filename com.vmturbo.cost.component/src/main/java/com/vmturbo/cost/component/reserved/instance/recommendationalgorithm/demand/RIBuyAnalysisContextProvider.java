@@ -49,7 +49,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  */
 @ThreadSafe
 public class RIBuyAnalysisContextProvider {
-
     private static final Logger logger = LogManager.getLogger();
 
     // A counter used to generate unique tags for log entries
@@ -57,10 +56,6 @@ public class RIBuyAnalysisContextProvider {
 
     // An interface for obtaining historical demand data
     private final ComputeTierDemandStatsStore computeTierDemandStatsStore;
-
-    private final RepositoryServiceBlockingStub repositoryClient;
-
-    private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
     private final RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory;
 
@@ -72,10 +67,6 @@ public class RIBuyAnalysisContextProvider {
      * Construct the {@link RIBuyAnalysisContextProvider} instance.
      *
      * @param computeTierDemandStatsStore   historical demand data store.
-     * @param repositoryClient              repository client used for retrieving the latest topology
-     *                                      in order to link it to recorded demand
-     * @param cloudTopologyFactory          Used to create a cloud topology of the latest topology, in order
-     *                                      to verify the referenced entities in the recorded demand still exist
      * @param regionalRIMatcherCacheFactory A factory to create a new {@link RegionalRIMatcherCache} for an
      *                                      analysis context.
      * @param realtimeTopologyContextId     The realtime topology context ID, used in querying the realtime
@@ -85,14 +76,10 @@ public class RIBuyAnalysisContextProvider {
      *                                               allowed.
      */
     public RIBuyAnalysisContextProvider(@Nonnull ComputeTierDemandStatsStore computeTierDemandStatsStore,
-                                     @Nonnull RepositoryServiceBlockingStub repositoryClient,
-                                     @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                                      @Nonnull RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory,
                                      long realtimeTopologyContextId,
                                      boolean allowStandaloneAccountAnalysisClusters) {
         this.computeTierDemandStatsStore = Objects.requireNonNull(computeTierDemandStatsStore);
-        this.repositoryClient = Objects.requireNonNull(repositoryClient);
-        this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
         this.regionalRIMatcherCacheFactory = Objects.requireNonNull(regionalRIMatcherCacheFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.allowStandaloneAccountAnalysisClusters = allowStandaloneAccountAnalysisClusters;
@@ -121,19 +108,19 @@ public class RIBuyAnalysisContextProvider {
      * @param purchaseConstraints The purchase constraints for an RI in this analysis. The constraints are
      *                            used by the RI spec matcher, in order to filter RI specs in scope of the
      *                            analysis and subsequently match them to demand clusters.
+     * @param cloudTopology Cloud Topology.
+     *
      * @return The analysis context info. The analysis context will contain a list of regional contexts,
      * which represent a (region, account grouping, RI spec) tuple.
      */
     @Nonnull
     public RIBuyAnalysisContextInfo computeAnalysisContexts(
             @Nonnull ReservedInstanceAnalysisScope scope,
-            Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints) {
+            Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints,
+            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
 
-
-        final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopology();
         final RegionalRIMatcherCache regionalRIMatcherCache =
                 regionalRIMatcherCacheFactory.createNewCache(cloudTopology, purchaseConstraints, scope.getTopologyInfo());
-
 
         final List<ComputeTierTypeHourlyByWeekRecord> demandClusters = computeTierDemandStatsStore
                 .getUniqueDemandClusters().collect(Collectors.toList());
@@ -390,26 +377,6 @@ public class RIBuyAnalysisContextProvider {
 
         @Value.Auxiliary
         ReservedInstanceSpecData riSpecData();
-    }
-
-    /**
-     * Compute the TopologyEntityCloudTopology.
-     *
-     * @return TopologyEntityCloudTopology
-     */
-    private TopologyEntityCloudTopology createCloudTopology() {
-
-        Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
-                repositoryClient.retrieveTopologyEntities(
-                        RetrieveTopologyEntitiesRequest.newBuilder()
-                                .setTopologyContextId(realtimeTopologyContextId)
-                                .setReturnType(Type.FULL)
-                                .setTopologyType(TopologyType.SOURCE)
-                                .build()))
-                .map(PartialEntity::getFullEntity);
-        TopologyEntityCloudTopology cloudTopology =
-                cloudTopologyFactory.newCloudTopology(entities);
-        return cloudTopology;
     }
 
     /**

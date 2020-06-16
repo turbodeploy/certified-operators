@@ -30,32 +30,19 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
-import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.exception.AcceptedActionStoreOperationException;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
-import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
-import com.vmturbo.auth.api.auditing.AuditAction;
-import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -63,7 +50,6 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -106,7 +92,6 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplB
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -123,21 +108,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      */
     private final ActionStorehouse actionStorehouse;
 
-    /**
-     * To execute actions (by sending them to Topology Processor)
-     */
-    private final ActionExecutor actionExecutor;
-
-    /**
-     * For selecting which target/probe to execute each action against
-     */
-    private final ActionTargetSelector actionTargetSelector;
-
-    /**
-     *  An entity snapshot factory used for creating entity snapshot.
-     *  It is now only used for creating empty entity snapshot.
-     */
-    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
+    private final ActionApprovalManager actionApprovalManager;
 
     /**
      * To translate an action from the market's domain-agnostic form to the domain-specific form
@@ -150,10 +121,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      */
     private final ActionPaginatorFactory paginatorFactory;
 
-    /**
-     * the store for all the known {@link WorkflowDTO.Workflow} items
-     */
-    private final WorkflowStore workflowStore;
 
     private final HistoricalActionStatReader historicalActionStatReader;
 
@@ -170,37 +137,28 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      *
      * @param clock the {@link Clock}
      * @param actionStorehouse the storehouse containing action stores.
-     * @param actionExecutor the executor for executing actions.
-     * @param actionTargetSelector for selecting which target/probe to execute each action against
-     * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot
      * @param actionTranslator the translator for translating actions (from market to real-world).
      * @param paginatorFactory for paginating views of actions
-     * @param workflowStore the store for all the known {@link WorkflowDTO.Workflow} items
      * @param historicalActionStatReader reads stats of historical actions
      * @param currentActionStatReader reads stats of current actions
      * @param userSessionContext the user session context
      * @param acceptedActionsStore dao layer working with accepted actions
+     * @param actionApprovalManager action approval manager
      */
     public ActionsRpcService(@Nonnull final Clock clock,
             @Nonnull final ActionStorehouse actionStorehouse,
-            @Nonnull final ActionExecutor actionExecutor,
-            @Nonnull final ActionTargetSelector actionTargetSelector,
-            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
+            @Nonnull final ActionApprovalManager actionApprovalManager,
             @Nonnull final ActionTranslator actionTranslator,
             @Nonnull final ActionPaginatorFactory paginatorFactory,
-            @Nonnull final WorkflowStore workflowStore,
             @Nonnull final HistoricalActionStatReader historicalActionStatReader,
             @Nonnull final CurrentActionStatReader currentActionStatReader,
             @Nonnull final UserSessionContext userSessionContext,
             @Nonnull final AcceptedActionsDAO acceptedActionsStore) {
         this.clock = clock;
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
-        this.actionExecutor = Objects.requireNonNull(actionExecutor);
-        this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
-        this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
+        this.actionApprovalManager = Objects.requireNonNull(actionApprovalManager);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.paginatorFactory = Objects.requireNonNull(paginatorFactory);
-        this.workflowStore = Objects.requireNonNull(workflowStore);
         this.historicalActionStatReader = Objects.requireNonNull(historicalActionStatReader);
         this.currentActionStatReader = Objects.requireNonNull(currentActionStatReader);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
@@ -235,19 +193,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
         final ActionStore store = optionalStore.get();
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
-        AcceptActionResponse response = store.getAction(request.getActionId())
-                .map(action -> {
-
-                    AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
-                            userNameAndUuid);
-                    if (!action.isReady()) {
-                        store.getEntitySeverityCache().refresh(
-                                action.getTranslationResultOrOriginal(), store);
-                    }
-                    return attemptResponse;
-                }).orElse(acceptanceError("Action " + request.getActionId() + " doesn't exist."));
-
-
+        final AcceptActionResponse response = actionApprovalManager.attemptAndExecute(store,
+                userNameAndUuid, request.getActionId());
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
@@ -665,151 +612,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
     }
 
-    /**
-     * Attempt to accept and execute the action.
-     *
-     * @param action the action
-     * @param userUUid the user uuid
-     * @return The result of attempting to accept and execute the action.
-     */
-    private AcceptActionResponse attemptAcceptAndExecute(@Nonnull final Action action,
-                                                         @Nonnull final String userUUid) {
-        long actionTargetId = -1;
-        Optional<FailureEvent> failure = Optional.empty();
-        if (action.getSchedule().isPresent()) {
-            final Optional<AcceptActionResponse> errors =
-                    persistAcceptanceForActionWithSchedule(action);
-            if (errors.isPresent()) {
-                return errors.get();
-            }
-        }
-
-        ActionTargetInfo actionTargetInfo = actionTargetSelector.getTargetForAction(
-                action.getTranslationResultOrOriginal(), entitySettingsCache);
-        if (actionTargetInfo.supportingLevel() == SupportLevel.SUPPORTED &&
-            action.getMode().getNumber() >= ActionMode.MANUAL_VALUE) {
-            // Target should be set if support level is "supported".
-            actionTargetId = actionTargetInfo.targetId().get();
-        } else {
-            failure = Optional.of(new FailureEvent(
-                "Action cannot be executed by any target. Support level: " +
-                    actionTargetInfo.supportingLevel() + "Action mode: " + action.getMode()));
-        }
-
-        failure.ifPresent(failureEvent ->
-            logger.error("Failed to accept action: {}", failureEvent.getErrorDescription()));
-
-        if (action.getSchedule().isPresent()) {
-            // postpone action execution, because action has related execution window
-            return AcceptActionResponse.newBuilder()
-                    .setActionSpec(actionTranslator.translateToSpec(action))
-                    .build();
-        } else {
-            if (action.receive(new ActionEvent.ManualAcceptanceEvent(userUUid, actionTargetId))
-                    .transitionNotTaken()) {
-                return acceptanceError("Unauthorized to accept action in mode " + action.getMode());
-            }
-        }
-
-        return handleTargetResolution(action, actionTargetId, failure);
-    }
-
-    private Optional<AcceptActionResponse> persistAcceptanceForActionWithSchedule(
-            @Nonnull Action action) {
-        boolean isFailedPersisting = false;
-        try {
-            if (!action.getAssociatedSettingsPolicies().isEmpty()) {
-                final String acceptingUser = UserContextUtils.getCurrentUserName();
-                final LocalDateTime currentTime = LocalDateTime.now();
-                final String acceptingUserType = StringConstants.TURBO_ACCEPTING_USER_TYPE;
-                acceptedActionsStore.persistAcceptedAction(action.getRecommendationOid(), currentTime,
-                        acceptingUser, currentTime, acceptingUserType,
-                        action.getAssociatedSettingsPolicies());
-                logger.info("Successfully persisted acceptance for action `{}` accepted by {}({}) "
-                                + "at {}", action.getId(), acceptingUser, acceptingUserType,
-                        currentTime);
-                // we should update accepting user in action schedule otherwise we
-                // couldn't see in UI that this action is accepted
-                updateAcceptingUserForSchedule(action, acceptingUser);
-            } else {
-                logger.error(
-                        "There are no associated policies for action {} . Acceptance for action"
-                                + " was not persisted.", action.getId());
-                isFailedPersisting = true;
-            }
-        } catch (AcceptedActionStoreOperationException e) {
-            logger.error("Failed to persist acceptance for action {}", action.getId(), e);
-            isFailedPersisting = true;
-        }
-        if (isFailedPersisting) {
-            return Optional.of(acceptanceError(
-                    "Failed to persist acceptance for action " + action.getId()));
-        } else {
-            return Optional.empty();
-        }
-    }
-
-    private void updateAcceptingUserForSchedule(@Nonnull Action action,
-            @Nonnull String acceptingUser) {
-        final Optional<ActionSchedule> currentSchedule = action.getSchedule();
-        if (currentSchedule.isPresent()) {
-            final ActionSchedule schedule = currentSchedule.get();
-            final ActionSchedule updatedSchedule =
-                    new ActionSchedule(schedule.getScheduleStartTimestamp(),
-                            schedule.getScheduleEndTimestamp(), schedule.getScheduleTimeZoneId(),
-                            schedule.getScheduleId(), schedule.getScheduleDisplayName(),
-                            schedule.getExecutionWindowActionMode(), acceptingUser);
-            action.setSchedule(updatedSchedule);
-        } else {
-            logger.warn("Failed to update accepting user for action `{}` which doesn't have "
-                    + "associated schedule.", action.toString());
-        }
-    }
-
-    private AcceptActionResponse handleTargetResolution(@Nonnull final Action action,
-                                                        final long targetId,
-                                                        @Nonnull final Optional<FailureEvent> failure) {
-        return failure
-                .map(failureEvent -> {
-                    action.receive(failureEvent);
-                    return acceptanceError(failureEvent.getErrorDescription());
-                    // TODO (roman, Sep 1, 2016): Figure out criteria for when to begin execution
-                }).orElseGet(() -> attemptActionExecution(action, targetId));
-    }
-
-    private AcceptActionResponse attemptActionExecution(@Nonnull final Action action,
-                                                        final long targetId) {
-        try {
-            // A prepare event prepares the action for execution, and initiates a PRE
-            // workflow if one is associated with this action.
-            action.receive(new PrepareExecutionEvent());
-            // Allows the action to begin execution, if a PRE workflow is not running
-            action.receive(new BeginExecutionEvent());
-            final Optional<ActionDTO.Action> translatedRecommendation =
-                    action.getActionTranslation().getTranslatedRecommendation();
-            if (translatedRecommendation.isPresent()) {
-                // execute the action, passing the workflow override (if any)
-                actionExecutor.execute(targetId, translatedRecommendation.get(),
-                        action.getWorkflow(workflowStore));
-                AuditLog.newEntry(AuditAction.EXECUTE_ACTION, action.getDescription(), true)
-                        .targetName(String.valueOf(action.getId()))
-                        .audit();
-                return AcceptActionResponse.newBuilder()
-                        .setActionSpec(actionTranslator.translateToSpec(action))
-                        .build();
-            } else {
-                final String errorMsg = String.format("Failed to translate action %d for execution.", action.getId());
-                logger.error(errorMsg);
-                action.receive(new FailureEvent(errorMsg));
-                return acceptanceError(errorMsg);
-            }
-        } catch (ExecutionStartException e) {
-            logger.error("Failed to start action {} due to error {}.", action.getId(), e);
-            action.receive(new FailureEvent(e.getMessage()));
-            return acceptanceError(e.getMessage());
-        }
-    }
-
     static void observeActionCounts(@Nonnull final Stream<ActionView> actionViewStream,
                                     @Nonnull final StreamObserver<GetActionCountsResponse> responseObserver) {
         final Map<ActionType, Long> actionsByType = getActionsByType(actionViewStream);
@@ -930,11 +732,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                         Collectors.counting()));
     }
 
-    private static AcceptActionResponse acceptanceError(@Nonnull final String error) {
-        return AcceptActionResponse.newBuilder()
-                .setError(error)
-                .build();
-    }
 
     private static void contextNotFoundError(@Nonnull final StreamObserver<?> responseObserver,
                                              final long topologyContextId) {
@@ -957,6 +754,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 .setActionId(spec.getRecommendation().getId())
                 .setActionSpec(spec)
                 .build();
+    }
+
+    private static AcceptActionResponse acceptanceError(@Nonnull final String error) {
+        return AcceptActionResponse.newBuilder().setError(error).build();
     }
 
     /**

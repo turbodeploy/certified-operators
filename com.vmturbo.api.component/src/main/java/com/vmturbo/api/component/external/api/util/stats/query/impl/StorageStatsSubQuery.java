@@ -37,15 +37,14 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
@@ -212,16 +211,16 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                 // get list of storageOid in order to get the display name for each storage tier
                 final HashMap<Long, List<PartialEntity.ApiPartialEntity>> vvPartialEntityGroupedByStorageTierOid = new HashMap<>();
                 vvInScope.stream().forEach(vv -> {
-                    Optional<RelatedEntity> relatedEntityOpt = vv.getConnectedToList().stream()
+                    final RelatedEntity storageTier = vv.getProvidersList().stream()
                         .filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
-                        .findFirst();
+                        .findFirst().orElse(null);
 
-                    if (relatedEntityOpt.isPresent()) {
+                    if (storageTier != null) {
                         vvPartialEntityGroupedByStorageTierOid
-                            .computeIfAbsent(relatedEntityOpt.get().getOid(), k -> new ArrayList<>())
+                            .computeIfAbsent(storageTier.getOid(), k -> new ArrayList<>())
                             .add(vv);
                     } else {
-                        logger.error("Virtual Volume {} with uuid {} has NO storage tier connected to", vv.getDisplayName(), vv.getOid());
+                        logger.error("Virtual Volume {} with uuid {} has NO storage tier provider", vv.getDisplayName(), vv.getOid());
                     }
                 });
 
@@ -315,20 +314,6 @@ public class StorageStatsSubQuery implements StatsSubQuery {
             return SearchProtoUtil
                 .makeSearchParameters(SearchProtoUtil.idFilter(context.getQueryScope().getExpandedOids()));
         }
-    }
-
-    /**
-     * Helper method to create SearchFilter with a SearchTraversalFilter.
-     *
-     * @param direction {@link TraversalDirection}
-     * @param apiEntityType {@link ApiEntityType}
-     * @return {@link SearchFilter.Builder}
-     */
-    @Nonnull
-    private static SearchFilter.Builder createSearchTraversalFilter(@Nonnull final TraversalDirection direction,
-                                                                    @Nonnull final ApiEntityType apiEntityType) {
-        return SearchFilter.newBuilder()
-            .setTraversalFilter(SearchProtoUtil.traverseToType(direction, apiEntityType.apiStr()));
     }
 
     /**

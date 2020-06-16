@@ -71,10 +71,10 @@ public class HistoricalEditor {
     private Set<Integer> commodityTypesAlreadyLoggedAsMissingHistory = null;
 
     // the weight of the historical used value in the calculation of the weighted used value
-    public static final float globalUsedHistoryWeight = 0.5f;
+    private static final float globalUsedHistoryWeight = 0.5f;
 
     // the weight of the historical peak value in the calculation of the weighted peak value
-    public static final float globalPeakHistoryWeight = 0.99f;
+    private static final float globalPeakHistoryWeight = 0.99f;
 
     public static final float E = 0.00001f; // to compare floats for equality
 
@@ -269,12 +269,12 @@ public class HistoricalEditor {
             // Set matched and updated attributes to false to prepare for next market cycle
             // It is a kind of initialization to have all the commodities unmatched by commodities
             // of the next cycle and considering that they possibly not exist in the next cycle
-            for (int i = 0; i < histSoldInfoList.size(); i++) {
-                reinitializingCommodity(histSoldInfoList.get(i));
+            for (HistoricalCommodityInfo historicalCommodityInfo : histSoldInfoList) {
+                reinitializingCommodity(historicalCommodityInfo);
             }
 
-            for (int i = 0; i < histBoughtInfoList.size(); i++) {
-                reinitializingCommodity(histBoughtInfoList.get(i));
+            for (HistoricalCommodityInfo historicalCommodityInfo : histBoughtInfoList) {
+                reinitializingCommodity(historicalCommodityInfo);
             }
         }
     }
@@ -590,8 +590,7 @@ public class HistoricalEditor {
 
         for (CommoditiesBoughtFromProvider.Builder commBoughtProvider : topoEntity
                 .getCommoditiesBoughtFromProvidersBuilderList()) {
-            long sourceId = (commBoughtProvider.hasVolumeId() ? commBoughtProvider.getVolumeId()
-                    : commBoughtProvider.getProviderId());
+            final long sourceId = resolveSourceId(commBoughtProvider);
             for (CommodityBoughtDTO.Builder commBought : commBoughtProvider.getCommodityBoughtBuilderList()) {
                 calculateSmoothedValuesForCommodityBought(topoEntity, commBought, sourceId);
             }

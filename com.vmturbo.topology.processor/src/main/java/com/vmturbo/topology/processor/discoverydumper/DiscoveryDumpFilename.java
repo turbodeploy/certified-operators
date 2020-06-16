@@ -28,7 +28,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
  */
 public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> {
 
-    private static final String L4ZIP_FILE_SUFFIX = ".l4z";
+    private static final String LZ4ZIP_FILE_SUFFIX = ".lz4";
 
     /**
      * This is the information that a discovery dump name should contain:
@@ -122,7 +122,7 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
     public File getFile(@Nonnull File dumpDirectory, boolean isText, boolean isL4ipped) {
         String fileName = isText ? filenameText : filenameBinary;
         if (isL4ipped) {
-            fileName += L4ZIP_FILE_SUFFIX;
+            fileName += LZ4ZIP_FILE_SUFFIX;
         }
         return
             new File(Objects.requireNonNull(dumpDirectory), fileName);
@@ -162,8 +162,8 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
 
         // split third part into discovery type and extension, after stripping possible gzipe extension
         String lastFilenameSection = filenameSections[2];
-        if (lastFilenameSection.endsWith(L4ZIP_FILE_SUFFIX)) {
-            lastFilenameSection = lastFilenameSection.substring(0, lastFilenameSection.length() - L4ZIP_FILE_SUFFIX.length());
+        if (lastFilenameSection.endsWith(LZ4ZIP_FILE_SUFFIX)) {
+            lastFilenameSection = lastFilenameSection.substring(0, lastFilenameSection.length() - LZ4ZIP_FILE_SUFFIX.length());
         }
         final String[] splitType = lastFilenameSection.split("\\.");
         if (splitType.length != 2) {

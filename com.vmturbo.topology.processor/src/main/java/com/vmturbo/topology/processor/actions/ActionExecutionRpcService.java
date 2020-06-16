@@ -75,21 +75,11 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                                 "Cannot execute actionId: " + actionId + " with no action items!");
             }
 
-            // Get the type of action being executed
-            ActionType actionType = actionExecutionContext.getSDKActionType();
-
-            // Check for workflows associated with this action
-            Optional<WorkflowDTO.WorkflowInfo> workflowOptional = request.hasWorkflowInfo() ?
-                    Optional.of(request.getWorkflowInfo()) : Optional.empty();
-
             logger.info("Start execution of action {} after conversion to SDK actions ", actionId);
-            operationManager.requestActions(request.getActionId(),
+            operationManager.requestActions(actionExecutionContext.buildActionExecutionDto(),
                     request.getTargetId(),
                     actionExecutionContext.getSecondaryTargetId(),
-                    actionType,
-                    sdkActions,
-                    actionExecutionContext.getControlAffectedEntities(),
-                    workflowOptional);
+                    actionExecutionContext.getControlAffectedEntities());
 
             logger.info("ExecuteActionRequest completed for action: {}", actionId);
             responseObserver.onNext(ExecuteActionResponse.getDefaultInstance());
