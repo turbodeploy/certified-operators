@@ -7,9 +7,12 @@ import com.vmturbo.platform.sdk.probe.AccountValue;
  * Account class for the probe 'UserDefinedTopology'.
  */
 @AccountDefinition
-public class UserDefinedTopologyProbeAccount {
+public class UdtProbeAccount {
 
     @AccountValue(targetId = true, displayName = "Target Name", description = "Target Name")
-    private String targetName = "User Defined Topology";
+    private String targetName = "User-defined entities";
 
+    public String getTargetName() {
+        return targetName;
+    }
 }

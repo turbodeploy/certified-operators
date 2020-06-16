@@ -690,7 +690,14 @@ services:
     environment:
       component_type: mediation-udt
       instance_id: mediation-udt-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_UDT_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_UDT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_UDT_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_UDT_MEM_LIMIT_MB}M
 
   mediation-vcenter-browsing:

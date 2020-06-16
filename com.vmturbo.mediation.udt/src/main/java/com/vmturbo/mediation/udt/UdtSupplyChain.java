@@ -30,9 +30,9 @@ import com.vmturbo.platform.sdk.common.supplychain.SupplyChainNodeBuilder;
 /**
  * Supply chain definition for the 'UserDefinedTopology' Probe.
  */
-public class UserDefinedTopologySupplyChain {
+public class UdtSupplyChain {
 
-    /*pkg*/ UserDefinedTopologySupplyChain() {
+    /*pkg*/ UdtSupplyChain() {
         // default constructor
     }
 
