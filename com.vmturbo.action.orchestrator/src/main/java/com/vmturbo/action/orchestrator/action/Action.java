@@ -254,7 +254,18 @@ public class Action implements ActionView {
             //  the data used to build the action description instead of the description itself.
             this.description = new String(savedState.getActionDetailData());
         }
-        this.recommendationOid = savedState.getRecommendationOid();
+        if (savedState.getRecommendationOid() != null) {
+            this.recommendationOid = savedState.getRecommendationOid();
+        } else {
+            // The recommendation oid will be null when the action was saved to the database before
+            // actions had recommendation oids (7.22.1 and earlier). However, we still need some
+            // sort of identifier because this.getRecommendationOid() is used to populate data
+            // structures in other objects. The Action.ActionDTO is good enough. It would be
+            // expensive to recalculate the oid. We do not need a stable oid for these database
+            // actions because they existed before external approval and audit probes like
+            // ServiceNOW.
+            this.recommendationOid = recommendation.getId();
+        }
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -1217,7 +1228,8 @@ public class Action implements ActionView {
 
         private final ActionSchedule schedule;
 
-        private final long recommendationOid;
+        @Nullable
+        private final Long recommendationOid;
 
         /**
          * We don't really need to save the category because it can be extracted from the
@@ -1252,7 +1264,7 @@ public class Action implements ActionView {
                                   @Nullable Long associatedAccountId,
                                   @Nullable Long associatedResourceGroupId,
                                   @Nullable byte[] actionDetailData,
-                                  @Nullable long recommendationOid) {
+                                  @Nullable Long recommendationOid) {
             this.actionPlanId = actionPlanId;
             this.recommendation = recommendation;
             this.recommendationTime = recommendationTime;
@@ -1269,7 +1281,16 @@ public class Action implements ActionView {
             this.recommendationOid = recommendationOid;
         }
 
-        public long getRecommendationOid() {
+        /**
+         * Return the stable oid that identifies the action, even between market cycles and
+         * restarts.
+         *
+         * @return the stable oid that identifies the action, even between market cycles and
+         * restarts. This value is null when the data was saved when the stable oid did not exist.
+         * This includes XL versions 7.22.1 and earlier.
+         */
+        @Nullable
+        public Long getRecommendationOid() {
             return recommendationOid;
         }
     }
