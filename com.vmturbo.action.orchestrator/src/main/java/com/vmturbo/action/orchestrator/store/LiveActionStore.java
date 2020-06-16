@@ -112,6 +112,8 @@ public class LiveActionStore implements ActionStore {
 
     private final EntitiesWithNewStateCache entitiesWithNewStateCache;
 
+    private final AcceptedActionsDAO acceptedActionStore;
+
     /**
      * A mutable (real-time) action is considered visible (from outside the Action Orchestrator's perspective)
      * if it's not disabled. We shouldn't consider the action state or executability as before.
@@ -170,6 +172,7 @@ public class LiveActionStore implements ActionStore {
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.actionIdentityService = Objects.requireNonNull(actionIdentityService);
         this.entitiesWithNewStateCache = new EntitiesWithNewStateCache(actions);
+        this.acceptedActionStore = acceptedActionsStore;
     }
 
     /**
@@ -257,13 +260,14 @@ public class LiveActionStore implements ActionStore {
             final List<Long> actionsToRemove = new ArrayList<>();
 
             actions.doForEachMarketAction(action -> {
-                // Only retain IN-PROGRESS, QUEUED and READY actions which are re-recommended.
+                // Only retain IN-PROGRESS, QUEUED, ACCEPTED and READY actions which are re-recommended.
                 switch (action.getState()) {
                     case IN_PROGRESS:
                     case QUEUED:
                         recommendations.add(action);
                         break;
                     case READY:
+                    case ACCEPTED:
                         recommendations.add(action);
                         actionsToRemove.add(action.getId());
                         break;
@@ -312,11 +316,11 @@ public class LiveActionStore implements ActionStore {
                     // If we are re-using an existing action, we should update the recommendation
                     // so other properties that may have changed (e.g. importance, executability)
                     // reflect the most recent recommendation from the market. However, we only
-                    // do this for "READY" actions. An IN_PROGRESS or QUEUED action is considered
-                    // "fixed" until it either succeeds or fails.
+                    // do this for "READY" or "ACCEPTED" actions. An IN_PROGRESS or QUEUED action
+                    // is considered "fixed" until it either succeeds or fails.
                     // TODO (roman, Oct 31 2018): If a QUEUED action becomes non-executable, it
                     // may be worth clearing it.
-                    if (action.getState() == ActionState.READY) {
+                    if (action.getState() == ActionState.READY || action.getState() == ActionState.ACCEPTED) {
                         action.updateRecommendation(recommendedAction);
                     }
                 } else {
@@ -324,8 +328,8 @@ public class LiveActionStore implements ActionStore {
                     action = actionFactory.newAction(recommendedAction, planId, recommendationOid);
                     newActionIds.add(action.getId());
                 }
-
-                if (action.getState() == ActionState.READY) {
+                final ActionState actionState = action.getState();
+                if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED) {
                     actionsToTranslate.add(action);
                 }
             }
@@ -361,7 +365,7 @@ public class LiveActionStore implements ActionStore {
             // Some of these may be noops - if we're re-adding an action that was already in
             // the map from a previous action plan.
             // THis also updates the snapshot in the entity settings cache.
-            actions.updateMarketActions(actionsToRemove, translatedActionsToAdd, snapshot);
+            actions.updateMarketActions(actionsToRemove, translatedActionsToAdd, snapshot, actionTargetSelector);
 
             logger.info("Number of Re-Recommended actions={}, Newly created actions={}",
                 (actionPlan.getActionCount() - newActionCounts.intValue()),

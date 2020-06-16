@@ -26,12 +26,16 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.util.StringUtils;
 
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceRemovalEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AuthorizedActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ClearingEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
@@ -819,7 +823,41 @@ public class Action implements ActionView {
     }
 
     /**
-     * Called when an action enters the PRE state, preparing to execute an action
+     * Called when an action is rejected.
+     *
+     * @param event The event that caused the rejecting.
+     */
+    void onActionRejected(@Nonnull final RejectionEvent event) {
+    }
+
+    /**
+     * Called when acceptance is removed for action.
+     *
+     * @param event The event that caused the removing acceptance.
+     */
+    void onAcceptanceRemoved(@Nonnull final AcceptanceRemovalEvent event) {
+        currentExecutableStep = Optional.empty();
+    }
+
+    /**
+     * Called when rejection is removed for action.
+     *
+     * @param event The event that caused the removing rejection.
+     */
+    void onRejectionRemoved(@Nonnull final RejectionRemovalEvent event) {
+    }
+
+    /**
+     * Called when accepted action is sent to the queue.
+     *
+     * @param event The event that caused the sending action to the queue.
+     */
+    void onActionQueued(@Nonnull final QueuedEvent event) {
+    }
+
+    /**
+     * Called when an action enters the PRE state, preparing to execute an action.
+     *
      * @param event The event that caused the execution preparation.
      */
     void onActionPrepare(@Nonnull final PrepareExecutionEvent event) {

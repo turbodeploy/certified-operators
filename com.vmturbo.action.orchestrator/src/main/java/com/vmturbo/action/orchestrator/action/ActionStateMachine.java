@@ -7,16 +7,20 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceRemovalEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AfterSuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.CannotExecuteEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.AfterSuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition;
@@ -35,14 +39,18 @@ public class ActionStateMachine {
      * Generate a new state machine for an action. The state machine looks like:
      *
      * READY
-     *   |-> CLEARED
-     *   |      ^
-     *   |      |
-     *   |-> QUEUED |---> PRE_IN_PROGRESS ---> IN_PROGRESS ----> POST_IN_PROGRESS
-     *                      |                                     |
-     *                      |                                     |-------> SUCCEEDED
-     *                      |                                     |
-     *                      |------------------------------------>|-------> FAILED
+     *   ^
+     *   |------->   CLEARED
+     *   |         ^   ^       ^
+     *   |         |   |       |
+     *   |-> REJECTED  |       |
+     *   |             |       |
+     *   |             |       |
+     *   |-----> ACCEPTED <--> QUEUED ---> PRE_IN_PROGRESS ---> IN_PROGRESS ----> POST_IN_PROGRESS
+     *                                       |                                     |
+     *                                       |                                     |-------> SUCCEEDED
+     *                                       |                                     |
+     *                                       |------------------------------------>|-------> FAILED
      *
      * Transitions from READY -> QUEUED are guarded by checks that verify the action
      * is in an appropriate mode that allows such a transition.
@@ -67,14 +75,34 @@ public class ActionStateMachine {
                 .onEvent(CannotExecuteEvent.class)
                 .after(action::onActionCleared))
 
-            .addTransition(from(ActionState.READY).to(ActionState.QUEUED)
+            .addTransition(from(ActionState.READY).to(ActionState.ACCEPTED)
                 .onEvent(ManualAcceptanceEvent.class)
                 .guardedBy(action::acceptanceGuard)
                 .after(action::onActionAccepted))
-            .addTransition(from(ActionState.READY).to(ActionState.QUEUED)
+            .addTransition(from(ActionState.READY).to(ActionState.ACCEPTED)
                 .onEvent(AutomaticAcceptanceEvent.class)
                 .guardedBy(action::acceptanceGuard)
                 .after(action::onActionAccepted))
+            .addTransition(from(ActionState.READY).to(ActionState.REJECTED)
+                .onEvent(RejectionEvent.class)
+                .after(action::onActionRejected))
+
+            .addTransition(from(ActionState.REJECTED).to(ActionState.READY)
+                .onEvent(RejectionRemovalEvent.class)
+                .after(action::onRejectionRemoved))
+            .addTransition(from(ActionState.REJECTED).to(ActionState.CLEARED)
+                .onEvent(NotRecommendedEvent.class)
+                .after(action::onActionCleared))
+
+            .addTransition(from(ActionState.ACCEPTED).to(ActionState.QUEUED)
+                .onEvent(QueuedEvent.class)
+                .after(action::onActionQueued))
+            .addTransition(from(ActionState.ACCEPTED).to(ActionState.READY)
+                .onEvent(AcceptanceRemovalEvent.class)
+                .after(action::onAcceptanceRemoved))
+            .addTransition(from(ActionState.ACCEPTED).to(ActionState.CLEARED)
+                .onEvent(NotRecommendedEvent.class)
+                .after(action::onActionCleared))
 
             .addTransition(from(ActionState.QUEUED).to(ActionState.PRE_IN_PROGRESS)
                 .onEvent(PrepareExecutionEvent.class)

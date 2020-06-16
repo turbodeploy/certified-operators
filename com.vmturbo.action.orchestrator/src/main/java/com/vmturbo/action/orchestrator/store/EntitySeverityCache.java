@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -61,7 +62,7 @@ public class EntitySeverityCache {
         synchronized (severities) {
             severities.clear();
 
-            visibleReadyActionViews(actionStore)
+            visibleActionViews(actionStore)
                 .forEach(this::handleActionSeverity);
         }
     }
@@ -80,7 +81,7 @@ public class EntitySeverityCache {
         try {
             long severityEntity = ActionDTOUtil.getSeverityEntity(action);
 
-            visibleReadyActionViews(actionStore)
+            visibleActionViews(actionStore)
                 .filter(actionView -> matchingSeverityEntity(severityEntity, actionView))
                 .map(ActionView::getActionSeverity)
                 .max(severityComparator)
@@ -191,11 +192,12 @@ public class EntitySeverityCache {
         }
     }
 
-    private Stream<ActionView> visibleReadyActionViews(@Nonnull final ActionStore actionStore) {
-        return actionStore.getActionViews().get(ActionQueryFilter.newBuilder()
-            .setVisible(true)
-            .addStates(ActionState.READY)
-            .build());
+    private Stream<ActionView> visibleActionViews(@Nonnull final ActionStore actionStore) {
+        return actionStore.getActionViews()
+                .get(ActionQueryFilter.newBuilder()
+                        .setVisible(true)
+                        .addAllStates(Arrays.asList(ActionState.READY, ActionState.ACCEPTED))
+                        .build());
     }
 
     /**

@@ -3,7 +3,6 @@ package com.vmturbo.action.orchestrator.action;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.vmturbo.action.orchestrator.state.machine.StateMachineEvent;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision;
@@ -125,6 +124,56 @@ public abstract class ActionEvent implements StateMachineEvent {
 
         public ExecutionDecision.Reason getReason() {
             return Reason.AUTOMATICALLY_ACCEPTED;
+        }
+    }
+
+    /**
+     * Indicates that an action was rejected.
+     */
+    public static class RejectionEvent extends ActionEvent {
+        /**
+         * Constructor of {@link RejectionEvent}.
+         */
+        public RejectionEvent() {
+            super();
+        }
+    }
+
+    /**
+     * An event generated when an action is ready for execution and it is sent to queue.
+     */
+    public static class QueuedEvent extends ActionEvent {
+        /**
+         * Constructor of {@link QueuedEvent}.
+         */
+        public QueuedEvent() {
+            super();
+        }
+    }
+
+    /**
+     * An event generated when acceptance was removed for an action. For instance, when policy
+     * associated with action was deleted.
+     */
+    public static class AcceptanceRemovalEvent extends ActionEvent {
+        /**
+         * Constructor of {@link AcceptanceRemovalEvent}.
+         */
+        public AcceptanceRemovalEvent() {
+            super();
+        }
+    }
+
+    /**
+     * An event generated when rejection was removed for action. For instance, when policy
+     * associated with action was deleted.
+     */
+    public static class RejectionRemovalEvent extends ActionEvent {
+        /**
+         * Constructor of {@link AcceptanceRemovalEvent}.
+         */
+        public RejectionRemovalEvent() {
+            super();
         }
     }
 

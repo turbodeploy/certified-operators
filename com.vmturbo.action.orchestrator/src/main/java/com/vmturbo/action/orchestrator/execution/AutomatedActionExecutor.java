@@ -27,8 +27,8 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -126,6 +126,7 @@ public class AutomatedActionExecutor {
      * Subject to queueing and/or throttling.
      *
      * @param store ActionStore containing all actions
+     * @return list of actions sent for execution
      */
     public List<ActionExecutionTask> executeAutomatedFromStore(ActionStore store) {
         if (!store.allowsExecution()) {
@@ -194,9 +195,8 @@ public class AutomatedActionExecutor {
                 try {
                     if (actionExecutionReadinessDetails.isAutomaticallyAccepted()) {
                         action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
-                    } else {
-                        action.receive(new ManualAcceptanceEvent(userNameAndUuid, targetId));
                     }
+                    action.receive(new QueuedEvent());
                 } catch (UnexpectedEventException ex) {
                     // log the error and continue with the execution of next action.
                     logger.error("Illegal state transition for action {}", action, ex);
@@ -278,7 +278,8 @@ public class AutomatedActionExecutor {
             isReadyForExecution = true;
             isAutomaticallyAccepted = true;
         }
-        if (scheduleOpt.isPresent() && actionMode == ActionMode.MANUAL && scheduleOpt.get()
+        if (scheduleOpt.isPresent() && (actionMode == ActionMode.MANUAL
+                || actionMode == ActionMode.EXTERNAL_APPROVAL) && scheduleOpt.get()
                 .isActiveSchedule() && scheduleOpt.get().getAcceptingUser() != null) {
             isReadyForExecution = true;
         }

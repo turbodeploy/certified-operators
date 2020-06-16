@@ -40,6 +40,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEve
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
@@ -526,7 +527,7 @@ public class AutomatedActionExecutorTest {
         executorService.awaitTermination(timeout, unit);
 
         InOrder order = Mockito.inOrder(manualAcceptedAction);
-        order.verify(manualAcceptedAction).receive(isA(ManualAcceptanceEvent.class));
+        order.verify(manualAcceptedAction).receive(isA(QueuedEvent.class));
         order.verify(manualAcceptedAction).receive(isA(BeginExecutionEvent.class));
 
         Mockito.verifyZeroInteractions(channel);

@@ -217,8 +217,6 @@ public class ActionExecutionSecureRpcTest {
         jwtContextUtil.setupSecurityContext(actionsRpcService, 1234567890L, "userid");
 
         ManagedChannel channel = jwtContextUtil.getChannel();
-        actionOrchestratorServiceClientWithInterceptor = ActionsServiceGrpc.newBlockingStub(channel)
-                .withInterceptors(new JwtClientInterceptor());
 
         // setup gPRC client
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(channel);
