@@ -569,6 +569,32 @@ public class GroupDaoTest {
     }
 
     /**
+     * Tests how tags are inserted if we have two tags with the same key and value. The DB requires the pair of
+     * Group ID, Tag Key and Tag Value to be unique. This test verifies that only one record is inserted.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testDuplicateTagsForGroups() throws Exception {
+        final Origin origin = createUserOrigin();
+        final String tagName1 = "tag1";
+        final String tagValue11 = "tag1-1";
+        final String tagValue12 = tagValue11;
+
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition())
+                .setTags(Tags.newBuilder()
+                        .putTags(tagName1, TagValuesDTO.newBuilder()
+                                .addAllValues(Arrays.asList(tagValue11, tagValue12)).build())).build();
+                       // .putTags(tagName2, TagValuesDTO.newBuilder().addValues(tagValue22).build())).build();
+
+        groupStore.createGroup(OID2, origin, groupDefinition, EXPECTED_MEMBERS, true);
+        final Map<Long, Map<String, Set<String>>> actualAllTags =
+                groupStore.getTags(Collections.emptyList());
+        Assert.assertEquals(1, actualAllTags.entrySet().iterator().next().getValue()
+                .entrySet().iterator().next().getValue().size());
+    }
+
+    /**
      * Tests how tags are queried from the database. If requested certain groups retain tags
      * related to these groups. If requested groups are not set then return tags for all existed
      * groups in group component.
