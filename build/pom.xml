@@ -312,6 +312,7 @@
             <id>group</id>
             <modules>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.identity</module>
                 <module>../com.vmturbo.group.component</module>
                 <module>../com.vmturbo.group.api</module>
             </modules>

@@ -27,6 +27,9 @@ public class TopologyDataDefinitionConfig {
     @Autowired
     private GroupComponentDBConfig databaseConfig;
 
+    @Autowired
+    private GroupConfig groupConfig;
+
     /**
      * Initializes identity generation with the correct prefix.
      *
@@ -35,6 +38,17 @@ public class TopologyDataDefinitionConfig {
     @Bean
     public IdentityInitializer identityInitializer() {
         return new IdentityInitializer(identityGeneratorPrefix);
+    }
+
+    /**
+     * Create a PersistentTopologyDataDefinitionIdentityStore from the db context.
+     *
+     * @return PersistentTopologyDataDefinitionIdentityStore based on the database context.
+     */
+    @Bean
+    public PersistentTopologyDataDefinitionIdentityStore
+            persistentTopologyDataDefinitionIdentityStore() {
+        return new PersistentTopologyDataDefinitionIdentityStore(databaseConfig.dsl());
     }
 
     /**
@@ -47,7 +61,8 @@ public class TopologyDataDefinitionConfig {
     @Bean
     public IdentityStore<TopologyDataDefinition> topologyDataDefinitionIdentityStore() {
         return new CachingIdentityStore<>(new TopologyDataDefinitionAttributeExtractor(),
-            new PersistentTopologyDataDefinitionIdentityStore(), identityInitializer());
+            persistentTopologyDataDefinitionIdentityStore(),
+                identityInitializer());
     }
 
     /**
@@ -58,6 +73,6 @@ public class TopologyDataDefinitionConfig {
     @Bean
     public TopologyDataDefinitionStore topologyDataDefinitionStore() {
         return new TopologyDataDefinitionStore(databaseConfig.dsl(),
-            topologyDataDefinitionIdentityStore());
+            topologyDataDefinitionIdentityStore(), groupConfig.groupStore());
     }
 }

@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 
+import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
@@ -32,7 +33,6 @@ import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.Topolo
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.UpdateTopologyDataDefinitionRequest;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.UpdateTopologyDataDefinitionResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
-import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.topologydatadefinition.TopologyDataDefinitionStore;
 import com.vmturbo.group.topologydatadefinition.TopologyDataDefinitionTestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -56,7 +56,7 @@ public class TopologyDataDefinitionRpcServiceTest {
 
     private final TopologyDataDefinition emptyDefinition =
         TopologyDataDefinitionTestUtils.createManualTopologyDataDefinition(EntityType.SERVICE, NAME,
-            GROUP_ID);
+            GROUP_ID, EntityType.VIRTUAL_MACHINE);
 
     private static final long OID = 1001L;
 
@@ -109,12 +109,12 @@ public class TopologyDataDefinitionRpcServiceTest {
      * DuplicateNameException.
      */
     @Test
-    public void testCreateDuplicateNameException() throws Exception {
+    public void testCreateDuplicateGetsException() throws Exception {
         final ArgumentCaptor<StatusException> exceptionCaptor =
             ArgumentCaptor.forClass(StatusException.class);
         final String errMessage = "Foo";
         when(topologyDataDefinitionStore.createTopologyDataDefinition(emptyDefinition))
-            .thenThrow(new DuplicateNameException(errMessage));
+            .thenThrow(new StoreOperationException(Status.ALREADY_EXISTS, errMessage));
         final StreamObserver<CreateTopologyDataDefinitionResponse>
             mockCreateTopologyDataDefResponseObserver = Mockito.mock(StreamObserver.class);
         topologyDataDefinitionRpcService.createTopologyDataDefinition(CreateTopologyDataDefinitionRequest.newBuilder()
@@ -177,7 +177,7 @@ public class TopologyDataDefinitionRpcServiceTest {
             ArgumentCaptor.forClass(GetTopologyDataDefinitionResponse.class);
         final TopologyDataDefinition definition2 =
             TopologyDataDefinitionTestUtils.createManualTopologyDataDefinition(
-                EntityType.BUSINESS_TRANSACTION, "Bar", GROUP_ID);
+                EntityType.BUSINESS_TRANSACTION, "Bar", GROUP_ID, EntityType.VIRTUAL_MACHINE);
         final TopologyDataDefinitionEntry entry2 = TopologyDataDefinitionEntry.newBuilder()
             .setDefinition(definition2)
             .setId(OID2)
@@ -200,11 +200,14 @@ public class TopologyDataDefinitionRpcServiceTest {
 
     /**
      * Test update.
+     *
+     * @throws Exception when topologyDataDefinitionStore does.
      */
     @Test
-    public void testUpdateTopologyDataDefinition() {
+    public void testUpdateTopologyDataDefinition() throws Exception {
         final TopologyDataDefinition updatedDef = TopologyDataDefinitionTestUtils
-            .createManualTopologyDataDefinition(EntityType.SERVICE, NAME, GROUP_ID2);
+            .createManualTopologyDataDefinition(EntityType.SERVICE, NAME, GROUP_ID2,
+                    EntityType.APPLICATION);
         final TopologyDataDefinitionEntry updatedDefEntry = TopologyDataDefinitionEntry.newBuilder()
             .setId(OID)
             .setDefinition(updatedDef)
@@ -217,7 +220,7 @@ public class TopologyDataDefinitionRpcServiceTest {
             .build();
 
         when(topologyDataDefinitionStore.updateTopologyDataDefinition(OID, updatedDef))
-            .thenReturn(Optional.of(updatedDefEntry));
+            .thenReturn(Optional.of(updatedDef));
         final UpdateTopologyDataDefinitionRequest request = UpdateTopologyDataDefinitionRequest
             .newBuilder()
             .setId(OID)
@@ -231,9 +234,11 @@ public class TopologyDataDefinitionRpcServiceTest {
 
     /**
      * Test an update where the OID does not match any existing definitions.
+     *
+     * @throws Exception when topologyDataDefinitionStore does.
      */
     @Test
-    public void testFailedUpdateBadOid() {
+    public void testFailedUpdateBadOid() throws Exception {
         final ArgumentCaptor<StatusException> exceptionCaptor =
             ArgumentCaptor.forClass(StatusException.class);
         when(topologyDataDefinitionStore.updateTopologyDataDefinition(MISSING_OID, emptyDefinition))

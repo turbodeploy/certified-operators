@@ -23,7 +23,6 @@ import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.Topolo
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.UpdateTopologyDataDefinitionRequest;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.UpdateTopologyDataDefinitionResponse;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc.TopologyDataDefinitionServiceImplBase;
-import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.topologydatadefinition.TopologyDataDefinitionStore;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 
@@ -61,8 +60,8 @@ public class TopologyDataDefinitionRpcService extends TopologyDataDefinitionServ
                         .createTopologyDataDefinition(request.getTopologyDataDefinition()))
                     .build());
                 responseObserver.onCompleted();
-            } catch (DuplicateNameException e) {
-                returnErrorResponse(e.getMessage(), Status.ALREADY_EXISTS, responseObserver, e);
+            } catch (StoreOperationException e) {
+                returnErrorResponse(e.getMessage(), e.getStatus(), responseObserver, e);
             } catch (IdentityStoreException e) {
                 returnErrorResponse(e.getMessage(), Status.INTERNAL, responseObserver, e);
             }
@@ -119,16 +118,24 @@ public class TopologyDataDefinitionRpcService extends TopologyDataDefinitionServ
                     + " No topology data definition was provided";
             returnErrorResponse(errMsg, Status.INVALID_ARGUMENT, responseObserver, null);
         } else {
-            Optional<TopologyDataDefinitionEntry> optUpdatedDefinition = topologyDataDefinitionStore
-                .updateTopologyDataDefinition(request.getId(), request.getTopologyDataDefinition());
-            if (!optUpdatedDefinition.isPresent()) {
-                final String msg = "No topology data definition found with ID " + request.getId();
-                returnErrorResponse(msg, Status.NOT_FOUND, responseObserver, null);
-            } else {
-                responseObserver.onNext(UpdateTopologyDataDefinitionResponse.newBuilder()
-                    .setUpdatedTopologyDataDefinition(optUpdatedDefinition.get())
-                    .build());
-                responseObserver.onCompleted();
+            try {
+                Optional<TopologyDataDefinition> optUpdatedDefinition = topologyDataDefinitionStore
+                    .updateTopologyDataDefinition(request.getId(), request.getTopologyDataDefinition());
+                if (!optUpdatedDefinition.isPresent()) {
+                    final String msg = "No topology data definition found with ID " + request.getId();
+                    returnErrorResponse(msg, Status.NOT_FOUND, responseObserver, null);
+                } else {
+                    responseObserver.onNext(UpdateTopologyDataDefinitionResponse.newBuilder()
+                        .setUpdatedTopologyDataDefinition(TopologyDataDefinitionEntry.newBuilder()
+                                .setDefinition(optUpdatedDefinition.get())
+                                .setId(request.getId()))
+                        .build());
+                    responseObserver.onCompleted();
+                }
+            } catch (StoreOperationException e) {
+                returnErrorResponse(e.getMessage(), e.getStatus(), responseObserver, e);
+            } catch (IdentityStoreException e) {
+                returnErrorResponse(e.getMessage(), Status.INVALID_ARGUMENT, responseObserver, e);
             }
         }
     }
