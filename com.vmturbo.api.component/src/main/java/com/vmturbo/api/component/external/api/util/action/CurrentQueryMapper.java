@@ -339,7 +339,7 @@ class CurrentQueryMapper {
                         relatedEntityTypes,
                         query.getEnvironmentType(),
                         userScope,
-                        buyRiScopeHandler.extractBuyRiEntities(scope)));
+                        buyRiScopeHandler.extractBuyRiEntities(scope, relatedEntityTypes)));
                 }
 
                 filtersByScope.put(scope, scopeBuilder.build());

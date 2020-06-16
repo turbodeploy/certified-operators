@@ -109,6 +109,10 @@ public class SearchableProperties {
      * Ephemeral field from virtual volume information.
      */
     public static final String EPHEMERAL = "ephemeral";
+    /**
+     * Deleteable field from virtual volume information.
+     */
+    public static final String DELETABLE = "deletable";
 
     /**
      * Status of a target.

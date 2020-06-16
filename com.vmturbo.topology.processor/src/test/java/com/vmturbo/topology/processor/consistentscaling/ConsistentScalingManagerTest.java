@@ -108,8 +108,7 @@ public class ConsistentScalingManagerTest {
     buildScalingGroups(ConsistentScalingManager csm) {
         Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName =
             new HashMap<>();
-        csm.buildScalingGroups(topologyGraph, testGroups.values().stream().map(ResolvedGroup::getGroup).iterator(),
-            userSettingsByEntityAndName);
+        csm.buildScalingGroups(userSettingsByEntityAndName);
         return userSettingsByEntityAndName;
     }
 
@@ -310,7 +309,7 @@ public class ConsistentScalingManagerTest {
             .thenReturn(testGroups.values().stream()
                 .map(ResolvedGroup::getGroup)
                 .collect(Collectors.toList()));
-        csm.buildScalingGroups(topologyGraph, groupResolver, new HashMap<>());
+        csm.buildScalingGroups(new HashMap<>());
         Assert.assertEquals(Optional.of("Group-B, Group-A"), csm.getScalingGroupId(1L));
         // Member of non-merged group
         Assert.assertEquals(Optional.of("Group-C"), csm.getScalingGroupId(5L));
@@ -323,14 +322,8 @@ public class ConsistentScalingManagerTest {
     public void testPreMergeScalingGroups() {
         ConsistentScalingManager csm = createCSM(true);
         populateCSMWithTestData(csm);
-        final GroupResolver groupResolver = mock(GroupResolver.class);
-        when(groupResolver.getGroupServiceClient()).thenReturn(groupServiceClient);
-        when(testGroupService.getGroups(any()))
-            .thenReturn(testGroups.values().stream()
-                .map(ResolvedGroup::getGroup)
-                .collect(Collectors.toList()));
         Map<Long, Map<String, SettingAndPolicyIdRecord>> settingsMaps = new HashMap<>();
-                csm.buildScalingGroups(topologyGraph, groupResolver, settingsMaps);
+                csm.buildScalingGroups(settingsMaps);
         // There are 7 powered on entities in the test topology, all of them in scaling groups, so
         // the settings map must also contain 7 entries.
         Assert.assertEquals(7, settingsMaps.size());

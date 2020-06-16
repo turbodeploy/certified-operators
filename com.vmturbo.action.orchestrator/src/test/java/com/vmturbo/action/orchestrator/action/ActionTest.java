@@ -28,6 +28,7 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -181,6 +182,7 @@ public class ActionTest {
                 .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
 
         moveAction.receive(new ManualAcceptanceEvent("0", targetId));
+        moveAction.receive(new QueuedEvent());
         moveAction.receive(new PrepareExecutionEvent());
         moveAction.receive(new BeginExecutionEvent());
     }
@@ -196,6 +198,9 @@ public class ActionTest {
                 .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
 
         moveAction.receive(new ManualAcceptanceEvent("0", 24L));
+        moveAction.receive(new QueuedEvent());
+        moveAction.receive(new PrepareExecutionEvent());
+        moveAction.receive(new BeginExecutionEvent());
 
         assertFalse(moveAction.determineExecutability());
     }
@@ -207,6 +212,18 @@ public class ActionTest {
         final Action notExecutable = new Action(recommendation, 1, actionModeCalculator, 2244L);
 
         assertFalse(notExecutable.determineExecutability());
+    }
+
+    /**
+     * Test that action is executable if it has ACCEPTED state.
+     */
+    @Test
+    public void testDetermineExecutabilityForAcceptedAction() {
+        final Action executableAction =
+                new Action(moveRecommendation, 1, actionModeCalculator, 2244L);
+        executableAction.receive(new ManualAcceptanceEvent("admin", 12L));
+
+        Assert.assertTrue(executableAction.determineExecutability());
     }
 
     @Test

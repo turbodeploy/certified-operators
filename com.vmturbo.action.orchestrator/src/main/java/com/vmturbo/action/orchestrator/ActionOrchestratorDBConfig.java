@@ -1,5 +1,7 @@
 package com.vmturbo.action.orchestrator;
 
+import java.util.Optional;
+
 import javax.sql.DataSource;
 
 import org.apache.logging.log4j.util.Strings;
@@ -7,7 +9,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
@@ -42,11 +43,7 @@ public class ActionOrchestratorDBConfig extends SQLDatabaseConfig {
     @Bean
     @Override
     public DataSource dataSource() {
-        // If no db password specified, use root password by default.
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute,
-            authRetryDelaySecs);
-        String dbPassword = !Strings.isEmpty(actionDbPassword) ?
-            actionDbPassword : dbPasswordUtil.getSqlDbRootPassword();
-        return dataSourceConfig(dbSchemaName, actionDbUsername, dbPassword);
+        return getDataSource(dbSchemaName, actionDbUsername,
+                Optional.ofNullable(!Strings.isEmpty(actionDbPassword) ? actionDbPassword : null));
     }
 }

@@ -13,7 +13,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.BiMap;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
@@ -280,8 +279,9 @@ public class TopologyEntitiesHandler {
             // actions on the newly provisioned entities, excluding the provisioned entities will cause those
             // actions to reference entities not actually in the projected topology.
             @NonNull List<Action> secondRoundActions = ede.generateActions(economy, true, true,
-                true, false, true, false, seedActions, marketId,
-                SuspensionsThrottlingConfig.DEFAULT).stream()
+                true, false, true, false,
+                analysisConfig.getReplayProvisionsForRealTime() ? seedActions : new ReplayActions(),
+                marketId, SuspensionsThrottlingConfig.DEFAULT).stream()
                 .filter(action -> (action instanceof ProvisionByDemand
                                 || action instanceof ProvisionBySupply
                                 || action instanceof Activate)
@@ -322,12 +322,17 @@ public class TopologyEntitiesHandler {
             results = builder.build();
 
             // Update replay actions
-            analysis.setReplayActions(new ReplayActions(ImmutableList.of(),
-                                                actions.stream()
-                                                    .filter(action -> action instanceof Deactivate)
-                                                    .map(action -> (Deactivate)action)
-                                                    .collect(Collectors.toList()),
-                                                topology));
+            analysis.setReplayActions(new ReplayActions(
+                secondRoundActions.stream()
+                    .filter(action -> action instanceof ProvisionBySupply
+                        || action instanceof Activate)
+                    .collect(Collectors.toList()), // porting ProvisionByDemand not supported yet!
+                actions.stream()
+                    .filter(action -> action instanceof Deactivate)
+                    .map(action -> (Deactivate)action)
+                    .collect(Collectors.toList()),
+                topology
+            ));
         }
 
         runTimer.observe();

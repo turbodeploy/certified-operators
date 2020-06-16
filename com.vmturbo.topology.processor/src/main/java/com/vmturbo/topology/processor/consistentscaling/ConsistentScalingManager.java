@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -19,11 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -31,11 +26,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingAndPolicyIdRecord;
 import com.vmturbo.topology.processor.group.settings.TopologyProcessorSettingsConverter;
@@ -273,13 +265,9 @@ public class ConsistentScalingManager {
      * are encountered.  Due to this merging, an entity can only be a member of a single scaling
      * group.
      *
-     * @param graph        the topology
-     * @param groupingList List of known groups
      * @param settings entity OID to settings map that is to be populated with shared settings
      */
-    public void buildScalingGroups(final TopologyGraph<TopologyEntity> graph,
-                       final @Nonnull Iterator<Grouping> groupingList,
-                       final @Nonnull  Map<Long, Map<String, SettingAndPolicyIdRecord>> settings) {
+    public void buildScalingGroups(final @Nonnull  Map<Long, Map<String, SettingAndPolicyIdRecord>> settings) {
         if (!config_.isEnabled()) {
             return;
         }
@@ -304,29 +292,6 @@ public class ConsistentScalingManager {
                 settings.put(oid, records);
             }
         }
-    }
-
-    /**
-     * Query the list of groups and building internal scaling groups.  See above for details.
-     * @param graph         topology
-     * @param groupResolver group resolver
-     * @param settings entity OID to settings map that is to be populated with shared settings
-     */
-    public void buildScalingGroups(final TopologyGraph<TopologyEntity> graph,
-                       final @Nonnull GroupResolver groupResolver,
-                       final @Nonnull Map<Long, Map<String, SettingAndPolicyIdRecord>> settings) {
-        ListFilter.Builder listFilter = ListFilter.newBuilder();
-        GroupFilter groupFilter = GroupFilter.newBuilder()
-            // Need to exclude clusters, resource groups, etc. to make the query more efficient.
-            .setGroupType(GroupType.REGULAR)
-            .addDirectMemberTypes(MemberType.newBuilder()
-                .setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
-            .addDirectMemberTypes(MemberType.newBuilder()
-                .setEntity(EntityType.CONTAINER_VALUE))
-            .build();
-        buildScalingGroups(graph, groupResolver.getGroupServiceClient()
-            .getGroups(GetGroupsRequest.newBuilder().setGroupFilter(groupFilter).build()),
-            settings);
     }
 
     /**

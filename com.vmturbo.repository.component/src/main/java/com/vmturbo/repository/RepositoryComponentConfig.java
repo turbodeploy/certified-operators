@@ -8,6 +8,7 @@ import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.Protocol;
+import com.arangodb.model.CollectionCreateOptions;
 import com.arangodb.velocypack.VPackDeserializer;
 import com.arangodb.velocypack.VPackSerializer;
 import com.arangodb.velocypack.ValueType;
@@ -104,6 +105,12 @@ public class RepositoryComponentConfig {
 
     @Value("${collectionReplicaCount:1}")
     private int collectionReplicaCount;
+
+    @Value("${collectionNumShards:1}")
+    private int collectionNumShards;
+
+    @Value("${collectionWaitForSync:true}")
+    private boolean collectionWaitForSync;
 
     @Autowired
     private RepositoryProperties repositoryProperties;
@@ -273,12 +280,33 @@ public class RepositoryComponentConfig {
     }
 
     /**
+     * A set of default collection creation options that can be used as a template for creating new
+     * collections.
+     *
+     * <p>NOTE: this is not being used everywhere we create collections at this time. But
+     * since we are likely to add more collection creation params if/when we horizontally scale the
+     * arangodb cluster, we can start to propagate this object instead of the individual default params we
+     * will use.
+     *
+     * @return the default collection creation options.
+     */
+    @Bean
+    public CollectionCreateOptions defaultCollectionOptions() {
+        CollectionCreateOptions defaultOptions = new CollectionCreateOptions()
+                .waitForSync(collectionWaitForSync)
+                .replicationFactor(collectionReplicaCount)
+                .numberOfShards(collectionNumShards);
+        return defaultOptions;
+    }
+
+    /**
      * Topology protobufs manager.
      *
      * @return Topology protobufs manager.
      */
+    @Bean
     public TopologyProtobufsManager topologyProtobufsManager() {
-        return new TopologyProtobufsManager(arangoDatabaseFactory(), getArangoDatabaseName());
+        return new TopologyProtobufsManager(arangoDatabaseFactory(), getArangoDatabaseName(), defaultCollectionOptions());
     }
 
     /**

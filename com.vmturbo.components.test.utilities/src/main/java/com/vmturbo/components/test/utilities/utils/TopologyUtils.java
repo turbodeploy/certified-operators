@@ -1,16 +1,13 @@
 package com.vmturbo.components.test.utilities.utils;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.sdk.examples.stressProbe.StressAccount;
 import com.vmturbo.sdk.examples.stressProbe.StressProbe;
-import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 
 /**
  * Utilities for constructing topologies used in tests.
@@ -98,17 +95,20 @@ public class TopologyUtils {
      * @throws InterruptedException If topologoy generation was interrupted.
      */
     public static List<TopologyEntityDTO> generateTopology(final int topologySize) throws InterruptedException {
-        final AtomicLong nextId = new AtomicLong(0);
-        final List<EntityDTO> entities = generateProbeTopology(topologySize);
-
-        final Map<Long, EntityDTO> entitiesWithOids = entities.stream()
-            .collect(Collectors.toMap(
-                entityDto -> nextId.incrementAndGet(),
-                Function.identity()));
-
-        return SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(entitiesWithOids).stream()
-                .map(TopologyEntityDTO.Builder::build)
-                .collect(Collectors.toList());
+        return Collections.emptyList();
+//        final AtomicLong nextId = new AtomicLong(0);
+//        final List<EntityDTO> entities = generateProbeTopology(topologySize);
+//
+//        final Map<Long, EntityDTO> entitiesWithOids = entities.stream()
+//            .collect(Collectors.toMap(
+//                entityDto -> nextId.incrementAndGet(),
+//                Function.identity()));
+//
+//        throw
+//
+//        return SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(entitiesWithOids).stream()
+//                .map(TopologyEntityDTO.Builder::build)
+//                .collect(Collectors.toList());
     }
 
     /**

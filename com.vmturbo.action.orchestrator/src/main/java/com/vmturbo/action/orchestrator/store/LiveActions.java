@@ -38,9 +38,14 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceRemovalEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.exception.AcceptedActionStoreOperationException;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
@@ -48,6 +53,7 @@ import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScope
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -234,14 +240,15 @@ class LiveActions implements QueryableActionViews {
      *
      * @param actionsToRemove The ids of actions to remove.
      * @param actionsToAdd The {@link Action}s to add.
+     * @param actionTargetSelector selects which target/probe to execute each action against
      * @param newEntitiesSnapshot The new {@link EntitiesAndSettingsSnapshot} to put into the entities
      *                            cache. This needs to be done atomically with the action addition,
      *                            because the mode calculation of those actions will depend on
      *                            the snapshot in the {@link EntitiesAndSettingsSnapshotFactory}.
      */
-    void updateMarketActions(@Nonnull final Collection<Long> actionsToRemove,
-                             @Nonnull final Collection<Action> actionsToAdd,
-                             @Nonnull final EntitiesAndSettingsSnapshot newEntitiesSnapshot) {
+    void updateMarketActions(@Nonnull final Collection<Long> actionsToRemove, @Nonnull final Collection<Action> actionsToAdd,
+            @Nonnull final EntitiesAndSettingsSnapshot newEntitiesSnapshot,
+            @Nonnull final ActionTargetSelector actionTargetSelector) {
         actionsLock.writeLock().lock();
         try {
             // We used to do a marketActions.keySet().removeAll(actionsToRemove) here, but that
@@ -260,8 +267,10 @@ class LiveActions implements QueryableActionViews {
             // of all market actions and set action description.
             marketActions.values().forEach(action -> refreshAction(action, newEntitiesSnapshot));
 
-            // update last recommended time for accepted/approved actions
-            updateLatestRecommendationTimeForAcceptedAction(newEntitiesSnapshot, marketActions.values());
+            // update state for accepted actions and for actions with removed acceptance and
+            // update latest recommendation time for accepted actions
+            processAcceptedActions(marketActions.values(), newEntitiesSnapshot,
+                    actionTargetSelector);
 
             marketActions.values().stream()
                 .collect(Collectors.groupingBy(a ->
@@ -274,17 +283,77 @@ class LiveActions implements QueryableActionViews {
         }
     }
 
-    private void updateLatestRecommendationTimeForAcceptedAction(
-            @Nonnull EntitiesAndSettingsSnapshot entitiesSnapshot,
-            @Nonnull Collection<Action> actions) {
-        final List<Long> reRecommendedAcceptedActions = actions.stream()
-                .filter(action -> entitiesSnapshot.getAcceptingUserForAction(
-                        action.getRecommendationOid()).isPresent())
+    private void processAcceptedActions(@Nonnull final Collection<Action> allMarketActions,
+            @Nonnull final EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot,
+            @Nonnull final ActionTargetSelector actionTargetSelector) {
+        updateStateForActionsWithRemovedAcceptance(allMarketActions);
+        updateStateForAcceptedActions(allMarketActions,
+                entitiesAndSettingsSnapshot, actionTargetSelector);
+        updateLatestRecommendationTimeForAcceptedActions(allMarketActions);
+    }
+
+    private void updateStateForAcceptedActions(@Nonnull final Collection<Action> allMarketActions,
+            @Nonnull final EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot,
+            @Nonnull final ActionTargetSelector actionTargetSelector) {
+        final List<Action> acceptedActions = allMarketActions.stream()
+                .filter(action -> action.getSchedule().isPresent()
+                        && action.getSchedule().get().getAcceptingUser() != null
+                        && action.getState() == ActionState.READY)
+                .collect(Collectors.toList());
+
+        if (!acceptedActions.isEmpty()) {
+            final Map<Long, ActionTargetInfo> targetsForAcceptedActions =
+                    actionTargetSelector.getTargetsForActions(
+                            acceptedActions.stream().map(Action::getRecommendation),
+                            entitiesAndSettingsSnapshot);
+            acceptedActions.forEach(action -> updateActionState(targetsForAcceptedActions, action));
+        }
+    }
+
+    private void updateActionState(@Nonnull final Map<Long, ActionTargetInfo> targetsForAcceptedActions,
+            @Nonnull final Action action) {
+        final ActionTargetInfo actionTargetInfo =
+                targetsForAcceptedActions.get(action.getId());
+        if (actionTargetInfo.targetId().isPresent()) {
+            if (actionTargetInfo.supportingLevel() == SupportLevel.SUPPORTED) {
+                action.receive(new ManualAcceptanceEvent(
+                        action.getSchedule().get().getAcceptingUser(),
+                        targetsForAcceptedActions.get(action.getId()).targetId().get()));
+            } else {
+                logger.error("Action {} cannot be executed because it is not supported. "
+                                + "Support level: {}", action.getRecommendationOid(),
+                        actionTargetInfo.supportingLevel());
+                action.receive(new FailureEvent(
+                        "Action cannot be executed because it is not supported. Support level: "
+                                + actionTargetInfo.supportingLevel()));
+            }
+        } else {
+            logger.error("There is no target for accepted action {}.", action.toString());
+            action.receive(new FailureEvent("Action cannot be executed by any target."));
+        }
+    }
+
+    private void updateStateForActionsWithRemovedAcceptance(
+            @Nonnull final Collection<Action> allMarketActions) {
+        final List<Action> actionsWithRemovedAcceptance = allMarketActions.stream()
+                .filter(action -> action.getSchedule().isPresent()
+                        && action.getSchedule().get().getAcceptingUser() == null
+                        && action.getState() == ActionState.ACCEPTED)
+                .collect(Collectors.toList());
+
+        actionsWithRemovedAcceptance.forEach(action -> action.receive(new AcceptanceRemovalEvent()));
+    }
+
+    private void updateLatestRecommendationTimeForAcceptedActions(
+            @Nonnull Collection<Action> allMarketActions) {
+        final List<Long> acceptedRecommendationsIds = allMarketActions.stream()
+                .filter(action -> action.getSchedule().isPresent()
+                        && action.getSchedule().get().getAcceptingUser() != null)
                 .map(Action::getRecommendationOid)
                 .collect(Collectors.toList());
-        if (!reRecommendedAcceptedActions.isEmpty()) {
+        if (!acceptedRecommendationsIds.isEmpty()) {
             try {
-                acceptedActionsStore.updateLatestRecommendationTime(reRecommendedAcceptedActions);
+                acceptedActionsStore.updateLatestRecommendationTime(acceptedRecommendationsIds);
             } catch (AcceptedActionStoreOperationException ex) {
                 logger.warn("Last recommended time wasn't updated for all accepted actions.", ex);
             }
@@ -309,10 +378,12 @@ class LiveActions implements QueryableActionViews {
     private static void refreshAction(
             @Nonnull final Action action,
             @Nonnull final EntitiesAndSettingsSnapshot newEntitiesSnapshot) {
-        // We only want to refresh the action modes of "READY" actions.
-        // Once an action has been accepted (by the user or system) it doesn't make
-        // sense to retroactively modify the action mode or other dynamic information.
-        if (action.getState() == ActionState.READY) {
+        // We want to update dynamic information not only for "READY" actions, but also for
+        // "ACCEPTED" and "QUEUED" in order to update information about action schedule.
+        // For other action states it doesn't make sense to retroactively modify the action mode or other dynamic information
+        final ActionState actionState = action.getState();
+        if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED
+                || actionState == ActionState.QUEUED) {
             try {
                 action.refreshAction(newEntitiesSnapshot);
             } catch (UnsupportedActionException e) {

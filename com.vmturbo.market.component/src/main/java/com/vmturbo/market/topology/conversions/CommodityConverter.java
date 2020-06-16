@@ -502,52 +502,39 @@ public class CommodityConverter {
      * Returns the historical value for sold and bought commodity with the percentile value given
      * a higher priority.
      * @param commDto the sold commodity or the bought commodity.
-     * @param usedExtractor function that extracts the current used value.
      * @param historicalExtractor function that extracts the historical utilization(used) value.
      * @return AN optional of the the array of historical used/peak values, returns empty
-    * if historical value is not set and the used extractor is not passed.
+    * if historical value is not set.
      */
-    public static Optional<float[]> getHistoricalUsedOrPeak(final CommodityBoughtDTO commDto,
-                                                            @Nullable Function<CommodityBoughtDTO, Double> usedExtractor,
-                                                            @Nullable Function<CommodityBoughtDTO, HistoricalValues> historicalExtractor) {
-        if (historicalExtractor != null) {
-            HistoricalValues hv = historicalExtractor.apply(commDto);
-            if (hv.hasPercentile()) {
-                float value = (float)hv.getPercentile();
-                logger.debug("Using percentile value {} for recalculating resize capacity for {}",
-                        value, commDto.getCommodityType().getType());
-                return Optional.of(new float[]{Float.valueOf(value)});
-            } else if (hv.getTimeSlotCount() > 1 &&
-                    TIMESLOT_COMMODITIES.contains(commDto.getCommodityType().getType())) {
-                float[] timeslotValueArr = ArrayUtils.toPrimitive(hv.getTimeSlotList().stream()
-                        .filter(Objects::nonNull)
-                        .map(x -> x.floatValue())
-                        .collect(Collectors.toList())
-                        .toArray(new Float[]{}));
-                logger.debug("Using time slot values {} for recalculating resize capacity for {}",
-                        timeslotValueArr, commDto.getCommodityType().getType());
-                return Optional.of(timeslotValueArr);
-
-            } else if (hv.hasHistUtilization()) {
-                // if not then hist utilization which is the historical used value.
-                float value = (float)hv.getHistUtilization();
-                logger.debug("Using hist Utilization value {} for recalculating resize capacity for {}",
-                        value, commDto.getCommodityType().getType());
-                return Optional.of(new float[]{Float.valueOf(value)});
-            }
-        }
-        // otherwise take real-time 'used'
-        // real-time values have 0 defaults so there cannot be nulls
-        if (usedExtractor != null) {
-            float value = usedExtractor.apply(commDto).floatValue();
-            logger.debug("Using current used value {} for recalculating resize capacity for {}",
-                    value, commDto.getCommodityType().getType());
+   @Nonnull
+   public static Optional<float[]> getHistoricalUsedOrPeak(final CommodityBoughtDTO commDto,
+                    @Nonnull final Function<CommodityBoughtDTO, HistoricalValues> historicalExtractor) {
+        final HistoricalValues hv = historicalExtractor.apply(commDto);
+        if (hv.hasPercentile()) {
+            final float value = (float)hv.getPercentile();
+            logger.debug("Using percentile value {} for recalculating resize capacity for {}",
+                value, commDto.getCommodityType().getType());
+            return Optional.of(new float[]{Float.valueOf(value)});
+        } else if (hv.getTimeSlotCount() > 1 &&
+            TIMESLOT_COMMODITIES.contains(commDto.getCommodityType().getType())) {
+            final float[] timeslotValueArr = ArrayUtils.toPrimitive(hv.getTimeSlotList().stream()
+                .filter(Objects::nonNull)
+                .map(x -> x.floatValue())
+                .collect(Collectors.toList())
+                .toArray(new Float[]{}));
+            logger.debug("Using time slot values {} for recalculating resize capacity for {}",
+                timeslotValueArr, commDto.getCommodityType().getType());
+            return Optional.of(timeslotValueArr);
+        } else if (hv.hasHistUtilization()) {
+            // if not then hist utilization which is the historical used value.
+            final float value = (float)hv.getHistUtilization();
+            logger.debug("Using hist Utilization value {} for recalculating resize capacity for {}",
+                value, commDto.getCommodityType().getType());
             return Optional.of(new float[]{Float.valueOf(value)});
         } else {
             return Optional.empty();
         }
-    }
-
+   }
 
     /**
      * Fetch the single used or peak value for a topology commodity.

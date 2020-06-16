@@ -34,8 +34,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.G
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -94,7 +94,7 @@ public class HistoricalQueryMapperTest {
         assertThat(grpcQuery.getActionGroupFilter().getActionModeList(),
             containsInAnyOrder(ActionDTO.ActionMode.AUTOMATIC, ActionDTO.ActionMode.MANUAL));
         assertThat(grpcQuery.getActionGroupFilter().getActionStateList(),
-            containsInAnyOrder(ActionDTO.ActionState.QUEUED, ActionDTO.ActionState.IN_PROGRESS));
+            containsInAnyOrder(ActionDTO.ActionState.ACCEPTED, ActionDTO.ActionState.IN_PROGRESS));
         assertThat(grpcQuery.getActionGroupFilter().getActionTypeList(),
             containsInAnyOrder(ActionDTO.ActionType.MOVE, ActionDTO.ActionType.RESIZE));
 

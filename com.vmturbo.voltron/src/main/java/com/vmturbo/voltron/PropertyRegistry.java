@@ -76,7 +76,7 @@ class PropertyRegistry {
         props.put("consul_host", "localhost");
         props.put("consul_port", "8500");
 
-        props.put("grafana.host", "localhost");
+        props.put("grafanaHost", "localhost");
 
         props.put("topologyProcessorRoute", Component.TOPOLOGY_PROCESSOR.getShortName());
         if (!namespace.isEmpty()) {

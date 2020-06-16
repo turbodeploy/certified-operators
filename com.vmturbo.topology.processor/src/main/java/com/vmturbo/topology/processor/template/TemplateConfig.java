@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
+import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
@@ -38,6 +39,9 @@ public class TemplateConfig {
     @Autowired
     private PlanOrchestratorClientConfig planOrchestratorClientConfig;
 
+    @Autowired
+    private GroupConfig groupConfig;
+
     @Value("${discoveredTemplateUploadTimeoutMin:10}")
     private long discoveredTemplateUploadTimeoutMin;
 
@@ -45,7 +49,8 @@ public class TemplateConfig {
     @Bean
     public TemplateConverterFactory templateConverterFactory() {
         return new TemplateConverterFactory(templateServiceBlockingStub(),
-                identityProviderConfig.identityProvider());
+                identityProviderConfig.identityProvider(),
+                groupConfig.settingPolicyServiceClient());
     }
 
     /**

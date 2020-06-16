@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>7.22.3-SNAPSHOT</version>
+        <version>7.22.4-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
 
@@ -49,7 +49,26 @@
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
                 <configuration>
-                  <serverId>docker-registry</serverId>
+                    <serverId>docker-registry</serverId>
+                    <resources>
+                        <resource>
+                            <targetPath>/</targetPath>
+                            <directory>${project.build.directory}</directory>
+                            <include>${project.build.finalName}.jar</include>
+                        </resource>
+                        <resource>
+                            <targetPath>/lib</targetPath>
+                            <directory>${project.build.directory}/lib</directory>
+                        </resource>
+                        <resource>
+                            <targetPath>/swagger</targetPath>
+                            <directory>${project.build.directory}/generated-docs/swagger</directory>
+                        </resource>
+                        <resource>
+                            <targetPath>/dashboards</targetPath>
+                            <directory>${project.build.directory}/classes/dashboards</directory>
+                        </resource>
+                    </resources>
                 </configuration>
             </plugin>
             <plugin>

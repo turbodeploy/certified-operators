@@ -39,6 +39,8 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
     private final Map<String, List<String>> tags = new HashMap<>();
 
+    private boolean deletable = true;
+
     /**
      * Relationships to other entities.
      */
@@ -183,6 +185,17 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
     }
 
     /**
+     * Get deletable state of the topology entity. Default is true.
+     *
+     * @return true, means the Market can delete this entity.
+     *         false, means Market will not generate Delete Actions.
+     */
+    @Override
+    public boolean getDeletable() {
+        return deletable;
+    }
+
+    /**
      * Create a new builder with a specific oid and a specific entity type.
      *
      * @param oid the oid of the new entity builder
@@ -276,6 +289,11 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
         public Builder setEnvironmentType(@Nonnull final EnvironmentType envType) {
             entity.envType = envType;
+            return this;
+        }
+
+        public Builder setDeletable(boolean deletable) {
+            entity.deletable = deletable;
             return this;
         }
 

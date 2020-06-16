@@ -6,6 +6,7 @@ import com.arangodb.ArangoCollection;
 import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.BaseDocument;
+import com.arangodb.model.CollectionCreateOptions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,11 +37,12 @@ public abstract class TopologyProtobufHandler {
      * @param arangoDatabaseName ArangoDB database name.
      */
     protected TopologyProtobufHandler(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId,
-                                      final String arangoDatabaseName) {
+                                      final String arangoDatabaseName,
+                                      final CollectionCreateOptions collectionCreateOptions) {
         this.topologyId = topologyId;
         this.arangoFactory = arangoDatabaseFactory;
         database = database(arangoDatabaseName);
-        topologyCollection = collection(getTopologyCollectionName(topologyId));
+        topologyCollection = collection(getTopologyCollectionName(topologyId), collectionCreateOptions);
     }
 
     private static String getTopologyCollectionName(long topologyId) {
@@ -51,10 +53,12 @@ public abstract class TopologyProtobufHandler {
      * Obtain a collection where the topology chunks are/will be stored.
      *
      * @param collectionName identifying the raw topology
+     * @param collectionCreateOptions arangodb options used to create the collection
      * @return an ArangoDB collection that holds the chunks of this topology
      */
-    protected ArangoCollection collection(@Nonnull final String collectionName) {
-        database.createCollection(collectionName);
+    protected ArangoCollection collection(@Nonnull final String collectionName,
+                                          @Nonnull final CollectionCreateOptions collectionCreateOptions) {
+        database.createCollection(collectionName, collectionCreateOptions);
         return database.collection(collectionName);
     }
 

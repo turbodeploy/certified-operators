@@ -1,6 +1,9 @@
 package com.vmturbo.extractor.grafana;
 
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.collect.Sets;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,23 +24,30 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 @Import({SQLDatabaseConfig2.class, ExtractorDbConfig.class})
 public class GrafanaConfig {
 
-    @Value("${grafana.host:grafana}")
+    @Value("${grafanaHost:grafana}")
     private String grafanaHost;
 
-    @Value("${grafana.port:3000}")
+    @Value("${grafanaPort:3000}")
     private int grafanaPort;
 
-    @Value("${grafana.admin.user:admin}")
+    @Value("${grafanaAdminUser:admin}")
     private String adminUser;
 
-    @Value("${grafana.admin.password:admin}")
+    @Value("${grafanaAdminPassword:admin}")
     private String adminPassword;
 
-    @Value("${grafana.errorSleepIntervalSeconds:30}")
+    @Value("${grafanaErrorSleepIntervalSeconds:30}")
     private int grafanaErrorSleepIntervalSec;
 
-    @Value("${grafana.timescaleDatasourceName:Turbo Timescale}")
+    @Value("${grafanaTimescaleDatasourceName:Turbo Timescale}")
     private String datasourceName;
+
+    /**
+     * This is the path to the dashboard folders.
+     * TODO (roman, Jun 10 2019): Allow injecting additional dashboard paths.
+     */
+    @Value("${grafanaBuiltinDashboardPath:/dashboards}")
+    private String builtinDashboardPath;
 
     @Autowired
     private SQLDatabaseConfig2 sqlDatabaseConfig;
@@ -80,7 +90,7 @@ public class GrafanaConfig {
      */
     @Bean
     public DashboardsOnDisk dashboardsOnDisk() {
-        return new DashboardsOnDisk();
+        return new DashboardsOnDisk(builtinDashboardPath);
     }
 
     /**

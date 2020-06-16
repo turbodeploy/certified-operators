@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.template;
 
-import static org.mockito.Mockito.mock;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -24,13 +25,20 @@ import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -46,14 +54,30 @@ public class HCIPhysicalMachineEntityConstructorTest {
     private static final long[] OIDS = {11111111111111L, 22222222222222L, 33333333333333L};
     private static int oidCount = 0;
 
-    private final IdentityProvider identityProvider = mock(IdentityProvider.class);
+    private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+    private final SettingPolicyServiceMole testSettingPolicyService = spy(
+            new SettingPolicyServiceMole());
+    private SettingPolicyServiceBlockingStub settingPolicyServiceClient;
+
+    /**
+     * GRPC test server.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(testSettingPolicyService);
 
     /**
      * Common setup before every test.
+     *
+     * @throws IOException error loading settings
      */
     @Before
-    public void setup() {
-        when(identityProvider.generateTopologyId()).thenAnswer(invocationOnMock -> OIDS[oidCount++]);
+    public void setup() throws IOException {
+        when(identityProvider.generateTopologyId())
+                .thenAnswer(invocationOnMock -> OIDS[oidCount++]);
+        settingPolicyServiceClient = SettingPolicyServiceGrpc
+                .newBlockingStub(grpcServer.getChannel());
+        GetEntitySettingsResponse settings = loadSettings("StorageSettings.json");
+        when(testSettingPolicyService.getEntitySettings(any())).thenReturn(Arrays.asList(settings));
     }
 
     /**
@@ -101,8 +125,8 @@ public class HCIPhysicalMachineEntityConstructorTest {
 
         // Run test
         Collection<TopologyEntityDTO.Builder> result = new HCIPhysicalMachineEntityConstructor(
-                template, topology, Collections.singletonList(host1), true,
-                identityProvider).createTopologyEntitiesFromTemplate();
+                template, topology, Collections.singletonList(host1), true, identityProvider,
+                settingPolicyServiceClient).createTopologyEntitiesFromTemplate();
 
         Assert.assertEquals(3, result.size());
         List<TopologyEntityDTO.Builder> newHosts = result.stream()
@@ -178,6 +202,16 @@ public class HCIPhysicalMachineEntityConstructorTest {
             throws IOException {
         String str = readResourceFileAsString(jsonFileName);
         TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder();
+        JsonFormat.parser().merge(str, builder);
+
+        return builder.build();
+    }
+
+    @Nonnull
+    private GetEntitySettingsResponse loadSettings(@Nonnull String jsonFileName)
+            throws IOException {
+        String str = readResourceFileAsString(jsonFileName);
+        GetEntitySettingsResponse.Builder builder = GetEntitySettingsResponse.newBuilder();
         JsonFormat.parser().merge(str, builder);
 
         return builder.build();

@@ -30,6 +30,7 @@ import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
@@ -295,6 +296,10 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
         logger.info("Action execution failed for action: {}", action);
 
+        if (action.getMode() == ActionMode.EXTERNAL_APPROVAL) {
+            removeAcceptanceForExternalAcceptedAction(action);
+        }
+
         failedCloudVMGroupProcessor.handleActionFailure(action);
         saveToDb(action);
         writeFailActionToAudit(action, actionFailure);
@@ -309,6 +314,21 @@ public class ActionStateUpdater implements ActionExecutionListener {
             } catch (CommunicationException | InterruptedException e) {
                 logger.error("Unable to send notification for failure of " + actionFailure, e);
             }
+        }
+    }
+
+    /**
+     * Remove acceptance for external accepted action with associated execution window.
+     *
+     * @param action previously accepted action
+     */
+    private void removeAcceptanceForExternalAcceptedAction(@Nonnull Action action) {
+        final Optional<ActionSchedule> actionSchedule = action.getSchedule();
+        if (actionSchedule.isPresent() && actionSchedule.get().getAcceptingUser() != null) {
+            acceptedActionsStore.deleteAcceptedAction(action.getRecommendationOid());
+            logger.debug(
+                    "Acceptance was removed for failed execution of externally accepted action - {}.",
+                    action.toString());
         }
     }
 

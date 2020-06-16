@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -39,15 +40,23 @@ import org.mockito.Mockito;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.exception.AcceptedActionStoreOperationException;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.QueryFilterFactory;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
@@ -55,6 +64,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -69,6 +81,8 @@ public class LiveActionsTest {
     private ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
 
     private EntitiesAndSettingsSnapshot entitiesCache = mock(EntitiesAndSettingsSnapshot.class);
+
+    private ActionTargetSelector actionTargetSelector = Mockito.mock(ActionTargetSelector.class);
 
     private Clock clock = new MutableFixedClock(1_000_000);
 
@@ -143,41 +157,138 @@ public class LiveActionsTest {
 
         // Remove action1, add action 2 and 3
         liveActions.updateMarketActions(Collections.singleton(action1.getId()),
-            Arrays.asList(action2, action3), entityCacheSnapshot);
+                Arrays.asList(action2, action3), entityCacheSnapshot, actionTargetSelector);
 
         assertThat(liveActions.getAll().collect(Collectors.toList()),
             containsInAnyOrder(action2, action3));
     }
 
     /**
-     * Tests updating latest recommendation time for accepted actions.
+     * Test action state's recovery after restarting action-orchestration component.
+     * Accepted actions updates their states from READY to ACCEPTED.
+     * Actions with removed acceptance updates their states from ACCEPTED to READY.
      *
-     * @throws AcceptedActionStoreOperationException if something goes wrong while operating
-     * in DAO layer
+     * @throws UnsupportedActionException if something goes wrong
      */
     @Test
-    public void testUpdateLatestRecommendationTimeForAcceptedActions()
-            throws AcceptedActionStoreOperationException {
-        final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
-        final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
+    public void testUpdatingActionStates() throws UnsupportedActionException {
+        final long scheduleId = 505L;
+        final ScheduleProto.Schedule actionSchedule1 = createSchedule(scheduleId);
+
+        final Action acceptedAction = ActionOrchestratorTestUtils.createMoveAction(1, 2);
+        acceptedAction.getActionTranslation().setPassthroughTranslationSuccess();
+        final Action actionWithRemovedAcceptance = createActionWithRemovedAcceptance();
+
+        final EntitiesAndSettingsSnapshot entityCacheSnapshot =
+                mock(EntitiesAndSettingsSnapshot.class);
+        Mockito.when(entityCacheSnapshot.getOwnerAccountOfEntity(anyLong()))
+                .thenReturn(Optional.empty());
+        Mockito.when(entityCacheSnapshot.getAcceptingUserForAction(anyLong()))
+                .thenReturn(Optional.empty());
+
+        final Map<String, Setting> settingMap =
+                ActionOrchestratorTestUtils.makeActionModeAndExecutionScheduleSetting(
+                        ActionMode.MANUAL, Collections.singleton(scheduleId));
+        final ActionEntity acceptedActionEntity =
+                ActionDTOUtil.getPrimaryEntity(acceptedAction.getRecommendation());
+        final ActionEntity actionWithRemovedAcceptanceEntity =
+                ActionDTOUtil.getPrimaryEntity(actionWithRemovedAcceptance.getRecommendation());
+        Mockito.when(entityCacheSnapshot.getSettingsForEntity(acceptedActionEntity.getId()))
+                .thenReturn(settingMap);
+        Mockito.when(
+                entityCacheSnapshot.getSettingsForEntity(actionWithRemovedAcceptanceEntity.getId()))
+                .thenReturn(settingMap);
+
+        Mockito.when(entityCacheSnapshot.getScheduleMap())
+                .thenReturn(ImmutableMap.of(scheduleId, actionSchedule1));
+        Mockito.when(entityCacheSnapshot.getAcceptingUserForAction(
+                acceptedAction.getRecommendationOid())).thenReturn(Optional.of("admin"));
+        Mockito.when(entityCacheSnapshot.getAcceptingUserForAction(
+                actionWithRemovedAcceptance.getRecommendationOid())).thenReturn(Optional.empty());
+
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,
+                acceptedAction);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,
+                actionWithRemovedAcceptance);
+
+        Mockito.when(actionTargetSelector.getTargetsForActions(any(), any()))
+                .thenAnswer(invocation -> {
+                    Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
+                    return actions.collect(Collectors.toMap(ActionDTO.Action::getId,
+                            action -> ImmutableActionTargetInfo.builder()
+                                    .targetId(100L)
+                                    .supportingLevel(SupportLevel.SUPPORTED)
+                                    .build()));
+                });
+
+        Assert.assertEquals(ActionState.READY, acceptedAction.getState());
+        Assert.assertEquals(ActionState.ACCEPTED, actionWithRemovedAcceptance.getState());
+
+        // ACT
+        liveActions.updateMarketActions(Collections.emptyList(),
+                Arrays.asList(acceptedAction, actionWithRemovedAcceptance), entityCacheSnapshot,
+                actionTargetSelector);
+
+        Assert.assertThat(liveActions.getAll().collect(Collectors.toList()),
+                containsInAnyOrder(acceptedAction, actionWithRemovedAcceptance));
+        Assert.assertEquals(ActionState.ACCEPTED, acceptedAction.getState());
+        Assert.assertEquals(ActionState.READY, actionWithRemovedAcceptance.getState());
+    }
+
+    /**
+     * Tests updating latest recommendation time for accepted actions.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testUpdateLatestRecommendationTimeForAcceptedActions() throws Exception {
+        final long scheduleId = 505L;
+        final ScheduleProto.Schedule actionSchedule1 = createSchedule(scheduleId);
+
+        final Action acceptedAction = ActionOrchestratorTestUtils.createMoveAction(1, 2);
+        acceptedAction.getActionTranslation().setPassthroughTranslationSuccess();
+        final Action actionWithoutAcceptance = ActionOrchestratorTestUtils.createMoveAction(2, 2);
         final EntitiesAndSettingsSnapshot entityCacheSnapshot =
                 mock(EntitiesAndSettingsSnapshot.class);
         when(entityCacheSnapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
-        when(entityCacheSnapshot.getAcceptingUserForAction(action1.getRecommendationOid())).thenReturn(
-                Optional.of("administrator"));
-        when(entityCacheSnapshot.getAcceptingUserForAction(action2.getRecommendationOid())).thenReturn(
-                Optional.empty());
 
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot, action1);
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot, action2);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,
+                acceptedAction);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,
+                actionWithoutAcceptance);
 
-        liveActions.updateMarketActions(Collections.emptyList(), Arrays.asList(action1, action2),
-                entityCacheSnapshot);
+        Mockito.when(entityCacheSnapshot.getScheduleMap())
+                .thenReturn(ImmutableMap.of(scheduleId, actionSchedule1));
+        Mockito.when(entityCacheSnapshot.getAcceptingUserForAction(
+                acceptedAction.getRecommendationOid())).thenReturn(Optional.of("admin"));
+
+        final Map<String, Setting> settingMap =
+                ActionOrchestratorTestUtils.makeActionModeAndExecutionScheduleSetting(
+                        ActionMode.MANUAL, Collections.singleton(scheduleId));
+        final ActionEntity acceptedActionEntity =
+                ActionDTOUtil.getPrimaryEntity(acceptedAction.getRecommendation());
+        Mockito.when(entityCacheSnapshot.getSettingsForEntity(acceptedActionEntity.getId()))
+                .thenReturn(settingMap);
+
+        Mockito.when(actionTargetSelector.getTargetsForActions(any(), any()))
+                .thenAnswer(invocation -> {
+                    Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
+                    return actions.collect(Collectors.toMap(ActionDTO.Action::getId,
+                            action -> ImmutableActionTargetInfo.builder()
+                                    .targetId(100L)
+                                    .supportingLevel(SupportLevel.SUPPORTED)
+                                    .build()));
+                });
+
+        liveActions.updateMarketActions(Collections.emptyList(),
+                Arrays.asList(acceptedAction, actionWithoutAcceptance), entityCacheSnapshot,
+                actionTargetSelector);
 
         assertThat(liveActions.getAll().collect(Collectors.toList()),
-                containsInAnyOrder(action1, action2));
+                containsInAnyOrder(acceptedAction, actionWithoutAcceptance));
         Mockito.verify(acceptedActionsStore)
-                .updateLatestRecommendationTime(Collections.singletonList(action1.getRecommendationOid()));
+                .updateLatestRecommendationTime(
+                        Collections.singletonList(acceptedAction.getRecommendationOid()));
         Mockito.verifyNoMoreInteractions(acceptedActionsStore);
     }
 
@@ -608,5 +719,32 @@ public class LiveActionsTest {
         // scoped user can access move 13, even though only one involved entity is in scope
         expectedException.expect(UserAccessScopeException.class);
         assertThat(liveActions.getAction(move13Action.getId()).get(), is(move13Action));
+    }
+
+    private Action createActionWithRemovedAcceptance() {
+        final ActionDTO.Action recommendation =
+                ActionOrchestratorTestUtils.createMoveRecommendation(2);
+
+        final SerializationState actionSerializedState =
+                new SerializationState(2L, recommendation, LocalDateTime.now(),
+                        ActionDecision.getDefaultInstance(), null, ActionState.ACCEPTED,
+                        new ActionTranslation(recommendation), null, null,
+                        "Move VM action".getBytes(), 2244L);
+        return ActionOrchestratorTestUtils.createActionFromSerializedState(actionSerializedState);
+    }
+
+    private Schedule createSchedule(long scheduleId) {
+        return ScheduleProto.Schedule.newBuilder()
+                .setId(scheduleId)
+                .setDisplayName("TestSchedule")
+                .setNextOccurrence(ScheduleProto.Schedule.NextOccurrence.newBuilder()
+                        .setStartTime(System.currentTimeMillis())
+                        .build())
+                .setActive(ScheduleProto.Schedule.Active.newBuilder()
+                        .setRemainingActiveTimeMs(150000L))
+                .setStartTime(1588441640000L)
+                .setEndTime(1588445240000L)
+                .setTimezoneId("America/Toronto")
+                .build();
     }
 }

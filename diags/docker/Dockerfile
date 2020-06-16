@@ -1,6 +1,17 @@
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
+# Required OpenShift Labels
+LABEL name="diags" \
+      vendor="Turbonomic" \
+      version="7" \
+      release="1" \
+      summary="diags" \
+      description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
+
+# Required Licenses
+COPY licenses /licenses
+
 # Install rsyslog and java-11 packages
 RUN dnf install -y rsyslog procps-ng python2 net-tools java-11-openjdk-devel xz \
         openssl gettext iputils iproute nmap lsof openssh-clients && \

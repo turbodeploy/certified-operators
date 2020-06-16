@@ -5,11 +5,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.market.MarketDebug.AnalysisInput;
 import com.vmturbo.common.protobuf.market.MarketDebug.AnalysisOutput;
@@ -94,6 +94,7 @@ public class MarketDebugRpcService extends MarketDebugServiceImplBase {
                     .addAllEntities(analysis.getOriginalInputTopology().values())
                     .setIncludeVdc(analysisConfig.getIncludeVdc())
                     .setUseQuoteCacheDuringSnm(analysisConfig.getUseQuoteCacheDuringSNM())
+                    .setReplayProvisionsForRealTime(analysisConfig.getReplayProvisionsForRealTime())
                     .setRightSizeLowerWatermark(analysisConfig.getRightsizeLowerWatermark())
                     .setRightSizeUpperWatermark(analysisConfig.getRightsizeUpperWatermark())
                     .setQuoteFactor(analysisConfig.getQuoteFactor())

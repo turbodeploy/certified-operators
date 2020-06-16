@@ -700,10 +700,15 @@ enum ActionType {
 // The possible state transitions are:
 //
 // READY
-//   |-> CLEARED
-//   |-> QUEUED ---------> IN_PROGRESS
-//                             |-------> SUCCEEDED
-//                             |-------> FAILED
+//   ^
+//   |-------->  CLEARED
+//   |          ^   ^     ^
+//   |          |   |     |
+//   |--> REJECTED  |     |
+//   |-----> ACCEPTED <-> QUEUED ---> PRE_IN_PROGRESS ---> IN_PROGRESS ---> POST_IN_PROGRESS
+//                                           |                                      |
+//                                           |                                      | ---> SUCCEEDED
+//                                           |--------------------------------------| ---> FAILED
 enum ActionState {
     // An action that is READY is one that has not yet been decided by the system.
     // Changes in policy or capability that affect actions in the READY state will be applied to
@@ -715,9 +720,18 @@ enum ActionState {
     // stay in the READY state but are not shown in the UI or executed.
     CLEARED = 1;
 
-    // Actions in the QUEUED state have been accepted (ie by a user or policy), but cannot be
-    // executed because, for instance, the target associated with the action is busy processing
+    // An action that has been rejected.
+    REJECTED = 8;
+
+    // An action that has been accepted. An action can be accepted by turbo (manually by user or
+    // policy - AUTOMATIC mode) or by third-party orchestrator platform.
+    ACCEPTED = 9;
+
+    // An accepted action that waits start of executing. Action can stays in queue because of,
+    // for example, the target associated with the action is busy processing
     // many other actions and would be overwhelmed by sending additional requests.
+    // Action with execution window can be rolled back from QUEUED state if it wasn't executed during
+    // active period of execution window.
     QUEUED = 2;
 
     // An action that is currently being executed.

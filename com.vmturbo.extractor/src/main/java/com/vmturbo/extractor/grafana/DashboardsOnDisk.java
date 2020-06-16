@@ -18,6 +18,9 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.extractor.grafana.model.DashboardSpec;
@@ -27,13 +30,23 @@ import com.vmturbo.extractor.grafana.model.FolderInput;
  * Utility class to visit and validate the dashboards stored on disk (i.e. in the resources folder).
  */
 public class DashboardsOnDisk {
+    private static final Logger logger = LogManager.getLogger();
     private static final Gson GSON = ComponentGsonFactory.createGson();
     /**
      * The name of the folder under resources/.
      */
-    private static final String DASHBOARDS_FOLDER = "dashboards";
     private static final String PERMISSIONS_FILE = "permissions.json";
     private static final String FOLDER_FILE = "folder.json";
+
+    private final String dashboardsPath;
+
+    /**
+     * Create a new instance.
+     * @param dashboardsPath The path to the dashboards folder.
+     */
+    public DashboardsOnDisk(@Nonnull final String dashboardsPath) {
+        this.dashboardsPath = dashboardsPath;
+    }
 
     /**
      * Helper object representing all the data in a particular folder.
@@ -94,6 +107,14 @@ public class DashboardsOnDisk {
             return dashboards.stream()
                 .collect(Collectors.toMap(DashboardSpec::getUid, Function.identity()));
         }
+
+        @Override
+        public String toString() {
+            return FormattedString.format("Folder: {} with {} dashboards."
+                            + " Permissions override {}.",
+                    fileName, dashboards.size(), permissions == null ? "absent" : "present");
+        }
+
     }
 
     /**
@@ -103,18 +124,22 @@ public class DashboardsOnDisk {
      * @throws IllegalArgumentException If there is some invalid state in the on-disk dashboards.
      */
     public void visit(DashboardVisitor visitor) {
-        File dashboardsDir = new File(this.getClass().getClassLoader().getResource(DASHBOARDS_FOLDER).getFile());
-        Preconditions.checkArgument(dashboardsDir.exists() && dashboardsDir.isDirectory());
+        logger.info("Looking through {} for dashboard folders.", dashboardsPath);
+        File dashboardsDir = new File(dashboardsPath);
+        Preconditions.checkArgument(dashboardsDir.exists() && dashboardsDir.isDirectory(),
+            FormattedString.format("Dashboard path {} not pointing to a valid dashboard directory."));
         JsonParser parser = new JsonParser();
         // Should produce NPE because we verified it exists and is a directory.
         for (File file : dashboardsDir.listFiles()) {
             if (file.isDirectory()) {
                 final String fileName = file.getName();
+                logger.info("Scanning folder {}", fileName);
                 final List<DashboardSpec> dashboards  = new ArrayList<>();
                 JsonObject permissions = null;
                 FolderInput folder = null;
                 // Shouldn't produce NPE because we verified it's a directory.
                 for (File jsonFile : file.listFiles()) {
+                    logger.debug("Found file {}", jsonFile.getName());
                     if (jsonFile.getName().equals(PERMISSIONS_FILE)) {
                         // Override folder permissions.
                         try {
@@ -147,7 +172,10 @@ public class DashboardsOnDisk {
                 }
 
                 final FolderData folderData = new FolderData(fileName, folder, dashboards, permissions);
+                logger.info("Completed scan: {}", folderData);
                 visitor.receiveFolderData(folderData);
+            } else {
+                logger.info("Skipping non-folder {}", file.getName());
             }
         }
     }
