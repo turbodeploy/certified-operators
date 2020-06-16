@@ -31,19 +31,11 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import org.apache.commons.collections4.ListUtils;
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -55,7 +47,6 @@ import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -69,24 +60,27 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Integration tests related to the {@link PlanActionStoreTest}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    loader = AnnotationConfigContextLoader.class,
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class PlanActionStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(com.vmturbo.action.orchestrator.db.Action.ACTION);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private final long firstPlanId = 0xBEADED;
     private final long secondPlanId = 0xDADDA;
@@ -140,12 +134,6 @@ public class PlanActionStoreTest {
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
         actionStore = new PlanActionStore(spyActionFactory, dsl, firstContextId,
             null, null,
             entitiesSnapshotFactory, actionTranslator, realtimeId,
@@ -186,11 +174,6 @@ public class PlanActionStoreTest {
         when(snapshot.getEntityFromOid(eq(id)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(id, type));
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
-    }
-
-    @After
-    public void teardown() throws Exception {
-        flyway.clean();
     }
 
     @Test
@@ -295,8 +278,8 @@ public class PlanActionStoreTest {
      */
     @Test(expected = LicenseFeaturesRequiredException.class)
     public void testGetActionUnlicensed() {
-        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(LicenseFeature.PLANNER)))
-            .when(licenseCheckClient).checkFeatureAvailable(LicenseFeature.PLANNER);
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(ProbeLicense.PLANNER)))
+            .when(licenseCheckClient).checkFeatureAvailable(ProbeLicense.PLANNER);
         actionStore.getAction(1);
     }
 
@@ -322,8 +305,8 @@ public class PlanActionStoreTest {
      */
     @Test(expected = LicenseFeaturesRequiredException.class)
     public void testGetActionsUnlicensed() {
-        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(LicenseFeature.PLANNER)))
-                .when(licenseCheckClient).checkFeatureAvailable(LicenseFeature.PLANNER);
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(ProbeLicense.PLANNER)))
+                .when(licenseCheckClient).checkFeatureAvailable(ProbeLicense.PLANNER);
         actionStore.getActions();
     }
 

@@ -976,20 +976,20 @@ public class EntitySettingsApplicator {
 
         // convert into units that market uses.
         private final ImmutableMap<Integer, Float> conversionFactor =
-            ImmutableMap.of(
+            ImmutableMap.<Integer, Float>builder()
                 //VMEM setting value is in MBs. Market expects it in KBs.
-                CommodityType.VMEM_VALUE, 1024.0f,
+                .put(CommodityType.VMEM_VALUE, 1024.0f)
                 //VMEM_REQUEST setting value is in MBs. Market expects it in KBs.
-                CommodityType.VMEM_REQUEST_VALUE, 1024.0f,
+                .put(CommodityType.VMEM_REQUEST_VALUE, 1024.0f)
                 //VSTORAGE setting value is in GBs. Market expects it in MBs.
-                CommodityType.VSTORAGE_VALUE, 1024.0f,
+                .put(CommodityType.VSTORAGE_VALUE, 1024.0f)
                 //STORAGE_AMOUNT setting value is in GBs. Market expects it in MBs.
-                CommodityType.STORAGE_AMOUNT_VALUE, 1024.0f,
+                .put(CommodityType.STORAGE_AMOUNT_VALUE, 1024.0f)
                 //HEAP setting value is in MBs. Market expects it in KBs.
-                CommodityType.HEAP_VALUE, 1024.0f,
+                .put(CommodityType.HEAP_VALUE, 1024.0f)
                 //DB_MEM setting value is in MBs. Market expects it in KBs.
-                CommodityType.DB_MEM_VALUE, 1024.0f);
-
+                .put(CommodityType.DB_MEM_VALUE, 1024.0f)
+                .build();
 
         private ResizeIncrementApplicator(@Nonnull EntitySettingSpecs setting,
                 @Nonnull final CommodityType commodityType) {

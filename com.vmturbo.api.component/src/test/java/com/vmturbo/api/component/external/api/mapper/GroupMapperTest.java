@@ -641,6 +641,7 @@ public class GroupMapperTest {
                 .probeInfo(ImmutableThinProbeInfo.builder()
                         .oid(probeOid)
                         .category("targetCategory")
+                        .uiCategory("targetUiCategory")
                         .type("targetType")
                         .build())
                 .build());

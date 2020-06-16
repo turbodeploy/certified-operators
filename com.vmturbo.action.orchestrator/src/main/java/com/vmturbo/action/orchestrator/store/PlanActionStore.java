@@ -49,7 +49,6 @@ import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -62,6 +61,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 /**
  * {@inheritDoc}
@@ -245,7 +245,7 @@ public class PlanActionStore implements ActionStore {
     @Override
     public Optional<Action> getAction(long actionId) {
         // this operation requires the planner feature to be enabled
-        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         return loadAction(actionId)
             .map(action -> actionFactory.newPlanAction(action.getRecommendation(),
@@ -273,7 +273,7 @@ public class PlanActionStore implements ActionStore {
     @Override
     public Map<Long, Action> getActions() {
         // this operation requires the planner feature to be enabled
-        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         final Map<Long, Action> actions = loadActions().stream()
             .map(action -> actionFactory.newPlanAction(action.getRecommendation(),

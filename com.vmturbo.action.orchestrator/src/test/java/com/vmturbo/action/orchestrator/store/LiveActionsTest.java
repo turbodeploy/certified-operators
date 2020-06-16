@@ -474,7 +474,7 @@ public class LiveActionsTest {
             1);
 
         liveActions = new LiveActions(
-            actionHistoryDao, clock, acceptedActionsStore, QueryFilter::new, userSessionContext,
+            actionHistoryDao, acceptedActionsStore, clock, QueryFilter::new, userSessionContext,
             involvedEntitiesExpander);
         liveActions.replaceMarketActions(Stream.of(
             moveActionInTarget, moveActionInSource, moveActionInDestination));

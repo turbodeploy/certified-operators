@@ -48,13 +48,13 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
@@ -635,8 +635,8 @@ public class StatsQueryExecutorTest {
      */
     @Test(expected = LicenseFeaturesRequiredException.class)
     public void getPlanStatsUnlicensed() throws Exception {
-        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(LicenseFeature.PLANNER)))
-                .when(licenseCheckClient).checkFeatureAvailable(LicenseFeature.PLANNER);
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(ProbeLicense.PLANNER)))
+                .when(licenseCheckClient).checkFeatureAvailable(ProbeLicense.PLANNER);
         when(scope.isPlan()).thenReturn(true);
         executor.getAggregateStats(scope, null);
     }

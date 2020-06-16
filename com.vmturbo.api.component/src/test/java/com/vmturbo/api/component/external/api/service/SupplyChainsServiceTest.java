@@ -41,7 +41,6 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -67,6 +66,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 /**
  * Unit tests for {@link SupplyChainsService}.
@@ -186,8 +186,8 @@ public class SupplyChainsServiceTest {
         when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
 
         // plot twist -- the planner feature is unavailable
-        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(LicenseFeature.PLANNER)))
-                .when(licenseCheckClient).checkFeatureAvailable(LicenseFeature.PLANNER);
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(ProbeLicense.PLANNER)))
+                .when(licenseCheckClient).checkFeatureAvailable(ProbeLicense.PLANNER);
         // this should trigger a LicenseFeqturesRequiredException
         service.getSupplyChainByUuids(Collections.singletonList(Long.toString(planId)), null, null, null, null, null, false);
     }

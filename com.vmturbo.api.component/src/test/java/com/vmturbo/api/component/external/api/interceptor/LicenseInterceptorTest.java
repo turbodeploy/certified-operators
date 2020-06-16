@@ -29,7 +29,7 @@ import org.springframework.http.HttpStatus;
 
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 @RunWith(MockitoJUnitRunner.class)
 public class LicenseInterceptorTest {
@@ -95,7 +95,7 @@ public class LicenseInterceptorTest {
         when(licenseCheckClient.isReady()).thenReturn(true);
         when(licenseCheckClient.areFeaturesAvailable(Mockito.any())).thenReturn(true);
 
-        Collection<LicenseFeature> requiredFeatures = ImmutableSet.of(LicenseFeature.STORAGE, LicenseFeature.ACTION_SCRIPT);
+        Collection<ProbeLicense> requiredFeatures = ImmutableSet.of(ProbeLicense.STORAGE, ProbeLicense.ACTION_SCRIPT);
 
         // create an interceptor with required features.
         licenseInterceptor = new LicenseInterceptor(licenseCheckClient, requiredFeatures);
