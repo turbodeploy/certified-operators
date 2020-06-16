@@ -62,6 +62,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -301,7 +302,9 @@ public class ReservationMapper {
         return ReservationTemplate.newBuilder()
                 .setCount(placementParameter.getCount())
                 .setTemplate(Template.newBuilder()
-                        .setId(Long.valueOf(placementParameter.getTemplateID())))
+                        .setId(Long.valueOf(placementParameter.getTemplateID()))
+                        .setTemplateInfo(TemplateInfo.newBuilder().setName("TEMP-NAME-"
+                                + placementParameter.getTemplateID())))
                 .build();
     }
 
@@ -429,8 +432,12 @@ public class ReservationMapper {
     private BaseApiDTO generateTemplateBaseApiDTO(@Nonnull final Template template) {
         BaseApiDTO templateApiDTO = new BaseApiDTO();
         templateApiDTO.setDisplayName(template.getTemplateInfo().getName());
-        templateApiDTO.setClassName(ApiEntityType.fromType(
-                template.getTemplateInfo().getEntityType()).apiStr() + TemplatesUtils.PROFILE);
+        if (template.getTemplateInfo().hasEntityType()) {
+            templateApiDTO.setClassName(ApiEntityType.fromType(
+                    template.getTemplateInfo().getEntityType()).apiStr() + TemplatesUtils.PROFILE);
+        } else {
+            templateApiDTO.setClassName("TEMP-" + TemplatesUtils.PROFILE);
+        }
         templateApiDTO.setUuid(String.valueOf(template.getId()));
         return templateApiDTO;
     }
