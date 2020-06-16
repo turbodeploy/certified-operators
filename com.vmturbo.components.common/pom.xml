@@ -306,10 +306,6 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>component-status-api</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk15on</artifactId>
-        </dependency>
         <!-- END Prometheus dependencies, for component metrics -->
     </dependencies>
 </project>

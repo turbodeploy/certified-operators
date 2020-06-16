@@ -19,7 +19,6 @@ import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
 import com.vmturbo.api.controller.AuthenticationController;
 import com.vmturbo.api.controller.BusinessUnitsController;
-import com.vmturbo.api.controller.ClassicMigrationController;
 import com.vmturbo.api.controller.EntitiesController;
 import com.vmturbo.api.controller.GeneralController;
 import com.vmturbo.api.controller.GroupsController;
@@ -200,15 +199,6 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public WidgetSetsController widgetSetsController() {
         return new WidgetSetsController();
-    }
-
-    /**
-     * Creates a ClassicMigrationController bean.
-     * @return the ClassicMigrationController
-     */
-    @Bean
-    public ClassicMigrationController classicMigrationController() {
-        return new ClassicMigrationController();
     }
 
     @Bean
