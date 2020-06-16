@@ -1,0 +1,14 @@
+# Add a persistent volume to the market.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    zone: dmz
+    io.kompose.service: market
+  name: market-profiler
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
