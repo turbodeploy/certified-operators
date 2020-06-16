@@ -8,6 +8,8 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.List;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.protobuf.TextFormat;
 
@@ -81,9 +83,9 @@ public class TopologyDataDefinitionServiceTest {
                 this.getClass().getResourceAsStream(AUTOMATED_PROTO),
                 "UTF-8"
         );
-        Gson g = new Gson();
-        manualApiDTO = g.fromJson(manualJsonText, TopologyDataDefinitionApiDTO.class);
-        automatedApiDTO = g.fromJson(automatedJsonText, TopologyDataDefinitionApiDTO.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        manualApiDTO = objectMapper.readValue(manualJsonText, TopologyDataDefinitionApiDTO.class);
+        automatedApiDTO = objectMapper.readValue(automatedJsonText, TopologyDataDefinitionApiDTO.class);
         manualProto = TextFormat.parse(manualProtoText, TopologyDataDefinition.class);
         automatedProto = TextFormat.parse(automatedProtoText, TopologyDataDefinition.class);
 
@@ -216,14 +218,14 @@ public class TopologyDataDefinitionServiceTest {
      * Get all definitions test.
      */
     @Test
-    public void getAllTopologyDefinitions() throws JSONException {
+    public void getAllTopologyDefinitions() throws JsonProcessingException, JSONException {
         List<TopologyDataDefinitionApiDTO> dtos = service.getAllTopologyDefinitions();
         assertEquals(2, dtos.size());
-        Gson g = new Gson();
+        ObjectMapper objectMapper = new ObjectMapper();
         manualApiDTO.setUuid("123");
         automatedApiDTO.setUuid("456");
-        JSONAssert.assertEquals(g.toJson(manualApiDTO), g.toJson(dtos.get(0)), false);
-        JSONAssert.assertEquals(g.toJson(automatedApiDTO), g.toJson(dtos.get(1)), false);
+        JSONAssert.assertEquals(objectMapper.writeValueAsString(manualApiDTO), objectMapper.writeValueAsString(dtos.get(0)), false);
+        JSONAssert.assertEquals(objectMapper.writeValueAsString(automatedApiDTO), objectMapper.writeValueAsString(dtos.get(1)), false);
         manualApiDTO.setUuid(null);
         automatedApiDTO.setUuid(null);
     }

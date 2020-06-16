@@ -39,6 +39,7 @@ import com.vmturbo.api.controller.SupplyChainsController;
 import com.vmturbo.api.controller.TagsController;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.controller.TemplatesController;
+import com.vmturbo.api.controller.TopologyDefinitionsController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.controller.WorkflowsController;
@@ -174,6 +175,11 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public TargetsController targetsController() {
         return new TargetsController();
+    }
+
+    @Bean
+    public TopologyDefinitionsController topologyDefinitionsController() {
+        return new TopologyDefinitionsController();
     }
 
     @Bean

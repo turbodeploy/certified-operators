@@ -7,10 +7,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import com.google.gson.Gson;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.TextFormat;
-
 import org.apache.commons.io.IOUtils;
 import org.json.JSONException;
 import org.junit.Before;
@@ -70,9 +70,9 @@ public class TopologyDataDefinitionMapperTest {
                 this.getClass().getResourceAsStream(AUTOMATED_PROTO),
                 "UTF-8"
         );
-        Gson g = new Gson();
-        manualApiDTO = g.fromJson(manualJsonText, TopologyDataDefinitionApiDTO.class);
-        automatedApiDTO = g.fromJson(automatedJsonText, TopologyDataDefinitionApiDTO.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        manualApiDTO = objectMapper.readValue(manualJsonText, TopologyDataDefinitionApiDTO.class);
+        automatedApiDTO = objectMapper.readValue(automatedJsonText, TopologyDataDefinitionApiDTO.class);
         manualProto = TextFormat.parse(manualProtoText, TopologyDataDefinition.class);
         automatedProto = TextFormat.parse(automatedProtoText, TopologyDataDefinition.class);
     }
@@ -102,12 +102,14 @@ public class TopologyDataDefinitionMapperTest {
      * Test for converting API DTO into XL definition.
      */
     @Test
-    public void convertTopologyDataDefinitionTest() throws JSONException {
+    public void convertTopologyDataDefinitionTest() throws JSONException, IOException {
         TopologyDataDefinitionApiDTO manualDefinitionApiDTO = mapper.convertTopologyDataDefinition(manualProto);
         TopologyDataDefinitionApiDTO automatedDefinitionApiDTO = mapper.convertTopologyDataDefinition(automatedProto);
-        Gson g = new Gson();
-        JSONAssert.assertEquals(g.toJson(automatedApiDTO), g.toJson(automatedDefinitionApiDTO), false);
-        JSONAssert.assertEquals(g.toJson(manualApiDTO), g.toJson(manualDefinitionApiDTO), false);
+        ObjectMapper objectMapper = new ObjectMapper();
+        JSONAssert.assertEquals(objectMapper.writeValueAsString(automatedApiDTO),
+                objectMapper.writeValueAsString(automatedDefinitionApiDTO), false);
+        JSONAssert.assertEquals(objectMapper.writeValueAsString(manualApiDTO),
+                objectMapper.writeValueAsString(manualDefinitionApiDTO), false);
     }
 
     /**
@@ -127,9 +129,9 @@ public class TopologyDataDefinitionMapperTest {
                 this.getClass().getResourceAsStream(INCORRECT_AUTOMATED_API_DTO),
                 "UTF-8"
         );
-        Gson g = new Gson();
-        TopologyDataDefinitionApiDTO incorrect = g.fromJson(incorrectText, TopologyDataDefinitionApiDTO.class);
-        exception.expect(IllegalArgumentException.class);
+        exception.expect(UnrecognizedPropertyException.class);
+        TopologyDataDefinitionApiDTO incorrect = new ObjectMapper()
+                .readValue(incorrectText, TopologyDataDefinitionApiDTO.class);
         mapper.convertTopologyDataDefinitionApiDTO(incorrect);
     }
 
@@ -144,8 +146,8 @@ public class TopologyDataDefinitionMapperTest {
                 this.getClass().getResourceAsStream(INCORRECT_MANUAL_API_DTO),
                 "UTF-8"
         );
-        Gson g = new Gson();
-        TopologyDataDefinitionApiDTO incorrect = g.fromJson(incorrectText, TopologyDataDefinitionApiDTO.class);
+        TopologyDataDefinitionApiDTO incorrect = new ObjectMapper()
+                .readValue(incorrectText, TopologyDataDefinitionApiDTO.class);
         exception.expect(IllegalArgumentException.class);
         mapper.convertTopologyDataDefinitionApiDTO(incorrect);
     }
