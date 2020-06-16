@@ -5,11 +5,11 @@ import static com.vmturbo.trax.Trax.trax;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.function.Function;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -62,7 +62,6 @@ import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
-import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.conversions.CloudEntityResizeTracker.CommodityUsageType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
@@ -314,8 +313,8 @@ public class ActionInterpreter {
             }
 
             final String savingsDescription = String.format("Savings for %s \"%s\" (%d)",
-                EntityType.forNumber(cloudEntityMoving.getEntityType()).name(),
-                cloudEntityMoving.getDisplayName(), cloudEntityMoving.getOid());
+                    EntityType.forNumber(cloudEntityMoving.getEntityType()).name(),
+                    cloudEntityMoving.getDisplayName(), cloudEntityMoving.getOid());
             final TraxNumber savings = onDemandSourceCost.minus(onDemandDestCost).compute(savingsDescription);
             logger.debug("{} to move from {} to {} is {}", savingsDescription,
                 sourceMarketTier == null ? null : sourceMarketTier.getDisplayName(),

@@ -42,6 +42,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -65,8 +66,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
@@ -79,12 +82,14 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.Consisten
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -2070,4 +2075,57 @@ public class TopologyConverterFromMarketTest {
         Assert.assertEquals(THRUGHPUT_USED / 2f, actualBought.getUsed(), DELTA);
     }
 
+    /**
+     * Tests getNewlyConnectedProjectedEntitiesFromOriginalTopo to ensure new connections are
+     * made appropriately.
+     */
+    @Test
+    public void testGetNewlyConnectedProjectedEntitiesFromOriginalTopo() {
+        final long baOid = 1L;
+        final long vmOid = 2L;
+        final long regionOid = 3L;
+
+        TopologyDTO.TopologyEntityDTO ba = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(baOid)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .build();
+
+        TopologyDTO.TopologyEntityDTO vm = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(vmOid)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        // create trader DTO corresponds to originalEntity
+        EconomyDTOs.TraderTO trader = TraderTO.newBuilder()
+                .setOid(vmOid)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addShoppingLists(ShoppingListTO.newBuilder().setOid(vmOid)
+                        .setContext(Context.newBuilder()
+                                .setRegionId(regionOid)
+                                .setBalanceAccount(BalanceAccountDTO.newBuilder()
+                                        .setId(baOid)
+                                        .build()).build()).build()).build();
+
+
+        DiscountApplicator discountApplicator = mock(DiscountApplicator.class);
+        converter.getCloudTc().insertIntoAccountPricingDataByBusinessAccountOidMap(baOid,
+                new AccountPricingData(discountApplicator,
+                        PriceTable.newBuilder().getDefaultInstanceForType(),
+                        baOid));
+        Map<Long, Set<ConnectedEntity>> businessAccountsToNewlyOwnedEntities =
+                converter.getCloudTc().getBusinessAccountsToNewlyOwnedEntities(
+                        Lists.newArrayList(trader),
+                        new HashMap<Long, TopologyDTO.TopologyEntityDTO>() {{
+                            put(baOid, ba);
+                            put(vmOid, vm);
+                        }}, new HashMap<Long, TopologyDTO.TopologyEntityDTO>() {{
+                            put(baOid, ba);
+                        }});
+        Assert.assertFalse(businessAccountsToNewlyOwnedEntities.isEmpty());
+        Set<ConnectedEntity> connectedEntities = businessAccountsToNewlyOwnedEntities.get(baOid);
+        assertEquals(1, connectedEntities.size());
+        ConnectedEntity connectedEntity = connectedEntities.iterator().next();
+        assertEquals(ConnectionType.OWNS_CONNECTION, connectedEntity.getConnectionType());
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, connectedEntity.getConnectedEntityType());
+        assertEquals(vmOid, connectedEntity.getConnectedEntityId());
+    }
 }

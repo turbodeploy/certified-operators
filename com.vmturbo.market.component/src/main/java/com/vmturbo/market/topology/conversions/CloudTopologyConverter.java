@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -21,13 +23,17 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -35,11 +41,11 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
-import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -180,6 +186,91 @@ public class CloudTopologyConverter {
         }
         logger.info("Completed creation of market tier trader TOs");
         return traderTOBuilders;
+    }
+
+    /**
+     * Returns the {@link Context} corresponding to the destination region in the context of cloud migration.
+     *
+     * @param regionPresentContexts a list of {@link Context} with a region attribute present
+     * @param sourceRegion source region if one is present
+     * @return the destination context
+     */
+    @Nullable
+    private Context getDestinationContext(
+            @Nonnull final List<Context> regionPresentContexts,
+            @Nullable final TopologyEntityDTO sourceRegion) {
+        if (Objects.nonNull(sourceRegion)) {
+            Optional<Context> regionPresentContextOptional = regionPresentContexts.stream()
+                    .filter(context -> context.getRegionId() != sourceRegion.getOid())
+                    .findFirst();
+            return regionPresentContextOptional.orElse(null);
+        } else {
+            return regionPresentContexts.get(0);
+        }
+    }
+
+    /**
+     * Creates a map of businessAccount OID -> set of new {@link ConnectedEntity} objects given MCP results. Since
+     * businessAccounts do not participate in the market as traders, these connections are not automatically created.
+     * However, they are necessary for cost computations associated with entities that were previously either:
+     * 1.) On-prem
+     * 2.) Hosted by another CSP
+     *
+     * @param traderTOs {@link TraderTO} analysis results
+     * @param originalTopology a map of OID to {@link TopologyEntityDTO} modeling the original topology
+     * @param businessAccountIdToTopologyEntityDTO a map of businessAccount OID -> {@link TopologyEntityDTO}
+     * @return a map of businessAccount OID -> set of new {@link ConnectedEntity} objects with which it should be associated
+     */
+    @Nonnull
+    public Map<Long, Set<ConnectedEntity>> getBusinessAccountsToNewlyOwnedEntities(
+            @Nonnull final List<TraderTO> traderTOs,
+            @Nonnull final Map<Long, TopologyEntityDTO> originalTopology,
+            @Nonnull final Map<Long, TopologyEntityDTO> businessAccountIdToTopologyEntityDTO) {
+        final Map<Long, TopologyEntityDTO> balanceAccountIdToBusinessAccount =
+                getBalanceAccountIdToBusinessAccount(businessAccountIdToTopologyEntityDTO);
+        final Map<Long, Set<ConnectedEntity>> businessAccountToNewlyOwnedEntities = Maps.newHashMap();
+        for (TraderTO traderTO : traderTOs) {
+            final long traderOid = traderTO.getOid();
+            if (isMarketTier(traderOid)) {
+                continue;
+            }
+            final TopologyEntityDTO originalEntity = originalTopology.get(traderOid);
+            final TopologyEntityDTO sourceRegion = getRegionOfCloudConsumer(originalEntity);
+            final List<Context> regionPresentContexts = getContextsWithRegionPresent(traderTO);
+            if (CollectionUtils.isEmpty(regionPresentContexts)) {
+                continue;
+            }
+            final boolean isCloudToCloudMigration = Objects.nonNull(sourceRegion)
+                    && regionPresentContexts.size() > 1;
+            // IF Migrating from on-prem OR
+            // Migrating from region A to region B
+            // connect BA -> previously on-prem (or located on another CSP/BA) workload via OWNS connection
+            if (Objects.isNull(sourceRegion) || isCloudToCloudMigration) {
+                final Context destinationContext = getDestinationContext(regionPresentContexts, sourceRegion);
+                if (Objects.isNull(destinationContext)) {
+                    logger.error("Cloud migration TraderTO {} ShoppingLists do not contain a non-source region ID- skipping this trader", traderOid);
+                    continue;
+                }
+                final TopologyEntityDTO businessAccount = balanceAccountIdToBusinessAccount.get(
+                        destinationContext.getBalanceAccount().getId());
+                if (Objects.isNull(businessAccount)) {
+                    continue;
+                }
+                final long businessAccountOid = businessAccount.getOid();
+                final ConnectedEntity newlyOwnedEntity = ConnectedEntity.newBuilder()
+                        .setConnectionType(ConnectedEntity.ConnectionType.OWNS_CONNECTION)
+                        .setConnectedEntityType(traderTO.getType())
+                        .setConnectedEntityId(traderTO.getOid()).build();
+                if (businessAccountToNewlyOwnedEntities.containsKey(businessAccountOid)) {
+                    businessAccountToNewlyOwnedEntities
+                            .get(businessAccountOid)
+                            .add(newlyOwnedEntity);
+                } else {
+                    businessAccountToNewlyOwnedEntities.put(businessAccountOid, Sets.newHashSet(newlyOwnedEntity));
+                }
+            }
+        }
+        return businessAccountToNewlyOwnedEntities;
     }
 
     /**
@@ -413,20 +504,32 @@ public class CloudTopologyConverter {
     }
 
     /**
-     * Given a trader, get the region comm type from it shopping list.
+     * Given a trader, get the first {@link Context} object from shopping list with a region present.
      *
      * @param trader the trader
      * @return the Integer corresponding to the region comm type
      */
-    public Long getRegionCommTypeIntFromShoppingList(TraderTO trader) {
-        Optional<ShoppingListTO> shoppingListTO = trader.getShoppingListsList()
-                .stream()
-                .filter(ShoppingListTO::hasContext)
-                .findFirst();
-        if (shoppingListTO.isPresent()) {
-            return shoppingListTO.get().getContext().getRegionId();
+    public Context getContextWithRegionPresent(TraderTO trader) {
+        List<Context> contextsWithRegionPresent = getContextsWithRegionPresent(trader);
+        if (CollectionUtils.isEmpty(contextsWithRegionPresent)) {
+            return null;
         }
-        return null;
+        return contextsWithRegionPresent.get(0);
+    }
+
+    /**
+     * Given a trader, get all {@link Context} objects from the shopping list with regions present.
+     *
+     *
+     * @param trader the {@link TraderTO} from which a region-present context should be extracted
+     * @return a list of {@link Context} where a region is referenced
+     */
+    public List<Context> getContextsWithRegionPresent(TraderTO trader) {
+        return trader.getShoppingListsList()
+                .stream()
+                .filter(shoppingList -> shoppingList.hasContext() && shoppingList.getContext().hasRegionId())
+                .map(shoppingList -> shoppingList.getContext())
+                .collect(Collectors.toList());
     }
 
     /**
@@ -437,7 +540,7 @@ public class CloudTopologyConverter {
      * @return the region {@link TopologyEntityDTO}
      */
     @Nullable
-    TopologyEntityDTO getRegionOfCloudConsumer(@Nonnull TopologyEntityDTO entity) {
+    public TopologyEntityDTO getRegionOfCloudConsumer(@Nonnull TopologyEntityDTO entity) {
         List<TopologyEntityDTO> regions = TopologyDTOUtil.getConnectedEntitiesOfType(
             entity, EntityType.REGION_VALUE, topology);
         // For Azure, a VM is directly connected to Region. It's not connected to Availability Zone.
@@ -485,11 +588,11 @@ public class CloudTopologyConverter {
     /**
      * Is providerOid the oid of a traderTO representing a market tier?
      *
-     * @param providerOid
+     * @param providerOid the OID of the provider
      * @return true if providerOid is the oid of a traderTO representing a market tier.
      * False otherwise.
      */
-    boolean isMarketTier(@Nullable Long providerOid) {
+    public boolean isMarketTier(@Nullable Long providerOid) {
         if (providerOid == null) {
             return false;
         }
@@ -538,5 +641,22 @@ public class CloudTopologyConverter {
     public void insertIntoAccountPricingDataByBusinessAccountOidMap(Long businessAccountOid,
                                                                     AccountPricingData accountPricingData) {
         accountPricingDataByBusinessAccountOid.put(businessAccountOid, accountPricingData);
+    }
+
+    /**
+     * Given a map of OID to {@link TopologyEntityDTO} representing business accounts in the topology, returns a map of
+     * {@link AccountPricingData} OID -> businessAccountRepresented {@link TopologyEntityDTO}. This is used to connect
+     * projected topological entities to the billing families they are projected to belong to- if more than one business
+     * account corresponds to a given billing family, the first one is represented.
+     *
+     * @param businessAccountIdToTopologyEntityDTO a map of businessAccount OID -> {@link TopologyEntityDTO}
+     * @return a map of balanceAccountOid -> businessAccount {@link TopologyEntityDTO}
+     */
+    public Map<Long, TopologyEntityDTO> getBalanceAccountIdToBusinessAccount(Map<Long, TopologyEntityDTO> businessAccountIdToTopologyEntityDTO) {
+        return accountPricingDataByBusinessAccountOid.entrySet().stream()
+                .collect(Collectors.toMap(
+                        entry -> entry.getValue().getAccountPricingDataOid(),
+                        entry -> businessAccountIdToTopologyEntityDTO.get(entry.getKey()),
+                        BinaryOperator.minBy(Comparator.comparingLong(TopologyEntityDTO::getOid))));
     }
 }

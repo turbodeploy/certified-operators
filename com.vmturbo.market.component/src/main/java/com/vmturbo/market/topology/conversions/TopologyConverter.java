@@ -309,7 +309,7 @@ public class TopologyConverter {
                              final CommodityIndexFactory commodityIndexFactory,
                              @Nonnull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
-                             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
+                             final CloudTopology<TopologyEntityDTO> cloudTopology) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.cloudTopology = cloudTopology;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
@@ -716,8 +716,9 @@ public class TopologyConverter {
             final Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopologyEntities = new HashMap<>(
                 projectedTraders.size());
             for (TraderTO projectedTrader : projectedTraders) {
-                final Set<TopologyEntityDTO> projectedEntities =
-                    traderTOtoTopologyDTO(projectedTrader, originalTopology, reservedCapacityAnalysis, projTraders, wastedFileAnalysis);
+                final Set<TopologyEntityDTO> projectedEntities = traderTOtoTopologyDTO(
+                        projectedTrader, originalTopology, reservedCapacityAnalysis,
+                        projTraders, wastedFileAnalysis);
                 for (TopologyEntityDTO projectedEntity : projectedEntities) {
                     final ProjectedTopologyEntity.Builder projectedEntityBuilder =
                         ProjectedTopologyEntity.newBuilder().setEntity(projectedEntity);
@@ -1365,7 +1366,8 @@ public class TopologyConverter {
         // Copy the connected entities of original entity into the projected entity except for the
         // ones in the map, which need to be computed like Availability zone or Region
         // because the AZ or Region might have changed.
-        if (originalCloudConsumer != null) {
+        final boolean originalCloudConsumerExists = originalCloudConsumer != null;
+        if (originalCloudConsumerExists) {
             Set<Integer> connectionsToCompute = projectedConnectedEntityTypesToCompute
                     .get(originalCloudConsumer.getEntityType());
             originalCloudConsumer.getConnectedEntityListList().stream()
@@ -1382,8 +1384,14 @@ public class TopologyConverter {
                     logger.error("Could not fetch primary market tier for {}",
                             traderTO.getDebugInfoNeverUseInCode());
                 } else {
-                    TopologyEntityDTO sourceRegion = cloudTc.getRegionOfCloudConsumer(originalCloudConsumer);
-                    Long regionCommSpec = cloudTc.getRegionCommTypeIntFromShoppingList(traderTO);
+                    TopologyEntityDTO sourceRegion = originalCloudConsumerExists
+                            ? cloudTc.getRegionOfCloudConsumer(originalCloudConsumer)
+                            : null;
+                    EconomyDTOs.Context contextWithRegionPresent = cloudTc.getContextWithRegionPresent(traderTO);
+                    Long regionCommSpec = null;
+                    if (Objects.nonNull(contextWithRegionPresent)) {
+                        regionCommSpec = contextWithRegionPresent.getRegionId();
+                    }
                     TopologyEntityDTO destinationRegion;
                     if (destinationPrimaryMarketTier instanceof SingleRegionMarketTier) {
                         destinationRegion = ((SingleRegionMarketTier)destinationPrimaryMarketTier).getRegion();

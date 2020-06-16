@@ -28,8 +28,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOREST;
-import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -60,6 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -82,6 +81,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
@@ -561,7 +561,12 @@ public class Analysis {
                                 .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
                                 .map(ActionEntity::getId).collect(Collectors.toSet());
 
-                        copySkippedEntitiesToProjectedTopology(wastedStorageActionsVolumeIds, oidsToRemove);
+                        copySkippedEntitiesToProjectedTopology(
+                                wastedStorageActionsVolumeIds,
+                                oidsToRemove,
+                                projectedTraderDTO,
+                                topologyDTOs,
+                                isMigrateToCloud);
 
                         // Calculate the projected entity costs.
                         projectedCloudTopology =
@@ -693,6 +698,55 @@ public class Analysis {
     }
 
     /**
+     * In a Cloud Migration Plan, business account {@link TopologyEntityDTO}s must have new connected
+     * entities corresponding to workloads that were prviously on-prem. Here, those connections are added, and the entities
+     * are returned.
+     *
+     * @param projectedEntitiesFromOriginalTopo entities from the original topology for which trader creation is skipped
+     * @param traderTOs {@link TraderTO} analysis results
+     * @param originalTopology a map of OID to {@link TopologyEntityDTO} modeling the original topology
+     * @return a list of {@link TopologyEntityDTO} with businessAccount - OWNS_CONNECTION -> workload connections added
+     */
+    @Nonnull
+    private List<TopologyEntityDTO> getNewlyConnectedProjectedEntitiesFromOriginalTopo(
+            @Nonnull final List<TopologyEntityDTO> projectedEntitiesFromOriginalTopo,
+            @Nonnull final List<TraderTO> traderTOs,
+            @Nonnull final Map<Long, TopologyEntityDTO> originalTopology) {
+        final Map<Boolean, Map<Long, TopologyEntityDTO>> isBusinessAccountToIdToTopologyEntityDTO = projectedEntitiesFromOriginalTopo.stream()
+                .collect(Collectors.partitioningBy(
+                        topologyEntityDTO -> topologyEntityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE,
+                        Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+
+        final List<TopologyEntityDTO> projectedEntitiesFromOriginalTopoNewlyConnected = Lists.newArrayList();
+        if (isBusinessAccountToIdToTopologyEntityDTO.containsKey(true)) {
+            final Map<Long, TopologyEntityDTO> businessAccountIdToTopologyEntityDTO = isBusinessAccountToIdToTopologyEntityDTO.get(true);
+            final Map<Long, Set<ConnectedEntity>> businessAccountsToNewlyOwnedEntities =
+                    converter.getCloudTc().getBusinessAccountsToNewlyOwnedEntities(
+                            traderTOs, originalTopology, businessAccountIdToTopologyEntityDTO);
+            projectedEntitiesFromOriginalTopoNewlyConnected.addAll(businessAccountIdToTopologyEntityDTO.entrySet().stream()
+                    .map(idToTopologyEntityDTO -> {
+                        final long id = idToTopologyEntityDTO.getKey();
+                        TopologyEntityDTO topologyEntityDTOWithNewConnections = idToTopologyEntityDTO.getValue();
+                        if (businessAccountsToNewlyOwnedEntities.containsKey(id)) {
+                            topologyEntityDTOWithNewConnections = TopologyEntityDTO.newBuilder()
+                                    .addAllConnectedEntityList(businessAccountsToNewlyOwnedEntities.get(id))
+                                    .mergeFrom(topologyEntityDTOWithNewConnections)
+                                    .build();
+                        }
+                        return topologyEntityDTOWithNewConnections;
+                    })
+                    .collect(Collectors.toList()));
+        }
+
+        if (isBusinessAccountToIdToTopologyEntityDTO.containsKey(false)) {
+            projectedEntitiesFromOriginalTopoNewlyConnected.addAll(
+                    isBusinessAccountToIdToTopologyEntityDTO.get(false).values());
+        }
+        return projectedEntitiesFromOriginalTopoNewlyConnected;
+    }
+
+
+    /**
      * Copy relevant entities (entities which did not go through market conversion) from the
      * original topology to the projected topology. Skips virtual volumes from being added to
      * projected topology if they have associated wasted storage actions.
@@ -700,17 +754,28 @@ public class Analysis {
      * @param wastedStorageActionsVolumeIds volumes id associated with wasted storage actions.
      * @param oidsRemoved entities removed via plan configurations.
      *                    For example, configuration changes like remove/decommission hosts etc.
+     * @param traderTOs {@link TraderTO} analysis results
+     * @param originalTopology the original set of {@link TopologyEntityDTO}s by OID.
+     * @param isMigrateToCloud whether this is a MCP context
      */
     private void copySkippedEntitiesToProjectedTopology(
             final Set<Long> wastedStorageActionsVolumeIds,
-            @Nonnull final Set<Long> oidsRemoved) {
-        final Stream<TopologyEntityDTO> projectedEntitiesFromOriginalTopo =
-                originalCloudTopology.getAllEntitiesOfType(
-                        TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION).stream();
+            @Nonnull final Set<Long> oidsRemoved,
+            @Nonnull final List<TraderTO> traderTOs,
+            @Nonnull final Map<Long, TopologyEntityDTO> originalTopology,
+            @Nonnull final boolean isMigrateToCloud) {
         final Stream<TopologyEntityDTO> projectedEntitiesFromSkippedEntities =
                 converter.getSkippedEntitiesInScope(topologyDTOs.keySet()).stream();
+        final List<TopologyEntityDTO> projectedEntitiesFromOriginalTopo = originalCloudTopology.getAllEntitiesOfType(
+                TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION);
         final Set<ProjectedTopologyEntity> entitiesToAdd = Stream
-                .concat(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities)
+                .concat((isMigrateToCloud
+                                ? getNewlyConnectedProjectedEntitiesFromOriginalTopo(
+                                        projectedEntitiesFromOriginalTopo,
+                                        traderTOs,
+                                        originalTopology)
+                                : projectedEntitiesFromOriginalTopo).stream(),
+                        projectedEntitiesFromSkippedEntities)
                 // Exclude Volumes with Delete Volume action
                 .filter(entity -> !wastedStorageActionsVolumeIds.contains(entity.getOid()))
                 // Exclude entities that were removed due to plan configurations in source topology
