@@ -35,6 +35,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
@@ -932,7 +933,17 @@ public class Action implements ActionView {
     }
 
     /**
-     * Called when an action enters the POST state, after executing an action successfully
+     * When action was removed from queue because of non active status of execution window.
+     *
+     * @param rollBackEvent the rollback event signaling the changing action state from QUEUED to
+     * previous state
+     */
+    void onActionRemovedFromQueue(@Nonnull final RollBackToAcceptedEvent rollBackEvent) {
+        currentExecutableStep = Optional.empty();
+    }
+
+    /**
+     * Called when an action enters the POST state, after executing an action successfully.
      *
      * @param event The success event signaling the end of action execution
      */

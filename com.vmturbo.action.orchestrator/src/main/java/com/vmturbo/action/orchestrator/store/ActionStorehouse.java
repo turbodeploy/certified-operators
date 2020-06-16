@@ -1,11 +1,14 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -13,12 +16,14 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -111,6 +116,7 @@ public class ActionStorehouse {
         if (store.allowsExecution()) {
             try {
                 synchronized (actionExecutionFuturesLock) {
+                    cancelActionsWithoutActiveExecutionWindow();
                     actionExecutionFutures.removeIf(actionExecutionTask ->
                             actionExecutionTask.getFuture().isDone() ||
                                     actionExecutionTask.getAction().getState() == ActionState.CLEARED ||
@@ -232,6 +238,51 @@ public class ActionStorehouse {
             actionExecutionFutures.clear();
             return cancelledCount;
         }
+    }
+
+    /**
+     * Cancel actions with associated execution window, but this window is
+     * not active right now.
+     * NOTE: call this method from synchronised block guarded by
+     * {@link #actionExecutionFuturesLock}.
+     */
+    private void cancelActionsWithoutActiveExecutionWindow() {
+        final AtomicInteger cancelledCount = new AtomicInteger();
+        final Set<Long> cancelledRecommendationIds = new HashSet<>();
+        actionExecutionFutures.stream()
+                .filter(actionTask -> !isActiveExecutionWindow(actionTask))
+                .forEach(actionTask -> {
+                    final Action action = actionTask.getAction();
+                    final boolean isCanceled = actionTask.getFuture().cancel(false);
+                    if (isCanceled) {
+                        action.receive(new RollBackToAcceptedEvent());
+                        cancelledCount.getAndIncrement();
+                        cancelledRecommendationIds.add(action.getRecommendationOid());
+                    }
+                });
+
+        if (cancelledCount.get() != 0) {
+            logger.info("Cancelled execution of {} queued actions which have no active execution "
+                    + "windows.", cancelledCount.get());
+            if (logger.isDebugEnabled()) {
+                logger.debug("Cancelled execution of following actions with recommendation ids: {}",
+                        () -> StringUtils.join(cancelledRecommendationIds, ","));
+            }
+        }
+    }
+
+    /**
+     * Check that submitted action has active execution window.
+     *
+     * @param actionTask execution task contains future for executed action
+     * @return if execution window is active, otherwise false
+     */
+    private boolean isActiveExecutionWindow(@Nonnull ActionExecutionTask actionTask) {
+        final Action action = actionTask.getAction();
+        if (action.getState() == ActionState.QUEUED && action.getSchedule().isPresent()) {
+            return action.getSchedule().get().isActiveScheduleNow();
+        }
+        return true;
     }
 
     /**

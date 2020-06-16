@@ -20,6 +20,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
@@ -113,6 +114,9 @@ public class ActionStateMachine {
             .addTransition(from(ActionState.QUEUED).to(ActionState.CLEARED)
                 .onEvent(NotRecommendedEvent.class)
                 .after(action::onActionCleared))
+            .addTransition(from(ActionState.QUEUED).to(ActionState.ACCEPTED)
+                .onEvent(RollBackToAcceptedEvent.class)
+                .after(action::onActionRemovedFromQueue))
 
             // Handle progress events while in PRE
             .addTransition(from(ActionState.PRE_IN_PROGRESS).to(ActionState.PRE_IN_PROGRESS)

@@ -33,6 +33,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -198,6 +199,43 @@ public class ActionStateMachineTest {
         assertEquals(ActionState.QUEUED, action.getState());
         assertEquals(ActionState.CLEARED,
                 action.receive(new NotRecommendedEvent(clearingPlanId)).getAfterState());
+    }
+
+    /**
+     * Test case when we removing action from queue because of non active status of execution
+     * window.
+     *
+     * @throws UnsupportedActionException if action is not supported
+     */
+    @Test
+    public void testQueuedToAcceptedActionStateChange() throws UnsupportedActionException {
+        setEntitiesOIDs();
+        final Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new QueuedEvent());
+        assertEquals(ActionState.QUEUED, action.getState());
+        assertEquals(ActionState.ACCEPTED,
+                action.receive(new RollBackToAcceptedEvent()).getAfterState());
+    }
+
+    /**
+     * Test case when we removing action from queue because of non active status of execution
+     * window and then this action again sends to queue when execution window becomes active.
+     *
+     * @throws UnsupportedActionException if action is not supported
+     */
+    @Test
+    public void testQueuedToAcceptedToQueuedActionStateChanges() throws UnsupportedActionException {
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new QueuedEvent());
+        action.receive(new RollBackToAcceptedEvent());
+        assertEquals(ActionState.QUEUED, action.receive(new QueuedEvent()).getAfterState());
     }
 
     /**

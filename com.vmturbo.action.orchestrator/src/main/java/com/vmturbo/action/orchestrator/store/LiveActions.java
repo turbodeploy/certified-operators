@@ -379,10 +379,11 @@ class LiveActions implements QueryableActionViews {
             @Nonnull final Action action,
             @Nonnull final EntitiesAndSettingsSnapshot newEntitiesSnapshot) {
         // We want to update dynamic information not only for "READY" actions, but also for
-        // "ACCEPTED" in order to update information about action schedule. For other action states it doesn't make
-        // sense to retroactively modify the action mode or other dynamic information
+        // "ACCEPTED" and "QUEUED" in order to update information about action schedule.
+        // For other action states it doesn't make sense to retroactively modify the action mode or other dynamic information
         final ActionState actionState = action.getState();
-        if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED) {
+        if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED
+                || actionState == ActionState.QUEUED) {
             try {
                 action.refreshAction(newEntitiesSnapshot);
             } catch (UnsupportedActionException e) {

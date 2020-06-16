@@ -314,6 +314,12 @@ public abstract class ActionEvent implements StateMachineEvent {
         public abstract ClearingDecision getDecision();
     }
 
+    /**
+     * Indicated that an action missed active status of execution window while waiting in the queue.
+     * And it was removed from queue without executing.
+     */
+    public static class RollBackToAcceptedEvent extends ActionEvent {
+    }
 
     /**
      * An event generated when the action executor receives an action

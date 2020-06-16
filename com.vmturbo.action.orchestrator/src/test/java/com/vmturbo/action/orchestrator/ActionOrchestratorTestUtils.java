@@ -121,7 +121,7 @@ public class ActionOrchestratorTestUtils {
     @Nonnull
     public static Action createActionFromSerializedState(
             @Nonnull final SerializationState serializationState) {
-        final Action action = new Action(serializationState, new ActionModeCalculator());
+        final Action action = new Action(serializationState, actionModeCalculator);
         action.getActionTranslation().setPassthroughTranslationSuccess();
         return action;
     }
