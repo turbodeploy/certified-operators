@@ -161,7 +161,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
     public boolean areFeaturesAvailable(Collection<ProbeLicense> features) {
         ProtocolStringList licenseFeatures = getLicenseSummary().getFeatureList();
         // return false if any of the requested features are not present in the license summarya
-        for (LicenseFeature feature : features) {
+        for (ProbeLicense feature : features) {
             if (!licenseFeatures.contains(feature.getKey())) {
                 return false;
             }
@@ -170,13 +170,13 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
     }
 
     /**
-     * Utility method that will check if a feature is available using {@link #isFeatureAvailable(LicenseFeature)},
+     * Utility method that will check if a feature is available using {@link #isFeatureAvailable(ProbeLicense)},
      * and throws a {@link LicenseFeaturesRequiredException} if it is not.
      *
      * @param feature the feature to check for
      * @throws LicenseFeaturesRequiredException if any features are not present in the active licenses
      */
-    public void checkFeatureAvailable(LicenseFeature feature)
+    public void checkFeatureAvailable(ProbeLicense feature)
             throws LicenseFeaturesRequiredException {
         if (!isFeatureAvailable(feature)) {
             throw new LicenseFeaturesRequiredException(Collections.singleton(feature));
@@ -191,7 +191,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
      * @param features the set of features to check for
      * @throws LicenseFeaturesRequiredException if any features are not present in the active licenses
      */
-    public void checkFeaturesAvailable(Collection<LicenseFeature> features)
+    public void checkFeaturesAvailable(Collection<ProbeLicense> features)
             throws LicenseFeaturesRequiredException {
         if (!areFeaturesAvailable(features)) {
             throw new LicenseFeaturesRequiredException(features);
