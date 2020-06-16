@@ -8,6 +8,7 @@ import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.Protocol;
+import com.arangodb.model.CollectionCreateOptions;
 import com.arangodb.velocypack.VPackDeserializer;
 import com.arangodb.velocypack.VPackSerializer;
 import com.arangodb.velocypack.ValueType;
@@ -104,6 +105,12 @@ public class RepositoryComponentConfig {
 
     @Value("${collectionReplicaCount:1}")
     private int collectionReplicaCount;
+
+    @Value("${collectionNumShards:1}")
+    private int collectionNumShards;
+
+    @Value("${collectionWaitForSync:true}")
+    private boolean collectionWaitForSync;
 
     @Autowired
     private RepositoryProperties repositoryProperties;
@@ -227,14 +234,13 @@ public class RepositoryComponentConfig {
                         .useProtocol(Protocol.HTTP_VPACK)
                         .build();
             });
-            // If we are not able to connect to arango, db.exists() returns false, and we try to create the
-            // database. But the database might already exist. It's just that we can't connect.
-            // To check if we can connect, try to get the driver version. If we are not able to
-            // connect to arango, an exception will be thrown right here.
-            driver.getVersion();
-            // We will get here if we are able to connect. Then check if database exists or not.
+
+            // If we are not able to connect to arango, db.exists() returns false. We will try to create the
+            // database, but it's ok since we cannot connect to arango anyway.
+            // Note: arango currently don't support checking if Database(Connection) exists
+            // https://github.com/arangodb/arangodb-java-driver/issues/254
+            final ArangoDatabase db = driver.db(getArangoDatabaseName());
             // If it does not exist, create it.
-            ArangoDatabase db = driver.db(getArangoDatabaseName());
             if (!db.exists()) {
                 logger.info("Arango DB {} does not exist. Creating database.", getArangoDatabaseName());
                 createDatabase(driver);
@@ -274,12 +280,33 @@ public class RepositoryComponentConfig {
     }
 
     /**
+     * A set of default collection creation options that can be used as a template for creating new
+     * collections.
+     *
+     * <p>NOTE: this is not being used everywhere we create collections at this time. But
+     * since we are likely to add more collection creation params if/when we horizontally scale the
+     * arangodb cluster, we can start to propagate this object instead of the individual default params we
+     * will use.
+     *
+     * @return the default collection creation options.
+     */
+    @Bean
+    public CollectionCreateOptions defaultCollectionOptions() {
+        CollectionCreateOptions defaultOptions = new CollectionCreateOptions()
+                .waitForSync(collectionWaitForSync)
+                .replicationFactor(collectionReplicaCount)
+                .numberOfShards(collectionNumShards);
+        return defaultOptions;
+    }
+
+    /**
      * Topology protobufs manager.
      *
      * @return Topology protobufs manager.
      */
+    @Bean
     public TopologyProtobufsManager topologyProtobufsManager() {
-        return new TopologyProtobufsManager(arangoDatabaseFactory(), getArangoDatabaseName());
+        return new TopologyProtobufsManager(arangoDatabaseFactory(), getArangoDatabaseName(), defaultCollectionOptions());
     }
 
     /**

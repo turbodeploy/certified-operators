@@ -3,7 +3,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>Turbonomic-XL</artifactId>
-        <version>7.22.3-SNAPSHOT</version>
+        <version>7.22.4-SNAPSHOT</version>
         <relativePath>../build</relativePath>
     </parent>
 
@@ -244,6 +244,11 @@
                                 <resource>
                                     <targetPath>/swagger</targetPath>
                                     <directory>${project.build.directory}/generated-docs/swagger</directory>
+                                </resource>
+                                <resource>
+                                    <targetPath>/config</targetPath>
+                                    <directory>${project.build.directory}/classes</directory>
+                                    <include>kafka-config.yml</include>
                                 </resource>
                             </resources>
                         </configuration>

@@ -279,6 +279,15 @@ public interface AnalysisFactory {
         private final boolean useQuoteCacheDuringSNM;
 
         /**
+         * Whether provision and activate actions should be replayed during real-time analysis.
+         *
+         * <p>There exists support to save provision and activate actions from one analysis cycle
+         * and apply them to the next. This application is done during the 2nd analysis sub-cycle
+         * and significantly reduces the time spent in the provision algorithm.</p>
+         */
+        private final boolean replayProvisionsForRealTime;
+
+        /**
          * The minimum utilization threshold, if entity's utilization is below threshold,
          * Market could generate resize down action.
          */
@@ -303,6 +312,10 @@ public interface AnalysisFactory {
          * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}.
          *
          * @param marketMode              the run mode of the market?
+         * @param useQuoteCacheDuringSNM Whether quotes should be cached for reuse during
+         *                               SNM-enabled placement analysis.
+         * @param replayProvisionsForRealTime Whether provision and activate actions should be
+         *                                    replayed during real-time analysis.
          * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
          *                                it, Market could generate resize down actions.
          * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
@@ -319,6 +332,7 @@ public interface AnalysisFactory {
                               final boolean includeVDC,
                               final Optional<Integer> maxPlacementsOverride,
                               final boolean useQuoteCacheDuringSNM,
+                              final boolean replayProvisionsForRealTime,
                               final float rightsizeLowerWatermark,
                               final float rightsizeUpperWatermark,
                               final float discountedComputeCostFactor) {
@@ -329,6 +343,7 @@ public interface AnalysisFactory {
             this.includeVDC = includeVDC;
             this.maxPlacementsOverride = maxPlacementsOverride;
             this.useQuoteCacheDuringSNM = useQuoteCacheDuringSNM;
+            this.replayProvisionsForRealTime = replayProvisionsForRealTime;
             this.rightsizeLowerWatermark = rightsizeLowerWatermark;
             this.rightsizeUpperWatermark = rightsizeUpperWatermark;
             this.marketMode = marketMode;
@@ -384,6 +399,19 @@ public interface AnalysisFactory {
          */
         public boolean getUseQuoteCacheDuringSNM() {
             return useQuoteCacheDuringSNM;
+        }
+
+        /**
+         * Whether provision and activate actions should be replayed during real-time analysis.
+         *
+         * <p>There exists support to save provision and activate actions from one analysis cycle
+         * and apply them to the next. This application is done during the 2nd analysis sub-cycle
+         * and significantly reduces the time spent in the provision algorithm.</p>
+         *
+         * @see Builder#setReplayProvisionsForRealTime(boolean)
+         */
+        public boolean getReplayProvisionsForRealTime() {
+            return replayProvisionsForRealTime;
         }
 
         public float getRightsizeLowerWatermark() {
@@ -478,6 +506,8 @@ public interface AnalysisFactory {
 
             private boolean useQuoteCacheDuringSNM = false;
 
+            private boolean replayProvisionsForRealTime = false;
+
             private float rightsizeLowerWatermark;
 
             private float rightsizeUpperWatermark;
@@ -538,6 +568,22 @@ public interface AnalysisFactory {
             }
 
             /**
+             * Sets the value of the <b>replay provisions during real-time</b> field.
+             *
+             * <p>Has no observable side-effects except setting the above field.</p>
+             *
+             * @param replayProvisionsForRealTime the new value for the field.
+             * @return {@code this}
+             *
+             * @see AnalysisConfig#getReplayProvisionsForRealTime()
+             */
+            @NonNull
+            public Builder setReplayProvisionsForRealTime(boolean replayProvisionsForRealTime) {
+                this.replayProvisionsForRealTime = replayProvisionsForRealTime;
+                return this;
+            }
+
+            /**
              * Configure the minimum utilization threshold.
              *
              * @param rightsizeLowerWatermark minimum utilization threshold.
@@ -586,8 +632,8 @@ public interface AnalysisFactory {
             public AnalysisConfig build() {
                 return new AnalysisConfig(marketMode, quoteFactor, liveMarketMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings, includeVDC, maxPlacementsOverride,
-                    useQuoteCacheDuringSNM, rightsizeLowerWatermark, rightsizeUpperWatermark,
-                    discountedComputeCostFactor);
+                    useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
+                    rightsizeUpperWatermark, discountedComputeCostFactor);
             }
         }
     }

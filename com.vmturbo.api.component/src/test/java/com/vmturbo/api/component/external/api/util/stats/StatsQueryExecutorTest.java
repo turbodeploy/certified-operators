@@ -391,6 +391,7 @@ public class StatsQueryExecutorTest {
          */
         when(scope.isGroup()).thenReturn(true);
         when(scope.isEntity()).thenReturn(false);
+        //Check for PM groups
         final CachedGroupInfo groupInfo = mock(CachedGroupInfo.class);
         when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.PHYSICAL_MACHINE));
         when(scope.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
@@ -410,6 +411,13 @@ public class StatsQueryExecutorTest {
         stats = executor.getAggregateStats(scope, period);
         assertTrue(stats.get(0).getStatistics().stream()
             .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+
+        //check for group, always show cooling and power when groups contains Chassis.
+        when(groupInfo.getEntityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.CHASSIS));
+        when(scope.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
+        stats = executor.getAggregateStats(scope, period);
+        assertTrue(stats.get(0).getStatistics().stream()
+                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
 
         /*
          * Scope is an entity

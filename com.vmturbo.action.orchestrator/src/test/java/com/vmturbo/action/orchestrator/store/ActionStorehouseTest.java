@@ -29,7 +29,9 @@ import org.junit.rules.ExpectedException;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
+import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
@@ -278,12 +280,38 @@ public class ActionStorehouseTest {
                 mock(com.vmturbo.action.orchestrator.action.Action.class);
         List<ActionExecutionTask> actionExecutionTaskList = new ArrayList<>();
         actionExecutionTaskList.add(new AutomatedActionExecutor.ActionExecutionTask(action,
-                new FutureMock<com.vmturbo.action.orchestrator.action.Action>(action)));
+                new FutureMock<>(action)));
         when(action.getState()).thenReturn(ActionState.QUEUED);
         when(executor.executeAutomatedFromStore(any()))
             .thenReturn(actionExecutionTaskList);
         actionStorehouse.storeActions(actionPlan);
         assertThat(actionStorehouse.cancelQueuedActions(), is(1));
+    }
+
+    /**
+     * Tests case when action is removing from queue (state is rolled back from QUEUED) because of
+     * non active status of execution window.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testCancelActionsWithNonActiveExecutionWindows() throws Exception {
+        final ActionSchedule nonActiveSchedule = Mockito.mock(ActionSchedule.class);
+        final com.vmturbo.action.orchestrator.action.Action action =
+                mock(com.vmturbo.action.orchestrator.action.Action.class);
+        final List<ActionExecutionTask> actionExecutionTaskList = new ArrayList<>();
+        actionExecutionTaskList.add(
+                new AutomatedActionExecutor.ActionExecutionTask(action, new FutureMock<>(action)));
+        Mockito.when(action.getState()).thenReturn(ActionState.QUEUED);
+        Mockito.when(executor.executeAutomatedFromStore(any())).thenReturn(actionExecutionTaskList);
+        actionStorehouse.storeActions(actionPlan);
+
+        Mockito.when(actionStore.getAction(action.getId())).thenReturn(Optional.of(action));
+        Mockito.when(action.getSchedule()).thenReturn(Optional.of(nonActiveSchedule));
+        Mockito.when(nonActiveSchedule.isActiveScheduleNow()).thenReturn(false);
+        // emulate next market cycle
+        actionStorehouse.storeActions(actionPlan);
+        Mockito.verify(action).receive(Mockito.any(RollBackToAcceptedEvent.class));
     }
 
     private class FutureMock<V> implements Future<V> {

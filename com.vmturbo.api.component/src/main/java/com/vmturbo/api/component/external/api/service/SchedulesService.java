@@ -5,6 +5,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -210,7 +211,7 @@ public class SchedulesService implements ISchedulesService {
     @Override
     public List<ActionApiDTO> getActionsToBeExecutedInSchedule(String uuid) throws Exception {
         final ActionQueryFilter queryFilter = ActionQueryFilter.newBuilder()
-                .addStates(ActionState.READY)
+                .addAllStates(Arrays.asList(ActionState.READY, ActionState.ACCEPTED))
                 .setAssociatedScheduleId(Long.parseLong(uuid))
                 .build();
         return actionSearchUtil.callActionServiceWithNoPagination(queryFilter);

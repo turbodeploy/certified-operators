@@ -463,6 +463,11 @@ public class VoltronConfiguration {
         REPOSITORY(Component.REPOSITORY),
 
         /**
+         * Extractor.
+         */
+        EXTRACTOR(Component.EXTRACTOR),
+
+        /**
          * API.
          */
         API(Component.API);

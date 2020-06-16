@@ -97,6 +97,8 @@ public class MarketRunner {
      *                               placement analysis. Setting to true can improve performance in
      *                               some cases. Usually those cases involve a high number of
      *                               biclique overlaps and volumes per VM.
+     * @param replayProvisionsForRealTime Whether provision and activate actions from one real-time
+     *                                    analysis cycle should be replayed during the next.
      * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
      *                                it, Market could generate resize down actions.
      * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
@@ -112,6 +114,7 @@ public class MarketRunner {
                                      final boolean includeVDC,
                                      @Nonnull final Optional<Integer> maxPlacementsOverride,
                                      final boolean useQuoteCacheDuringSNM,
+                                     final boolean replayProvisionsForRealTime,
                                      final float rightsizeLowerWatermark,
                                      final float rightsizeUpperWatermark,
                                      final float discountedComputeCostFactor) {
@@ -138,6 +141,7 @@ public class MarketRunner {
                         .setIncludeVDC(includeVDC)
                         .setMaxPlacementsOverride(maxPlacementsOverride)
                         .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
+                        .setReplayProvisionsForRealTime(replayProvisionsForRealTime)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setDiscountedComputeCostFactor(discountedComputeCostFactor),

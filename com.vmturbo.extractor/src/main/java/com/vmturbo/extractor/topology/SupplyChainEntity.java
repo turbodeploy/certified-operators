@@ -12,8 +12,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.jetbrains.annotations.NotNull;
-
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -45,11 +43,16 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     private final List<SupplyChainEntity> controlledEntities = new ArrayList<>(0);
     private final List<SupplyChainEntity> providers = new ArrayList<>(0);
     private final List<SupplyChainEntity> consumers = new ArrayList<>(0);
+    private boolean deletable = true;
 
     public SupplyChainEntity(@Nonnull final TopologyEntityDTO src) {
         this.oid = src.getOid();
         this.displayName = src.getDisplayName();
         this.type = src.getEntityType();
+
+        if (src.hasAnalysisSettings()) {
+            this.deletable = src.getAnalysisSettings().getDeletable();
+        }
     }
 
     public int getType() {
@@ -129,7 +132,7 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         return displayName;
     }
 
-    @NotNull
+    @Nonnull
     @Override
     public TypeSpecificInfo getTypeSpecificInfo() {
         return TypeSpecificInfo.getDefaultInstance();
@@ -250,6 +253,17 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     @Override
     public String toString() {
         return displayName + "@" + oid;
+    }
+
+    /**
+     * Get deletable state of the topology entity. Default is true.
+     *
+     * @return true, means the Market can delete this entity.
+     *         false, means Market will not generate Delete Actions.
+     */
+    @Override
+    public boolean getDeletable() {
+        return deletable;
     }
 
     /**

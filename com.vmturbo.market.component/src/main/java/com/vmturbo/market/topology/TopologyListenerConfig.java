@@ -39,6 +39,9 @@ public class TopologyListenerConfig {
     @Value("${useQuoteCacheDuringSNM:false}")
     private boolean useQuoteCacheDuringSNM;
 
+    @Value("${replayProvisionsForRealTime:false}")
+    private boolean replayProvisionsForRealTime;
+
     @Value("${rightsizeLowerWatermark}")
     private float rightsizeLowerWatermark;
 
@@ -59,8 +62,8 @@ public class TopologyListenerConfig {
     public TopologyEntitiesListener topologyEntitiesListener() {
         final TopologyEntitiesListener topologyEntitiesListener = new TopologyEntitiesListener(
                 marketRunnerConfig.marketRunner(), maxPlacementsOverride(), useQuoteCacheDuringSNM,
-                rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor,
-                licenseCheckClientConfig.licenseCheckClient());
+                replayProvisionsForRealTime, rightsizeLowerWatermark, rightsizeUpperWatermark,
+                discountedComputeCostFactor, licenseCheckClientConfig.licenseCheckClient());
         tpConfig.topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
         tpConfig.topologyProcessor().addPlanTopologyListener(topologyEntitiesListener);
         return topologyEntitiesListener;

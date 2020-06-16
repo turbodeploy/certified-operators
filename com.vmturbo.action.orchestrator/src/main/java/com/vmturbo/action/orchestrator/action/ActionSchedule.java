@@ -206,12 +206,25 @@ public class ActionSchedule {
     }
 
     /**
-     * Return true if schedule is active at this time.
+     * Defines activeness status of schedule use internal properties (scheduleStartTimestamp,
+     * scheduleEndTimestamp) which were updated during broadcast, when actions were refreshed.
+     * Result can be not relevant due to tie to broadcast.
      *
      * @return true if schedule is active, otherwise false
      */
     public boolean isActiveSchedule() {
         return scheduleEndTimestamp != null && (scheduleStartTimestamp == null
                 || scheduleEndTimestamp < scheduleStartTimestamp);
+    }
+
+    /**
+     * Defines activeness status of schedule. Expand isActiveSchedule() implementation.
+     * We use this method when we want to be sure that we have relevant information about activeness
+     * of schedule at current time.
+     *
+     * @return true if schedule is active, otherwise false
+     */
+    public boolean isActiveScheduleNow() {
+        return isActiveSchedule() && System.currentTimeMillis() < scheduleEndTimestamp;
     }
 }

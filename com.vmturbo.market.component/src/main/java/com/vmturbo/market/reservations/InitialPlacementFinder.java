@@ -320,7 +320,7 @@ public class InitialPlacementFinder {
     }
 
     /**
-     * Set the placement finder state.
+     * Set the placement finder state.co
      * @param state state of the placement finder object.
      */
     private  void setState(PlacementFinderState state) {

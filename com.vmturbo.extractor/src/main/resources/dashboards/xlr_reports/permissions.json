@@ -1,0 +1,12 @@
+{
+  "items": [
+    {
+      "role": "Viewer",
+      "permission": 1
+    },
+    {
+      "role": "Editor",
+      "permission": 1
+    }
+  ]
+}

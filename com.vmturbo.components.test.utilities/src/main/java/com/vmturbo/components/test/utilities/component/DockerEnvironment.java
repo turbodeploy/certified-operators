@@ -16,13 +16,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.docker.compose.connection.DockerMachine;
 import com.palantir.docker.compose.connection.DockerMachine.LocalBuilder;
 import com.palantir.docker.compose.connection.DockerMachine.RemoteBuilder;
+
+import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.components.test.utilities.component.ComponentCluster.Component;
 
 /**
@@ -60,6 +62,7 @@ public class DockerEnvironment {
     static final ImmutableMap<String, String> ENVIRONMENT_VARIABLES =
         new ImmutableMap.Builder<String, String>()
             .put("DEV_JAVA_OPTS", "-agentlib:jdwp=transport=dt_socket,address=8000,server=y,suspend=n")
+            .put("XL_VERSION", BuildProperties.get().getVersion())
             .put("METRON_ENABLED", "false")
             .put("CONSUL_PORT", "8500")
             .put("DB_PORT", "3306")
@@ -92,6 +95,14 @@ public class DockerEnvironment {
             .put("GROUP_DEBUG_PORT", "8000")
             .put("HISTORY_PORT", "8080")
             .put("HISTORY_DEBUG_PORT", "8000")
+            .put("EXTRACTOR_PORT", "8080")
+            .put("EXTRACTOR_DEBUG_PORT", "8000")
+            .put("INTEGRATION_INTERSIGHT_PORT", "8080")
+            .put("INTEGRATION_INTERSIGHT_DEBUG_PORT", "8000")
+            .put("RSYSLOG_PORT", "2514")
+
+
+
             .put("PLAN_ORCHESTRATOR_PORT", "8080")
             .put("PLAN_ORCHESTRATOR_DEBUG_PORT", "8000")
             .put("REPORTING_PORT", "8080")
@@ -190,6 +201,23 @@ public class DockerEnvironment {
             .put("MEDIATION_HYPERFLEX_DEBUG_PORT", "8000")
             .put("MEDIATION_HORIZON_PORT", "8080")
             .put("MEDIATION_HORIZON_DEBUG_PORT", "8000")
+            .put("MEDIATION_INTERSIGHT_HYPERFLEX_PORT", "8080")
+            .put("MEDIATION_INTERSIGHT_HYPERFLEX_DEBUG_PORT", "8000")
+            .put("MEDIATION_INTERSIGHT_UCS_PORT", "8080")
+            .put("MEDIATION_INTERSIGHT_UCS_DEBUG_PORT", "8000")
+            .put("MEDIATION_INTERSIGHT_SERVER_PORT", "8080")
+            .put("MEDIATION_INTERSIGHT_SERVER_DEBUG_PORT", "8000")
+            .put("MEDIATION_SERVICENOW_PORT", "8080")
+            .put("MEDIATION_SERVICENOW_DEBUG_PORT", "8000")
+            .put("MEDIATION_AZUREEA_PORT", "8080")
+            .put("MEDIATION_AZUREEA_DEBUG_PORT", "8000")
+            .put("MEDIATION_AZURESP_PORT", "8080")
+            .put("MEDIATION_AZURESP_DEBUG_PORT", "8000")
+            .put("MEDIATION_CUSTOMDATA_PORT", "8080")
+            .put("MEDIATION_CUSTOMDATA_DEBUG_PORT", "8000")
+            .put("MEDIATION_NUTANIX_PORT", "8080")
+            .put("MEDIATION_NUTANIX_DEBUG_PORT", "8000")
+
             // MEMORY LIMITS and XMX Settings
             .put("DB_MEM_LIMIT_MB", "2048")
             .put("DB_MEM_PCT_FOR_BUFFER_POOL", "80")

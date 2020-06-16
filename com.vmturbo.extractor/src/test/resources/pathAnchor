@@ -1,0 +1,10 @@
+The "pathAnchor" file exists to be an "anchor" from which to find the docker-compose.yml files
+(and any other files the tests need) in the repository.
+
+This particular instance is here to support unit tests related to the use of the "pathAnchor" file,
+such as DockerEnvironmentTest.testGetComposeFilesPath()
+
+In JUnit with IntelliJ the default working directory is the location of the *.iml file, which
+can be anywhere. We also can't use absolute paths because different developers have
+environments set up differently. The solution is to start from this file, and navigate
+to the right place.

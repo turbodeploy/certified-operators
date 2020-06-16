@@ -5,13 +5,23 @@
     <parent>
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.22.3-SNAPSHOT</version>
+        <version>7.22.4-SNAPSHOT</version>
         <relativePath>../build/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>components-test-utilities</artifactId>
     <description>Utilities for testing components.</description>
+
+    <build>
+        <defaultGoal>install</defaultGoal>
+        <plugins>
+            <plugin>
+                <groupId>pl.project13.maven</groupId>
+                <artifactId>git-commit-id-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
 
     <dependencies>
         <!-- Resolve dependency conflict with other inject versions -->
@@ -24,10 +34,6 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>external-api-stubs</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>topology-processor</artifactId>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
@@ -117,10 +123,6 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>market-component</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>history-component-api</artifactId>
         </dependency>
         <dependency>
@@ -165,6 +167,14 @@
         <dependency>
             <groupId>org.antlr</groupId>
             <artifactId>ST4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.components.common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.commons</artifactId>
         </dependency>
     </dependencies>
 </project>

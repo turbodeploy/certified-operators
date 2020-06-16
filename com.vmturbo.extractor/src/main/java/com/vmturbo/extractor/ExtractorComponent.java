@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.PostgreSQLHealthMonitor;
+import com.vmturbo.extractor.grafana.GrafanaConfig;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.SQLDatabaseConfig2;
@@ -21,7 +22,10 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig2;
  * writes data to timescaledb database for query, export, and search/sort/filter.
  */
 @Configuration("theComponent")
-@Import({TopologyListenerConfig.class, ExtractorDbConfig.class, SQLDatabaseConfig2.class})
+@Import({TopologyListenerConfig.class,
+        ExtractorDbConfig.class,
+        SQLDatabaseConfig2.class,
+        GrafanaConfig.class})
 public class ExtractorComponent extends BaseVmtComponent {
     private static final Logger logger = LogManager.getLogger();
 

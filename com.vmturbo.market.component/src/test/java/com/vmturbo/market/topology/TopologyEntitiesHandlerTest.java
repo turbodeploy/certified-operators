@@ -123,6 +123,8 @@ public class TopologyEntitiesHandlerTest {
 
     private final boolean useQuoteCacheDuringSNM = false;
 
+    private final boolean replayProvisionsForRealTime = false;
+
     private static final float rightsizeLowerWatermark = 0.1f;
 
     private static final float rightsizeUpperWatermark = 0.7f;
@@ -256,7 +258,8 @@ public class TopologyEntitiesHandlerTest {
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setMaxPlacementsOverride(maxPlacementIterations)
-                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM).build();
+                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
+                        .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
         final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
                 analysisConfig, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
@@ -629,7 +632,8 @@ public class TopologyEntitiesHandlerTest {
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setMaxPlacementsOverride(maxPlacementIterations)
-                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM).build();
+                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
+                        .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
         // Call analysis
         final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
                 REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
@@ -741,7 +745,8 @@ public class TopologyEntitiesHandlerTest {
                             .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                             .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                             .setMaxPlacementsOverride(maxPlacementIterations)
-                            .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM).build();
+                            .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
+                            .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
             // Call analysis
             final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
                     REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
@@ -859,7 +864,8 @@ public class TopologyEntitiesHandlerTest {
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setMaxPlacementsOverride(maxPlacementIterations)
-                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM).build();
+                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
+                        .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
         final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
                 analysisConfig, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,

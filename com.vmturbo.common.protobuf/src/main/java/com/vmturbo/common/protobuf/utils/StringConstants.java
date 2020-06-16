@@ -438,4 +438,10 @@ public class StringConstants {
      * Accepting user type for actions accepted from turbo.
      */
     public static final String TURBO_ACCEPTING_USER_TYPE = "TURBO_USER";
+
+    /**
+     * Accepting user type for actions accepted from turbo.
+     */
+    public static final String EXTERNAL_ORCHESTRATOR_ACCEPTING_USER_TYPE =
+            "EXTERNAL_ORCHESTRATOR_USER";
 }

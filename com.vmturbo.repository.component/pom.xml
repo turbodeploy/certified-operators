@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>7.22.3-SNAPSHOT</version>
+        <version>7.22.4-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
 
@@ -265,6 +265,11 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>components-test-utilities</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>stitching</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -46,7 +46,10 @@ public class PostgresAdapter extends DbAdapter {
         dataSource.setUrl(url);
         dataSource.setUser(user);
         dataSource.setPassword(password);
-        dataSource.setCurrentSchema(config.getDbSchemaName());
+        // The flyway migrator (version 4.x) does not quote postgres schemas by default.
+        // This means that multi-tenant schema names (which contain "-", an illegal character
+        // in Postgres) do not get migrated properly. Add the quotes manually.
+        dataSource.setCurrentSchema("\"" + config.getDbSchemaName() + "\"");
         return dataSource;
     }
 
@@ -140,7 +143,7 @@ public class PostgresAdapter extends DbAdapter {
      * @throws SQLException if there's a problem adding the extension
      */
     protected void setupTimescaleDb(Connection conn) throws SQLException {
-        execute(conn, String.format("CREATE EXTENSION IF NOT EXISTS timescaledb SCHEMA %s",
+        execute(conn, String.format("CREATE EXTENSION IF NOT EXISTS timescaledb SCHEMA \"%s\"",
                 config.getDbSchemaName()));
     }
 
