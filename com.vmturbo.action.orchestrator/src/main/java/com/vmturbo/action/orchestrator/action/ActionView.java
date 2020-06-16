@@ -215,15 +215,15 @@ public interface ActionView {
     /**
      * Determine whether the action is executable.
      * An action is generally executable when its recommendation is marked as executable
-     * by the market and its state is ready.
+     * by the market and its state is ready or accepted.
      *
-     * @return True if the action is executable and ready, false otherwise.
+     * @return True if the action is executable and ready or accepted, false otherwise.
      */
     default boolean determineExecutability() {
         // An action is considered "Executable" if the initial recommendation is marked as
-        // executable by the market, and it has not been accepted/cleared.
+        // executable by the market, and it has ready or accepted state
         return getRecommendation().getExecutable() &&
-            getState().equals(ActionState.READY);
+                (getState().equals(ActionState.READY) || getState().equals(ActionState.ACCEPTED));
     }
 
     /**

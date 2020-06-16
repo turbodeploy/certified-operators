@@ -36,6 +36,7 @@ import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
@@ -148,10 +149,9 @@ public class ActionStoreConfig {
     @Bean
     public AutomatedActionExecutor automatedActionExecutor() {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
-            automatedActionThreadpool(),
-            workflowConfig.workflowStore(),
-            actionExecutionConfig.actionTargetSelector(),
-            entitySettingsCache());
+                automatedActionThreadpool(), workflowConfig.workflowStore(),
+                actionExecutionConfig.actionTargetSelector(), entitySettingsCache(),
+                ScheduleServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
     /**

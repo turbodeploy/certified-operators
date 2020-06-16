@@ -330,9 +330,9 @@ public class ActionModeCalculator {
                                                @Nonnull ActionMode chosenMode, @Nonnull List<Long> scheduleIds,
                                                @Nullable EntitiesAndSettingsSnapshot entitiesCache) {
 
-
-        if ((chosenMode != ActionMode.MANUAL && chosenMode != ActionMode.AUTOMATIC)
-            || scheduleIds.isEmpty() || entitiesCache == null) {
+        if ((chosenMode != ActionMode.MANUAL && chosenMode != ActionMode.AUTOMATIC
+                && chosenMode != ActionMode.EXTERNAL_APPROVAL) || scheduleIds.isEmpty()
+                || entitiesCache == null) {
             return ModeAndSchedule.of(chosenMode);
         }
 
@@ -369,6 +369,11 @@ public class ActionModeCalculator {
     private ActionMode selectActionMode(@Nonnull ActionView action,
                                         @Nonnull ActionMode chosenMode,
                                         @Nonnull ActionSchedule actionSchedule) {
+        if (chosenMode == ActionMode.EXTERNAL_APPROVAL) {
+            // we shouldn't change EXTERNAL_APPROVAL mode because it leads to problem with external operations
+            logger.debug("Action mode for action `{}` is `EXTERNAL_APPROVAL`.", action);
+            return ActionMode.EXTERNAL_APPROVAL;
+        }
         final Long scheduleStartTimestamp = actionSchedule.getScheduleStartTimestamp();
         final Long scheduleEndTimestamp = actionSchedule.getScheduleEndTimestamp();
         final ActionMode selectedMode;
@@ -405,7 +410,7 @@ public class ActionModeCalculator {
                 logger.debug("Setting the action mode for action `{}` to `RECOMMEND` as there is "
                     + "an upcoming schedule `{}` with `MANUAL` for it and it has been accepted by"
                     + " `{}`.", () -> action, () -> actionSchedule, () -> actionSchedule.getAcceptingUser());
-                selectedMode = ActionMode.RECOMMEND;
+                selectedMode = ActionMode.MANUAL;
             } else {
                 logger.debug("Setting the action mode for action `{}` to `MANUAL` as there is an "
                     + "upcoming schedule `{}` with `MANUAL` mode for it.", () -> action,

@@ -59,11 +59,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.Scop
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class CurrentQueryMapperTest {
@@ -430,7 +430,7 @@ public class CurrentQueryMapperTest {
             makeQuery(inputDTO),
             ApiTestUtils.mockEntityId("1"));
         assertThat(groupFilter.getActionStateList(),
-            containsInAnyOrder(ActionDTO.ActionState.IN_PROGRESS, ActionDTO.ActionState.QUEUED));
+            containsInAnyOrder(ActionDTO.ActionState.IN_PROGRESS, ActionDTO.ActionState.ACCEPTED));
     }
 
     @Test

@@ -222,6 +222,7 @@ public class ActionSpecMapper {
      */
     public static final ActionDTO.ActionState[] OPERATIONAL_ACTION_STATES = {
         ActionDTO.ActionState.READY,
+        ActionDTO.ActionState.ACCEPTED,
         ActionDTO.ActionState.QUEUED,
         ActionDTO.ActionState.IN_PROGRESS
     };
@@ -436,6 +437,8 @@ public class ActionSpecMapper {
                 return ActionState.SUCCEEDED;
             case QUEUED:
                 return ActionState.QUEUED;
+            case ACCEPTED:
+                return ActionState.ACCEPTED;
             default:
                 return null;
         }
@@ -617,8 +620,11 @@ public class ActionSpecMapper {
         apiDTO.setDisplayName(actionSchedule.getScheduleDisplayName());
         apiDTO.setTimeZone(actionSchedule.getScheduleTimezoneId());
 
-        if (actionSchedule.getExecutionWindowActionMode() == ActionDTO.ActionMode.MANUAL) {
-            apiDTO.setMode(ActionMode.MANUAL);
+        final ActionDTO.ActionMode executionWindowActionMode =
+                actionSchedule.getExecutionWindowActionMode();
+        if (executionWindowActionMode == ActionDTO.ActionMode.MANUAL
+                || executionWindowActionMode == ActionDTO.ActionMode.EXTERNAL_APPROVAL) {
+            apiDTO.setMode(ActionMode.valueOf(executionWindowActionMode.name()));
             if (actionSchedule.hasAcceptingUser()) {
                 apiDTO.setAcceptedByUserForMaintenanceWindow(true);
                 apiDTO.setUserName(actionSchedule.getAcceptingUser());
@@ -816,6 +822,8 @@ public class ActionSpecMapper {
     @VisibleForTesting
     String getUserName(@Nonnull final String decisionUserUuid) {
         if (AuditLogUtils.SYSTEM.equals(decisionUserUuid)) {
+            return decisionUserUuid;
+        } else if (!decisionUserUuid.contains("(")) {
             return decisionUserUuid;
         } else {
             return decisionUserUuid.substring(0, decisionUserUuid.indexOf("("));
@@ -1724,7 +1732,9 @@ public class ActionSpecMapper {
         switch (stateStr) {
             case READY:
                 return Optional.of(ActionDTO.ActionState.READY);
-            case ACCEPTED: case QUEUED:
+            case ACCEPTED:
+                return Optional.of(ActionDTO.ActionState.ACCEPTED);
+            case QUEUED:
                 return Optional.of(ActionDTO.ActionState.QUEUED);
             case SUCCEEDED:
                 return Optional.of(ActionDTO.ActionState.SUCCEEDED);

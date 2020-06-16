@@ -15,6 +15,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.exception.AcceptedActionStoreOperationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
@@ -27,11 +28,11 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
-import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
@@ -76,19 +77,19 @@ public class ActionApprovalManager {
      * @param actionExecutor action executor to run actions
      * @param actionTargetSelector selector to detect target to execute actions on
      * @param entitySettingsCache cache of entity settings
-     * @param actionTranslato action translator
+     * @param actionTranslator action translator
      * @param workflowStore workflow store
      * @param acceptedActionsStore accepted actions store
      */
     public ActionApprovalManager(@Nonnull ActionExecutor actionExecutor,
             @Nonnull ActionTargetSelector actionTargetSelector,
             @Nonnull EntitiesAndSettingsSnapshotFactory entitySettingsCache,
-            @Nonnull ActionTranslator actionTranslato, @Nonnull WorkflowStore workflowStore,
+            @Nonnull ActionTranslator actionTranslator, @Nonnull WorkflowStore workflowStore,
             @Nonnull AcceptedActionsDAO acceptedActionsStore) {
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
-        this.actionTranslator = Objects.requireNonNull(actionTranslato);
+        this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsStore);
     }
@@ -112,6 +113,10 @@ public class ActionApprovalManager {
         }
         final Action action = actionOptional.get();
 
+        if (action.getState() == ActionState.ACCEPTED) {
+            return acceptanceError("Action " + actionId + " was already accepted");
+        }
+
         final AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
                 userNameAndUuid);
         if (!action.isReady()) {
@@ -128,17 +133,17 @@ public class ActionApprovalManager {
      * Attempt to accept and execute the action.
      *
      * @param action action to accept
-     * @param userUUid user trying to accept
+     * @param userUuid user trying to accept
      * @return The result of attempting to accept and execute the action.
      */
     @Nonnull
     private AcceptActionResponse attemptAcceptAndExecute(@Nonnull final Action action,
-            @Nonnull final String userUUid) {
+            @Nonnull final String userUuid) {
         long actionTargetId = -1;
         Optional<FailureEvent> failure = Optional.empty();
         if (action.getSchedule().isPresent()) {
             final Optional<AcceptActionResponse> errors =
-                    persistAcceptanceForActionWithSchedule(action);
+                    persistAcceptanceForActionWithSchedule(action, userUuid);
             if (errors.isPresent()) {
                 return errors.get();
             }
@@ -160,16 +165,18 @@ public class ActionApprovalManager {
         failure.ifPresent(failureEvent -> logger.error("Failed to accept action: {}",
                 failureEvent.getErrorDescription()));
 
-        if (action.getSchedule().isPresent()) {
+        if (action.receive(new ActionEvent.ManualAcceptanceEvent(userUuid, actionTargetId))
+                .transitionNotTaken()) {
+            return acceptanceError("Unauthorized to accept action in mode " + action.getMode());
+        }
+
+        if (action.getSchedule().isPresent() && !action.getSchedule().get().isActiveSchedule()) {
             // postpone action execution, because action has related execution window
             return AcceptActionResponse.newBuilder()
                     .setActionSpec(actionTranslator.translateToSpec(action))
                     .build();
         } else {
-            if (action.receive(new ActionEvent.ManualAcceptanceEvent(userUUid, actionTargetId))
-                    .transitionNotTaken()) {
-                return acceptanceError("Unauthorized to accept action in mode " + action.getMode());
-            }
+            action.receive(new QueuedEvent());
         }
 
         return handleTargetResolution(action, actionTargetId, failure);
@@ -227,15 +234,19 @@ public class ActionApprovalManager {
     }
 
     private Optional<AcceptActionResponse> persistAcceptanceForActionWithSchedule(
-            @Nonnull Action action) {
+            @Nonnull Action action, @Nonnull String acceptingUser) {
         boolean isFailedPersisting = false;
         try {
             if (!action.getAssociatedSettingsPolicies().isEmpty()) {
-                final String acceptingUser = UserContextUtils.getCurrentUserName();
                 final LocalDateTime currentTime = LocalDateTime.now();
-                final String acceptingUserType = StringConstants.TURBO_ACCEPTING_USER_TYPE;
-                acceptedActionsStore.persistAcceptedAction(action.getRecommendationOid(), currentTime,
-                        acceptingUser, currentTime, acceptingUserType,
+                final String acceptingUserType;
+                if (action.getMode() == ActionMode.EXTERNAL_APPROVAL) {
+                    acceptingUserType = StringConstants.EXTERNAL_ORCHESTRATOR_ACCEPTING_USER_TYPE;
+                } else {
+                    acceptingUserType = StringConstants.TURBO_ACCEPTING_USER_TYPE;
+                }
+                acceptedActionsStore.persistAcceptedAction(action.getRecommendationOid(),
+                        currentTime, acceptingUser, currentTime, acceptingUserType,
                         action.getAssociatedSettingsPolicies());
                 logger.info("Successfully persisted acceptance for action `{}` accepted by {}({}) "
                                 + "at {}", action.getId(), acceptingUser, acceptingUserType,

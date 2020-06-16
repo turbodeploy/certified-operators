@@ -250,7 +250,8 @@ public class AuthDBConfig extends SQLDatabaseConfig {
     public @Nonnull DataSource dataSource() {
         Optional<String> credentials = authKVConfig.authKeyValueStore().get(CONSUL_KEY);
         String dbPassword;
-        if (StringUtils.isNotEmpty(authDbPassword)) {
+        final boolean isPasswordInjected = StringUtils.isNotEmpty(authDbPassword);
+        if (isPasswordInjected) {
             // Use authDbPassword if specified as environment variable.
             dbPassword = authDbPassword;
         } else if (!credentials.isPresent()) {
@@ -265,7 +266,7 @@ public class AuthDBConfig extends SQLDatabaseConfig {
         }
         // Get DataSource from the given DB schema name and user. Make sure we have the proper user
         // here. If the user does not exist, create it under root connection.
-        DataSource dataSource = dataSourceConfig(dbSchemaName, authDbUsername, dbPassword);
+        DataSource dataSource = dataSourceConfig(dbSchemaName, authDbUsername, dbPassword, isPasswordInjected);
 
         // Ensure the connection is available before proceeding.
         while (true) {

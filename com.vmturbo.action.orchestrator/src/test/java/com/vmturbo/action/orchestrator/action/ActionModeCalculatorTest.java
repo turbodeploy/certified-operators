@@ -1075,7 +1075,7 @@ public class ActionModeCalculatorTest {
         translatedAction = modeAndSchedule.getSchedule().getTranslation();
 
         // ASSERT
-        assertThat(modeAndSchedule.getMode(), is(ActionMode.RECOMMEND));
+        assertThat(modeAndSchedule.getMode(), is(ActionMode.MANUAL));
         assertThat(modeAndSchedule.getSchedule().getAcceptingUser(), is(USER_NAME));
         assertThat(translatedAction.getAcceptingUser(), is(USER_NAME));
 

@@ -110,6 +110,12 @@ public class DiscoveredWorkflowInterpreter {
                 return ActionPhase.REPLACE;
             case POST:
                 return ActionPhase.POST;
+            case ON_GENERATION:
+                return ActionPhase.ON_GENERATION;
+            case APPROVAL:
+                return ActionPhase.APPROVAL;
+            case AFTER_EXECUTION:
+                return ActionPhase.AFTER_EXECUTION;
             default:
                 logger.warn("Unrecognized action phase: {}", phase);
                 return null;

@@ -22,6 +22,7 @@ import org.junit.Assert;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
@@ -109,6 +110,20 @@ public class ActionOrchestratorTestUtils {
     public static Action createMoveAction(final long actionId, final long actionPlanId) {
         return new Action(createMoveRecommendation(actionId), actionPlanId, actionModeCalculator,
                 IdentityGenerator.next());
+    }
+
+    /**
+     * Creates action from serialized state.
+     *
+     * @param serializationState action serialized state
+     * @return action
+     */
+    @Nonnull
+    public static Action createActionFromSerializedState(
+            @Nonnull final SerializationState serializationState) {
+        final Action action = new Action(serializationState, actionModeCalculator);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        return action;
     }
 
     @Nonnull
