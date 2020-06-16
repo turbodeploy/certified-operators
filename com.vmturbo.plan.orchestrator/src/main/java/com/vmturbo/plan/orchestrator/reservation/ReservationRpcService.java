@@ -23,11 +23,14 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusReq
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateConstraintMapRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateConstraintMapResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceImplBase;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
@@ -123,6 +126,29 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                     .withDescription("Failed to get reservation " + request.getReservationId() + ".")
                     .asException());
         }
+    }
+
+    /**
+     * Update the ConstraintIDToCommodityTypeMap data structure in reservationManager.
+     *
+     * @param request          request contains all the constraint ID reservationConstraintInfo pairs.
+     * @param responseObserver count of the constraints updated.
+     */
+    @Override
+    public void updateConstraintMap(UpdateConstraintMapRequest request,
+                                    StreamObserver<UpdateConstraintMapResponse> responseObserver) {
+
+        int count = 0;
+        for (ReservationConstraintInfo reservationConstraintInfo
+                : request.getReservationContraintInfoList()) {
+            reservationManager.addToConstraintIDToCommodityTypeMap(
+                    reservationConstraintInfo.getConstraintId(), reservationConstraintInfo);
+            count++;
+        }
+        UpdateConstraintMapResponse updateConstraintMapResponse =
+                UpdateConstraintMapResponse.newBuilder().setCount(count).build();
+        responseObserver.onNext(updateConstraintMapResponse);
+        responseObserver.onCompleted();
     }
 
     @Override

@@ -276,7 +276,8 @@ message ReservationConstraintInfo {
     optional int64 constraint_id = 1;
     // The type of constraint
     optional Type type = 2;
-
+    // the key of the commodity associated with the constraint.
+    optional string key = 3;
     enum Type {
         // Cluster constraint and constraint id is cluster id
         CLUSTER = 1;

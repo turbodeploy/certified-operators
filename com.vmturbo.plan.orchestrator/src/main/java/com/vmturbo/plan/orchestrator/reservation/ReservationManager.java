@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
@@ -98,6 +99,8 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
 
     private static final Object reservationSetLock = new Object();
 
+    private Map<Long, ReservationConstraintInfo> constraintIDToCommodityTypeMap = new HashMap<>();
+
     /**
      * constructor for ReservationManager.
      * @param planDao input plan dao.
@@ -122,6 +125,16 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
         this.initialPlacementServiceBlockingStub = Objects.requireNonNull(initialPlacementServiceBlockingStub);
         this.templatesDao = templatesDao;
     }
+
+    /**
+     * Add the constraint id and reservationConstraintInfo send from TP to the map for future lookup.
+     * @param id Constraint ID
+     * @param reservationConstraintInfo the associated constraint info.
+     */
+    public void addToConstraintIDToCommodityTypeMap(Long id, ReservationConstraintInfo reservationConstraintInfo) {
+        constraintIDToCommodityTypeMap.put(id, reservationConstraintInfo);
+    }
+
 
     public ReservationDao getReservationDao() {
         return reservationDao;
@@ -354,13 +367,6 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                 }
             }
             List<PlacementInfo> placementInfos = new ArrayList<>();
-            placementInfos.add(PlacementInfo.newBuilder().clearProviderId()
-                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
-                            .CommodityType.CPU_PROVISIONED_VALUE, numOfCpu * cpuSpeed))
-                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
-                            .CommodityType.MEM_PROVISIONED_VALUE, memorySize))
-                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .setPlacementInfoId(IdentityGenerator.next()).build());
             for (Double diskSize : diskSizes) {
                 placementInfos.add(PlacementInfo
                         .newBuilder().clearProviderId()
@@ -369,6 +375,44 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                         .setProviderType(EntityType.STORAGE_VALUE)
                         .setPlacementInfoId(IdentityGenerator.next()).build());
             }
+
+            PlacementInfo.Builder computePlacementInfo = PlacementInfo.newBuilder().clearProviderId()
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.CPU_PROVISIONED_VALUE, numOfCpu * cpuSpeed))
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.MEM_PROVISIONED_VALUE, memorySize))
+                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setPlacementInfoId(IdentityGenerator.next());
+
+            for (ReservationConstraintInfo constraintInfo
+                    : reservation.getConstraintInfoCollection()
+                            .getReservationConstraintInfoList()) {
+                switch (constraintInfo.getType()) {
+                    case DATA_CENTER:
+                        computePlacementInfo.addCommodityBought(
+                                createCommodityBoughtDTO(CommodityDTO
+                                                .CommodityType.DATACENTER_VALUE,
+                                        Optional.of(constraintInfo.getKey()), 1));
+                        break;
+                    case CLUSTER:
+                        computePlacementInfo.addCommodityBought(
+                                createCommodityBoughtDTO(CommodityDTO
+                                                .CommodityType.CLUSTER_VALUE,
+                                        Optional.of(constraintInfo.getKey()), 1));
+                        break;
+                    case POLICY:
+                        computePlacementInfo.addCommodityBought(
+                                createCommodityBoughtDTO(CommodityDTO
+                                                .CommodityType.SEGMENTATION_VALUE,
+                                        Optional.of(constraintInfo.getKey()), 1));
+                        break;
+                    default:
+                        break;
+
+                }
+            }
+            placementInfos.add(computePlacementInfo.build());
+
 
             for (int i = 0; i < reservationTemplateBuilder.getCount(); i++) {
                 ReservationInstance.Builder reservationInstanceBuilder = ReservationInstance
@@ -398,7 +442,9 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
      */
     public Reservation intializeReservationStatus(Reservation reservation) {
         synchronized (reservationSetLock) {
-            ReservationDTO.Reservation reservationWithEntity = addEntityToReservation(reservation);
+            Reservation reservationWithConstraintInfo = addConstraintInfoDetails(reservation);
+            ReservationDTO.Reservation reservationWithEntity =
+                    addEntityToReservation(reservationWithConstraintInfo);
             Reservation updatedReservation = reservationWithEntity.toBuilder()
                     .setStatus(isReservationActiveNow(reservationWithEntity)
                             ? ReservationStatus.UNFULFILLED
@@ -412,6 +458,27 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
             return updatedReservation;
         }
     }
+
+    /**
+     * update the constraint info of the reservation.
+     *
+     * @param reservation the reservation of interest.
+     * @return reservation with the constraintInfo updated.
+     */
+    public Reservation addConstraintInfoDetails(Reservation reservation) {
+        ConstraintInfoCollection.Builder constraintInfoCollection = ConstraintInfoCollection.newBuilder();
+        for (ReservationConstraintInfo reservationConstraintInfo
+                : reservation.getConstraintInfoCollection().getReservationConstraintInfoList()) {
+            ReservationConstraintInfo updatedReservationConstraintInfo =
+                    constraintIDToCommodityTypeMap.get(reservationConstraintInfo.getConstraintId());
+            if (updatedReservationConstraintInfo != null) {
+                constraintInfoCollection.addReservationConstraintInfo(updatedReservationConstraintInfo);
+            }
+        }
+        return reservation.toBuilder().setConstraintInfoCollection(constraintInfoCollection).build();
+    }
+
+
 
     /**
      * Check if the reservation is active now or has a future start date.

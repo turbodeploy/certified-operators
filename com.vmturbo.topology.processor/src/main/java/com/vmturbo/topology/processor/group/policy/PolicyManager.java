@@ -13,16 +13,16 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.mutable.MutableInt;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
-
-import org.apache.commons.lang3.mutable.MutableInt;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServic
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -215,6 +216,46 @@ public class PolicyManager {
 
             return results;
         }
+    }
+
+    /**
+     * Get the commodityType associated with every placement policy.
+     *
+     * @param graph         The topology graph on which to apply the policies.
+     * @param groupResolver The resolver for the groups that the policy applies to.
+     * @return map from policy id to the commodityType.
+     */
+    public Map<Long, TopologyDTO.CommodityType> getPlacementPolicyIdToCommodityType(
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
+            @Nonnull final GroupResolver groupResolver) {
+
+        final List<Policy> livePolicies = new ArrayList<>();
+        policyService.getAllPolicies(PolicyRequest.getDefaultInstance())
+                .forEachRemaining(policyResp -> {
+                    if (policyResp.hasPolicy()) {
+                        livePolicies.add(policyResp.getPolicy());
+                    }
+                });
+        final Map<Long, Grouping> groupsById = policyGroupsById(livePolicies.stream());
+        clearPoliciesWithMissingGroups(livePolicies, groupsById, (policy, missingGroups) -> {
+        });
+
+        final List<PlacementPolicy> policiesToApply =
+                new ArrayList<>();
+
+        getServerPolicies(new ArrayList<>(), livePolicies, groupsById, new ReservationResults())
+                .forEach(policiesToApply::add);
+
+        Map<Long, TopologyDTO.CommodityType> results = new HashMap<>();
+        for (PlacementPolicy policy : policiesToApply) {
+
+            results.put(policy
+                            .getPolicyDefinition().getId(),
+                    policyApplicator
+                            .commodityTypeAssociatedWithPlacementPolicy(policy,
+                                    groupResolver, graph));
+        }
+        return results;
     }
 
     /**

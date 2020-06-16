@@ -142,7 +142,8 @@ public class ReservationMapper {
                 .collect(Collectors.toSet());
         final List<ReservationConstraintInfo> constraintInfos = new ArrayList<>();
         for (Long constraintId : constraintIds) {
-            generateRelateConstraint(constraintId).ifPresent(constraintInfos::add);
+            constraintInfos.add(ReservationConstraintInfo.newBuilder()
+                    .setConstraintId(constraintId).build());
         }
         reservationBuilder.setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
                 .addAllReservationConstraintInfo(constraintInfos)
