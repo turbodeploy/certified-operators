@@ -1,7 +1,6 @@
 package com.vmturbo.testbases.flyway;
 
 import static com.vmturbo.testbases.flyway.FlywayMigrationIntegrityChecker.MIGRATION_TEST_BASE_COMMIT;
-import static com.vmturbo.testbases.flyway.FlywayMigrationIntegrityChecker.platformAgnosticPath;
 import static com.vmturbo.testbases.flyway.Whitelist.ViolationType.CHANGE;
 import static com.vmturbo.testbases.flyway.Whitelist.ViolationType.DELETE;
 import static com.vmturbo.testbases.flyway.Whitelist.ViolationType.INSERT;
@@ -725,6 +724,7 @@ public class FlywayMigrationIntegrityCheckerTest {
         assertEquals(expectedBase, checker.baseCommit);
     }
 
+
     /**
      * Perform updates to the git working tree.
      *
@@ -742,21 +742,19 @@ public class FlywayMigrationIntegrityCheckerTest {
     private void updateTree(Git git, String treeName) throws IOException, GitAPIException {
         ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         String prefix = getClass().getPackage().getName().replaceAll("[.]", "/") + "/" + (TREE_RESOURCES_ROOT + treeName);
-        String resourceRootPath = platformAgnosticPath(resolver.getResource(prefix).getFile().getPath());
+        String resourceRootPath = resolver.getResource(prefix).getFile().getPath() + "/";
         for (Resource resource : resolver.getResources("classpath*:" + prefix + "/**/*")) {
             if (resource.exists() && !resource.getFile().isDirectory()) {
-                String path = platformAgnosticPath(resource.getFile().getPath());
+                String path = resource.getFile().getPath();
                 if (path.startsWith(resourceRootPath)) {
-                    // Skip trailing separator.
-                    path = path.substring(resourceRootPath.length() + 1);
+                    path = path.substring(resourceRootPath.length());
                 }
                 final File dest = new File(git.getRepository().getWorkTree(), path);
                 if (dest.getName().startsWith("-")) {
                     // file deletion
                     final File toDelete = new File(dest.getParentFile(), dest.getName().substring(1));
                     toDelete.delete();
-                    String pattern = platformAgnosticPath(new File(new File(path).getParentFile(), toDelete.getName()).getPath());
-                    git.rm().addFilepattern(pattern).call();
+                    git.rm().addFilepattern(new File(new File(path).getParentFile(), toDelete.getName()).getPath()).call();
                 } else {
                     FileUtils.forceMkdirParent(dest);
                     try (Reader in = new InputStreamReader(resource.getInputStream());

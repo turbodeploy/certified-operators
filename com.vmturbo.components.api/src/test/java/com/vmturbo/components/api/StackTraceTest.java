@@ -1,10 +1,10 @@
 package com.vmturbo.components.api;
 
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 
 import java.util.Optional;
 
-import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 
 /**
@@ -61,7 +61,7 @@ public class StackTraceTest {
             } else {
                 expected = "";
             }
-            MatcherAssert.assertThat(caller, is(expected));
+            assertThat(caller, is(expected));
         }
     }
 
@@ -72,25 +72,13 @@ public class StackTraceTest {
             final String caller = StackTrace.getCaller();
             final String expected;
             if (stackTrace.length > 3) {
-
-                // We expect the stack trace to be the call site of Optional.ifPresent()
-                // So we look at the stack trace and find the call in doOptionalCallerTest.
-                StackTraceElement expectedEl = null;
-                for (StackTraceElement element : stackTrace) {
-                    // Must be an "equals" to avoid matching lambdas.
-                    if (element.getMethodName().equals("doOptionalCallerTest")) {
-                        expectedEl = element;
-                    }
-                }
-                if (expectedEl == null) {
-                    expected = "Unable to find stack trace element.";
-                } else {
-                    expected = expectedEl.getFileName() + ":" + expectedEl.getLineNumber();
-                }
+                // The caller of this method, which is the place where we call "isPresent".
+                // We skip the intermediate "Optional.ifPresent()" stack trace element.
+                expected = stackTrace[2].getFileName() + ":" + stackTrace[2].getLineNumber();
             } else {
                 expected = "";
             }
-            MatcherAssert.assertThat(caller, is(expected));
+            assertThat(caller, is(expected));
         });
     }
 
@@ -104,6 +92,6 @@ public class StackTraceTest {
         } else {
             expected = "";
         }
-        MatcherAssert.assertThat(caller, is(expected));
+        assertThat(caller, is(expected));
     }
 }

@@ -27,10 +27,10 @@ public class HashUtil {
      * <p>The "unsafe" instance factory makes access a pure java implementation that makes use of
      * the {@link sun.misc.Unsafe} class to speed calculations.</p>
      */
-    public static final XXHashFactory XX_HASH_FACTORY = XXHashFactory.unsafeInstance();
+    public static final XXHashFactory XXHASH_FACTORY = XXHashFactory.unsafeInstance();
 
     /** Seed value for use with this factory (must always use same value!). */
-    public static final long XX_HASH_SEED = 0x4e723825ad398f89L;
+    public static final long XXHASH_SEED = 0x4e723825ad398f89L;
 
     private HashUtil() {
     }

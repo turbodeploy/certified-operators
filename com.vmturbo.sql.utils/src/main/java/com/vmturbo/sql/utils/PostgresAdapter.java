@@ -4,9 +4,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 import javax.sql.DataSource;
@@ -57,7 +54,7 @@ public class PostgresAdapter extends DbAdapter {
     }
 
     @Override
-    protected void createNonRootUser() throws SQLException, UnsupportedDialectException {
+    protected void createNonRootUser() throws SQLException, UnsupportedDialectException, InterruptedException {
         try (Connection conn = getRootConnection(null)) {
             dropUser(conn, config.getDbUserName());
             execute(conn, String.format("CREATE USER \"%s\" WITH PASSWORD '%s'",
@@ -80,7 +77,7 @@ public class PostgresAdapter extends DbAdapter {
     }
 
     @Override
-    protected void performNonRootGrants(DbEndpointAccess access) throws SQLException, UnsupportedDialectException {
+    protected void performNonRootGrants(DbEndpointAccess access) throws SQLException, UnsupportedDialectException, InterruptedException {
         switch (access) {
             case ALL:
                 performRWGrants();
@@ -95,14 +92,14 @@ public class PostgresAdapter extends DbAdapter {
         }
     }
 
-    private void performRWGrants() throws UnsupportedDialectException, SQLException {
+    private void performRWGrants() throws UnsupportedDialectException, SQLException, InterruptedException {
         try (Connection conn = getRootConnection(config.getDbDatabaseName())) {
             execute(conn, String.format("GRANT ALL PRIVILEGES ON SCHEMA \"%s\" TO \"%s\"",
                     config.getDbSchemaName(), config.getDbUserName()));
         }
     }
 
-    private void performROGrants() throws SQLException, UnsupportedDialectException {
+    private void performROGrants() throws SQLException, UnsupportedDialectException, InterruptedException {
         try (Connection conn = getRootConnection(config.getDbDatabaseName())) {
             execute(conn, String.format("GRANT CONNECT ON DATABASE \"%s\" TO \"%s\"",
                     config.getDbDatabaseName(), config.getDbUserName()));
@@ -117,7 +114,7 @@ public class PostgresAdapter extends DbAdapter {
     }
 
     @Override
-    protected void createSchema() throws SQLException, UnsupportedDialectException {
+    protected void createSchema() throws SQLException, UnsupportedDialectException, InterruptedException {
         try (Connection conn = getRootConnection(null)) {
             if (!databaseExists(conn, config.getDbDatabaseName())) {
                 execute(conn, String.format("CREATE DATABASE \"%s\"", config.getDbDatabaseName()));
@@ -159,7 +156,7 @@ public class PostgresAdapter extends DbAdapter {
 
     @Override
     public void setupRetentionPolicy(String table, ChronoUnit timeUnit, int retentionPeriod)
-            throws UnsupportedDialectException, SQLException {
+            throws UnsupportedDialectException, InterruptedException, SQLException {
         // sanity check
         if (retentionPeriod <= 0) {
             logger.error("Invalid retention period provided: {}", retentionPeriod);
@@ -197,28 +194,5 @@ public class PostgresAdapter extends DbAdapter {
             logger.info("Created retention policy for table \"{}\" with period \"{} {}\"", table,
                     retentionPeriod, timeUnit);
         }
-    }
-
-    @Override
-    protected Collection<String> getAllTableNames(Connection conn) throws SQLException {
-        ResultSet results = conn.createStatement().executeQuery(String.format(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = '%s' "
-                        + "AND table_type = 'BASE TABLE' AND table_name != 'schema_version'",
-                config.getDbSchemaName()));
-        List<String> tables = new ArrayList<>();
-        while (results.next()) {
-            tables.add(results.getString(1));
-        }
-        return tables;
-    }
-
-    @Override
-    protected void dropDatabaseIfExists(final Connection conn) throws SQLException {
-        conn.createStatement().execute("DROP DATABASE IF EXISTS " + config.getDbDatabaseName());
-    }
-
-    @Override
-    protected void dropUserIfExists(final Connection conn) throws SQLException {
-        conn.createStatement().execute("DROP USER IF EXISTS " + config.getDbUserName());
     }
 }

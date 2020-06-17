@@ -17,6 +17,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URL;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -32,7 +33,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
@@ -63,7 +63,6 @@ import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
@@ -524,7 +523,12 @@ public class ScopedTopologyTest {
             throws FileNotFoundException, InvalidProtocolBufferException {
 
         topologyDTOBuilderSet = new HashSet<>();
-        File file = ResourcePath.getTestResource(getClass(), simpleTopologyjSonFile).toFile();
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        final URL topologyFileResource = classLoader.getResource(simpleTopologyjSonFile);
+        if (topologyFileResource == null) {
+            throw new FileNotFoundException("Error reading " + simpleTopologyjSonFile);
+        }
+        File file = new File(topologyFileResource.getFile());
         final InputStream dtoInputStream = new FileInputStream(file);
         InputStreamReader inputStreamReader = new InputStreamReader(dtoInputStream);
         JsonReader topologyReader = new JsonReader(inputStreamReader);

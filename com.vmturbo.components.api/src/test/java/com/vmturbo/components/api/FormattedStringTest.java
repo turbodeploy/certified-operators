@@ -1,7 +1,7 @@
 package com.vmturbo.components.api;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 
 import java.util.Collections;
 import java.util.List;

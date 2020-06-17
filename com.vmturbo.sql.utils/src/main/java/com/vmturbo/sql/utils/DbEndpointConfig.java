@@ -1,6 +1,7 @@
 package com.vmturbo.sql.utils;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
@@ -32,8 +33,7 @@ public class DbEndpointConfig {
     private FlywayCallback[] dbFlywayCallbacks;
     private Boolean dbDestructiveProvisioningEnabled;
     private Boolean dbEndpointEnabled;
-    private DbEndpoint template;
-    private String dbNameSuffix;
+    private Supplier<DbEndpoint> templateSupplier;
 
     public String getTag() {
         return tag;
@@ -171,19 +171,11 @@ public class DbEndpointConfig {
         this.dbEndpointEnabled = dbEndpointEnabled;
     }
 
-    public DbEndpoint getTemplate() {
-        return template;
+    public Supplier<DbEndpoint> getTemplateSupplier() {
+        return templateSupplier;
     }
 
-    public void setTemplate(final DbEndpoint template) {
-        this.template = template;
-    }
-
-    public String getDbNameSuffix() {
-        return dbNameSuffix;
-    }
-
-    public void setDbNameSuffix(final String dbNameSuffix) {
-        this.dbNameSuffix = dbNameSuffix;
+    public void setTemplateSupplier(final Supplier<DbEndpoint> templateSupplier) {
+        this.templateSupplier = templateSupplier;
     }
 }

@@ -1,5 +1,10 @@
 package com.vmturbo.extractor.models;
 
+import static com.vmturbo.extractor.models.HashUtil.XXHASH_FACTORY;
+import static com.vmturbo.extractor.models.HashUtil.XXHASH_SEED;
+
+import java.nio.ByteBuffer;
+import java.nio.LongBuffer;
 import java.sql.Timestamp;
 import java.util.Set;
 
@@ -17,45 +22,46 @@ public class ModelDefinitions {
     }
 
     /** TIME column. */
-    public static final Column<Timestamp> TIME = Column.timestampColumn("time");
+    public static final Column<Timestamp> TIME = Column.timestampColumn("time").build();
     /** ENTITY_OID column. */
-    public static final Column<Long> ENTITY_OID = Column.longColumn("entity_oid");
+    public static final Column<Long> ENTITY_OID = Column.longColumn("entity_oid").build();
     /** ENTITY_OID, named just "oid". */
-    public static final Column<Long> ENTITY_OID_AS_OID = Column.longColumn("oid");
+    public static final Column<Long> ENTITY_OID_AS_OID = Column.longColumn("oid").build();
     /** ENTITY_HASH column. */
-    public static final Column<Long> ENTITY_HASH = Column.longColumn("entity_hash");
+    public static final Column<Long> ENTITY_HASH = Column.longColumn("entity_hash").build();
     /** ENTITY_HASH column, named just "hash". */
-    public static final Column<Long> ENTITY_HASH_AS_HASH = Column.longColumn("hash");
+    public static final Column<Long> ENTITY_HASH_AS_HASH = Column.longColumn("hash").build();
     /** ENTITY_NAME column. */
-    public static final Column<String> ENTITY_NAME = Column.stringColumn("name");
+    public static final Column<String> ENTITY_NAME = Column.stringColumn("name").build();
     /** ENTITY_TYPE column. */
-    static final Column<String> ENTITY_TYPE = Column.stringColumn("entity_type");
+    static final Column<String> ENTITY_TYPE = Column.stringColumn("entity_type").build();
     /** ENTITY_TYPE column, named just "type". */
-    public static final Column<String> ENTITY_TYPE_AS_TYPE = Column.stringColumn("type");
+    public static final Column<String> ENTITY_TYPE_AS_TYPE = Column.stringColumn("type").build();
     /** ENTITY_STATE column. */
-    public static final Column<String> ENTITY_STATE = Column.stringColumn("state");
+    public static final Column<String> ENTITY_STATE = Column.stringColumn("state").build();
     /** ENVIRONMENT_TYPE column. */
-    public static final Column<String> ENVIRONMENT_TYPE = Column.stringColumn("environment");
+    public static final Column<String> ENVIRONMENT_TYPE = Column.stringColumn("environment").build();
     /** ATTRS column. */
-    public static final Column<JsonString> ATTRS = Column.jsonColumn("attrs");
+    public static final Column<JsonString> ATTRS = Column.jsonColumn("attrs").build();
     /** SCOPED_OIDS column. */
-    public static final Column<Long[]> SCOPED_OIDS = Column.longSetColumn("scoped_oids");
+    public static final Column<Long[]> SCOPED_OIDS = Column.longArrayColumn("scoped_oids")
+            .withHashFunc(scope -> scopeHash((Long[])scope)).build();
     /** FIRST_SEEN column. */
-    public static final Column<Timestamp> FIRST_SEEN = Column.timestampColumn("first_seen");
+    public static final Column<Timestamp> FIRST_SEEN = Column.timestampColumn("first_seen").build();
     /** LAST_SEEN column. */
-    public static final Column<Timestamp> LAST_SEEN = Column.timestampColumn("last_seen");
+    public static final Column<Timestamp> LAST_SEEN = Column.timestampColumn("last_seen").build();
     /** COMMODITY_TYPE column. */
-    public static final Column<String> COMMODITY_TYPE = Column.stringColumn("type");
+    public static final Column<String> COMMODITY_TYPE = Column.stringColumn("type").build();
     /** COMMODITY_CURRENT column. */
-    public static final Column<Double> COMMODITY_CURRENT = Column.doubleColumn("current");
+    public static final Column<Double> COMMODITY_CURRENT = Column.doubleColumn("current").build();
     /** COMMODITY_CAPACITY column. */
-    public static final Column<Double> COMMODITY_CAPACITY = Column.doubleColumn("capacity");
+    public static final Column<Double> COMMODITY_CAPACITY = Column.doubleColumn("capacity").build();
     /** COMMODITY_UTILIZATION column. */
-    public static final Column<Double> COMMODITY_UTILIZATION = Column.doubleColumn("utilization");
+    public static final Column<Double> COMMODITY_UTILIZATION = Column.doubleColumn("utilization").build();
     /** COMMODITY_CONSUMED column. */
-    public static final Column<Double> COMMODITY_CONSUMED = Column.doubleColumn("consumed");
+    public static final Column<Double> COMMODITY_CONSUMED = Column.doubleColumn("consumed").build();
     /** COMMODITY_PROVIDER column. */
-    public static final Column<Long> COMMODITY_PROVIDER = Column.longColumn("provider_oid");
+    public static final Column<Long> COMMODITY_PROVIDER = Column.longColumn("provider_oid").build();
 
     /** ENTITY_TABLE. */
     public static final Table ENTITY_TABLE = Table.named("entity")
@@ -145,4 +151,30 @@ public class ModelDefinitions {
                     .add(CommodityType.VMEM_REQUEST_QUOTA)
                     .add(CommodityType.VSTORAGE)
                     .build();
+
+    private static final ByteBuffer longBytes = ByteBuffer.allocate(Long.BYTES);
+    private static final LongBuffer longBuffer = longBytes.asLongBuffer();
+
+    /**
+     * Method to compute a hash value for an entity scope value.
+     *
+     * <p>A scope value is an array of longs, and we want the hash to be order-independent. So we
+     * compute individual hash values for the elements (to get good dispersion), and then XOR those
+     * hash values ot arrive at an overall hash for the scope.</p>
+     *
+     * @param scope oids of entities/groups in this entity's scope scope
+     * @return hash value
+     */
+    private static byte[] scopeHash(Long[] scope) {
+        long hash = 0L;
+        for (final Long oid : scope) {
+            if (oid != null) {
+                longBuffer.put(0, oid);
+                final long oidHash = XXHASH_FACTORY.hash64().hash(
+                        longBytes, 0, Long.BYTES, XXHASH_SEED);
+                hash = hash ^ oidHash;
+            }
+        }
+        return Column.toBytes(hash);
+    }
 }

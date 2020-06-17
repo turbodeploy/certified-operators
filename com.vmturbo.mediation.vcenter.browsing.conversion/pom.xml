@@ -120,11 +120,6 @@
             <version>${log4j2.Version}</version>
             <scope>provided</scope>
         </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>components-api-test</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
 </project>

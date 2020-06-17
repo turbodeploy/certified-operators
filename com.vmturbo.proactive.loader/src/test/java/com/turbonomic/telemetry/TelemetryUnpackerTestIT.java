@@ -4,8 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
-import java.nio.file.Paths;
+import java.net.URL;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -15,7 +14,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-
 import javax.annotation.Nonnull;
 import javax.crypto.Cipher;
 
@@ -162,11 +160,14 @@ public class TelemetryUnpackerTestIT {
      * Returns the test file.
      *
      * @return The test file.
-     * @throws URISyntaxException If resource URI is invalid.
      */
-    static File getTestFile() throws URISyntaxException {
-        return Paths.get(TelemetryUnpackerTestIT.class.getClassLoader()
-            .getResource("telemetry_test.zip").toURI()).toFile();
+    private File getTestFile() {
+        ClassLoader classLoader = getClass().getClassLoader();
+        URL resourceURL = classLoader.getResource("telemetry_test.zip");
+        Assert.assertNotNull(resourceURL);
+        String urlAsFile = resourceURL.getFile();
+        Assert.assertNotNull(urlAsFile);
+        return new File(urlAsFile);
     }
 
     /**

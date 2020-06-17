@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
@@ -52,6 +51,7 @@ import com.vmturbo.components.api.client.RemoteIteratorDrain;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
+import com.vmturbo.extractor.topology.ITopologyWriter.InterruptibleConsumer;
 import com.vmturbo.extractor.topology.SupplyChainEntity.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -121,7 +121,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
         private TopologyGraphCreator<Builder, SupplyChainEntity> graphBuilder
                 = new TopologyGraphCreator<>();
-        private final Long2ObjectMap<List<Grouping>> entityToGroupInfo = getGroupMemberships();
+        private Long2ObjectMap<List<Grouping>> entityToGroupInfo = getGroupMemberships();
 
         private final TopologyInfo topologyInfo;
         private final RemoteIterator<DataSegment> entityIterator;
@@ -155,9 +155,9 @@ public class TopologyEntitiesListener implements EntitiesListener {
             final long topologyId = topologyInfo.getTopologyId();
             final long topologyContextId = topologyInfo.getTopologyContextId();
 
-            final List<Pair<Consumer<TopologyEntityDTO>, ITopologyWriter>> entityConsumers = new ArrayList<>();
+            final List<Pair<InterruptibleConsumer<TopologyEntityDTO>, ITopologyWriter>> entityConsumers = new ArrayList<>();
             for (ITopologyWriter writer : writers) {
-                Consumer<TopologyEntityDTO> entityConsumer =
+                InterruptibleConsumer<TopologyEntityDTO> entityConsumer =
                         writer.startTopology(topologyInfo, entityToGroupInfo, config, timer);
                 entityConsumers.add(Pair.of(entityConsumer, writer));
             }
@@ -169,7 +169,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     timer.stop();
                     entityCount += chunk.size();
                     addChunkToGraph(chunk);
-                    for (Pair<Consumer<TopologyEntityDTO>, ITopologyWriter> consumer : entityConsumers) {
+                    for (Pair<InterruptibleConsumer<TopologyEntityDTO>, ITopologyWriter> consumer : entityConsumers) {
                         timer.start(getIngestionPhaseLabel(consumer.getRight()));
                         for (final DataSegment dataSegment : chunk) {
                             if (dataSegment.hasEntity()) {
@@ -179,7 +179,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     }
                 }
                 timer.start("Compute Supply Chain");
-                final Map<Long, Set<Long>> entityToRelated = computeRelatedEntities();
+                final Map<Long, Set<Long>> entityToRelated = computeRleatedentities();
                 timer.stop();
                 for (final ITopologyWriter writer : writers) {
                     timer.start(getFinishPhaseLabel(writer));
@@ -200,7 +200,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
             return entityCount;
         }
 
-        private Map<Long, Set<Long>> computeRelatedEntities() {
+        private Map<Long, Set<Long>> computeRleatedentities() {
             Map<Long, Set<Long>> entityToRelated = new Long2ObjectOpenHashMap<>();
             final TopologyGraph<SupplyChainEntity> graph = graphBuilder.build();
             graphBuilder = null;

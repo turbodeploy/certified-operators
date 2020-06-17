@@ -1,7 +1,10 @@
 package com.vmturbo.components.test.utilities.topology.conversion;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
+import java.io.File;
+import java.net.URL;
 import java.util.stream.Collectors;
 
 import javax.xml.bind.JAXBContext;
@@ -11,15 +14,18 @@ import javax.xml.transform.stream.StreamSource;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.components.api.test.ResourcePath;
-
 public class XmiElementTest {
     private XmiElement xmiElement;
 
     @Before
     public void setup() throws Exception {
         final String filename = "topologies/classic/test.customer.markets.topology";
-        final StreamSource streamSource = new StreamSource(ResourcePath.getTestResource(getClass(), filename).toFile());
+        URL url = XmiElementTest.class.getClassLoader().getResource(filename);
+        if (url == null) {
+            fail("Unable to load resource file " + filename);
+        }
+
+        final StreamSource streamSource = new StreamSource(new File(url.getFile()));
         final JAXBContext jc = JAXBContext.newInstance(XmiElement.class);
         final Unmarshaller unmarshaller = jc.createUnmarshaller();
         xmiElement = (XmiElement)unmarshaller.unmarshal(streamSource);

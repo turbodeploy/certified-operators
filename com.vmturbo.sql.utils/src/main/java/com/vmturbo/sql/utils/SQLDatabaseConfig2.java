@@ -1,5 +1,11 @@
 package com.vmturbo.sql.utils;
 
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.SQLDialect;
@@ -11,7 +17,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
-import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Configuration for interaction with database.
@@ -21,10 +27,10 @@ import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
  * package!).</p>
  *
  * <p>The component can then create one or more database endpoints by using the {@link
- * DbEndpoint#primaryDbEndpoint(SQLDialect)} and {@link DbEndpoint#secondaryDbEndpoint(String,
- * SQLDialect)} static methods. Most components will only need to define a main instance, but
- * components that need multiple DB endpoints will need to create tagged instances for all or all
- * but one of them. Each endpoint should be configured as a bean.</p>
+ * #primaryDbEndpoint(SQLDialect)} and {@link #secondaryDbEndpoint(String, SQLDialect)} static
+ * methods. Most components will only need to define a main instance, but components that need
+ * multiple DB endpoints will need to create tagged instances for all or all but one of them. Each
+ * endpoint should be configured as a bean.</p>
  *
  * <p>It is important that the endpoints not be used before they are initialized, which normally
  * should happen in the component's onComponentStart() method. Importantly, this means that where
@@ -79,9 +85,48 @@ public class SQLDatabaseConfig2 {
     @Value("${authRetryDelaySecs}")
     protected int authRetryDelaySecs;
 
+    private final AtomicReference<UnaryOperator<String>> resolver = new AtomicReference<>();
+
     @Bean
     DBPasswordUtil dbPasswordUtil() {
         return new DBPasswordUtil(authHost, authPort, authRoute, authRetryDelaySecs);
+    }
+
+    private final Map<String, DbEndpoint> instanceByTag = new HashMap<>();
+
+    /**
+     * Create a new {@link DbEndpoint primary database endpoint}, without a tag.
+     *
+     * <p>Properties for this endpoint should be configured with out tag prefixes. A component
+     * may compare at most one primary endpoint.</p>
+     *
+     * @param dialect the SQL dialect (i.e. DB server type - MySQL, Postgres, etc.) for this
+     *                endpoint
+     * @return an endpoint that can provide access to the database
+     * @throws UnsupportedDialectException if the requested dialect is not supported
+     */
+    public DbEndpointBuilder primaryDbEndpoint(SQLDialect dialect) {
+        return secondaryDbEndpoint(null, dialect);
+    }
+
+    /**
+     * Create a new {@link DbEndpoint secondary database endpoint} with a given tag.
+     *
+     * <p>Properties for this endpoint should be configured with property names that include the
+     * given tag as a prefix, e.g. "xxx_dbPort" to configure the port number for an endpoint with
+     * "xxx" as the tag.</p>
+     *
+     * <p>A component may define any number of secondary endpoints (all with distinct tags), in
+     * addition to a single primary endpoint, if the latter is required.</p>
+     *
+     * @param tag     the tag for this endpoint
+     * @param dialect the SQL dialect (i.e. DB server type - MySQL, Postgres, etc.) for this
+     *                endpoint
+     * @return an endpoint that can provide access to the database
+     * @throws UnsupportedDialectException if the requested dialect is not supported
+     */
+    public DbEndpointBuilder secondaryDbEndpoint(String tag, SQLDialect dialect) {
+        return new DbEndpointBuilder(tag, dialect);
     }
 
     /**
@@ -89,9 +134,15 @@ public class SQLDatabaseConfig2 {
      *
      * <p>This method constructs the property resolver first, and then loops over the defined
      * endpoints and initializes each one in turn.</p>
+     *
+     * @throws UnsupportedDialectException if any endpoint uses an unsupported SQL dialect
+     * @throws SQLException                if any endpoint fails initialization due to SQL execution
+     *                                     failure
+     * @throws InterruptedException        if interrupted
      */
-    public void initAll() {
+    public void initAll() throws UnsupportedDialectException, SQLException, InterruptedException {
         final Environment env = applicationContext.getEnvironment();
-        DbEndpointCompleter.setResolver(env::getProperty, dbPasswordUtil(), true);
+        DbEndpoint.setResolver(env::getProperty, dbPasswordUtil());
     }
+
 }

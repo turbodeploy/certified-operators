@@ -1,11 +1,9 @@
 package com.vmturbo.sql.utils;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -95,16 +93,16 @@ public abstract class TestDBMigrationChecksums {
         final String checksum = computeChecksum(file);
 
         if (!checksums.containsKey(key)) {
-            throw new ChecksumValidationException("File " + key + " must have a recorded checksum. "
-                  + "Use " + checksum + " if you want to add it");
+            throw new ChecksumValidationException("File " + key + " must have a recorded checksum. " +
+                                  "Use " + checksum + " if you want to add it");
         }
 
         final Object value = checksums.get(key);
         if (!checksum.equals(value)) {
-            throw new ChecksumValidationException("The checksum for the file " + key + " does not match the one recorded. "
-                + "Migration files must never change once published (pushed). "
-                + "Create a new migration file instead. "
-                + "Expected: " + value + " but got: " + checksum);
+            throw new ChecksumValidationException(
+                "The checksum for the file " + key + " does not match the one recorded. " +
+                "Migration files must never change once published (pushed). " +
+                "Create a new migration file instead.");
         }
     }
 
@@ -119,12 +117,14 @@ public abstract class TestDBMigrationChecksums {
      */
     private String computeChecksum(File file) throws ChecksumValidationException {
         try (InputStream in = new FileInputStream(file)) {
-            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(in));
-            String nextLine = null;
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            while ((nextLine = bufferedReader.readLine()) != null) {
-                digest.update(nextLine.getBytes());
+            MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            byte[] block = new byte[4096];
+            int length;
+
+            while ((length = in.read(block)) > 0) {
+                digest.update(block, 0, length);
             }
+
             return DatatypeConverter.printHexBinary(digest.digest()).toLowerCase();
         } catch (Exception e) {
             throw new ChecksumValidationException(e);

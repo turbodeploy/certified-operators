@@ -1,8 +1,27 @@
 package com.vmturbo.extractor.topology;
 
+import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CAPACITY;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CONSUMED;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CURRENT;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PROVIDER;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH_AS_HASH;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_NAME;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_STATE;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TABLE;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_AS_TYPE;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENVIRONMENT_TYPE;
+import static com.vmturbo.extractor.models.ModelDefinitions.FIRST_SEEN;
+import static com.vmturbo.extractor.models.ModelDefinitions.LAST_SEEN;
 import static com.vmturbo.extractor.models.ModelDefinitions.METRIC_TABLE;
+import static com.vmturbo.extractor.models.ModelDefinitions.REPORTING_MODEL;
+import static com.vmturbo.extractor.models.ModelDefinitions.SCOPED_OIDS;
+import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -12,16 +31,19 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.MessageOrBuilder;
 import com.google.protobuf.util.JsonFormat;
@@ -31,6 +53,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
+import it.unimi.dsi.fastutil.longs.Long2LongMap;
+import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -45,15 +69,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
-import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.Column.JsonString;
-import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
-import com.vmturbo.extractor.models.ModelDefinitions;
 import com.vmturbo.extractor.models.Table.Record;
-import com.vmturbo.extractor.models.Table.TableWriter;
-import com.vmturbo.extractor.topology.EntityHashManager.SnapshotManager;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -74,33 +93,62 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     private static final ObjectMapper mapper = new ObjectMapper();
 
+    private static final Set<String> includeColumnsForEntityHash = ImmutableSet.of(
+            ENTITY_OID_AS_OID.getName(),
+            ENTITY_NAME.getName(),
+            ENTITY_TYPE_AS_TYPE.getName(),
+            ENTITY_STATE.getName(),
+            ENVIRONMENT_TYPE.getName(),
+            ATTRS.getName(),
+            SCOPED_OIDS.getName());
+
+    // keep the previous hash to compare with current hash
+    private static final Long2LongMap entityHash = new Long2LongOpenHashMap();
+    // last seen timestamps for hashes seen since last update
+    private static final Long2LongMap hashLastSeen = new Long2LongOpenHashMap();
+    // TODO this should be probably in consul, maybe the maps too... how big can consul storage get?
+    private static Long timeOfLastSeenUpdate;
+
     private final Long2ObjectMap<Record> entityRecordsMap = new Long2ObjectOpenHashMap<>();
 
     private final Long2ObjectMap<List<Record>> metricRecordsMap = new Long2ObjectOpenHashMap<>();
-    private EntityHashManager entityHashManager;
     private Timestamp firstSeenTime;
     private Timestamp lastSeenTime;
-    private SnapshotManager snapshotManager;
 
 
     /**
      * Create a new writer instance.
-     *
-     * @param dbEndpoint db endpoint for persisting data
+     *  @param dbEndpointSupplier db endpoint for persisting data
      * @param pool       thread pool
      */
-    public EntityMetricWriter(final DbEndpoint dbEndpoint, final ExecutorService pool) {
-        super(dbEndpoint, ModelDefinitions.REPORTING_MODEL, pool);
+    public EntityMetricWriter(final Supplier<DbEndpoint> dbEndpointSupplier, final ExecutorService pool) {
+        super(dbEndpointSupplier, REPORTING_MODEL, pool);
     }
 
     @Override
-    public Consumer<TopologyEntityDTO> startTopology(final TopologyInfo topologyInfo,
+    public InterruptibleConsumer<TopologyEntityDTO> startTopology(final TopologyInfo topologyInfo,
             final Map<Long, List<Grouping>> entityToGroups, final WriterConfig config,
-            final MultiStageTimer timer) throws IOException, UnsupportedDialectException, SQLException {
-        super.startTopology(topologyInfo, entityToGroups, config, timer);
-        this.entityHashManager = new EntityHashManager(config);
-        this.snapshotManager = entityHashManager.open(topologyInfo.getCreationTime());
-        return this::writeEntity;
+            final MultiStageTimer timer) throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
+        final ImmutableList<String> conflictColumns
+                = ImmutableList.of(ENTITY_OID_AS_OID.getName(), ENTITY_HASH_AS_HASH.getName());
+        final ImmutableList<String> updateColumns = ImmutableList.of(LAST_SEEN.getName());
+        final DSLContext dsl = dbEndpointSupplier.get().dslContext();
+        // super would attach an inserting sink to the entity table, but we need an upserting sink
+        // so we do that here, and that will cause super to skip this table
+        ENTITY_TABLE.attach(new DslUpsertRecordSink(dsl, ENTITY_TABLE, REPORTING_MODEL, config,
+                pool, "upsert", conflictColumns, updateColumns), true);
+        final InterruptibleConsumer<TopologyEntityDTO> result = super.startTopology(topologyInfo, entityToGroups, config, timer);
+        computeTimestamps();
+        return result;
+    }
+
+    private void computeTimestamps() {
+        if (timeOfLastSeenUpdate == null) {
+            timeOfLastSeenUpdate = topologyInfo.getCreationTime();
+        }
+        this.firstSeenTime = new Timestamp(topologyInfo.getCreationTime());
+        this.lastSeenTime = new Timestamp(timeOfLastSeenUpdate + TimeUnit.MINUTES.toMillis(
+                config.lastSeenUpdateIntervalMinutes() + config.lastSeenAdditionalFuzzMinutes()));
     }
 
     @Override
@@ -108,17 +156,17 @@ public class EntityMetricWriter extends TopologyWriterBase {
         final long oid = e.getOid();
         Record entitiesRecord = new Record(ENTITY_TABLE);
         entitiesRecord.set(ENTITY_OID_AS_OID, oid);
-        entitiesRecord.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, EntityType.forNumber(e.getEntityType()).name());
-        entitiesRecord.set(ModelDefinitions.ENTITY_NAME, e.getDisplayName());
-        entitiesRecord.setIf(e.hasEnvironmentType(), ModelDefinitions.ENVIRONMENT_TYPE, () -> e.getEnvironmentType().name());
-        entitiesRecord.setIf(e.hasEntityState(), ModelDefinitions.ENTITY_STATE, () -> e.getEntityState().name());
+        entitiesRecord.set(ENTITY_TYPE_AS_TYPE, EntityType.forNumber(e.getEntityType()).name());
+        entitiesRecord.set(ENTITY_NAME, e.getDisplayName());
+        entitiesRecord.setIf(e.hasEnvironmentType(), ENVIRONMENT_TYPE, () -> e.getEnvironmentType().name());
+        entitiesRecord.setIf(e.hasEntityState(), ENTITY_STATE, () -> e.getEntityState().name());
         try {
-            entitiesRecord.set(ModelDefinitions.ATTRS, getTypeSpecificInfoJson(e));
+            entitiesRecord.set(ATTRS, getTypeSpecificInfoJson(e));
         } catch (InvalidProtocolBufferException invalidProtocolBufferException) {
             logger.error("Failed to record type-specific info for entity {}", oid);
         }
-        entitiesRecord.set(ModelDefinitions.FIRST_SEEN, firstSeenTime);
-        entitiesRecord.set(ModelDefinitions.LAST_SEEN, lastSeenTime);
+        entitiesRecord.set(FIRST_SEEN, firstSeenTime);
+        entitiesRecord.set(LAST_SEEN, lastSeenTime);
         // supply chain will be added during finish processing
         entityRecordsMap.put(oid, entitiesRecord);
         writeMetrics(e, oid);
@@ -137,13 +185,13 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 final String type = CommodityType.forNumber(typeNo).name();
                 final Double sumUsed = cbs.stream().mapToDouble(CommodityBoughtDTO::getUsed).sum();
 
-                Record r = new Record(ModelDefinitions.METRIC_TABLE);
-                r.set(ModelDefinitions.TIME, firstSeenTime);
-                r.set(ModelDefinitions.ENTITY_OID, oid);
-                r.set(ModelDefinitions.COMMODITY_PROVIDER, producer);
-                r.set(ModelDefinitions.COMMODITY_TYPE, type);
-                r.set(ModelDefinitions.COMMODITY_CONSUMED, sumUsed);
-                r.set(ModelDefinitions.COMMODITY_PROVIDER, producer);
+                Record r = new Record(METRIC_TABLE);
+                r.set(TIME, firstSeenTime);
+                r.set(ENTITY_OID, oid);
+                r.set(COMMODITY_PROVIDER, producer);
+                r.set(COMMODITY_TYPE, type);
+                r.set(COMMODITY_CONSUMED, sumUsed);
+                r.set(COMMODITY_PROVIDER, producer);
                 metricRecords.add(r);
             });
         });
@@ -156,61 +204,27 @@ public class EntityMetricWriter extends TopologyWriterBase {
             final double sumUsed = css.stream().mapToDouble(CommoditySoldDTO::getUsed).sum();
             final double sumCap = css.stream().mapToDouble(CommoditySoldDTO::getCapacity).sum();
 
-            Record r = new Record(ModelDefinitions.METRIC_TABLE);
-            r.set(ModelDefinitions.TIME, firstSeenTime);
-            r.set(ModelDefinitions.ENTITY_OID, oid);
-            r.set(ModelDefinitions.COMMODITY_TYPE, type);
-            r.set(ModelDefinitions.COMMODITY_CAPACITY, sumCap);
-            r.set(ModelDefinitions.COMMODITY_CURRENT, sumUsed);
-            r.set(ModelDefinitions.COMMODITY_UTILIZATION, sumCap == 0 ? 0 : sumUsed / sumCap);
+            Record r = new Record(METRIC_TABLE);
+            r.set(TIME, firstSeenTime);
+            r.set(ENTITY_OID, oid);
+            r.set(COMMODITY_TYPE, type);
+            r.set(COMMODITY_CAPACITY, sumCap);
+            r.set(COMMODITY_CURRENT, sumUsed);
+            r.set(COMMODITY_UTILIZATION, sumCap == 0 ? 0 : sumUsed / sumCap);
             metricRecords.add(r);
         });
     }
 
     @Override
     public int finish(final Map<Long, Set<Long>> entitiesToRelated)
-            throws UnsupportedDialectException, SQLException {
-        final DSLContext dsl = dbEndpoint.dslContext();
-        final ImmutableList<Column<?>> upsertConflicts = ImmutableList.of(
-                ENTITY_OID_AS_OID, ModelDefinitions.ENTITY_HASH_AS_HASH);
-        final ImmutableList<Column<?>> upsertUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
-        List<Column<?>> updateIncludes = ImmutableList
-                .of(ModelDefinitions.ENTITY_HASH_AS_HASH, ModelDefinitions.LAST_SEEN);
-        final List<Column<?>> updateMatches = ImmutableList.of(ModelDefinitions.ENTITY_HASH_AS_HASH);
-        final List<Column<?>> updateUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
-        // capture entity count before we add groups
-        int n = entityRecordsMap.size();
-        try (TableWriter entitiesUpserter = ENTITY_TABLE.open(
-                getEntityUpsertSink(dsl, upsertConflicts, upsertUpdates));
-             TableWriter entitiesUpdater = ENTITY_TABLE.open(getEntityUpdaterSink(
-                     dsl, updateIncludes, updateMatches, updateUpdates));
-             TableWriter metricInserter = METRIC_TABLE.open(getMetricInserterSink(dsl))) {
-
-            writeGroupsAsEntities();
-            upsertEntityRecords(entitiesToRelated, entitiesUpserter);
-            writeMetricRecords(metricInserter);
-            snapshotManager.processChanges(entitiesUpdater);
-        }
+            throws InterruptedException, UnsupportedDialectException, SQLException {
+        writeGroupsAsEntities();
+        upsertEntityRecords(entitiesToRelated);
+        writeMetricRecords();
+        // detach any sink we have on entity table (since we may need a new one before we're done)
+        int n = super.finish(entitiesToRelated);
+        updateLastSeenValues();
         return n;
-    }
-
-    @VisibleForTesting
-    DslRecordSink getMetricInserterSink(final DSLContext dsl) {
-        return new DslRecordSink(dsl, METRIC_TABLE, config, pool);
-    }
-
-    @VisibleForTesting
-    DslUpdateRecordSink getEntityUpdaterSink(final DSLContext dsl, final List<Column<?>> updateIncludes,
-            final List<Column<?>> updateMatches, final List<Column<?>> updateUpdates) {
-        return new DslUpdateRecordSink(dsl, ENTITY_TABLE, config, pool, "update",
-                updateIncludes, updateMatches, updateUpdates);
-    }
-
-    @VisibleForTesting
-    DslUpsertRecordSink getEntityUpsertSink(final DSLContext dsl,
-            final ImmutableList<Column<?>> upsertConflicts, final ImmutableList<Column<?>> upsertUpdates) {
-        return new DslUpsertRecordSink(dsl, ENTITY_TABLE, config, pool, "upsert",
-                upsertConflicts, upsertUpdates);
     }
 
     private void writeGroupsAsEntities() {
@@ -220,15 +234,16 @@ public class EntityMetricWriter extends TopologyWriterBase {
             final GroupDefinition def = group.getDefinition();
             Record r = new Record(ENTITY_TABLE);
             r.set(ENTITY_OID_AS_OID, group.getId());
-            r.set(ModelDefinitions.ENTITY_NAME, def.getDisplayName());
-            r.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, def.getType().name());
-            r.set(ModelDefinitions.SCOPED_OIDS, EMPTY_SCOPE);
-            r.set(ModelDefinitions.FIRST_SEEN, firstSeenTime);
-            r.set(ModelDefinitions.LAST_SEEN, lastSeenTime);
+            r.set(ENTITY_NAME, def.getDisplayName());
+            r.set(ENTITY_TYPE_AS_TYPE, def.getType().name());
+            r.set(ENTITY_HASH_AS_HASH, r.getXxHash(includeColumnsForEntityHash));
+            r.set(SCOPED_OIDS, EMPTY_SCOPE);
+            r.set(FIRST_SEEN, firstSeenTime);
+            r.set(LAST_SEEN, lastSeenTime);
             final JsonString attrs;
             try {
                 attrs = getGroupJson(group);
-                r.set(ModelDefinitions.ATTRS, attrs);
+                r.set(ATTRS, attrs);
             } catch (JsonProcessingException e) {
                 logger.error("Failed to record group attributes for group {}", group.getId());
             }
@@ -236,28 +251,30 @@ public class EntityMetricWriter extends TopologyWriterBase {
         });
     }
 
-    private void upsertEntityRecords(final Map<Long, Set<Long>> entitiesToRelated, TableWriter tableWriter) {
-        final long topologyTime = topologyInfo.getCreationTime();
+    private void upsertEntityRecords(final Map<Long, Set<Long>> entitiesToRelated) {
         entityRecordsMap.long2ObjectEntrySet().forEach(entry -> {
             long oid = entry.getLongKey();
             Record record = entry.getValue();
             final Long[] scope = getRelatedEntitiesAndGroups(oid, entitiesToRelated);
-            record.set(ModelDefinitions.SCOPED_OIDS, scope);
+            record.set(SCOPED_OIDS, scope);
 
             // only store entity if hash changes
-            Long newHash = snapshotManager.updateEntityHash(record);
-            if (newHash != null) {
-                try (Record r = tableWriter.open(record)) {
-                    r.set(ModelDefinitions.ENTITY_HASH_AS_HASH, newHash);
-                    snapshotManager.setEntityTimes(r);
+            long newHash = record.getXxHash(includeColumnsForEntityHash);
+            Long oldHash = entityHash.containsKey(oid) ? entityHash.get(oid) : null;
+            if (!Objects.equals(oldHash, newHash)) {
+                try (Record r = ENTITY_TABLE.open(record)) {
+                    r.set(ENTITY_HASH_AS_HASH, newHash);
                 }
+                entityHash.put(oid, newHash);
             }
+            // keep track of when we last saw current hash
+            hashLastSeen.put(newHash, topologyInfo.getCreationTime());
         });
     }
 
     private Long[] getRelatedEntitiesAndGroups(long oid, Map<Long, Set<Long>> entityToRelated) {
         final Set<Long> related = entityToRelated.getOrDefault(oid, Collections.emptySet());
-        LongSet result = new LongOpenHashSet(related);
+        Set<Long> result = new LongOpenHashSet(related);
         related.stream()
                 .map(id -> entityToGroups.getOrDefault(id, Collections.emptyList()))
                 .flatMap(Collection::stream)
@@ -266,16 +283,69 @@ public class EntityMetricWriter extends TopologyWriterBase {
         return result.toArray(new Long[0]);
     }
 
-    private void writeMetricRecords(TableWriter tableWriter) {
+    private void writeMetricRecords() {
         metricRecordsMap.long2ObjectEntrySet().forEach(entry -> {
             long oid = entry.getLongKey();
-            Long hash = entityHashManager.getEntityHash(oid);
+            Long hash = entityHash.get(oid);
             entry.getValue().forEach(partialMetricRecord -> {
-                try (Record r = tableWriter.open(partialMetricRecord)) {
-                    r.set(ModelDefinitions.ENTITY_HASH, hash);
+                try (Record r = METRIC_TABLE.open(partialMetricRecord)) {
+                    r.set(ENTITY_HASH, hash);
                 }
             });
         });
+    }
+
+    private void updateLastSeenValues() throws UnsupportedDialectException, SQLException, InterruptedException {
+        try {
+            List<String> includeColumns = ImmutableList
+                    .of(ENTITY_HASH_AS_HASH.getName(), LAST_SEEN.getName());
+            final List<String> matchColumns = ImmutableList.of(ENTITY_HASH_AS_HASH.getName());
+            final List<String> updateColumns = ImmutableList.of(LAST_SEEN.getName());
+            final DSLContext dsl = dbEndpointSupplier.get().dslContext();
+            ENTITY_TABLE.attach(new DslUpdateRecordSink(dsl, ENTITY_TABLE, REPORTING_MODEL, config,
+                    pool, "upd_times", includeColumns, matchColumns, updateColumns), true);
+            updateLastSeenForDroppedEntities();
+            maybeUpdateLastSeenForCurrentEntities();
+        } finally {
+            ENTITY_TABLE.detach();
+        }
+    }
+
+    private void updateLastSeenForDroppedEntities() {
+        LongSet droppedHashes = new LongOpenHashSet();
+        hashLastSeen.long2LongEntrySet().stream()
+                .filter(e -> e.getLongValue() != topologyInfo.getCreationTime())
+                // here for entities that no longer appear in current topology, or appear with
+                // a different hash. We can change their current last-seen estimate with a precise
+                // value to improve query performance, and remove them from our map
+                .peek(e -> droppedHashes.add(e.getLongKey()))
+                .forEach(e -> {
+                    try (Record r = ENTITY_TABLE.open()) {
+                        r.set(ENTITY_HASH_AS_HASH, e.getLongKey());
+                        r.set(LAST_SEEN, new Timestamp(e.getLongValue()));
+                    }
+                });
+        // drop tracked hashes that disappeared this cycle
+        LongStream.of(droppedHashes.toLongArray()).forEach(hashLastSeen::remove);
+        // After that pruning, any orphaned entries in entity-hash map can be removed.
+        LongSet orphanedOids = new LongOpenHashSet();
+        entityHash.long2LongEntrySet().forEach(e -> {
+            if (!hashLastSeen.containsKey(e.getLongValue())) {
+                orphanedOids.add(e.getLongKey());
+            }
+        });
+        LongStream.of(orphanedOids.toLongArray()).forEach(entityHash::remove);
+    }
+
+    private void maybeUpdateLastSeenForCurrentEntities() {
+        final long thisCycleTime = topologyInfo.getCreationTime();
+        final long lastSeenStaleness = thisCycleTime - timeOfLastSeenUpdate;
+        if (lastSeenStaleness >= TimeUnit.MINUTES.toMillis(config.lastSeenUpdateIntervalMinutes())) {
+            hashLastSeen.long2LongEntrySet().forEach(e -> {
+                // update lastSeen for entities that were in this cycle
+            });
+            timeOfLastSeenUpdate = topologyInfo.getCreationTime();
+        }
     }
 
     private JsonString getTypeSpecificInfoJson(TopologyEntityDTO entity) throws
@@ -298,8 +368,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         return new JsonString(mapper.writeValueAsString(obj));
     }
 
-    @VisibleForTesting
-    static MessageOrBuilder stripUnwantedFields(TypeSpecificInfo tsi) {
+    private MessageOrBuilder stripUnwantedFields(TypeSpecificInfo tsi) {
         switch (tsi.getTypeCase()) {
             case APPLICATION:
                 return tsi.getApplication();
@@ -354,5 +423,4 @@ public class EntityMetricWriter extends TopologyWriterBase {
                         + tsi.getTypeCase().name());
         }
     }
-
 }

@@ -17,8 +17,8 @@ import com.vmturbo.extractor.topology.WriterConfig;
  */
 public class DslUpsertRecordSink extends DslRecordSink {
 
-    private final List<Column<?>> updateColumns;
-    private final List<Column<?>> conflictColumns;
+    private final List<String> updateColumns;
+    private final List<String> conflictColumns;
     private final String tempSuffix;
 
     /**
@@ -26,16 +26,17 @@ public class DslUpsertRecordSink extends DslRecordSink {
      *
      * @param dsl             jOOQ {@link DSLContext}
      * @param table           table that will be the target of the upsert
+     * @param model           model in which table appears
      * @param config          writer config
      * @param pool            thread pool
      * @param tempSuffix      suffix for the temp table
      * @param conflictColumns set of columns that should be unique in the target table
      * @param updateColumns   columns to update when insert fails and falls back to update
      */
-    public DslUpsertRecordSink(final DSLContext dsl, final Table table,
+    public DslUpsertRecordSink(final DSLContext dsl, final Table table, final Model model,
             final WriterConfig config, final ExecutorService pool, String tempSuffix,
-            final List<Column<?>> conflictColumns, final List<Column<?>> updateColumns) {
-        super(dsl, table, config, pool);
+            final List<String> conflictColumns, final List<String> updateColumns) {
+        super(dsl, table, model, config, pool);
         this.tempSuffix = tempSuffix;
         this.conflictColumns = conflictColumns;
         this.updateColumns = updateColumns;
@@ -56,14 +57,11 @@ public class DslUpsertRecordSink extends DslRecordSink {
     @Override
     protected void postCopyHook(final Connection conn) throws SQLException {
         final String sets = updateColumns.stream()
-                .map(Column::getName)
                 .map(c -> String.format("%s = EXCLUDED.%s", c, c))
                 .collect(Collectors.joining(", "));
         final String upsertSql = String.format(
                 "INSERT INTO %s SELECT * FROM %s ON CONFLICT (%s) DO UPDATE SET %s",
-                table.getName(), getWriteTableName(),
-                conflictColumns.stream().map(Column::getName).collect(Collectors.joining(", ")),
-                sets);
+                table.getName(), getWriteTableName(), String.join(", ", conflictColumns), sets);
         final Statement statement = conn.createStatement();
         statement.execute(upsertSql);
         logger.info("Upserted {} records into table {}", statement.getUpdateCount(), table.getName());

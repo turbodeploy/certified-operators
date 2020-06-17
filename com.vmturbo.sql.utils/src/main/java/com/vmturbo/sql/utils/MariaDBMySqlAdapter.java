@@ -2,8 +2,6 @@ package com.vmturbo.sql.utils;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Collection;
-import java.util.Collections;
 
 import javax.sql.DataSource;
 
@@ -12,8 +10,6 @@ import org.mariadb.jdbc.MariaDbDataSource;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
-// TODO This adapter implementation - and the whole DbEndpoint approach in general - has not yet
-// been fully ported to work in MySQL/MariaDB. Initial focus on needs for XLR floodgate
 /**
  * {@link DbAdapter} implementation for MySql and MariaDB endpoints.
  */
@@ -35,7 +31,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
     }
 
     @Override
-    protected void createSchema() throws SQLException, UnsupportedDialectException {
+    protected void createSchema() throws SQLException, UnsupportedDialectException, InterruptedException {
         try (Connection conn = getRootConnection(null)) {
             execute(conn, String.format("CREATE DATABASE IF NOT EXISTS %s",
                     config.getDbDatabaseName()));
@@ -43,7 +39,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
     }
 
     @Override
-    protected void createNonRootUser() throws UnsupportedDialectException, SQLException {
+    protected void createNonRootUser() throws UnsupportedDialectException, SQLException, InterruptedException {
         try (Connection conn = getRootConnection(null)) {
             dropUser(conn, config.getDbUserName());
             execute(conn, String.format("CREATE USER '%s'@'%%' IDENTIFIED BY '%s'",
@@ -64,7 +60,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
     }
 
     @Override
-    protected void performNonRootGrants(DbEndpointAccess access) throws SQLException, UnsupportedDialectException {
+    protected void performNonRootGrants(DbEndpointAccess access) throws SQLException, UnsupportedDialectException, InterruptedException {
         String privileges = getPrivileges(access);
         try (Connection conn = getRootConnection(config.getDbDatabaseName())) {
             execute(conn, String.format("GRANT %s ON `%s`.* TO '%s'@'%%'",
@@ -83,21 +79,5 @@ class MariaDBMySqlAdapter extends DbAdapter {
             default:
                 throw new IllegalArgumentException("Unknown DB endpoint access: " + access.name());
         }
-    }
-
-    @Override
-    protected Collection<String> getAllTableNames(final Connection conn) {
-        // TODO implement when we start to use mysql endpoints
-        return Collections.emptySet();
-    }
-
-    @Override
-    protected void dropDatabaseIfExists(final Connection conn) {
-        // TODO implement when we start to use mysql endpoints
-    }
-
-    @Override
-    protected void dropUserIfExists(final Connection conn) {
-        // TODO implement when we start to use mysql endpoints
     }
 }
