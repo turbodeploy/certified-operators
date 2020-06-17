@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 /**
  * Serves the UI from the root URL, instead of from the /api_component/ subpath.
@@ -17,7 +17,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  */
 @Configuration
 @Import({ApiSecurityConfig.class})
-public class ApiRedirectAdapter implements WebMvcConfigurer {
+public class ApiRedirectAdapter extends WebMvcConfigurerAdapter {
 
     /**
      * The path to the UX folder.

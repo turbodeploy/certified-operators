@@ -7,7 +7,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
 import javax.annotation.Nonnull;
 
 import com.amazonaws.AmazonClientException;
@@ -24,7 +23,6 @@ import com.amazonaws.services.s3.model.InitiateMultipartUploadResult;
 import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.Assert;
 import org.junit.Test;
@@ -122,7 +120,8 @@ public class TelemetryRetrieverTestIT {
      */
     @Test
     public void testRetrive() throws Exception {
-        File file = TelemetryUnpackerTestIT.getTestFile();
+        ClassLoader classLoader = getClass().getClassLoader();
+        File file = new File(classLoader.getResource("telemetry_test.zip").getFile());
         TelemetryRetriever telemetryRetriever = new TelemetryRetriever(SECRET_KEY, ACCESS_KEY,
                                                                        Regions.US_EAST_1);
         uploadFile(file);

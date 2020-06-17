@@ -4,7 +4,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -12,7 +14,6 @@ import java.util.stream.Collectors;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -26,8 +27,12 @@ public class TopologyToDiscoveryResponseTest {
     @Before
     public void setup() throws Exception {
         final String filename = "topologies/classic/test.customer.markets.topology";
-        final TopologyToDiscoveryResponse converter = new TopologyToDiscoveryResponse(
-                ResourcePath.getTestResource(getClass(), filename).toString());
+        URL url = TopologyToDiscoveryResponseTest.class.getClassLoader().getResource(filename);
+        if (url == null) {
+            fail("Unable to load resource file " + filename);
+        }
+
+        final TopologyToDiscoveryResponse converter = new TopologyToDiscoveryResponse(url.getFile());
         discoveryResponse = converter.convert();
     }
 

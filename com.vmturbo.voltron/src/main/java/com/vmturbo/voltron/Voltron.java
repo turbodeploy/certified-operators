@@ -2,7 +2,6 @@ package com.vmturbo.voltron;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -173,12 +172,7 @@ public class Voltron extends BaseVmtComponent {
     }
 
     static String getAbsolutePath(String pathInXl) {
-        Path path = null;
-        try {
-            path = Paths.get(new File(Voltron.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getAbsolutePath());
-        } catch (URISyntaxException e) {
-            throw new IllegalStateException("Unable to get absolute path at runtime.", e);
-        }
+        Path path = Paths.get(Voltron.class.getProtectionDomain().getCodeSource().getLocation().getFile());
 
         // Climb up to "com.vmturbo.voltron".
         while (!path.endsWith("com.vmturbo.voltron")) {
@@ -267,13 +261,11 @@ public class Voltron extends BaseVmtComponent {
 
         String image;
         try {
-            // This won't work if Voltron is packaged in a JAR.
-            image = new String(Files.readAllBytes(
-                Paths.get(Voltron.class.getClassLoader()
-                    .getResource("config/img").toURI())));
-        } catch (IOException | RuntimeException | URISyntaxException e) {
+            image = new String(Files.readAllBytes(Paths.get(
+                    Voltron.class.getClassLoader().getResource("config/img").getPath())));
+        } catch (IOException | RuntimeException e) {
             // No big deal if we can't print the image, although it's a bid sad.
-            image = ":(";
+            image = "";
         }
 
         logger.info("Welcome to Velocity-Oriented Lightweight Turbo Running On Native!\n{}\nVOLTRON came up in {}",

@@ -156,6 +156,7 @@ public class VoltronConfiguration {
      * The builder for the configuration.
      */
     public static class Builder {
+        private static final String DEFAULT_UX_PATH = Voltron.getAbsolutePath("../ux-app/.tmp");
         private static final int DEFAULT_HHTP_PORT = 8080;
         private static final int DEFAULT_GRPC_PORT = 9001;
 
@@ -167,7 +168,7 @@ public class VoltronConfiguration {
 
         private String dataPath = null;
 
-        private String uxPath = null;
+        private String uxPath = DEFAULT_UX_PATH;
 
         private String licensePath = null;
 
@@ -239,6 +240,8 @@ public class VoltronConfiguration {
         public Builder setUxPath(@Nullable String uxPath) {
             if (uxPath != null) {
                 this.uxPath = uxPath;
+            } else {
+                this.uxPath = DEFAULT_UX_PATH;
             }
             return this;
         }
