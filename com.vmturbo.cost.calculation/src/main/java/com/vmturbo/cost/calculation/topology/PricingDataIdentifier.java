@@ -4,7 +4,6 @@ import java.util.Objects;
 import java.util.Optional;
 
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
-import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.components.api.SetOnce;
 
 /**

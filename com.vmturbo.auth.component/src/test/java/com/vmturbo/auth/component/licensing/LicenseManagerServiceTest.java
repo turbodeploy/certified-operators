@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.licensing.License;
 import com.vmturbo.licensing.utils.LicenseDeserializer;
@@ -139,7 +140,7 @@ public class LicenseManagerServiceTest {
      * @throws IOException If any probs interacting with the license file
      */
     private AddLicensesResponse addLicenseFromFile(String filename) throws IOException {
-        File file = new File(getClass().getClassLoader().getResource(filename).getFile());
+        File file = ResourcePath.getTestResource(LicenseManagerServiceTest.class, filename).toFile();
         if (! file.exists()) {
             throw new FileNotFoundException();
         }

@@ -1,6 +1,5 @@
 package com.vmturbo.components.api;
 
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -10,8 +9,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
-import com.google.common.collect.ImmutableMap;
 
 /**
  * A utility class with runtime "final" semantics.
