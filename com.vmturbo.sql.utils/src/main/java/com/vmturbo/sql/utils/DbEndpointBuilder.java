@@ -2,7 +2,6 @@ package com.vmturbo.sql.utils;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
@@ -15,6 +14,7 @@ import org.jooq.SQLDialect;
 import org.springframework.core.env.Environment;
 
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
+import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 
 /**
  * Builder class to create a DbEndpoint.
@@ -31,13 +31,13 @@ import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
  */
 public class DbEndpointBuilder {
 
-    DbEndpointConfig config = new DbEndpointConfig();
+    final DbEndpointConfig config = new DbEndpointConfig();
 
     /**
      * Internal constructor for a new endpoint instance.
      *
-     * <p>Client code should use {@link SQLDatabaseConfig2#primaryDbEndpoint(SQLDialect)} or
-     * {@link SQLDatabaseConfig2#secondaryDbEndpoint(String, SQLDialect)} to declare endpoints.</p>
+     * <p>Client code should use {@link DbEndpoint#primaryDbEndpoint(SQLDialect)} or
+     * {@link DbEndpoint#secondaryDbEndpoint(String, SQLDialect)} to declare endpoints.</p>
      *
      * @param tag     tag for secondary endpoint, or null for primary
      * @param dialect server type, identified by {@link SQLDialect}
@@ -51,21 +51,14 @@ public class DbEndpointBuilder {
      * Complete the build of this endpoint.
      *
      * <p>THe endpoint will not be ready to use until after completion of Spring application
-     * contxt construction, so a {@link Supplier} is returned, which can be used to obtain the
+     * context construction, so a {@link Supplier} is returned, which can be used to obtain the
      * endpoint at a later time. The supplier will block if it is used before the endpoint is
      * prepared.</p>
      *
      * @return a {@link Supplier} that can be used to obtain the fully initialized endpoint
      */
-    public Supplier<DbEndpoint> build() {
-        final Future<DbEndpoint> future = DbEndpoint.register(config);
-        return () -> {
-            try {
-                return future.get();
-            } catch (InterruptedException | ExecutionException e) {
-                throw new IllegalStateException("DbEndpoint was not ready when first requested", e);
-            }
-        };
+    public DbEndpoint build() {
+        return DbEndpointCompleter.register(config);
     }
 
     /**
@@ -263,8 +256,8 @@ public class DbEndpointBuilder {
      *                         ready
      * @return this builder
      */
-    public DbEndpointBuilder like(Supplier<DbEndpoint> templateSupplier) {
-        config.setTemplateSupplier(templateSupplier);
+    public DbEndpointBuilder like(DbEndpoint templateSupplier) {
+        config.setTemplate(templateSupplier);
         return this;
     }
 }
