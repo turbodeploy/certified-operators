@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.topology.pipeline.blocking;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -18,6 +19,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Optional;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import net.jpountz.lz4.LZ4FrameOutputStream;
@@ -112,6 +114,7 @@ public class DiscoveryBasedUnblockTest {
                     clock, identityProvider, discoveryDumper, true));
         IdentityGenerator.initPrefix(1L);
         when(identityProvider.generateOperationId()).thenAnswer(invocation -> IdentityGenerator.next());
+        when(operationManager.notifyDiscoveryResult(any(), any())).thenReturn(mock(Future.class));
     }
 
     /**

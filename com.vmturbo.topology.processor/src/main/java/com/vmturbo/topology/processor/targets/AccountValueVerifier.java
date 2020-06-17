@@ -18,6 +18,7 @@ import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
@@ -177,6 +178,7 @@ public class AccountValueVerifier {
                         .filter(Discovery.AccountDefEntry::getMandatory)
                         .map(AccountValueAdaptor::wrap)
                         .filter(AccountDefEntry::isSecret)
+                        .filter(customEntry -> validateSecretField(customEntry, inputFields))
                         .map(AccountDefEntry::getName)
                         .collect(Collectors.toSet());
 
@@ -187,7 +189,7 @@ public class AccountValueVerifier {
                         .map(name -> "Unknown field: " + name).collect(Collectors.toList()));
         // Check for mandatory secret fields that the input fields doesn't contain.
         fieldErrors.addAll(mandatorySecretFields.stream()
-                        .filter(secretField -> !inputFields.keySet().contains(secretField))
+                        .filter(secretField -> !inputFields.containsKey(secretField))
                         .map(name -> "Unknown secret field: " + name).collect(Collectors.toList()));
         // Check that the input fields that the probe DOES recognize are valid and well-formed.
         fieldErrors.addAll(entries.entrySet().stream()
@@ -199,5 +201,31 @@ public class AccountValueVerifier {
         if (!fieldErrors.isEmpty()) {
             throw new InvalidTargetException(fieldErrors);
         }
+    }
+
+    /**
+     * Validation happens by checking if the field' expected Dependency key's value is equal to
+     * actual value received in {@param inputFields} matches.
+     * if the customEntry does not have a dependency key we proceed with validating the secret field.
+     *
+     * @param customEntry {@link AccountDefEntry}.
+     * @param inputFields list of InputFields for a target.
+     * @return true if the current {@link AccountDefEntry} should be validated.
+     */
+    private static boolean validateSecretField(
+            @Nonnull final AccountDefEntry customEntry,
+            @Nonnull final Map<String, AccountValue> inputFields) {
+        if (customEntry.getDependencyField().isPresent()) {
+            // if current entry has a dependencyKey.
+            // dependencyKey, dependencyValue
+            final Pair<String, String> dependencyField = customEntry.getDependencyField().get();
+            final String expectedDependencyValue = dependencyField.getSecond();
+            final AccountValue actualAccountValue = inputFields.get(dependencyField.getFirst());
+            if (actualAccountValue != null) {
+                return expectedDependencyValue.equalsIgnoreCase(actualAccountValue.getStringValue());
+            }
+        }
+        // If no dependency key found, the secret field must be validated.
+        return true;
     }
 }

@@ -37,6 +37,7 @@ public class StringConstants {
     public static final String VM_SPEC = "VMSpec";
     public static final String EMPTY_STRING = "";
     public static final String ENTITY = "entity";
+    public static final String ENCRYPTION_KEY = "encryptionKey";
     public static final String ENTITIES = "entities";
     public static final String ENTITY_DEST_ID = "entity_dest_id";
     public static final String ENTITY_ID = "entity_id";
