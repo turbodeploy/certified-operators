@@ -212,10 +212,12 @@ public class ReservedInstanceCoverageValidator {
 
                                         return isCoverageValid;
                                     } else {
+
                                         logger.warn("Unable to find ReservedInstanceBought for entity Coverage" +
                                                         "(EntityOid={}, ReservedInstanceOid={})",
                                                 entity.getOid(), coverage.getReservedInstanceId());
                                         return false;
+
                                     }
                                 }).collect(Collectors.toList());
 

@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.eq;
@@ -13,11 +14,11 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Map;
 
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -28,6 +29,7 @@ import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
@@ -49,6 +51,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
+import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysis;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
@@ -157,6 +160,27 @@ public class ReservedInstanceCoverageUpdateTest {
                             .setCoveredCoupons(10))
                     .build();
 
+    private final AccountRICoverageUpload unDiscoveredAccountRICoverage =
+            AccountRICoverageUpload.newBuilder()
+                    .setAccountId(456L)
+                    .addCoverage(Coverage.newBuilder()
+                            .setReservedInstanceId(11)
+                            .setCoveredCoupons(10))
+                    .addCoverage(Coverage.newBuilder()
+                            .setReservedInstanceId(12)
+                            .setCoveredCoupons(10))
+                    .build();
+    private final AccountRICoverageUpload discoveredAccountRICoverage =
+            AccountRICoverageUpload.newBuilder()
+                    .setAccountId(125L)
+                    .addCoverage(Coverage.newBuilder()
+                            .setReservedInstanceId(11)
+                            .setCoveredCoupons(10))
+                    .addCoverage(Coverage.newBuilder()
+                            .setReservedInstanceId(13)
+                            .setCoveredCoupons(10))
+                    .build();
+
     private final TopologyEntityDTO VMOne = TopologyEntityDTO.newBuilder()
             .setOid(123L)
             .setDisplayName("bar")
@@ -233,6 +257,8 @@ public class ReservedInstanceCoverageUpdateTest {
      */
     private TopologyEntityCloudTopologyFactory cloudTopologyFactory =
             new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
+    private BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore =
+            mock(BusinessAccountPriceTableKeyStore.class);
 
     @Before
     public void setup() throws CommunicationException {
@@ -243,12 +269,15 @@ public class ReservedInstanceCoverageUpdateTest {
                 entityReservedInstanceMappingStore, reservedInstanceUtilizationStore,
                 reservedInstanceCoverageStore, reservedInstanceCoverageValidatorFactory,
                 supplementalRICoverageAnalysisFactory, costNotificationSender,
-                120);
+                120, businessAccountPriceTableKeyStore);
 
         when(reservedInstanceCoverageValidatorFactory.newValidator(any()))
                 .thenReturn(reservedInstanceCoverageValidator);
         when(supplementalRICoverageAnalysisFactory.createCoverageAnalysis(any(), anyList()))
                 .thenReturn(supplementalRICoverageAnalysis);
+
+        when(businessAccountPriceTableKeyStore.fetchAllPriceTableKeyOidsByBusinessAccount())
+                .thenReturn( ImmutableMap.of(125L, 1L));
     }
 
     @Test
@@ -385,5 +414,33 @@ public class ReservedInstanceCoverageUpdateTest {
         List<ServiceEntityReservedInstanceCoverageRecord> coverageRecords =
                 riCoverageStoreCoverageCaptor.getValue();
         assertThat(coverageRecords.size(), equalTo(2));
+    }
+
+    /**
+     * Test to very all accoutnCoverageUplaod for undiscovered accounts are saved into
+     * riAccountCoverageCache.
+     */
+    @Test
+    public void testUpdateAccountRICoverageIntoDBEmptyCache() {
+        // Input setup
+        final long topologyId = 123456789L;
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyId(topologyId)
+                .build();
+        final TopologyEntityCloudTopology cloudTopology =
+                cloudTopologyFactory.newCloudTopology(topology.values().stream());
+
+        final List<AccountRICoverageUpload> coverageList =
+                ImmutableList.of(unDiscoveredAccountRICoverage, discoveredAccountRICoverage);
+        reservedInstanceCoverageUpdate.cacheAccountRICoverageData(topologyId, coverageList);
+
+        // verify that onlu the undiscovered account coverage upload is cached.
+        assertNotNull(reservedInstanceCoverageUpdate.getRiCoverageAccountCache());
+        assertEquals(1, reservedInstanceCoverageUpdate.getRiCoverageAccountCache().size());
+        List<AccountRICoverageUpload> coverageListFromCache =
+                reservedInstanceCoverageUpdate.getRiCoverageAccountCache()
+                        .getIfPresent(Long.valueOf(topologyId));
+        assertNotNull(coverageListFromCache);
+        assertEquals(2, coverageListFromCache.size());
     }
 }
