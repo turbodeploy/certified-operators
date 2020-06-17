@@ -31,7 +31,8 @@
                 </os>
             </activation>
             <properties>
-                <dockerHost>npipe:////./pipe/docker_engine</dockerHost>
+                <!-- On Docker for Windows this will require exposing the Daemon with TLS disabled . -->
+                <dockerHost>tcp://localhost:2375</dockerHost>
             </properties>
         </profile>
     </profiles>

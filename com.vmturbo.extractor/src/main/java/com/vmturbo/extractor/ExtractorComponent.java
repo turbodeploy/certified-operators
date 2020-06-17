@@ -71,21 +71,25 @@ public class ExtractorComponent extends BaseVmtComponent {
     @Override
     protected void onStartComponent() {
         logger.debug("Writer config: {}", listenerConfig.writerConfig());
-        try {
-            sqlDatabaseConfig.initAll();
-        } catch (UnsupportedDialectException | SQLException | InterruptedException e) {
-            throw new IllegalStateException("Failed to initialize data endpoints", e);
-        }
-        setupHealthMonitor();
-
-        // change retention policy if custom period is provided
-        if (reportingMetricTableRetentionMonths != null) {
+        // Initialize the database in a separate thread, so that we don't need to block while
+        // waiting for the auth component (to get db password) to be available.
+        new Thread(() -> {
             try {
-                extractorDbConfig.ingesterEndpoint().get().getAdapter().setupRetentionPolicy(
-                        "metric", ChronoUnit.MONTHS, reportingMetricTableRetentionMonths);
-            } catch (UnsupportedDialectException | InterruptedException | SQLException e) {
-                logger.error("Failed to create retention policy", e);
+                sqlDatabaseConfig.initAll();
+            } catch (UnsupportedDialectException | SQLException | InterruptedException e) {
+                throw new IllegalStateException("Failed to initialize data endpoints", e);
             }
-        }
+            setupHealthMonitor();
+
+            // change retention policy if custom period is provided
+            if (reportingMetricTableRetentionMonths != null) {
+                try {
+                    extractorDbConfig.ingesterEndpoint().get().getAdapter().setupRetentionPolicy(
+                            "metric", ChronoUnit.MONTHS, reportingMetricTableRetentionMonths);
+                } catch (UnsupportedDialectException | InterruptedException | SQLException e) {
+                    logger.error("Failed to create retention policy", e);
+                }
+            }
+        }, "db-init").start();
     }
 }

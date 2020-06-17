@@ -133,8 +133,8 @@
         <kafka.version>2.4.0</kafka.version>
 
         <st4.version>4.0.8</st4.version>
-        <failsafe.version>2.19.1</failsafe.version>
-        <surefire.version>2.20</surefire.version>
+        <failsafe.version>3.0.0-M4</failsafe.version>
+        <surefire.version>3.0.0-M4</surefire.version>
         <jetty.version>9.4.19.v20190610</jetty.version>
         <bouncycastle.version>1.60</bouncycastle.version>
         <JUnitParams.version>1.0.4</JUnitParams.version>
@@ -1534,7 +1534,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-site-plugin</artifactId>
-                    <version>3.4</version>
+                    <version>3.9.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -1596,6 +1596,8 @@
                             <exclude>**/Abstract*.java</exclude>
                         </excludes>
                         <trimStackTrace>false</trimStackTrace>
+                        <!-- Required to deal properly with non-ASCII characters across platforms. -->
+                        <argLine>-Dfile.encoding=UTF-8</argLine>
                     </configuration>
                 </plugin>
                 <plugin>
