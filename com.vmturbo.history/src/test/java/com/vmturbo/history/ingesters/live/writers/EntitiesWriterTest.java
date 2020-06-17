@@ -1,7 +1,10 @@
 package com.vmturbo.history.ingesters.live.writers;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.COMPUTE_TIER;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NETWORK;
 import static com.vmturbo.history.schema.abstraction.tables.Entities.ENTITIES;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyListOf;
@@ -10,20 +13,27 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Functions;
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.stubbing.Answer;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.history.db.EntityType;
+import com.vmturbo.history.db.EntityType.UseCase;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoaderMock;
@@ -31,7 +41,7 @@ import com.vmturbo.history.db.bulk.DbMock;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * Test that {@link EntitiesWriter} creates/updates records correctly in database.

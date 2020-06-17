@@ -149,7 +149,7 @@ public class LiveStatsAggregatorTest {
         // 4 PM attribute + 3 PM cpu sold + 2 PM flow sold = 9
         // 3 VM attribute + 2 VM cpu bought + 2 VM flow bought = 7
         // 2 entities * 3 commodities each = 6 market stats records
-        assertEquals(20, (long)dbMock.getTables().stream()
+        assertEquals(22, (long)dbMock.getTables().stream()
                 .map(dbMock::getRecords)
                 .collect(Collectors.summingInt(Collection::size)));
         // "Produces" attribute records, recording # of sold commodities

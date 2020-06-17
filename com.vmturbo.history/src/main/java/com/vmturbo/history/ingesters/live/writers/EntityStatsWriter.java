@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Functions;
 
 import org.apache.logging.log4j.LogManager;
