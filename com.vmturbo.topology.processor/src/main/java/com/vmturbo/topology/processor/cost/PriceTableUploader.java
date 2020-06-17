@@ -144,12 +144,13 @@ public class PriceTableUploader implements DiagsRestorable {
      *
      * @param targetId   record priceTables by {@link this.sourcePriceTableByTargetId}
      * @param probeType  the probe type this price table was discovered by
+     * @param optionalProbeCategory the probe category
      * @param priceTable the discovered price table
      */
 
     public void recordPriceTable(final long targetId, @Nonnull SDKProbeType probeType,
-                                 @Nullable PricingDTO.PriceTable priceTable) {
-        if (probeType.getProbeCategory() != ProbeCategory.COST) {
+            Optional<ProbeCategory> optionalProbeCategory, @Nullable PricingDTO.PriceTable priceTable) {
+        if (optionalProbeCategory.isPresent() && optionalProbeCategory.get() != ProbeCategory.COST) {
             logger.warn("Skipping price tables for non-Cost probe {}.", probeType.getProbeType());
             return;
         }
@@ -173,9 +174,11 @@ public class PriceTableUploader implements DiagsRestorable {
      *
      * @param targetId target Id used for indexing sourcePriceTableByTargetId.
      * @param probeType the probe type of the removed target
+     * @param probeCategory the probe category
      */
-    public void targetRemoved(@Nonnull Long targetId, final SDKProbeType probeType) {
-        if (probeType.getProbeCategory() != ProbeCategory.COST) {
+    public void targetRemoved(@Nonnull Long targetId, final SDKProbeType probeType,
+            ProbeCategory probeCategory) {
+        if (probeCategory != ProbeCategory.COST) {
             return;
         }
 

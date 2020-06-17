@@ -41,8 +41,8 @@ import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
 import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
+import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
-import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -95,7 +95,7 @@ public abstract class StitchingIntegrationTest {
                 StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
         postStitchingOperationLibrary =
                 new PostStitchingOperationLibrary(
-                        new SetCommodityMaxQuantityPostStitchingOperationConfig(
+                        new CommodityPostStitchingOperationConfig(
                                 statsServiceClient, 30, 10),  //meaningless values
                         diskCapacityCalculator, cpuCapacityStore, clock, 0);
         when(probeStore.getProbeIdForType(anyString())).thenReturn(Optional.<Long>empty());
@@ -106,6 +106,7 @@ public abstract class StitchingIntegrationTest {
                 .thenReturn(Optional.of(SDKProbeType.HYPERV));
         when(probeStore.getProbe(anyLong())).thenReturn(Optional.of(ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setUiProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .setProbeType(SDKProbeType.VCENTER.getProbeType())
             .build()));
     }

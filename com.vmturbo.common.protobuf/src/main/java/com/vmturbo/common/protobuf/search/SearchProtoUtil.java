@@ -512,6 +512,4 @@ public class SearchProtoUtil {
     public static SearchParameters.Builder makeSearchParameters(PropertyFilter startFilter) {
         return SearchParameters.newBuilder().setStartingFilter(startFilter);
     }
-
-
 }

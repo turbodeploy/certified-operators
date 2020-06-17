@@ -1,0 +1,12 @@
+ALTER TABLE business_transaction_stats_latest PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);
+ALTER TABLE business_transaction_stats_by_hour PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);
+ALTER TABLE business_transaction_stats_by_day PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);
+ALTER TABLE business_transaction_stats_by_month PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);
+ALTER TABLE app_component_stats_latest PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);
+ALTER TABLE app_component_stats_by_hour PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);
+ALTER TABLE app_component_stats_by_day PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);
+ALTER TABLE app_component_stats_by_month PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);
+ALTER TABLE service_stats_latest PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);
+ALTER TABLE service_stats_by_hour PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);
+ALTER TABLE service_stats_by_day PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);
+ALTER TABLE service_stats_by_month PARTITION BY RANGE (to_seconds(snapshot_time)) (PARTITION start VALUES LESS THAN (0), PARTITION future VALUES LESS THAN MAXVALUE);

@@ -1,5 +1,7 @@
 package com.vmturbo.history.db;
 
+import static com.vmturbo.common.protobuf.topology.UICommodityType.RESPONSE_TIME;
+import static com.vmturbo.common.protobuf.topology.UICommodityType.TRANSACTION;
 import static com.vmturbo.common.protobuf.utils.StringConstants.AVG_VALUE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CAPACITY;
 import static com.vmturbo.common.protobuf.utils.StringConstants.COMMODITY_KEY;
@@ -46,6 +48,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -55,6 +58,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -89,6 +93,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityToCommodityTypeCapacity;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesResponse.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
@@ -104,6 +111,7 @@ import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.db.queries.AvailableEntityTimestampsQuery;
 import com.vmturbo.history.db.queries.AvailableTimestampsQuery;
+import com.vmturbo.history.db.queries.EntityCommoditiesCapacityValuesQuery;
 import com.vmturbo.history.db.queries.EntityCommoditiesMaxValuesQuery;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.RelationType;
@@ -192,6 +200,16 @@ public class HistorydbIO extends BasedbIO {
             "retention_days", GlobalSettingSpecs.StatsRetentionDays.getSettingName(),
             "retention_months", GlobalSettingSpecs.StatsRetentionMonths.getSettingName()
         );
+
+    /**
+     * For application entities, the top N widgets include RESPONSE_TIME and TRANSACTION
+     * AVG used value instead of utilization, therefore we would like to sort by the AVG value that
+     * exists in the widget.
+     *
+     *<p>PRICE_INDEX, sort by the average value, because it's a compound metrics already.
+     */
+    private static final ImmutableSet<String> SORTED_BY_AVG_COMMODITIES
+            = ImmutableSet.of(PRICE_INDEX, RESPONSE_TIME.apiStr(), TRANSACTION.apiStr(), TRANSACTION.apiStr());
 
     private ImmutableBiMap<String, String> retentionSettingNameToDbColumnName =
         retentionDbColumnNameToSettingName.inverse();
@@ -554,17 +572,23 @@ public class HistorydbIO extends BasedbIO {
      */
     public void setCommodityValues(
         @Nonnull String propertySubtype,
-        final double used,
-        final double peak,
+        @Nonnull final Optional<Double> used,
+        @Nonnull final Optional<Double> peak,
         @Nonnull Record record,
         @Nonnull Table<?> table) {
 
-        double clipped = clipValue(used);
-        double clippedPeak = clipValue(peak);
         record.set(getStringField(table, PROPERTY_SUBTYPE), propertySubtype);
-        record.set(getDoubleField(table, AVG_VALUE), clipped);
-        record.set(getDoubleField(table, MIN_VALUE), clipped);
-        record.set(getDoubleField(table, MAX_VALUE), Math.max(clipped, clippedPeak));
+
+        if (used.isPresent()) {
+            Double clipped = clipValue(used.get());
+            record.set(getDoubleField(table, AVG_VALUE), clipped);
+            record.set(getDoubleField(table, MIN_VALUE), clipped);
+        }
+
+        if (peak.isPresent()) {
+            Double clippedPeak = clipValue(peak.get());
+            record.set(getDoubleField(table, MAX_VALUE), clippedPeak);
+        }
     }
 
     /**
@@ -730,7 +754,7 @@ public class HistorydbIO extends BasedbIO {
      * @param entityScope      The {@link EntityStatsScope} for the stats query.
      * @param timestamp        The timestamp to use to calculate the next page.
      * @param tFrame           The timeframe to use for the timestamp.
-     * @param paginationParams The pagination parameters. For princeIndex, we sort the results by
+     * @param paginationParams The pagination parameters. For SORTED_BY_AVG_COMMODITIES, we sort the results by
      *                         the average value; for others, we sort the results by the utilization
      *                        (average/capacity) value of the sort commodity. And then by the UUID of the entity.
      * @param entityType       The {@link EntityType} to determine tables to query
@@ -1368,6 +1392,75 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
+     * Constructing a query for getting entities commodity capacity and get the result from the db.
+     * according to entity type to know which for the stats tables to select.
+     *
+     * @param entityTypeNo for knowing the table to access
+     * @param uuids of the entity record we want
+     * @param commodityTypeName of the record we want
+     * @param retentionPeriod used to know which table should we query
+     * @return a converted response ready for sending back
+     * @throws VmtDbException in case of a db connection issue
+     * @throws SQLException in case if issues executing the sql query
+     */
+    public List<GetEntityCommoditiesCapacityValuesResponse> getEntityCommoditiesCapacityValues(int entityTypeNo,
+           Set<String> uuids, String commodityTypeName, TimeUnit retentionPeriod)
+        throws VmtDbException, SQLException {
+        final EntityType entityType = EntityType.fromSdkEntityType(entityTypeNo).orElse(null);
+        Optional<Table<?>> table = getTableByTimeUnit(entityType, retentionPeriod);
+        if (table.isPresent()) {
+            // Query for the max of the capacities from the last 7 days in the DB for
+            // each commodity in each entity.
+            try (Connection conn = connection()) {
+                final ResultQuery<?> query = new EntityCommoditiesCapacityValuesQuery(table.get(),
+                    uuids, commodityTypeName).getQuery();
+                Result<? extends Record> statsRecords = using(conn).fetch(query);
+                logger.debug("Number of records fetched for table {} = {}", table.get(), statsRecords.size());
+                return convertToEntityCommoditiesCapacityValues(table.get(), statsRecords);
+            }
+        } else {
+            logger.error("No monthly stats table for entityType: {}",
+                entityType != null ? entityType.getName() : "Entity type #" + entityTypeNo);
+            return Collections.emptyList();
+        }
+    }
+
+    private Optional<Table<?>> getTableByTimeUnit(final EntityType entityType, final TimeUnit retentionPeriod) {
+        return Optional.ofNullable(entityType)
+            .flatMap(eType -> {
+                switch (retentionPeriod) {
+                    case DAYS:
+                        return entityType.getDayTable();
+                    case HOURS:
+                        return entityType.getHourTable();
+                    default:
+                        return Optional.empty();
+                }
+            });
+    }
+
+    private List<GetEntityCommoditiesCapacityValuesResponse> convertToEntityCommoditiesCapacityValues(
+        Table<?> tbl, final Result<? extends Record> statsRecords) {
+        final Builder responseBuilder = GetEntityCommoditiesCapacityValuesResponse.newBuilder();
+        statsRecords.forEach(record -> {
+            final Long uuid = Long.parseLong(record.getValue(getStringField(tbl, UUID)));
+            final String comKey = record.getValue(getStringField(tbl, COMMODITY_KEY));
+            final String comTypeString = record.getValue(getStringField(tbl, PROPERTY_TYPE));
+            final Integer comTypeInt = new Integer(UICommodityType.fromString(comTypeString).typeNumber());
+            final Double maxCapacity = record.getValue(DSL.field(MAX_COLUMN_NAME, Double.class));
+            responseBuilder.addEntitiesToCommodityTypeCapacity(
+                    EntityToCommodityTypeCapacity.newBuilder()
+                        .setEntityUuid(uuid)
+                        .setCommodityType(CommodityType.newBuilder()
+                            .setType(comTypeInt)
+                            .setKey(comKey).build())
+                        .setCapacity(maxCapacity).build()
+            );
+        });
+        return Collections.singletonList(responseBuilder.build());
+    }
+
+    /**
      * Convert the max value db records into EntityCommoditiesMaxValues.
      *
      * @param tbl             DB table from which the records were fetched.
@@ -1667,7 +1760,7 @@ public class HistorydbIO extends BasedbIO {
 
         /**
          * Return the value field used in sort by.
-         * For princeIndex, sort by the average value, because it's a compound metrics already.
+         * For SORTED_BY_AVG_COMMODITIES, sort by the average value, because it's a compound metrics already.
          * For others commodity, sort by the average/capacity value, because the average value
          * is from "used", so divided by "capacity" to be utilization.
          * @param paginationParams Parameters for pagination.
@@ -1681,7 +1774,7 @@ public class HistorydbIO extends BasedbIO {
                 JooqUtils.getBigDecimalField(table, AVG_VALUE);
             // this approach of sorting by composite is questionable, definitely very slow
             // strictly speaking capacity is nullable and can contain zeros
-            return paginationParams.getSortCommodity().equals(PRICE_INDEX)
+            return SORTED_BY_AVG_COMMODITIES.contains(paginationParams.getSortCommodity())
                 ? avgValueField :
                 avgValueField.divide(JooqUtils.getBigDecimalField(table, CAPACITY));
         }

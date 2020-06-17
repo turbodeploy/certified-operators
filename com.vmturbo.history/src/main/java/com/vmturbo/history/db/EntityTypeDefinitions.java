@@ -54,12 +54,14 @@ public class EntityTypeDefinitions {
     // this is where all the rest of the entity types are defined
     static final List<EntityType> ENTITY_TYPE_DEFINITIONS = ImmutableList.of(
             APPLICATION_ENTITY_TYPE,
+            create(ApiEntityType.APPLICATION_COMPONENT, "app_component_stats", STANDARD_STATS),
             create(ApiEntityType.APPLICATION_SERVER, "app_server_stats", STANDARD_STATS),
             APPLICATION_SPEND_ENTITY_TYPE,
             create(ApiEntityType.AVAILABILITY_ZONE),
             create(ApiEntityType.BUSINESS_ACCOUNT),
             create(ApiEntityType.BUSINESS_APPLICATION, "business_app_stats", STANDARD_STATS),
             create(ApiEntityType.BUSINESS_USER, "bu_stats", STANDARD_STATS),
+            create(ApiEntityType.BUSINESS_TRANSACTION, "business_transaction_stats", STANDARD_STATS),
             create(ApiEntityType.CHASSIS, "ch_stats", STANDARD_STATS),
             create(ApiEntityType.CLOUD_SERVICE, "service_spend", Spend, PersistEntity),
             create(ApiEntityType.COMPUTE_TIER, PersistEntity),
@@ -86,6 +88,7 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.RESERVED_INSTANCE, "ri_stats"),
             create(ApiEntityType.STORAGE, "ds_stats", STANDARD_STATS),
             create(ApiEntityType.STORAGECONTROLLER, "sc_stats", STANDARD_STATS),
+            create(ApiEntityType.SERVICE, "service_stats", STANDARD_STATS),
             create(ApiEntityType.STORAGE_TIER, PersistEntity),
             create(ApiEntityType.SWITCH, "sw_stats", STANDARD_STATS),
             create(ApiEntityType.VIEW_POD, "view_pod_stats", STANDARD_STATS),

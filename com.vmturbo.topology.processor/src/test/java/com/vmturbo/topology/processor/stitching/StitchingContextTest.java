@@ -23,6 +23,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -95,6 +96,19 @@ public class StitchingContextTest {
                 .collect(Collectors.toList()),
             containsInAnyOrder(e3_2.getEntityDtoBuilder(), e4_2.getEntityDtoBuilder()));
         assertThat(stitchingContext.internalEntities(3L)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
+            is(empty()));
+    }
+
+    @Test
+    public void testInternalEntitiesForTargetSet() {
+        assertThat(stitchingContext.internalEntities(ImmutableSet.of(1L, 2L))
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(e1_1.getEntityDtoBuilder(), e2_1.getEntityDtoBuilder(),
+                e3_2.getEntityDtoBuilder(), e4_2.getEntityDtoBuilder()));
+        assertThat(stitchingContext.internalEntities(ImmutableSet.of(3L))
                 .map(TopologyStitchingEntity::getEntityBuilder)
                 .collect(Collectors.toList()),
             is(empty()));

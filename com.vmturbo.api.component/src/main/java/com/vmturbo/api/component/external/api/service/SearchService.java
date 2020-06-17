@@ -441,6 +441,7 @@ public class SearchService implements ISearchService {
                 .filter(se -> CollectionUtils.isEmpty(probeTypes) ||
                         probeTypes.contains(se.getDiscoveredBy().getType()))
                 .collect(Collectors.toList());
+
         return paginationRequest.allResultsResponse(result);
     }
 
@@ -848,7 +849,9 @@ public class SearchService implements ISearchService {
         final Set<Long> candidates;
         // if query request doesn't contains any filter criteria, it can directly use expanded ids
         // as results. Otherwise, it needs to query repository to get matched entity oids.
-        if (inputDTO.getCriteriaList().isEmpty() && StringUtils.isEmpty(nameQuery) && !expandedIds.isEmpty()) {
+        if ( (inputDTO.getCriteriaList() == null || inputDTO.getCriteriaList().isEmpty())
+                && StringUtils.isEmpty(nameQuery)
+                && !expandedIds.isEmpty()) {
             candidates = expandedIds;
         } else {
             candidates = searchServiceRpc.searchEntityOids(searchRequest).getEntitiesList().stream()

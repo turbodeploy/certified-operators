@@ -987,13 +987,12 @@ public class GroupMapper {
 
                     return Collections.emptyList();
                 }
-                // currently API only supports homogeneous dynamic groups
+
                 return Collections.singletonList(ApiEntityType.fromType(groupDefinition
-                                    .getEntityFilters()
-                                    .getEntityFilter(0)
-                                    .getEntityType()
-                                )
-                                .apiStr());
+                        .getEntityFilters()
+                        .getEntityFilter(0)
+                        .getEntityType())
+                        .apiStr());
 
             case GROUP_FILTERS:
                 if (groupDefinition.getGroupFilters().getGroupFilterCount() == 0) {

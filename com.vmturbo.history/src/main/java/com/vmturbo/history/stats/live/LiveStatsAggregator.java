@@ -92,7 +92,7 @@ public class LiveStatsAggregator {
      * functions that would be executed when the provider capacities become available.
      */
     private Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought
-            = HashMultimap.create();
+        = HashMultimap.create();
 
     /**
      * Metrics used for counting DB operations so as to better understand DB performance.
@@ -103,9 +103,9 @@ public class LiveStatsAggregator {
      * @param loaders              bulk loader factory
      */
     public LiveStatsAggregator(@Nonnull final HistorydbIO historydbIO,
-            @Nonnull final TopologyInfo topologyInfo,
-            @Nonnull Set<String> commoditiesToExclude,
-            @Nonnull SimpleBulkLoaderFactory loaders) {
+                               @Nonnull final TopologyInfo topologyInfo,
+                               @Nonnull Set<String> commoditiesToExclude,
+                               @Nonnull SimpleBulkLoaderFactory loaders) {
         this.historydbIO = historydbIO;
         this.topologyInfo = topologyInfo;
         this.commoditiesToExclude = commoditiesToExclude;
@@ -149,14 +149,14 @@ public class LiveStatsAggregator {
      * @throws InterruptedException if interrupted
      */
     private void aggregateEntityStats(TopologyEntityDTO entityDTO,
-            Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
+                                      Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
         final int sdkEntityType = entityDTO.getEntityType();
         // determine the DB Entity Type for this SDK Entity Type
         final Optional<EntityType> entityDBInfo =
-                entityTypes.computeIfAbsent(sdkEntityType, historydbIO::getEntityType);
+            entityTypes.computeIfAbsent(sdkEntityType, historydbIO::getEntityType);
         if (!entityDBInfo.isPresent()) {
             logger.debug("DB info for entity type {}[{}] not present.",
-                    EntityDTO.EntityType.forNumber(sdkEntityType), sdkEntityType);
+                EntityDTO.EntityType.forNumber(sdkEntityType), sdkEntityType);
             return;
         }
 
@@ -164,14 +164,14 @@ public class LiveStatsAggregator {
         // The market_stats_last entries MUST NOT alias DataCenter with PhysicalMachine.
         // This is why we require "baseEntityType".
         final Optional<String> baseEntityTypeOptional = baseEntityTypes.computeIfAbsent(sdkEntityType,
-                historydbIO::getBaseEntityType);
+            historydbIO::getBaseEntityType);
         if (!baseEntityTypeOptional.isPresent()) {
             return;
         }
         final String baseEntityType = baseEntityTypeOptional.get();
 
         MarketStatsAccumulator marketStatsAccumulator =
-                accumulatorsByEntityAndEnvType.get(baseEntityType, entityDTO.getEnvironmentType());
+            accumulatorsByEntityAndEnvType.get(baseEntityType, entityDTO.getEnvironmentType());
         if (marketStatsAccumulator == null) {
             marketStatsAccumulator = MarketStatsAccumulator.create(topologyInfo, baseEntityType,
                     entityDTO.getEnvironmentType(), historydbIO, commoditiesToExclude, loaders,
@@ -235,7 +235,7 @@ public class LiveStatsAggregator {
      * @throws InterruptedException if interrupted
      */
     public void aggregateEntity(TopologyEntityDTO entityDTO,
-            Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
+                                Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
         // save commodity sold capacities for filling other commodity bought capacities
         cacheCapacities(entityDTO);
         // provide commodity sold capacitites for previously unsatisfied commodity bought
@@ -259,14 +259,14 @@ public class LiveStatsAggregator {
         // overall map can use default size and load factor, and since OIDs cannot be negative, we
         // use a negative value for no-entry
         TLongObjectMap<TIntObjectMap<TObjectDoubleMap<String>>> capacities
-                = new TLongObjectHashMap<>(DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, -1L);
+            = new TLongObjectHashMap<>(DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, -1L);
 
         // Reusable capacity maps. The assumption is that there may be multiple providers selling
         // commodities with exactly the same set of capacities. For example hosts in the same cluster,
         // VMs deployed from the same template etc. To reduce overall memory footprint we use shared
         // capacity structures among entities whose structures end up identical.
         private Map<TIntObjectMap<TObjectDoubleMap<String>>, TIntObjectMap<TObjectDoubleMap<String>>>
-                reusableCapacityMaps = new HashMap<>();
+            reusableCapacityMaps = new HashMap<>();
 
         /**
          * Cache capacities for all commodities sold by the given entity.
@@ -286,7 +286,7 @@ public class LiveStatsAggregator {
                 // check whether we have an identical capacities map for any prior entities
                 TIntObjectMap<TObjectDoubleMap<String>> entityCapacities = capacities.get(oid);
                 TIntObjectMap<TObjectDoubleMap<String>> reusableEntityCapacities
-                        = reusableCapacityMaps.get(entityCapacities);
+                    = reusableCapacityMaps.get(entityCapacities);
                 if (reusableEntityCapacities != null) {
                     // yes, replace ours with the shared instance
                     capacities.put(oid, reusableEntityCapacities);

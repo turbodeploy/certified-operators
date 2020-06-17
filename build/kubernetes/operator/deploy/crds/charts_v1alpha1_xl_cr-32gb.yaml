@@ -17,7 +17,7 @@ spec:
   #  imageUsername: turbouser
   #  imagePassword: turbopassword
     repository: turbonomic
-    tag: 7.22.4-SNAPSHOT
+    tag: 7.21.200-EA1
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
     externalTimescaleDBIP: 10.0.2.15
@@ -26,6 +26,8 @@ spec:
   actionscript:
     enabled: true
   appdynamics:
+    enabled: true
+  udt:
     enabled: true
   appinsight:
     enabled: false
@@ -174,6 +176,10 @@ spec:
       limits:
         memory: 2Gi
   mediation-vcenterbrowsing:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-udt:
     resources:
       limits:
         memory: 512Mi

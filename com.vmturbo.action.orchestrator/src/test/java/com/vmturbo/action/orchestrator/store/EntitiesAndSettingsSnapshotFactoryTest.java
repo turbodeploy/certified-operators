@@ -185,7 +185,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                 GetGroupsForEntitiesResponse.getDefaultInstance());
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(Collections.singleton(ENTITY_ID),
-                                         Collections.emptySet(), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
         Assert.assertTrue(snapshot.getSettingsForEntity(ENTITY_ID).isEmpty());
     }

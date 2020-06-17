@@ -278,7 +278,7 @@ public class SettingStore implements DiagsRestorable {
 
     @Nonnull
     private Collection<SettingPolicyGroupsRecord> attachGroupsToPolicy(@Nonnull Long policyId,
-            @Nonnull Scope policyScope) {
+                                                                       @Nonnull Scope policyScope) {
         final Collection<SettingPolicyGroupsRecord> allGroups =
                 new ArrayList<>(policyScope.getGroupsCount());
         for (long groupIds : policyScope.getGroupsList()) {

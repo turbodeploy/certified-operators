@@ -835,6 +835,7 @@ com.vmturbo.history/src/test/resources/topology/hp-esx_pm_dto.json -text
 com.vmturbo.history/src/test/resources/topology/tak_test1_vm_dto.json -text
 com.vmturbo.history/src/test/resources/topology/test-topo-1.json.zip -text
 com.vmturbo.history/src/test/resources/topology/test2_app_without_provider_dto.json -text
+com.vmturbo.history.schema/src/main/resources/db/migration/*.sql -text
 com.vmturbo.kvstore/pom.xml -text
 com.vmturbo.kvstore/src/main/java/com/vmturbo/kvstore/ConsulKeyValueStore.java -text
 com.vmturbo.kvstore/src/main/java/com/vmturbo/kvstore/KeyValueStore.java -text

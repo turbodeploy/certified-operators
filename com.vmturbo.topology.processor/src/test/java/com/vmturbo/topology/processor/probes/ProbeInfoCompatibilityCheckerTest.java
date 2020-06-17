@@ -59,10 +59,12 @@ public class ProbeInfoCompatibilityCheckerTest {
         final ProbeInfo foo = ProbeInfo.newBuilder()
             .setProbeType("foo")
             .setProbeCategory("category")
+            .setUiProbeCategory("uiProbeCat")
             .build();
         final ProbeInfo bar = ProbeInfo.newBuilder()
             .setProbeType("bar")
             .setProbeCategory("category")
+            .setUiProbeCategory("uiProbeCat")
             .build();
 
         assertFalse(checker.areCompatible(foo, bar));
@@ -74,10 +76,12 @@ public class ProbeInfoCompatibilityCheckerTest {
         final ProbeInfo hypervisor = ProbeInfo.newBuilder()
             .setProbeType("foo")
             .setProbeCategory("hypervisor")
+            .setUiProbeCategory("hypervisor")
             .build();
         final ProbeInfo storage = ProbeInfo.newBuilder()
             .setProbeType("foo")
             .setProbeCategory("storage")
+            .setUiProbeCategory("storage")
             .build();
 
         assertFalse(checker.areCompatible(hypervisor, storage));
@@ -182,6 +186,7 @@ public class ProbeInfoCompatibilityCheckerTest {
     private static ProbeInfo.Builder probeInfoBuilder() {
         return ProbeInfo.newBuilder()
             .setProbeType("foo")
-            .setProbeCategory("hypervisor");
+            .setProbeCategory("hypervisor")
+            .setUiProbeCategory("hypervisor");
     }
 }

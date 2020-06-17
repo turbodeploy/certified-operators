@@ -122,7 +122,9 @@ public class MapperConfig {
 
     @Bean
     public EntityFilterMapper entityFilterMapper() {
-        return new EntityFilterMapper(groupUseCaseParser());
+        return new EntityFilterMapper(
+                groupUseCaseParser(),
+                communicationConfig.thinTargetCache());
     }
 
     @Bean
@@ -218,6 +220,16 @@ public class MapperConfig {
     @Bean
     public TemplateMapper templateMapper() {
         return new TemplateMapper();
+    }
+
+    /**
+     * Bean for {@link TopologyDataDefinitionMapper}.
+     *
+     * @return topology data definition mapper
+     */
+    @Bean
+    public TopologyDataDefinitionMapper topologyDataDefinitionMapper() {
+        return new TopologyDataDefinitionMapper();
     }
 
     @Bean

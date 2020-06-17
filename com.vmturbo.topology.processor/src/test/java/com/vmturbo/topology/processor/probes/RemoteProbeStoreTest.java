@@ -79,6 +79,7 @@ public class RemoteProbeStoreTest {
         // case that was previously broken
         final ProbeInfo probeInfoWithCategory = ProbeInfo.newBuilder(Probes.emptyProbe)
                 .setProbeCategory(ProbeCategory.DATABASE_SERVER.getCategory())
+                .setUiProbeCategory(ProbeCategory.APPLICATIONS_AND_DATABASES.getCategory())
                 .build();
         final long probeId = 12345L;
         when(idProvider.getProbeId(probeInfoWithCategory)).thenReturn(probeId);
@@ -248,11 +249,11 @@ public class RemoteProbeStoreTest {
     @Test
     public void testCompareProbeStitchingOrder() throws Exception {
         final ProbeInfo storageProbe = ProbeInfo.newBuilder().setProbeType("probe-type-stitching-order-1")
-                .setProbeCategory("Storage").addTargetIdentifierField("targetId").build();
+                .setProbeCategory("Storage").setUiProbeCategory("Storage").addTargetIdentifierField("targetId").build();
         final ProbeInfo hypervisorProbe = ProbeInfo.newBuilder().setProbeType("probe-type-stitching-order-2")
-                .setProbeCategory("HYPERVISOR").addTargetIdentifierField("targetId").build();
+                .setProbeCategory("HYPERVISOR").setUiProbeCategory("Hypervisor").addTargetIdentifierField("targetId").build();
         final ProbeInfo fabricProbe = ProbeInfo.newBuilder().setProbeType("probe-type-stitching-order-3")
-                .setProbeCategory("Fabric").addTargetIdentifierField("targetId").build();
+                .setProbeCategory("Fabric").setUiProbeCategory("Fabric and Network").addTargetIdentifierField("targetId").build();
         final long storageProbeId = 2345L;
         final long hypervisorProbeId = 3456L;
         final long fabricProbeId = 4567L;

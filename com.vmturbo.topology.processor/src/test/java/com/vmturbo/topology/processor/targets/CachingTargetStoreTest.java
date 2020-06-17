@@ -242,6 +242,7 @@ public class CachingTargetStoreTest {
                                              @Nonnull List<AccountDefEntry> accountDefs) {
         return ProbeInfo.newBuilder()
             .setProbeCategory(category)
+            .setUiProbeCategory(category)
             .setProbeType(type)
             .addTargetIdentifierField(targetIdentifyingFieldName)
             .addAllAccountDefinition(accountDefs)

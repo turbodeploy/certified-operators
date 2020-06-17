@@ -24,6 +24,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -895,7 +899,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         discoveredGroupUploader.targetRemoved(targetId);
         discoveredTemplateDeploymentProfileNotifier.deleteTemplateDeploymentProfileByTarget(targetId);
         discoveredWorkflowUploader.targetRemoved(targetId);
-        discoveredCloudCostUploader.targetRemoved(targetId);
+        discoveredCloudCostUploader.targetRemoved(targetId, targetStore.getProbeCategoryForTarget(targetId));
     }
 
     /**
@@ -984,20 +988,25 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             // information will be inconsistent with each other because we do not roll back on failure.
                             // these operations apply to all discovery types (FULL and INCREMENTAL for now)
                             entityStore.entitiesDiscovered(discovery.getProbeId(), targetId,
-                                discovery.getMediationMessageId(), discoveryType,
-                                response.getEntityDTOList());
+                                    discovery.getMediationMessageId(), discoveryType, response.getEntityDTOList());
                             DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOCount());
                             // dump discovery response if required
                             if (discoveryDumper != null) {
                                 final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
-                                String displayName = target.map(Target::getDisplayName)
-                                    .orElseGet(() -> "targetID-" + targetId);
-                                String targetName = probeInfo.get().getProbeType() + "_" + displayName;
+                                String displayName = target.map(Target::getDisplayName).orElseGet(() -> "targetID-" + targetId);
+                                String targetName =
+                                        probeInfo.get().getProbeType() + "_" + displayName;
                                 if (discovery.getUserInitiated()) {
                                     // make sure we have up-to-date settings if this is a user-initiated discovery
                                     targetDumpingSettings.refreshSettings();
                                 }
                                 discoveryDumper.dumpDiscovery(targetName, discoveryType, response,
+                                        new ArrayList<>());
+                            }
+                            if (enableDiscoveryResponsesCaching && binaryDiscoveryDumper != null) {
+                                binaryDiscoveryDumper.dumpDiscovery(String.valueOf(targetId),
+                                    discoveryType,
+                                    response,
                                     new ArrayList<>());
                             }
                             if (enableDiscoveryResponsesCaching && binaryDiscoveryDumper != null) {
@@ -1009,8 +1018,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             // set discovery context
                             if (response.hasDiscoveryContext()) {
                                 getTargetOperationContextOrLogError(targetId).ifPresent(
-                                    targetOperationContext -> targetOperationContext
-                                        .setCurrentDiscoveryContext(response.getDiscoveryContext()));
+                                        targetOperationContext -> targetOperationContext.setCurrentDiscoveryContext(
+                                                response.getDiscoveryContext()));
                             }
                             // send notification from probe
                             systemNotificationProducer.sendSystemNotification(response.getNotificationList(), target.get());
@@ -1019,24 +1028,22 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             if (discoveryType == DiscoveryType.FULL) {
                                 discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
                                 discoveredTemplateDeploymentProfileNotifier.recordTemplateDeploymentInfo(
-                                    targetId, response.getEntityProfileList(), response.getDeploymentProfileList(),
-                                    response.getEntityDTOList());
-                                discoveredWorkflowUploader.setTargetWorkflows(targetId,
-                                    response.getWorkflowList());
+                                        targetId, response.getEntityProfileList(), response.getDeploymentProfileList(),
+                                        response.getEntityDTOList());
+                                discoveredWorkflowUploader.setTargetWorkflows(targetId, response.getWorkflowList());
                                 derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
                                 discoveredCloudCostUploader.recordTargetCostData(targetId,
-                                    targetStore.getProbeTypeForTarget(targetId), discovery,
-                                    response.getNonMarketEntityDTOList(), response.getCostDTOList(),
-                                    response.getPriceTable());
+                                        targetStore.getProbeTypeForTarget(targetId), targetStore.getProbeCategoryForTarget(targetId), discovery,
+                                        response.getNonMarketEntityDTOList(), response.getCostDTOList(),
+                                        response.getPriceTable());
                                 // Flows
                                 matrix.update(response.getFlowDTOList());
                             }
                         } catch (TargetNotFoundException e) {
-                            final String message = "Failed to process " + discoveryType
-                                    + " discovery for target "
-                                    + targetId
-                                    + ", which does not exist. "
-                                    + "The target may have been deleted during discovery processing.";
+                            final String message = "Failed to process " + discoveryType +
+                                    " discovery for target " + targetId +
+                                    ", which does not exist. " +
+                                    "The target may have been deleted during discovery processing.";
                             // Logging at warn level--this is unexpected, but should not cause any harm
                             logger.warn(message);
                             failDiscovery(discovery, message);

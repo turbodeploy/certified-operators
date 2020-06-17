@@ -63,7 +63,7 @@ public class VimSdkConversionProbeTest {
         assertEquals(2, entitiesByType.get(EntityType.VIRTUAL_DATACENTER).size());
         assertEquals(1, entitiesByType.get(EntityType.DATACENTER).size());
         assertEquals(1, entitiesByType.get(EntityType.PHYSICAL_MACHINE).size());
-        assertEquals(3, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(3, entitiesByType.get(EntityType.APPLICATION_COMPONENT).size());
         assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
 
         // ensure other fields are consistent with original discovery response

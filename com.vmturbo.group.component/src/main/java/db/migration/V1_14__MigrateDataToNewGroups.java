@@ -55,7 +55,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  * - it may be empty yet.
  */
 @SuppressWarnings("deprecation")
-public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
+public class V1_14__MigrateDataToNewGroups extends BaseJdbcMigration
+        implements JdbcMigration {
 
     private final Logger logger = LogManager.getLogger(getClass());
     /**
@@ -97,8 +98,16 @@ public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
                     .put(ClusterInfo.Type.STORAGE, GroupType.STORAGE_CLUSTER)
                     .build();
 
+    /**
+     * Performs all migration tasks.
+     *
+     * @param connection connection to DB
+     * @throws SQLException error during work with queries
+     * @throws InvalidProtocolBufferException parsing data exception
+     */
     @Override
-    public void migrate(Connection connection) throws Exception {
+    protected void performMigrationTasks(Connection connection)
+            throws SQLException, InvalidProtocolBufferException {
         connection.setAutoCommit(false);
         try {
             final ResultSet rs = connection.createStatement()

@@ -455,7 +455,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "4710859F-D32C-3301-94E4-79A4631BDFE8"
   displayName: "GuestLoad [turbonomic-opsmgr-6.2.8]"
   commoditiesBought {
@@ -489,7 +489,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "37B451B3-C2B5-3A1F-B9C5-63DAA2CCE452"
   displayName: "GuestLoad [testVM]"
   commoditiesBought {

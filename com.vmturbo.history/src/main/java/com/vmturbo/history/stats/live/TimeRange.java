@@ -373,12 +373,12 @@ public class TimeRange {
                     }
                     if (startDate == endDate) {
                         // equal timestamps, resolve to latest prior (or equal) timestamp in timeframe table
-                        final Timestamp latest = getMaxTimestamp(startDate,
+                        final Timestamp latest = getMaxTimestamp(statsFilter.getStartDate(),
                                 clusterId, statsFilter, timeFrame);
 
                         if (latest != null) {
                             result = new TimeRange(latest.getTime(), statsFilter.getEndDate(),
-                                timeFrame, Collections.singletonList(latest));
+                                    timeFrame, Collections.singletonList(latest));
                         }
                     } else {
                         // both times given, but they're different

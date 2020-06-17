@@ -94,6 +94,7 @@ public class SdkToTopologyEntityConverter {
     private static final Map<EntityType, TypeSpecificInfoMapper> TYPE_SPECIFIC_INFO_MAPPERS =
             ImmutableMap.<EntityType, TypeSpecificInfoMapper>builder()
                     .put(EntityType.APPLICATION, new ApplicationInfoMapper())
+                    .put(EntityType.APPLICATION_COMPONENT, new ApplicationInfoMapper())
                     // Databases get their type-specific info sent via application data
                     .put(EntityType.DATABASE_SERVER, new ApplicationInfoMapper())
                     .put(EntityType.DATABASE, new ApplicationInfoMapper())
@@ -126,6 +127,10 @@ public class SdkToTopologyEntityConverter {
     private static Set<CommodityDTO.CommodityType> reservedCommodityType =
         Sets.newHashSet(CommodityDTO.CommodityType.CPU, CommodityDTO.CommodityType.MEM,
                         CommodityDTO.CommodityType.VCPU, CommodityDTO.CommodityType.VMEM);
+
+    private static final Set<EntityType> suspendableEntityTypes = Sets.newHashSet(EntityType.BUSINESS_APPLICATION,
+            EntityType.APPLICATION_SERVER, EntityType.APPLICATION, EntityType.APPLICATION_COMPONENT,
+            EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.SERVICE);
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -216,7 +221,6 @@ public class SdkToTopologyEntityConverter {
                     resoldCommodityCache.getIsResold(
                         targetId, entityType, commoditySold.sold.getCommodityType().getNumber())
                         .ifPresent(isResold -> builder.setIsResold(builder.getIsResold() || isResold)));
-
                 return builder.build();
             }).collect(Collectors.toList());
 
@@ -995,12 +999,7 @@ public class SdkToTopologyEntityConverter {
     @VisibleForTesting
     static Optional<Boolean> calculateSuspendabilityWithStitchingEntity(
             @Nonnull final TopologyStitchingEntity entity) {
-        if (entity.getEntityType() == EntityType.BUSINESS_APPLICATION ||
-                entity.getEntityType() == EntityType.VIRTUAL_APPLICATION ||
-                entity.getEntityType() == EntityType.APPLICATION_SERVER ||
-                entity.getEntityType() == EntityType.APPLICATION ||
-                entity.getEntityType() == EntityType.DATABASE_SERVER ||
-                entity.getEntityType() == EntityType.DATABASE) {
+        if  (suspendableEntityTypes.contains(entity.getEntityType()))  {
             return Optional.of(checkAppSuspendability(entity));
         }
         return (entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
@@ -1011,14 +1010,14 @@ public class SdkToTopologyEntityConverter {
 
     /**
      * An application is considered suspendable only if it was a discovered entity and
-     * its consumer is a vApp with multiple providers and with any level of measured utilization.
+     * its consumer is a service with multiple providers and with any level of measured utilization.
      * @param entity is Application.
      * @return true if can be suspended.
      */
     private static boolean checkAppSuspendability(TopologyStitchingEntity entity) {
         return entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
                 entity.getConsumers().stream()
-                        .anyMatch(consumer -> consumer.getEntityType() == EntityType.VIRTUAL_APPLICATION &&
+                        .anyMatch(consumer -> consumer.getEntityType() == EntityType.SERVICE &&
                         consumer.getProviders().size() > 1) &&
                 entity.getCommoditiesSold()
                         .anyMatch(commodity -> ((commodity.getCommodityType() == CommodityDTO.CommodityType.TRANSACTION ||

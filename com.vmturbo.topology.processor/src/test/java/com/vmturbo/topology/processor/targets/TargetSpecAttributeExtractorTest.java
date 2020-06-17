@@ -41,7 +41,7 @@ public class TargetSpecAttributeExtractorTest {
     public void testExtractAttributes() {
         // arrange
         ProbeInfo probe = ProbeInfo.newBuilder().setProbeType(PROBE_TYPE_NAME).setProbeCategory("probeCategory")
-                .addTargetIdentifierField(ADDR_NAME).build();
+                .addTargetIdentifierField(ADDR_NAME).setUiProbeCategory("probeCategory").build();
         TargetSpec testItem = TargetSpec.newBuilder()
             .setProbeId(1L)
             .addAccountValue(AccountValue.newBuilder().setKey(ADDR_NAME).setStringValue(ADDR))

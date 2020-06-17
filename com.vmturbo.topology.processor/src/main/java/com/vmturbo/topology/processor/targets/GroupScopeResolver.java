@@ -349,16 +349,16 @@ public class GroupScopeResolver {
             return Collections.emptyList();
         }
         final SearchEntitiesRequest.Builder searchTopologyRequest = SearchEntitiesRequest.newBuilder()
-            .setReturnType(Type.FULL)
-            .setSearch(SearchQuery.newBuilder()
-                .addSearchParameters(SearchParameters.newBuilder()
-                    .setStartingFilter(SearchProtoUtil.idFilter(groupScopedEntitiesOids))
-                    .addSearchFilter(SearchFilter.newBuilder()
-                        .setTraversalFilter(TraversalFilter.newBuilder()
-                            .setTraversalDirection(TraversalDirection.PRODUCES)
-                            .setStoppingCondition(StoppingCondition.newBuilder()
-                                .setStoppingPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.APPLICATION.getNumber())))
-                        ))));
+                .setReturnType(Type.FULL)
+                .setSearch(SearchQuery.newBuilder()
+                    .addSearchParameters(SearchParameters.newBuilder()
+                        .setStartingFilter(SearchProtoUtil.idFilter(groupScopedEntitiesOids))
+                        .addSearchFilter(SearchFilter.newBuilder()
+                            .setTraversalFilter(TraversalFilter.newBuilder()
+                                .setTraversalDirection(TraversalDirection.PRODUCES)
+                                .setStoppingCondition(StoppingCondition.newBuilder()
+                                    .setStoppingPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.APPLICATION_COMPONENT.getNumber())))
+                                        ))));
         try {
             return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(
                 searchTopologyRequest.build()))
@@ -482,10 +482,16 @@ public class GroupScopeResolver {
         return targetOids.stream().anyMatch(targetOid -> {
             final Optional<SDKProbeType> probeType = targetStore.getProbeTypeForTarget(targetOid);
             if (!probeType.isPresent()) {
-                logger.error("No target found for target OID {}.", targetOid);
+                logger.error("No probe type found for target OID {}.", targetOid);
                 return false;
             }
-            return guestLoadOriginProbeCategories.contains(probeType.get().getProbeCategory());
+            Optional<ProbeCategory> probeCategoryForTarget =
+                    targetStore.getProbeCategoryForTarget(targetOid);
+            if (!probeCategoryForTarget.isPresent()) {
+                logger.error("No probe category found for target OID {}.", targetOid);
+                return false;
+            }
+            return guestLoadOriginProbeCategories.contains(probeCategoryForTarget.get());
         });
     }
 

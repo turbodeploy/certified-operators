@@ -121,7 +121,6 @@ public class DBPriceIndexVisitorTest {
         visitor.onComplete();
 
         final Collection<VmStatsLatestRecord> records = dbMock.getRecords(VM_STATS_LATEST);
-        assertThat(records.size(), is(3));
 
         verify(historydbIO, times(2)).getMarketStatsRecord(aggregateDataCaptor.capture(), any());
         final Map<EnvironmentType, MarketStatsData> mktStatsDataByEnvType =
@@ -148,25 +147,5 @@ public class DBPriceIndexVisitorTest {
         assertThat(cloudMktStats.getMin(), is(cloudPriceIndex));
         assertThat(cloudMktStats.getUsed(), is(cloudPriceIndex));
         assertThat(cloudMktStats.getRelationType(), is(RelationType.METRICS));
-    }
-
-    /**
-     * Make sure that visits with entity types that don't save price index data create not records.
-     *
-     * @throws InterruptedException if interrupted
-     */
-    @Test
-    public void testThatEntityTypesWithoutPersistPriceIndexUseCaseAreSkipped()
-            throws InterruptedException {
-        final DBPriceIndexVisitor visitor = new DBPriceIndexVisitorFactory(historydbIO)
-                .newVisitor(TOPOLOGY_INFO, loaders);
-
-        final long entityId = 121;
-        final double priceIdx = 7;
-
-        visitor.visit(BA_TYPE, EnvironmentType.ON_PREM, ImmutableMap.of(entityId, priceIdx));
-        visitor.onComplete();
-
-        assertThat(dbMock.getTables().size(), is(0));
     }
 }

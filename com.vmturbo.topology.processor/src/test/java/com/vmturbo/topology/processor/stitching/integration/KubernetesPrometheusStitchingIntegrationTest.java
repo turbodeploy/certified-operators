@@ -52,23 +52,23 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
     private static final long kubernetesProbeId = 2333L;
     private static final long prometheusProbeId = 6666L;
 
-    private static final long oid_vapp1 = 11L;
+    private static final long oid_service1 = 11L;
     private static final long oid_app1 = 21L;
     private static final long oid_app1_1 = 22L;
 
-    private static final long oid_vapp1_proxy = 111L;
+    private static final long oid_service1_proxy = 111L;
     private static final long oid_app1_proxy = 211L;
-    private static final long oid_vapp1_1_proxy = 112L;
+    private static final long oid_service1_1_proxy = 112L;
     private static final long oid_app1_1_proxy = 212L;
-    private static final long oid_vapp1_proxy_future = 113L;
+    private static final long oid_service1_proxy_future = 113L;
 
     // kubernetes entities
-    private final EntityDTO vApp1 = EntityBuilders.virtualApplication("vApp1")
+    private final EntityDTO service = EntityBuilders.service("service1")
         .buying(CommodityBuilders.transactionsPerSecond().from("app1").key("10.2.1.31"))
         .buying(CommodityBuilders.responseTimeMillis().from("app1").key("10.2.1.31"))
         .buying(CommodityBuilders.transactionsPerSecond().from("app1-1").key("10.2.1.31-1"))
         .buying(CommodityBuilders.responseTimeMillis().from("app1-1").key("10.2.1.31-1"))
-        .property("IP", "vApp-10.2.1.31,vApp-10.2.1.31-1")
+        .property("IP", "service-10.2.1.31,service-10.2.1.31-1")
         .build();
 
     private final EntityDTO app1 = EntityBuilders.application("app1")
@@ -84,10 +84,10 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         .build();
 
     // prometheus proxy entities
-    private final EntityDTO vApp1_proxy = EntityBuilders.virtualApplication("vApp1-proxy")
+    private final EntityDTO service1_proxy = EntityBuilders.service("service1-proxy")
         .buying(CommodityBuilders.transactionsPerSecond().from("app1-proxy").key("10.2.1.31").used(12d))
         .buying(CommodityBuilders.responseTimeMillis().from("app1-proxy").key("10.2.1.31").used(10d))
-        .property("IP", "vApp-10.2.1.31")
+        .property("IP", "service-10.2.1.31")
         .proxy()
         .build();
 
@@ -98,10 +98,10 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         .proxy()
         .build();
 
-    private final EntityDTO vApp1_1_proxy = EntityBuilders.virtualApplication("vApp1-1-proxy")
+    private final EntityDTO service1_1_proxy = EntityBuilders.service("service1-1-proxy")
         .buying(CommodityBuilders.transactionsPerSecond().from("app1-1-proxy").key("10.2.1.31-1").used(15d))
         .buying(CommodityBuilders.responseTimeMillis().from("app1-1-proxy").key("10.2.1.31-1").used(8d))
-        .property("IP", "vApp-10.2.1.31-1")
+        .property("IP", "service-10.2.1.31-1")
         .proxy()
         .build();
 
@@ -112,20 +112,20 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         .proxy()
         .build();
 
-    // prometheus proxy entities (new vApp DTO after potential change in probe in future)
-    private final EntityDTO vApp1_proxy_future = EntityBuilders.virtualApplication("vApp1-proxy-future")
+    // prometheus proxy entities (new service DTO after potential change in probe in future)
+    private final EntityDTO service1_proxy_future = EntityBuilders.service("service1-proxy-future")
         .buying(CommodityBuilders.transactionsPerSecond().from("app1-proxy").key("10.2.1.31").used(12d))
         .buying(CommodityBuilders.responseTimeMillis().from("app1-proxy").key("10.2.1.31").used(10d))
         .buying(CommodityBuilders.transactionsPerSecond().from("app1-1-proxy").key("10.2.1.31-1").used(15d))
         .buying(CommodityBuilders.responseTimeMillis().from("app1-1-proxy").key("10.2.1.31-1").used(8d))
-        .property("IP", "vApp-10.2.1.31,vApp-10.2.1.31-1")
+        .property("IP", "service-10.2.1.31,service-10.2.1.31-1")
         .proxy()
         .build();
 
     /**
      * Test the stitching between Kubernetes and Prometheus. Currently Prometheus returns proxy
-     * vApp and app in pairs, if in Kubernetes the vapp consumes two apps, then Prometheus returns
-     * two pairs of vapp-app.
+     * service and app in pairs, if in Kubernetes the service consumes two apps, then Prometheus returns
+     * two pairs of service.
      *
      * The EntityDTOs used in the test will be the following:
      *
@@ -133,7 +133,7 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
      *
      *     Kubernetes                  Prometheus
      *
-     *       vApp1             vApp1-proxy    vApp1-1-proxy
+     *       service1             service1-proxy    service1-1-proxy
      *       /   \                  |               |
      *    app1  app1-1          app1-proxy     app1-1-proxy
      *
@@ -141,22 +141,21 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
      *
      *     Kubernetes
      *
-     *       vApp1          (bought commodities got used value from Prometheus)
+     *       servicep1          (bought commodities got used value from Prometheus)
      *       /   \
      *    app1  app1-1      (sold commodities got used value from Prometheus)
+     *
+     * @throws Exception if anything goes wrong.
      */
     @Test
-    public void testPrometheusOneVAppBuyingFromOneApp() throws Exception {
+    public void testPrometheusOneServiceBuyingFromOneApp() throws Exception {
         init(getDataDrivenStitchingOperations());
-        final Map<Long, EntityDTO> kubernetesEntities = ImmutableMap.of(
-            oid_vapp1, vApp1,
+        final Map<Long, EntityDTO> kubernetesEntities = ImmutableMap.of(oid_service1, service,
             oid_app1, app1,
             oid_app1_1, app1_1
         );
-        final Map<Long, EntityDTO> prometheusEntities = ImmutableMap.of(
-            oid_vapp1_proxy, vApp1_proxy,
-            oid_app1_proxy, app1_proxy,
-            oid_vapp1_1_proxy, vApp1_1_proxy,
+        final Map<Long, EntityDTO> prometheusEntities = ImmutableMap.of(oid_service1_proxy, service1_proxy,
+            oid_app1_proxy, app1_proxy, oid_service1_1_proxy, service1_1_proxy,
             oid_app1_1_proxy, app1_1_proxy
         );
         addEntities(kubernetesEntities, kubernetesTargetId);
@@ -173,18 +172,18 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         // verify that only entities from Kubernetes are left after stitching
         assertEquals(3, topology.size());
 
-        final TopologyEntityDTO.Builder vApp = topology.get(oid_vapp1).getEntityBuilder();
+        final TopologyEntityDTO.Builder service = topology.get(oid_service1).getEntityBuilder();
         final TopologyEntityDTO.Builder app1 = topology.get(oid_app1).getEntityBuilder();
         final TopologyEntityDTO.Builder app1_1 = topology.get(oid_app1_1).getEntityBuilder();
 
-        // verify that vApp buys commodities from app1 with used value patched from prometheus
-        CommoditiesBoughtFromProvider cb1 = verifyAndGetCommoditiesBought(vApp, app1);
+        // verify that service buys commodities from app1 with used value patched from prometheus
+        CommoditiesBoughtFromProvider cb1 = verifyAndGetCommoditiesBought(service, app1);
         assertEquals(2, cb1.getCommodityBoughtCount());
         verifyBuyingCommodity(cb1, CommodityType.TRANSACTION_VALUE, "10.2.1.31", 12d);
         verifyBuyingCommodity(cb1, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31", 10d);
 
-        // verify that vApp buys commodities from app1_1 with used value patched from prometheus
-        CommoditiesBoughtFromProvider cb1_1 = verifyAndGetCommoditiesBought(vApp, app1_1);
+        // verify that service buys commodities from app1_1 with used value patched from prometheus
+        CommoditiesBoughtFromProvider cb1_1 = verifyAndGetCommoditiesBought(service, app1_1);
         assertEquals(2, cb1_1.getCommodityBoughtCount());
         verifyBuyingCommodity(cb1_1, CommodityType.TRANSACTION_VALUE, "10.2.1.31-1", 15d);
         verifyBuyingCommodity(cb1_1, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31-1", 8d);
@@ -203,7 +202,7 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
      *
      *     Kubernetes                  Prometheus
      *
-     *       vApp1                  vApp1-proxy-future
+     *       service1                  service1-proxy-future
      *       /   \                     /         \
      *    app1  app1-1          app1-proxy    app1-1-proxy
      *
@@ -211,20 +210,18 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
      *
      *     Kubernetes
      *
-     *       vApp1          <- bought commodities got used value from Prometheus
+     *       service1          <- bought commodities got used value from Prometheus
      *       /   \
      *    app1  app1-1      <- sold commodities got used value from Prometheus
      */
     @Test
-    public void testPrometheusOneVappBuyingFromMultipleApps() throws Exception {
+    public void testPrometheusOneServiceBuyingFromMultipleApps() throws Exception {
         init(getDataDrivenStitchingOperationsFuture());
-        final Map<Long, EntityDTO> kubernetesEntities = ImmutableMap.of(
-            oid_vapp1, vApp1,
+        final Map<Long, EntityDTO> kubernetesEntities = ImmutableMap.of(oid_service1, service,
             oid_app1, app1,
             oid_app1_1, app1_1
         );
-        final Map<Long, EntityDTO> prometheusEntities = ImmutableMap.of(
-            oid_vapp1_proxy_future, vApp1_proxy_future,
+        final Map<Long, EntityDTO> prometheusEntities = ImmutableMap.of(oid_service1_proxy_future, service1_proxy_future,
             oid_app1_proxy, app1_proxy,
             oid_app1_1_proxy, app1_1_proxy
         );
@@ -242,18 +239,18 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         // verify that only entities from Kubernetes are left after stitching
         assertEquals(3, topology.size());
 
-        final TopologyEntityDTO.Builder vApp = topology.get(oid_vapp1).getEntityBuilder();
+        final TopologyEntityDTO.Builder service = topology.get(oid_service1).getEntityBuilder();
         final TopologyEntityDTO.Builder app1 = topology.get(oid_app1).getEntityBuilder();
         final TopologyEntityDTO.Builder app1_1 = topology.get(oid_app1_1).getEntityBuilder();
 
-        // verify that vApp buys commodities from app1 with used value patched from prometheus
-        CommoditiesBoughtFromProvider cb1 = verifyAndGetCommoditiesBought(vApp, app1);
+        // verify that service buys commodities from app1 with used value patched from prometheus
+        CommoditiesBoughtFromProvider cb1 = verifyAndGetCommoditiesBought(service, app1);
         assertEquals(2, cb1.getCommodityBoughtCount());
         verifyBuyingCommodity(cb1, CommodityType.TRANSACTION_VALUE, "10.2.1.31", 12d);
         verifyBuyingCommodity(cb1, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31", 10d);
 
-        // verify that vApp buys commodities from app1_1 with used value patched from prometheus
-        CommoditiesBoughtFromProvider cb1_1 = verifyAndGetCommoditiesBought(vApp, app1_1);
+        // verify that service buys commodities from app1_1 with used value patched from prometheus
+        CommoditiesBoughtFromProvider cb1_1 = verifyAndGetCommoditiesBought(service, app1_1);
         assertEquals(2, cb1_1.getCommodityBoughtCount());
         verifyBuyingCommodity(cb1_1, CommodityType.TRANSACTION_VALUE, "10.2.1.31-1", 15d);
         verifyBuyingCommodity(cb1_1, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31-1", 8d);
@@ -313,7 +310,7 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
     }
 
     private List<StitchingOperation<?, ?>> getDataDrivenStitchingOperations() {
-        final MergedEntityMetadata vAppMergedEntityMetadata = new MergedEntityMetadataBuilder()
+        final MergedEntityMetadata serviceMergedEntityMetadata = new MergedEntityMetadataBuilder()
             .internalMatchingProperty("IP")
             .externalMatchingProperty("IP", ",")
             .mergedBoughtCommodity(EntityType.APPLICATION, ImmutableList.of(
@@ -327,14 +324,14 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
             .mergedSoldCommodity(CommodityType.RESPONSE_TIME)
             .build();
 
-        return ImmutableList.of(createDataDrivenStitchingOperation(vAppMergedEntityMetadata,
-                        EntityType.VIRTUAL_APPLICATION, ProbeCategory.CLOUD_NATIVE),
-                        createDataDrivenStitchingOperation(appMergedEntityMetadata,
-                                        EntityType.APPLICATION, ProbeCategory.CLOUD_NATIVE));
+        return ImmutableList.of(createDataDrivenStitchingOperation(serviceMergedEntityMetadata,
+                EntityType.SERVICE, ProbeCategory.CLOUD_NATIVE),
+                createDataDrivenStitchingOperation(appMergedEntityMetadata,
+                        EntityType.APPLICATION, ProbeCategory.CLOUD_NATIVE));
     }
 
     private List<StitchingOperation<?, ?>> getDataDrivenStitchingOperationsFuture() {
-        final MergedEntityMetadata vAppMergedEntityMetadata = new MergedEntityMetadataBuilder()
+        final MergedEntityMetadata serviceMergedEntityMetadata = new MergedEntityMetadataBuilder()
             .internalMatchingProperty("IP",",")
             .externalMatchingProperty("IP", ",")
             .mergedBoughtCommodity(EntityType.APPLICATION, ImmutableList.of(
@@ -348,9 +345,9 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
             .mergedSoldCommodity(CommodityType.RESPONSE_TIME)
             .build();
 
-        return ImmutableList.of(createDataDrivenStitchingOperation(vAppMergedEntityMetadata,
-                        EntityType.VIRTUAL_APPLICATION, ProbeCategory.CLOUD_NATIVE),
-                        createDataDrivenStitchingOperation(appMergedEntityMetadata,
-                                        EntityType.APPLICATION, ProbeCategory.CLOUD_NATIVE));
+        return ImmutableList.of(createDataDrivenStitchingOperation(serviceMergedEntityMetadata,
+                EntityType.SERVICE, ProbeCategory.CLOUD_NATIVE),
+                createDataDrivenStitchingOperation(appMergedEntityMetadata,
+                        EntityType.APPLICATION, ProbeCategory.CLOUD_NATIVE));
     }
 }

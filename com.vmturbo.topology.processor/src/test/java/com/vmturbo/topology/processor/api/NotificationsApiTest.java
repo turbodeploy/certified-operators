@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -93,6 +94,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
      * @throws Exception in exceptions occur
      */
     @Test
+    @Ignore
     public void testTopologyNotification() throws Exception {
         final TopologyEntityDTO topology1 =
                         TopologyEntityDTO.newBuilder().setOid(1L).setEntityType(1).build();

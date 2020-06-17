@@ -799,13 +799,23 @@ public class ActionModeCalculator {
             case PROVISION:
                 return Stream.of(EntitySettingSpecs.Provision);
             case RESIZE:
+                final Resize resize = action.getInfo().getResize();
+                if (isApplicationComponentHeapCommodity(resize)) {
+                    EntitySettingSpecs spec = resize.getNewCapacity() > resize.getOldCapacity()
+                            ? EntitySettingSpecs.ResizeUpHeap : EntitySettingSpecs.ResizeDownHeap;
+                    return Stream.of(spec);
+                } else if (isDatabaseServerDBMemCommodity(resize)) {
+                    EntitySettingSpecs spec = resize.getNewCapacity() > resize.getOldCapacity()
+                            ? EntitySettingSpecs.ResizeUpDBMem : EntitySettingSpecs.ResizeDownDBMem;
+                    return Stream.of(spec);
+                }
                 Optional<EntitySettingSpecs> rangeAwareSpec = rangeAwareSpecCalculator
-                        .getSpecForRangeAwareCommResize(action.getInfo().getResize(), settingsForTargetEntity);
+                        .getSpecForRangeAwareCommResize(resize, settingsForTargetEntity);
                 // Return the range aware spec if present. Otherwise return the regular resize
                 // spec, or if it's a vm the default empty stream, since the only resize action
                 // that should fall into this logic is for vStorages. Resize Vms for vStorage
                 // commodities should always translate to a RECOMMENDED mode .
-                if (isVirtualMachine(action.getInfo().getResize()) && !rangeAwareSpec.isPresent()) {
+                if (isVirtualMachine(resize) && !rangeAwareSpec.isPresent()) {
                     return Stream.empty();
                 }
                 return Stream.of(rangeAwareSpec.orElse(EntitySettingSpecs.Resize),
@@ -897,6 +907,26 @@ public class ActionModeCalculator {
      * */
     private boolean isVirtualMachine(Resize resize) {
         return resize.getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE;
+    }
+
+    /**
+     * Checks if the Resize action has an EntityType, it's an Application Component and Heap commodity.
+     * @param resize the {@link Resize} action
+     * @return Returns {@code true} if the action has Application Component as a target and Heap commodity
+     */
+    private boolean isApplicationComponentHeapCommodity(Resize resize) {
+        return resize.getTarget().getType() == EntityType.APPLICATION_COMPONENT_VALUE &&
+                resize.getCommodityType().getType() == CommodityType.HEAP.getNumber();
+    }
+
+    /**
+     * Checks if the Resize action has an EntityType, it's an Database Server and DBMem commodity.
+     * @param resize The {@link Resize} action
+     * @return Returns {@code true} if the action has Database Server as a target and DBMem commodity
+     * */
+    private boolean isDatabaseServerDBMemCommodity(Resize resize) {
+        return resize.getTarget().getType() == EntityType.DATABASE_SERVER_VALUE &&
+                resize.getCommodityType().getType() == CommodityType.DB_MEM.getNumber();
     }
 
     /**

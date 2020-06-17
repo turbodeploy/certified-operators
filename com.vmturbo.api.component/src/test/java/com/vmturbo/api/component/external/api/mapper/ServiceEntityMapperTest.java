@@ -119,6 +119,7 @@ public class ServiceEntityMapperTest {
         final ThinTargetInfo thinTargetInfo = ImmutableThinTargetInfo.builder()
                 .probeInfo(ImmutableThinProbeInfo.builder()
                         .category(PROBE_CATEGORY)
+                        .uiCategory(PROBE_CATEGORY)
                         .type(PROBE_TYPE)
                         .oid(PROBE_ID)
                         .build())

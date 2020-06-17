@@ -31,6 +31,7 @@ public class ThinTargetCacheTest {
     private final static String TARGET_DISPLAY_NAME = "display name";
     private final static String PROBE_TYPE = "probe type";
     private final static String PROBE_CATEGORY = "probe category";
+    private final static String PROBE_UI_CATEGORY = "probe ui category";
 
     private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
 
@@ -122,6 +123,7 @@ public class ThinTargetCacheTest {
         when(probeInfo.getId()).thenReturn(PROBE_ID);
         when(probeInfo.getType()).thenReturn(PROBE_TYPE);
         when(probeInfo.getCategory()).thenReturn(PROBE_CATEGORY);
+        when(probeInfo.getUICategory()).thenReturn(PROBE_UI_CATEGORY);
         when(topologyProcessor.getProbe(Mockito.eq(PROBE_ID))).thenReturn(probeInfo);
         when(topologyProcessor.getAllProbes()).thenReturn(Collections.singleton(probeInfo));
         when(topologyProcessor.getAllTargets())
@@ -173,6 +175,7 @@ public class ThinTargetCacheTest {
         when(probeInfo.getId()).thenReturn(PROBE_ID);
         when(probeInfo.getType()).thenReturn(PROBE_TYPE);
         when(probeInfo.getCategory()).thenReturn(PROBE_CATEGORY);
+        when(probeInfo.getUICategory()).thenReturn(PROBE_UI_CATEGORY);
         when(topologyProcessor.getProbe(Mockito.eq(PROBE_ID))).thenReturn(probeInfo);
         when(topologyProcessor.getAllProbes()).thenReturn(Collections.singleton(probeInfo));
         doReturn(Collections.singleton(targetInfo)).when(topologyProcessor).getAllTargets();

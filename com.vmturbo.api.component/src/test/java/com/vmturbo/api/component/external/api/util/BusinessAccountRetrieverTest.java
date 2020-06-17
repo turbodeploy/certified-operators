@@ -88,6 +88,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
@@ -146,7 +147,7 @@ public class BusinessAccountRetrieverTest {
     public void init() {
         final GroupUseCaseParser groupUseCaseParser =
                 new GroupUseCaseParser("groupBuilderUsecases.json");
-        this.entityFilterMapper = new EntityFilterMapper(groupUseCaseParser);
+        this.entityFilterMapper = new EntityFilterMapper(groupUseCaseParser, thinTargetCache);
         searchFilterResolver = Mockito.mock(SearchFilterResolver.class);
         Mockito.when(searchFilterResolver.resolveExternalFilters(Mockito.any()))
                 .thenAnswer(invocation -> invocation.getArguments()[0]);
@@ -623,7 +624,8 @@ public class BusinessAccountRetrieverTest {
             .oid(discoveringTarget)
             .displayName("Discovering Target")
             .probeInfo(ImmutableThinProbeInfo.builder()
-                .category(SDKProbeType.AWS.getProbeCategory().getCategory())
+                .category(ProbeCategory.CLOUD_MANAGEMENT.getCategory())
+                .uiCategory(ProbeCategory.PUBLIC_CLOUD.getCategory())
                 .oid(11111)
                 .type(SDKProbeType.AWS.getProbeType())
                 .build())
@@ -669,7 +671,7 @@ public class BusinessAccountRetrieverTest {
         assertThat(businessUnitDTO.getTargets().size(), is(1));
         final TargetApiDTO targetApiDTO = businessUnitDTO.getTargets().get(0);
         assertThat(targetApiDTO.getType(), is(discoveringTargetInfo.probeInfo().type()));
-        assertThat(targetApiDTO.getCategory(), is(discoveringTargetInfo.probeInfo().category()));
+        assertThat(targetApiDTO.getCategory(), is(discoveringTargetInfo.probeInfo().uiCategory()));
         assertThat(targetApiDTO.getDisplayName(), is(discoveringTargetInfo.displayName()));
         assertThat(targetApiDTO.getUuid(), is(Long.toString(discoveringTargetInfo.oid())));
     }

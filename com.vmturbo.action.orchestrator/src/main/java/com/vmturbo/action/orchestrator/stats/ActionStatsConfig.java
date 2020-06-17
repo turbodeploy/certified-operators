@@ -23,9 +23,11 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatsRollupConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
+import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -145,7 +147,8 @@ public class ActionStatsConfig {
     @Bean
     public CurrentActionStatReader currentActionStatReader() {
         return new CurrentActionStatReader(tpConfig.realtimeTopologyContextId(),
-            actionStoreConfig.actionStorehouse(), userSessionConfig.userSessionContext());
+            actionStoreConfig.actionStorehouse(), userSessionConfig.userSessionContext(),
+            involvedEntitiesExpander());
     }
 
     @Bean
@@ -159,5 +162,19 @@ public class ActionStatsConfig {
                 globalConfig.actionOrchestratorClock(),
                 rollupConfig.rollupScheduler(),
                 rollupConfig.cleanupScheduler());
+    }
+
+    /**
+     * Returns the {@link InvolvedEntitiesExpander} configured with the remote supply chain
+     * and repository services.
+     *
+     * @return the {@link InvolvedEntitiesExpander} configured with the remote supply chain
+     *         and repository services.
+     */
+    @Bean
+    public InvolvedEntitiesExpander involvedEntitiesExpander() {
+        return new InvolvedEntitiesExpander(
+            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
+            SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()));
     }
 }

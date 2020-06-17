@@ -199,7 +199,7 @@ public enum GlobalSettingSpecs {
      * Max observation period for VM growth.
      */
     MaxVMGrowthObservationPeriod("maxVMGrowthObservationPeriod",
-        "VM Growth Observation (months)",
+        "VM Growth Observation Period (in month)",
         numeric(1, 24, 1), Collections.emptyList()),
 
     /**

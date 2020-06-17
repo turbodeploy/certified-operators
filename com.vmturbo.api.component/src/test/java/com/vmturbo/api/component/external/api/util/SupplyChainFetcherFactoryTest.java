@@ -886,6 +886,8 @@ public class SupplyChainFetcherFactoryTest {
      * 2: is a VM (no expansion needed)
      * 10: is a VDC (expansion needed)
      *   VM with oid 11
+     * 12: is a Business Application (expansion needed but should get filtered out)
+     *   Service with oid 13
      */
     @Test
     public void testExpandGroupingServiceEntities() {
@@ -901,10 +903,14 @@ public class SupplyChainFetcherFactoryTest {
             .setOid(10L)
             .setEntityType(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())
             .build();
+        MinimalEntity bAppMinimalEntity = MinimalEntity.newBuilder()
+            .setOid(12L)
+            .setEntityType(ApiEntityType.BUSINESS_APPLICATION.typeNumber())
+            .build();
 
         SearchRequest searchRequest = mock(SearchRequest.class);
         when(searchRequest.getMinimalEntities()).thenReturn(Stream.of(
-            regionMinimalEntity, zoneMinimalEntity, vdcMinimalEntity));
+            regionMinimalEntity, zoneMinimalEntity, vdcMinimalEntity, bAppMinimalEntity));
 
         when(repositoryApiBackend.newSearchRequest(any()))
             .thenReturn(searchRequest);
@@ -914,67 +920,47 @@ public class SupplyChainFetcherFactoryTest {
         when(groupExpander.expandUuids(Sets.newHashSet("1"))).thenReturn(Sets.newHashSet(1L));
         when(groupExpander.expandUuids(Sets.newHashSet("2"))).thenReturn(Sets.newHashSet(2L));
         when(groupExpander.expandUuids(Sets.newHashSet("10"))).thenReturn(Sets.newHashSet(10L));
+        when(groupExpander.expandUuids(Sets.newHashSet("12"))).thenReturn(Sets.newHashSet(12L));
 
         Map<Long, GetSupplyChainResponse> responseMap = ImmutableMap.of(
             0L, GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
-                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
-                        .putMembersByState(0, MemberList.newBuilder()
-                            .addMemberOids(6L)
-                            .build())
-                        .build())
-                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.DATABASE.apiStr())
-                        .putMembersByState(0, MemberList.newBuilder()
-                            .addMemberOids(7L)
-                            .build())
-                        .build())
-                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.VIRTUAL_VOLUME.apiStr())
-                        .putMembersByState(0, MemberList.newBuilder()
-                            .addMemberOids(8L)
-                            .build())
-                        .build())
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_MACHINE, 0, 3L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.DATABASE, 0, 4L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_VOLUME, 0, 5L))
                     .build())
                 .build(),
             1L, GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
-                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
-                        .putMembersByState(0, MemberList.newBuilder()
-                            .addMemberOids(3L)
-                            .build())
-                        .build())
-                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.DATABASE.apiStr())
-                        .putMembersByState(0, MemberList.newBuilder()
-                            .addMemberOids(4L)
-                            .build())
-                        .build())
-                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.VIRTUAL_VOLUME.apiStr())
-                        .putMembersByState(0, MemberList.newBuilder()
-                            .addMemberOids(5L)
-                            .build())
-                        .build())
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_MACHINE, 0, 6L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.DATABASE, 0, 7L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_VOLUME, 0, 8L))
                     .build())
                 .build(),
-            10L,  GetSupplyChainResponse.newBuilder()
+            10L, GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
-                        .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
-                                .putMembersByState(0, MemberList.newBuilder()
-                                        .addMemberOids(11L)
-                                        .build())
-                                .build())
-                        .build())
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_MACHINE, 0, 11L))
+                    .build())
+                .build(),
+            12L, GetSupplyChainResponse.newBuilder()
+                .setSupplyChain(SupplyChain.newBuilder()
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.SERVICE, 0, 13L))
+                    .build())
                 .build());
         when(supplyChainServiceBackend.getSupplyChain(any())).thenAnswer(invocationOnMock ->
             responseMap.get(invocationOnMock.getArgumentAt(0, GetSupplyChainRequest.class).getScope().getStartingEntityOid(0)));
 
-        Set<Long> actual = supplyChainFetcherFactory.expandAggregatedEntities(Arrays.asList(0L, 1L, 2L, 10L));
+        Set<Long> actual = supplyChainFetcherFactory.expandAggregatedEntities(Arrays.asList(0L, 1L, 2L, 10L, 12L));
         Assert.assertEquals(new HashSet<>(Arrays.asList(2L, 3L, 4L, 5L, 6L, 7L, 8L, 11L)), actual);
+    }
+
+    private SupplyChainNode createSupplyChainNode(ApiEntityType uiEntityType, int membersByStateKey, long memberOid) {
+        return SupplyChainNode.newBuilder()
+            .setEntityType(uiEntityType.apiStr())
+            .putMembersByState(membersByStateKey, MemberList.newBuilder()
+                .addMemberOids(memberOid)
+                .build())
+            .build();
     }
 
     /**

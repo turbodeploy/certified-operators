@@ -1,0 +1,151 @@
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "ProxyVM-For-13.69.85.248"
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "ApplicationCommodity::ProxyVM-For-13.69.85.248::Iremel-SpringBoot-App [spring_boot_test_app, iremel-test-vm]"
+    capacity: 100000.0
+  }
+  commoditiesSold {
+    commodityType: VCPU
+    used: 2.773191291766539
+    peak: 3.9189415508290066
+    isUsedPct: true
+    vcpu_data {
+    }
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    ipAddress: "13.69.85.248"
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "ProxyVM-For-13.69.85.188"
+  commoditiesSold {
+    commodityType: VCPU
+    used: 2.70722266605922
+    peak: 8.07196521759033
+    isUsedPct: true
+    vcpu_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "ApplicationCommodity::ProxyVM-For-13.69.85.188::Iremel-Win-App [-, iremel-test-win]"
+    capacity: 100000.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    ipAddress: "13.69.85.188"
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "ProxyVM-For-10.10.168.63"
+  commoditiesSold {
+    commodityType: VCPU
+    used: 0.550381177813883
+    peak: 0.6529382219989954
+    isUsedPct: true
+    vcpu_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "ApplicationCommodity::ProxyVM-For-10.10.168.63::Iremel-Cluster-App [Iremel-Other-App, appinsights-cluster-a]"
+    capacity: 100000.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    ipAddress: "10.10.168.63"
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "ProxyVM-For-10.10.168.63"
+  commoditiesSold {
+    commodityType: VCPU
+    used: 0.552232733910538
+    peak: 0.6530475552578701
+    isUsedPct: true
+    vcpu_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "ApplicationCommodity::ProxyVM-For-10.10.168.63::Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-a]"
+    capacity: 100000.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    ipAddress: "10.10.168.63"
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "ProxyVM-For-10.10.168.110"
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "ApplicationCommodity::ProxyVM-For-10.10.168.110::Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-b]"
+    capacity: 100000.0
+  }
+  commoditiesSold {
+    commodityType: VCPU
+    used: 0.4201306416139343
+    peak: 0.6858481097356975
+    isUsedPct: true
+    vcpu_data {
+    }
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    ipAddress: "10.10.168.110"
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: BUSINESS_ACCOUNT
+  id: "758ad253-cbf5-4b18-8863-3eed0825bf07"
+  business_account_data {
+    account_id: "758ad253-cbf5-4b18-8863-3eed0825bf07"
+  }
+}
+discoveredGroup {
+  entity_type: UNKNOWN
+  display_name: "APMInstances"
+  group_name: "/subscriptions/758ad253-cbf5-4b18-8863-3eed0825bf07/resourceGroups/APMInstances"
+  member_list {
+    member: "Iremel-Cluster-App [Iremel-Other-App, appinsights-cluster-a]"
+    member: "Iremel-Win-App [-, iremel-test-win]"
+    member: "Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-a]"
+    member: "Iremel-SpringBoot-App [spring_boot_test_app, iremel-test-vm]"
+    member: "Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-b]"
+  }
+  groupType: RESOURCE
+  owner: "758ad253-cbf5-4b18-8863-3eed0825bf07"
+}

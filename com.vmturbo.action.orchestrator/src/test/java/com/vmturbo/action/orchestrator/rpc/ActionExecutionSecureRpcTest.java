@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayOutputStream;
@@ -61,6 +62,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
+import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
@@ -86,9 +88,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 
@@ -151,6 +158,9 @@ public class ActionExecutionSecureRpcTest {
             actionExecutor, actionTargetSelector, entitySettingsCache, actionTranslator,
             workflowStore, acceptedActionsStore);
 
+    private final InvolvedEntitiesExpander involvedEntitiesExpander =
+        mock(InvolvedEntitiesExpander.class);
+
     private final ActionsRpcService actionsRpcService =
         new ActionsRpcService(clock,
             actionStorehouse,
@@ -166,6 +176,8 @@ public class ActionExecutionSecureRpcTest {
     private Server secureGrpcServer;
     private ManagedChannel channel;
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+    private final SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
+    private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
     private IdentityServiceImpl actionIdentityService;
 
     // utility for creating / interacting with a debugging JWT context
@@ -173,6 +185,14 @@ public class ActionExecutionSecureRpcTest {
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
+    /**
+     * Grpc server for mocking services. The rule handles starting it and cleaning it up.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(
+        supplyChainServiceMole,
+        repositoryServiceMole);
 
     private final static ByteArrayOutputStream outputStream;
     private static final PrintStream old_out = System.out;
@@ -223,7 +243,7 @@ public class ActionExecutionSecureRpcTest {
 
         // setup gPRC client with client interceptor
         actionOrchestratorServiceClientWithInterceptor = ActionsServiceGrpc.newBlockingStub(channel)
-                .withInterceptors(new JwtClientInterceptor());
+            .withInterceptors(new JwtClientInterceptor());
 
         ActionTargetInfo targetInfo = ImmutableActionTargetInfo.builder()
             .supportingLevel(SupportLevel.SUPPORTED)
@@ -247,11 +267,12 @@ public class ActionExecutionSecureRpcTest {
         });
 
         // mock action store
-        actionStoreSpy = Mockito.spy(
-                new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID, actionTargetSelector,
-                        probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                        actionsStatistician, actionTranslator, clock, userSessionContext,
-                        licenseCheckClient, acceptedActionsStore, actionIdentityService));
+        actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
+            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            actionTargetSelector, probeCapabilityCache, entitySettingsCache,
+            actionHistoryDao, actionsStatistician, actionTranslator, clock, userSessionContext,
+            licenseCheckClient, acceptedActionsStore, actionIdentityService, involvedEntitiesExpander));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");
@@ -273,9 +294,9 @@ public class ActionExecutionSecureRpcTest {
         ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-                .setActionId(ACTION_ID)
-                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-                .build();
+            .setActionId(ACTION_ID)
+            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+            .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
@@ -284,9 +305,9 @@ public class ActionExecutionSecureRpcTest {
 
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response = actionOrchestratorServiceClient
-                .withCallCredentials(new JwtCallCredential(jwtContextUtil.getToken()
-                        .getCompactRepresentation()))
-                .acceptAction(acceptActionRequest);
+            .withCallCredentials(new JwtCallCredential(jwtContextUtil.getToken()
+                .getCompactRepresentation()))
+            .acceptAction(acceptActionRequest);
 
         assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
@@ -309,9 +330,9 @@ public class ActionExecutionSecureRpcTest {
         Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-                .setActionId(ACTION_ID)
-                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-                .build();
+            .setActionId(ACTION_ID)
+            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+            .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
@@ -320,7 +341,7 @@ public class ActionExecutionSecureRpcTest {
 
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response = actionOrchestratorServiceClientWithInterceptor
-                .acceptAction(acceptActionRequest);
+            .acceptAction(acceptActionRequest);
 
         assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
@@ -342,9 +363,9 @@ public class ActionExecutionSecureRpcTest {
         Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-                .setActionId(ACTION_ID)
-                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-                .build();
+            .setActionId(ACTION_ID)
+            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+            .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
@@ -353,10 +374,10 @@ public class ActionExecutionSecureRpcTest {
 
         actionStorehouse.storeActions(plan);
         expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.UNAUTHENTICATED)
-                .descriptionContains("JWT strings must contain exactly 2 period characters"));
+            .descriptionContains("JWT strings must contain exactly 2 period characters"));
         actionOrchestratorServiceClient
-                .withCallCredentials(new JwtCallCredential("wrong token"))
-                .acceptAction(acceptActionRequest);
+            .withCallCredentials(new JwtCallCredential("wrong token"))
+            .acceptAction(acceptActionRequest);
     }
 
     /**
@@ -369,9 +390,9 @@ public class ActionExecutionSecureRpcTest {
         Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-                .setActionId(ACTION_ID)
-                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-                .build();
+            .setActionId(ACTION_ID)
+            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+            .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
@@ -380,7 +401,7 @@ public class ActionExecutionSecureRpcTest {
 
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response = actionOrchestratorServiceClient
-                .acceptAction(acceptActionRequest); // don't pass JWT token
+            .acceptAction(acceptActionRequest); // don't pass JWT token
 
         assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
@@ -413,9 +434,9 @@ public class ActionExecutionSecureRpcTest {
         Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-                .setActionId(ACTION_ID)
-                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-                .build();
+            .setActionId(ACTION_ID)
+            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+            .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
@@ -424,9 +445,9 @@ public class ActionExecutionSecureRpcTest {
 
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response = actionOrchestratorServiceTestClient
-                .withCallCredentials(new JwtCallCredential(jwtContextUtil.getToken()
-                        .getCompactRepresentation()))
-                .acceptAction(acceptActionRequest);
+            .withCallCredentials(new JwtCallCredential(jwtContextUtil.getToken()
+                .getCompactRepresentation()))
+            .acceptAction(acceptActionRequest);
 
         assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
@@ -463,7 +484,7 @@ public class ActionExecutionSecureRpcTest {
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         // a user WITH access CAN execute the action
         EntityAccessScope accessScopeOK = new EntityAccessScope(null, null,
-                new ArrayOidSet(Arrays.asList(10L, 0L, 1L)), null);
+            new ArrayOidSet(Arrays.asList(10L, 0L, 1L)), null);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScopeOK);
 
         AcceptActionResponse response = actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
@@ -471,7 +492,7 @@ public class ActionExecutionSecureRpcTest {
 
         // A user WITHOUT access to entity 10L CANNOT execute the action.
         EntityAccessScope accessScopeFail = new EntityAccessScope(null, null,
-                new ArrayOidSet(Arrays.asList(0L, 1L, 2L)), null);
+            new ArrayOidSet(Arrays.asList(0L, 1L, 2L)), null);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScopeFail);
 
         // verify that a grpc runtime exception is thrown. In the actual runtime env we expect the

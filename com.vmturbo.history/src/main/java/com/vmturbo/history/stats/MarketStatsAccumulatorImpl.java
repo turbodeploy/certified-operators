@@ -397,8 +397,10 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                     effectiveCapacity, key, record,
                     dbTable, longCommodityKeys);
             // set the values specific to used component of commodity and write
-            historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED, commoditySoldDTO.getUsed(),
-                    commoditySoldDTO.getPeak(), record, dbTable);
+            historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED,
+                    commoditySoldDTO.hasUsed() ? Optional.of(commoditySoldDTO.getUsed()) : Optional.empty(),
+                    commoditySoldDTO.hasPeak() ? Optional.of(commoditySoldDTO.getPeak()) : Optional.empty(),
+                    record, dbTable);
             // mark the end of this row of values
             loader.insert(record);
 
@@ -643,8 +645,8 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
         historydbIO.initializeCommodityRecord(mixedCaseCommodityName, topologyInfo.getCreationTime(),
                 entityId, RelationType.METRICS, null, null, null, null, record, dbTable, longCommodityKeys);
         // set the values specific to used component of commodity and write
-        // since there is no peak value, that parameter is sent as 0
-        historydbIO.setCommodityValues(mixedCaseCommodityName, valueToPersist, 0,
+        // since there is no peak value, that parameter is sent as null
+        historydbIO.setCommodityValues(mixedCaseCommodityName, Optional.of(valueToPersist), Optional.empty(),
                 record, dbTable);
         writer.insert(record);
     }
@@ -720,9 +722,9 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             }
 
             // set the values specific to each row and persist each
-            double used = commodityBoughtDTO.getUsed();
+            Double used = commodityBoughtDTO.hasUsed() ? commodityBoughtDTO.getUsed() : null;
             // get the peak to save it as max of used subtype
-            double peak = commodityBoughtDTO.getPeak();
+            Double peak = commodityBoughtDTO.hasPeak() ? commodityBoughtDTO.getPeak() : null;
 
             final String key = commodityBoughtDTO.getCommodityType().getKey();
 
@@ -731,7 +733,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                     entityDTO.getOid(), RelationType.COMMODITIESBOUGHT, providerId, capacity, null,
                     key, record, dbTable, longCommodityKeys);
             historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED,
-                    used, peak, record, dbTable);
+                    Optional.ofNullable(used), Optional.ofNullable(peak), record, dbTable);
             // mark the end of this row to be inserted
             loader.insert(record);
 

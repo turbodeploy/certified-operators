@@ -25,8 +25,8 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
  * @param <T> type of topology entity
  */
 public class TopologyIngesterBase<T>
-        extends AbstractTopologyProcessor
-        <T, SimpleBulkLoaderFactory, Pair<Integer, BulkInserterFactoryStats>> {
+    extends AbstractTopologyProcessor
+    <T, SimpleBulkLoaderFactory, Pair<Integer, BulkInserterFactoryStats>> {
 
     protected final Logger logger;
     protected final TopologyIngesterConfig topologyIngesterConfig;
@@ -42,13 +42,13 @@ public class TopologyIngesterBase<T>
      * @param topologyType            tooplogy type string
      */
     public TopologyIngesterBase(
-            @Nonnull final
-            Collection<? extends IChunkProcessorFactory<T, TopologyInfo, SimpleBulkLoaderFactory>>
-                    chunkProcessorFactories,
-            @Nonnull TopologyIngesterConfig topologyIngesterConfig,
-            @Nonnull Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier,
-            @Nonnull TopologyType topologyType) {
-        super(chunkProcessorFactories, topologyIngesterConfig, topologyType.isProjectedTopology());
+        @Nonnull final
+        Collection<? extends IChunkProcessorFactory<T, TopologyInfo, SimpleBulkLoaderFactory>>
+            chunkProcessorFactories,
+        @Nonnull TopologyIngesterConfig topologyIngesterConfig,
+        @Nonnull Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier,
+        @Nonnull TopologyType topologyType) {
+        super(chunkProcessorFactories, topologyIngesterConfig, topologyType.getReadableName());
         this.logger = LogManager.getLogger(getClass());
         this.topologyIngesterConfig = topologyIngesterConfig;
         this.loaderFactorySupplier = loaderFactorySupplier;
@@ -77,10 +77,10 @@ public class TopologyIngesterBase<T>
      */
     @Override
     protected void afterChunkHook(final Collection<T> chunk,
-            final int chunkNo,
-            final TopologyInfo topologyInfo,
-            final SimpleBulkLoaderFactory inserters,
-            final MultiStageTimer timer) {
+                                  final int chunkNo,
+                                  final TopologyInfo topologyInfo,
+                                  final SimpleBulkLoaderFactory inserters,
+                                  final MultiStageTimer timer) {
         try {
             if (topologyIngesterConfig.perChunkCommit()) {
                 inserters.flushAll();
@@ -103,9 +103,9 @@ public class TopologyIngesterBase<T>
      */
     @Override
     protected void afterFinishHook(TopologyInfo topologyInfo,
-            SimpleBulkLoaderFactory loaders,
-            int entityCount,
-            MultiStageTimer timer) {
+                                   SimpleBulkLoaderFactory loaders,
+                                   int entityCount,
+                                   MultiStageTimer timer) {
         this.entityCount = entityCount;
         try {
             loaders.close();
@@ -114,25 +114,25 @@ public class TopologyIngesterBase<T>
         }
         final BulkInserterFactoryStats stats = loaders.getStats();
         String statsSummary =
-                String.format("  %-25s %11s %7s %5s\n", "TABLE", "RECORDS", "BATCHES", "FAILS")
-                        + stats.getKeys().stream()
-                        .sorted(Comparator.comparing(BulkInserterFactory::getKeyLabel))
-                        .map(key -> {
-                            BulkInserterStats stat = stats.getByKey(key);
-                            return String.format("  %-25s %,11d %,7d %,5d",
-                                    BulkInserterFactory.getKeyLabel(key),
-                                    stat.getWritten(),
-                                    stat.getBatches(),
-                                    stat.getFailedBatches());
-                        })
-                        .collect(Collectors.joining("\n"));
+            String.format("  %-25s %11s %7s %5s\n", "TABLE", "RECORDS", "BATCHES", "FAILS")
+                + stats.getKeys().stream()
+                .sorted(Comparator.comparing(BulkInserterFactory::getKeyLabel))
+                .map(key -> {
+                    BulkInserterStats stat = stats.getByKey(key);
+                    return String.format("  %-25s %,11d %,7d %,5d",
+                        BulkInserterFactory.getKeyLabel(key),
+                        stat.getWritten(),
+                        stat.getBatches(),
+                        stat.getFailedBatches());
+                })
+                .collect(Collectors.joining("\n"));
         logger.info("Completed ingestion for {}:\n{}",
-                summarizeInfo(topologyInfo), statsSummary);
+            summarizeInfo(topologyInfo), statsSummary);
     }
 
     @Override
     protected Pair<Integer, BulkInserterFactoryStats> getProcessingResult(
-            final TopologyInfo topologyInfo, final SimpleBulkLoaderFactory loaders) {
+        final TopologyInfo topologyInfo, final SimpleBulkLoaderFactory loaders) {
         return Pair.of(entityCount, loaders.getStats());
     }
 
@@ -144,10 +144,6 @@ public class TopologyIngesterBase<T>
         PROJECTED_LIVE,
         PLAN,
         PROJECTED_PLAN;
-
-        public boolean isProjectedTopology() {
-            return this == PROJECTED_LIVE || this == PROJECTED_PLAN;
-        }
 
         public String getReadableName() {
             return WordUtils.capitalizeFully(name().replaceAll("_", " "));

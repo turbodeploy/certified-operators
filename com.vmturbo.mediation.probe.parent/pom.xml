@@ -12,7 +12,7 @@
     <artifactId>xl-sdk-probe-parent</artifactId>
     <packaging>pom</packaging>
     <groupId>com.vmturbo</groupId>
-    <version>7.22.4-SNAPSHOT</version>
+    <version>7.21.200-EA1</version>
 
     <properties>
         <swagger.component.name>GCP Conversion Mediation Component</swagger.component.name>
@@ -22,6 +22,7 @@
         <vmturbo.mt.branch.version>${project.version}</vmturbo.mt.branch.version>
         <google.findbugs.version>2.0.3</google.findbugs.version>
         <log4j2.Version>2.6.2</log4j2.Version>
+        <guava.version>28.2-jre</guava.version>
     </properties>
 
     <build>

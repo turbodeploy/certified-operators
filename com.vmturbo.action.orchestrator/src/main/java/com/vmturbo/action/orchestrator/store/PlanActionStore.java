@@ -49,7 +49,6 @@ import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -58,8 +57,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 /**
  * {@inheritDoc}
@@ -136,7 +138,7 @@ public class PlanActionStore implements ActionStore {
      * @return Always true.
      */
     public static final Predicate<ActionView> VISIBILITY_PREDICATE = actionView ->
-            actionView.getVisibilityLevel().checkVisibility(null);
+        actionView.getVisibilityLevel().checkVisibility(null);
 
     public static final String STORE_TYPE_NAME = "Plan";
 
@@ -159,6 +161,8 @@ public class PlanActionStore implements ActionStore {
      * @param actionFactory The factory for creating actions that live in this store.
      * @param dsl The interface for interacting with persistent storage layer where actions will be persisted.
      * @param topologyContextId the topology context id
+     * @param supplyChainService used for constructing the EntitySeverityCache.
+     * @param repositoryService used for constructing the EntitySeverityCache.
      * @param actionTranslator the action translator class
      * @param realtimeTopologyContextId real time topology id
      * @param actionTargetSelector For calculating target specific action pre-requisites
@@ -166,6 +170,8 @@ public class PlanActionStore implements ActionStore {
     public PlanActionStore(@Nonnull final IActionFactory actionFactory,
                            @Nonnull final DSLContext dsl,
                            final long topologyContextId,
+                           @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
+                           @Nonnull final RepositoryServiceBlockingStub repositoryService,
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                            @Nonnull final ActionTranslator actionTranslator,
                            final long realtimeTopologyContextId,
@@ -176,7 +182,7 @@ public class PlanActionStore implements ActionStore {
         this.actionPlanIdByActionPlanType = Maps.newHashMap();
         this.recommendationTimeByActionPlanId = Maps.newHashMap();
         this.topologyContextId = topologyContextId;
-        this.severityCache = new EntitySeverityCache();
+        this.severityCache = new EntitySeverityCache(supplyChainService, repositoryService, false);
         this.entitySettingsCache = entitySettingsCache;
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -239,13 +245,13 @@ public class PlanActionStore implements ActionStore {
     @Override
     public Optional<Action> getAction(long actionId) {
         // this operation requires the planner feature to be enabled
-        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         return loadAction(actionId)
             .map(action -> actionFactory.newPlanAction(action.getRecommendation(),
                 recommendationTimeByActionPlanId.get(action.getActionPlanId()),
                 action.getActionPlanId(), action.getDescription(),
-                    action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()));
+                action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()));
     }
 
     /**
@@ -267,7 +273,7 @@ public class PlanActionStore implements ActionStore {
     @Override
     public Map<Long, Action> getActions() {
         // this operation requires the planner feature to be enabled
-        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         final Map<Long, Action> actions = loadActions().stream()
             .map(action -> actionFactory.newPlanAction(action.getRecommendation(),
@@ -319,7 +325,6 @@ public class PlanActionStore implements ActionStore {
      * {@inheritDoc}
      * The {@link PlanActionStore} permits the clear operation.
      */
-    @Override
     public boolean clear() {
         try {
             actionPlanIdByActionPlanType.values().forEach(planId -> cleanActions(dsl, planId));
@@ -395,7 +400,7 @@ public class PlanActionStore implements ActionStore {
                         // If we expand the Market Action table we need to modify this insert
                         // statement and the subsequent "values" bindings.
                         InsertValuesStep7<MarketActionRecord, Long, Long, Long, ActionDTO.Action,
-                                                        String, Long, Long> step =
+                            String, Long, Long> step =
                             transactionDsl.insertInto(MARKET_ACTION,
                                 MARKET_ACTION.ID,
                                 MARKET_ACTION.ACTION_PLAN_ID,
@@ -436,18 +441,14 @@ public class PlanActionStore implements ActionStore {
      * @return A list of translated actions and their descriptions.
      */
     private List<ActionAndInfo> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
-                                                            @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
-        // Check if there are any delete volume actions.  If so we need to
-        // get these from the real-time SOURCE topology as plan projected topology
-        // won't have them.
+                                                     @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
         Set<ActionDTO.Action> deleteVolumeActions = actions.stream()
-                        .filter(action -> action.getInfo().getActionTypeCase() == ActionTypeCase.DELETE)
-                        .collect(Collectors.toSet());
+                .filter(action -> action.getInfo().getActionTypeCase() == ActionTypeCase.DELETE)
+                .collect(Collectors.toSet());
         final Set<Long> deleteVolumesToRetrieve = ActionDTOUtil.getInvolvedEntityIds(deleteVolumeActions);
 
-        //TODO: Remove deleteVolumesToRetrieve from entitiesToRetrieve
         final Set<Long> entitiesToRetrieve =
-                new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
+            new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
         // snapshot contains the entities information that is required for the actions descriptions
         long planContextId = planData.getTopologyContextId();
         // TODO: a temp fix to get the  entities used for buy RI.
@@ -457,17 +458,15 @@ public class PlanActionStore implements ActionStore {
         // TODO: remove hack to go to realtime if source plan topology is not available.  Needed to
         // compute action descriptions.
         EntitiesAndSettingsSnapshot snapshotHack = entitySettingsCache.newSnapshot(
-            entitiesToRetrieve, deleteVolumesToRetrieve, planContextId);
+                entitiesToRetrieve,deleteVolumesToRetrieve, planContextId);
         if (MapUtils.isEmpty(snapshotHack.getEntityMap())) {
             // Hack: if the plan source topology is not ready, use realtime.
             // This should only occur initially when the plan  created.
             logger.warn("translatePlanActions: failed for topologyContextId={} topologyId={}, try realtime",
                 planContextId, planData.getTopologyId());
-            snapshotHack = entitySettingsCache.newSnapshot(entitiesToRetrieve,
-                                                           deleteVolumesToRetrieve,
-                                                           realtimeTopologyContextId);
+            snapshotHack = entitySettingsCache.newSnapshot(
+                    entitiesToRetrieve, deleteVolumesToRetrieve, realtimeTopologyContextId);
         }
-
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
         final List<ActionDTO.Action> actionsStream = new ArrayList<>(actions.size());
 
@@ -488,7 +487,6 @@ public class PlanActionStore implements ActionStore {
                 final ActionDTO.Action recommendation = action.getActionTranslation().getTranslationResultOrOriginal();
                 try {
                     final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
-
                     translatedActionsToAdd.add(ImmutableActionAndInfo.builder()
                         .translatedAction(recommendation)
                         .description(ActionDescriptionBuilder.buildActionDescription(snapshot,
@@ -628,6 +626,8 @@ public class PlanActionStore implements ActionStore {
         private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
         private final ActionTranslator actionTranslator;
         private final long realtimeTopologyContextId;
+        private final SupplyChainServiceBlockingStub supplyChainService;
+        private final RepositoryServiceBlockingStub repositoryService;
         private final ActionTargetSelector actionTargetSelector;
         private final LicenseCheckClient licenseCheckClient;
 
@@ -637,6 +637,8 @@ public class PlanActionStore implements ActionStore {
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                            @Nonnull final ActionTranslator actionTranslator,
                            final long realtimeTopologyContextId,
+                           @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
+                           @Nonnull final RepositoryServiceBlockingStub repositoryService,
                            @Nonnull final ActionTargetSelector actionTargetSelector,
                            @Nonnull final LicenseCheckClient licenseCheckClient) {
             this.dsl = Objects.requireNonNull(dsl);
@@ -645,6 +647,8 @@ public class PlanActionStore implements ActionStore {
             this.entitySettingsCache = entitySettingsCache;
             this.actionTranslator = actionTranslator;
             this.realtimeTopologyContextId = realtimeTopologyContextId;
+            this.supplyChainService = supplyChainService;
+            this.repositoryService = repositoryService;
             this.actionTargetSelector = actionTargetSelector;
             this.licenseCheckClient = licenseCheckClient;
         }
@@ -663,8 +667,10 @@ public class PlanActionStore implements ActionStore {
                         final PlanActionStore store = planActionStoresByTopologyContextId
                             .computeIfAbsent(actionPlan.getTopologyContextId(),
                                 k -> new PlanActionStore(actionFactory, dsl,
-                                    actionPlan.getTopologyContextId(), entitySettingsCache,
-                                    actionTranslator, realtimeTopologyContextId, actionTargetSelector,
+                                    actionPlan.getTopologyContextId(),
+                                    supplyChainService, repositoryService,
+                                    entitySettingsCache, actionTranslator,
+                                    realtimeTopologyContextId, actionTargetSelector,
                                     licenseCheckClient));
                         store.setupPlanInformation(actionPlan);
                     });

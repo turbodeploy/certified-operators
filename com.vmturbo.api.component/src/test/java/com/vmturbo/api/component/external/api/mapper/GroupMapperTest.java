@@ -151,6 +151,7 @@ public class GroupMapperTest {
     private static final ThinTargetCache.ThinTargetInfo AWS_TARGET = ImmutableThinTargetInfo.builder()
             .probeInfo(ImmutableThinProbeInfo.builder()
                     .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                    .uiCategory(ProbeCategory.PUBLIC_CLOUD.getCategoryInUpperCase())
                     .type(SDKProbeType.AWS.getProbeType())
                     .oid(111111L)
                     .build())
@@ -161,6 +162,7 @@ public class GroupMapperTest {
     private static final ThinTargetCache.ThinTargetInfo VC_TARGET = ImmutableThinTargetInfo.builder()
             .probeInfo(ImmutableThinProbeInfo.builder()
                     .category(ProbeCategory.HYPERVISOR.getCategoryInUpperCase())
+                    .uiCategory(ProbeCategory.HYPERVISOR.getCategoryInUpperCase())
                     .type(SDKProbeType.VCENTER.getProbeType())
                     .oid(111112L)
                     .build())
@@ -171,6 +173,7 @@ public class GroupMapperTest {
     private static final ThinTargetCache.ThinTargetInfo AZURE_TARGET = ImmutableThinTargetInfo.builder()
             .probeInfo(ImmutableThinProbeInfo.builder()
                     .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                    .uiCategory(ProbeCategory.PUBLIC_CLOUD.getCategoryInUpperCase())
                     .type(SDKProbeType.AZURE.getProbeType())
                     .oid(111113L)
                     .build())
@@ -181,6 +184,7 @@ public class GroupMapperTest {
     private static final ThinTargetCache.ThinTargetInfo APPD_TARGET = ImmutableThinTargetInfo.builder()
             .probeInfo(ImmutableThinProbeInfo.builder()
                     .category(ProbeCategory.GUEST_OS_PROCESSES.getCategoryInUpperCase())
+                    .uiCategory(ProbeCategory.PUBLIC_CLOUD.getCategoryInUpperCase())
                     .type(SDKProbeType.APPDYNAMICS.getProbeType())
                     .oid(111114L)
                     .build())
@@ -242,13 +246,14 @@ public class GroupMapperTest {
      */
     public GrpcTestServer grpcServer;
 
-    private EntityFilterMapper entityFilterMapper = new EntityFilterMapper(groupUseCaseParser);
+    private ThinTargetCache targetCache;
+
+    private EntityFilterMapper entityFilterMapper =
+            new EntityFilterMapper(groupUseCaseParser, targetCache);
 
     private GroupFilterMapper groupFilterMapper = new GroupFilterMapper();
 
     private SeverityPopulator severityPopulator;
-
-    private ThinTargetCache targetCache;
 
     private final CloudTypeMapper cloudTypeMapper = new CloudTypeMapper();
 
@@ -636,6 +641,7 @@ public class GroupMapperTest {
                 .probeInfo(ImmutableThinProbeInfo.builder()
                         .oid(probeOid)
                         .category("targetCategory")
+                        .uiCategory("targetUiCategory")
                         .type("targetType")
                         .build())
                 .build());

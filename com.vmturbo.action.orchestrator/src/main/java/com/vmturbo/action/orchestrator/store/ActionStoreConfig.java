@@ -36,6 +36,8 @@ import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
@@ -175,22 +177,32 @@ public class ActionStoreConfig {
                 new ActionInfoModelCreator(), Clock.systemUTC(), 24 * 3600 * 1000);
     }
 
+    /**
+     * Returns the {@link ActionStoreFactory} bean.
+     *
+     * @return the {@link ActionStoreFactory} bean.
+     */
     @Bean
     public IActionStoreFactory actionStoreFactory() {
-        return new ActionStoreFactory(actionFactory(),
-            tpConfig.realtimeTopologyContextId(),
-            databaseConfig.dsl(),
-            actionHistory(),
-            actionExecutionConfig.actionTargetSelector(),
-            actionExecutionConfig.targetCapabilityCache(),
-            entitySettingsCache(),
-            actionStatsConfig.actionsStatistician(),
-            actionTranslationConfig.actionTranslator(),
-            actionOrchestratorGlobalConfig.actionOrchestratorClock(),
-            userSessionConfig.userSessionContext(),
-            acceptedActionsStore(),
-            licenseCheckClientConfig.licenseCheckClient(),
-            actionIdentityService());
+        return ActionStoreFactory.newBuilder()
+            .withActionFactory(actionFactory())
+            .withRealtimeTopologyContextId(tpConfig.realtimeTopologyContextId())
+            .withDatabaseDslContext(databaseConfig.dsl())
+            .withActionHistoryDao(actionHistory())
+            .withActionTargetSelector(actionExecutionConfig.actionTargetSelector())
+            .withProbeCapabilityCache(actionExecutionConfig.targetCapabilityCache())
+            .withEntitySettingsCache(entitySettingsCache())
+            .withActionsStatistician(actionStatsConfig.actionsStatistician())
+            .withActionTranslator(actionTranslationConfig.actionTranslator())
+            .withClock(actionOrchestratorGlobalConfig.actionOrchestratorClock())
+            .withUserSessionContext(userSessionConfig.userSessionContext())
+            .withSupplyChainService(SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
+            .withRepositoryService(RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
+            .withLicenseCheckClient(licenseCheckClientConfig.licenseCheckClient())
+            .withAcceptedActionStore(acceptedActionsStore())
+            .withActionIdentityService(actionIdentityService())
+            .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
+            .build();
     }
 
     /**
@@ -218,6 +230,8 @@ public class ActionStoreConfig {
             entitySettingsCache(),
             actionTranslationConfig.actionTranslator(),
             realtimeTopologyContextId,
+            SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
+            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
             actionExecutionConfig.actionTargetSelector(),
             licenseCheckClientConfig.licenseCheckClient());
     }

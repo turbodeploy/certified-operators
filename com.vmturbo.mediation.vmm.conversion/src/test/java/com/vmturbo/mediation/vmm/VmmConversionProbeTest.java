@@ -44,7 +44,7 @@ public class VmmConversionProbeTest {
         assertEquals(10, entitiesByType.size());
 
         // check each changed entity
-        assertEquals(66, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(66, entitiesByType.get(EntityType.APPLICATION_COMPONENT).size());
         assertEquals(66, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(140, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
         assertEquals(17, entitiesByType.get(EntityType.STORAGE).size());

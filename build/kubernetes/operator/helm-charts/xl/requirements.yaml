@@ -363,6 +363,10 @@ dependencies:
     repository: file://../probes/mediation-vcenter
     version: 0.1.0
     condition: vcenter.enabled
+  - name: mediation-udt
+    repository: file://../probes/mediation-udt
+    version: 0.1.0
+    condition: udt.enabled
   - name: mediation-vcenterbrowsing
     repository: file://../probes/mediation-vcenterbrowsing
     version: 0.1.0

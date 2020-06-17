@@ -66,8 +66,8 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
      */
     @Override
     public void visit(final Integer entityType,
-               final EnvironmentType environmentType,
-               final Map<Long, Double> priceIdxByEntityId) throws InterruptedException {
+                      final EnvironmentType environmentType,
+                      final Map<Long, Double> priceIdxByEntityId) throws InterruptedException {
         final Optional<EntityType> dbEntityTypeOpt = historydbIO.getEntityType(entityType);
         if (dbEntityTypeOpt.isPresent() && dbEntityTypeOpt.get().persistsPriceIndex()) {
             final Map<EnvironmentType, MarketStatsData> mktStatsByEnv =
@@ -86,7 +86,7 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
                     final Double priceIndex = priceIndexEntry.getValue();
                     marketDataForType.accumulate(priceIndex, priceIndex, priceIndex, priceIndex);
 
-                    Record record = dbTable.get().newRecord();
+                Record record = dbTable.get().newRecord();
                     record.set(GENERIC_STATS_TABLE.SNAPSHOT_TIME, new Timestamp(topologyInfo.getCreationTime()));
                     record.set(GENERIC_STATS_TABLE.UUID, Long.toString(oid));
                     record.set(GENERIC_STATS_TABLE.PROPERTY_TYPE, StringConstants.PRICE_INDEX);
@@ -117,12 +117,12 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
 
         // Insert the accumulated price index stats.
         final List<MarketStatsData> mktStatsData = mktStatsByEntityTypeAndEnv.values().stream()
-                .flatMap(mktStatsByEnv -> mktStatsByEnv.values().stream())
-                .collect(Collectors.toList());
+            .flatMap(mktStatsByEnv -> mktStatsByEnv.values().stream())
+            .collect(Collectors.toList());
         final BulkLoader loader = loaders.getLoader(MarketStatsLatest.MARKET_STATS_LATEST);
         for (MarketStatsData data : mktStatsData) {
             final MarketStatsLatestRecord marketStatsRecord
-                    = historydbIO.getMarketStatsRecord(data, topologyInfo);
+                = historydbIO.getMarketStatsRecord(data, topologyInfo);
             loader.insert(marketStatsRecord);
         }
 

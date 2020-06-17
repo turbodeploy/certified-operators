@@ -204,6 +204,7 @@ public class ThinTargetCache implements TargetListener {
             .oid(pInfo.getId())
             .type(pInfo.getType())
             .category(pInfo.getCategory())
+            .uiCategory(pInfo.getUICategory())
             .build();
     }
 
@@ -223,6 +224,7 @@ public class ThinTargetCache implements TargetListener {
         long oid();
         String type();
         String category();
+        String uiCategory();
     }
 
     @Value.Immutable

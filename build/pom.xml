@@ -330,6 +330,7 @@
             <id>group</id>
             <modules>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.identity</module>
                 <module>../com.vmturbo.group.component</module>
                 <module>../com.vmturbo.group.api</module>
             </modules>
@@ -415,6 +416,8 @@
                 <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
                 <module>../com.vmturbo.mediation.servicenow.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
@@ -744,6 +747,14 @@
         </profile>
 
         <profile>
+            <id>mediation-udt</id>
+            <modules>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-baremetal</id>
             <modules>
                 <module>../com.vmturbo.mediation.baremetal.component</module>
@@ -929,6 +940,8 @@
                 <module>../com.vmturbo.mediation.vcenter.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
@@ -1139,6 +1152,8 @@
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.custom.data.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
@@ -2179,6 +2194,32 @@
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.gcp</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java-util</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-netty</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-protobuf</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-stub</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-core</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>

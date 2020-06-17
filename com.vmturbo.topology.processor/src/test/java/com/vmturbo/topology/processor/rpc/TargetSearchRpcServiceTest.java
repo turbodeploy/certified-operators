@@ -447,6 +447,7 @@ public class TargetSearchRpcServiceTest {
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
                 .setProbeType(probeType)
                 .setProbeCategory("Hypercloud")
+                .setUiProbeCategory("Hypercloud")
                 .addAccountDefinition(AccountDefEntry.newBuilder()
                         .setCustomDefinition(CustomAccountDefEntry.newBuilder()
                                 .setName(ID)
