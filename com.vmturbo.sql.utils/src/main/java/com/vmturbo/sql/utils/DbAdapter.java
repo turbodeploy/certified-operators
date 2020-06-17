@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.Optional;
 
 import javax.sql.DataSource;
@@ -42,9 +43,10 @@ public abstract class DbAdapter {
         }
     }
 
-    void init() throws UnsupportedDialectException, SQLException, InterruptedException {
+    void init() throws UnsupportedDialectException, SQLException {
         if (!componentCredentialsWork()) {
-            logger.info("Setting up component database/schema and user");
+            logger.info("Setting up user {} for database {} / schema {}",
+                    config.getDbUserName(), config.getDbDatabaseName(), config.getDbSchemaName());
             setupComponentCredentials();
         }
         if (!Strings.isNullOrEmpty(config.getDbMigrationLocations())) {
@@ -52,29 +54,28 @@ public abstract class DbAdapter {
         }
     }
 
-    DataSource getDataSource() throws UnsupportedDialectException, SQLException, InterruptedException {
+    DataSource getDataSource() throws UnsupportedDialectException, SQLException {
         return getDataSource(getUrl(config), config.getDbUserName(), config.getDbPassword());
     }
 
     abstract DataSource getDataSource(String url, String user, String password)
-            throws UnsupportedDialectException, SQLException, InterruptedException;
+            throws SQLException;
 
-    private boolean componentCredentialsWork() throws UnsupportedDialectException, InterruptedException {
+    private boolean componentCredentialsWork() throws UnsupportedDialectException {
         try (Connection conn = getNonRootConnection()) {
             return true;
         } catch (SQLException e) {
-            logger.warn("Failed to obtain DB connection for user {}", config.getDbUserName(), e);
             return false;
         }
     }
 
-    private void setupComponentCredentials() throws UnsupportedDialectException, SQLException, InterruptedException {
+    private void setupComponentCredentials() throws UnsupportedDialectException, SQLException {
         createSchema();
         createNonRootUser();
         performNonRootGrants(config.getDbAccess());
     }
 
-    private void performMigrations() throws UnsupportedDialectException, SQLException, InterruptedException {
+    private void performMigrations() throws UnsupportedDialectException, SQLException {
         new FlywayMigrator(Duration.ofMinutes(1),
                 Duration.ofSeconds(5),
                 config.getDbSchemaName(),
@@ -84,25 +85,25 @@ public abstract class DbAdapter {
         ).migrate();
     }
 
-    protected abstract void createNonRootUser() throws SQLException, UnsupportedDialectException, InterruptedException;
+    protected abstract void createNonRootUser() throws SQLException, UnsupportedDialectException;
 
     protected abstract void performNonRootGrants(DbEndpointAccess access)
-            throws SQLException, UnsupportedDialectException, InterruptedException;
+            throws SQLException, UnsupportedDialectException;
 
-    Connection getNonRootConnection() throws UnsupportedDialectException, SQLException, InterruptedException {
+    Connection getNonRootConnection() throws UnsupportedDialectException, SQLException {
         return getConnection(getUrl(config), config.getDbUserName(), config.getDbPassword());
     }
 
-    protected Connection getRootConnection(String database) throws UnsupportedDialectException, SQLException, InterruptedException {
+    protected Connection getRootConnection(String database) throws UnsupportedDialectException, SQLException {
         return getConnection(getUrl(config, database), config.getDbRootUserName(), config.getDbRootPassword());
     }
 
     Connection getConnection(String url, String user, String password)
-            throws SQLException, UnsupportedDialectException, InterruptedException {
+            throws SQLException {
         return getDataSource(url, user, password).getConnection();
     }
 
-    protected abstract void createSchema() throws SQLException, UnsupportedDialectException, InterruptedException;
+    protected abstract void createSchema() throws SQLException, UnsupportedDialectException;
 
     protected void execute(Connection conn, String sql) throws SQLException {
         logger.info("Executing SQL: {}", sql);
@@ -132,11 +133,12 @@ public abstract class DbAdapter {
     public static String getUrl(DbEndpointConfig config, String database) throws UnsupportedDialectException {
         UriComponentsBuilder builder = getUrlBuilder(config)
                 .path(database != null ? "/" + database : "/");
-        builder = addSecureConnectionParams(config, builder);
+        updateBuilderForSecureConnection(config, builder);
         return builder.build().toUriString();
     }
 
-    private static UriComponentsBuilder addSecureConnectionParams(DbEndpointConfig config, UriComponentsBuilder builder) {
+    private static void updateBuilderForSecureConnection(
+            DbEndpointConfig config, UriComponentsBuilder builder) {
         if (config.getDbSecure()) {
             switch (config.getDialect()) {
                 case MYSQL:
@@ -147,7 +149,6 @@ public abstract class DbAdapter {
                     break;
             }
         }
-        return builder;
     }
 
     @NotNull
@@ -183,15 +184,66 @@ public abstract class DbAdapter {
     /**
      * Set up the retention policy for a table based on the retention parameters provided.
      *
-     * @param table name of the table to set up retention policy
-     * @param timeUnit unit of the retention period
+     * @param table           name of the table to set up retention policy
+     * @param timeUnit        unit of the retention period
      * @param retentionPeriod retention period
      * @throws UnsupportedDialectException if this endpoint is mis-configured
-     * @throws InterruptedException if interrupted
-     * @throws SQLException if there are DB problems
+     * @throws SQLException                if there are DB problems
      */
     public void setupRetentionPolicy(String table, ChronoUnit timeUnit, int retentionPeriod)
-            throws UnsupportedDialectException, InterruptedException, SQLException {
+            throws UnsupportedDialectException, SQLException {
         // do nothing by default
     }
+
+    // TODO Move all these test-only methods to sql-test-utils modulek
+    /**
+     * Truncate all tables in the database configured for this endpoint.
+     *
+     * <p>This is intended primarily for use in tests, to reset a test database to an initial
+     * state prior to each test execution.</p>
+     *
+     * @throws UnsupportedDialectException If the endpoint is mis-configured
+     * @throws SQLException                if a DB operation fails
+     */
+    public void truncateAllTables() throws UnsupportedDialectException, SQLException {
+        try (Connection conn = getNonRootConnection()) {
+            for (final String table : getAllTableNames(conn)) {
+                conn.createStatement().execute(String.format("TRUNCATE TABLE \"%s\"", table));
+            }
+        }
+    }
+
+    protected abstract Collection<String> getAllTableNames(Connection conn) throws SQLException;
+
+    /**
+     * Drop the database configured for this endpoint.
+     *
+     * <p>This is intended primarily for use in tests, to remove a temporary database after
+     * all tests in a test class have completed.</p>
+     */
+    public void dropDatabase() {
+        try (Connection conn = getRootConnection(null)) {
+            dropDatabaseIfExists(conn);
+        } catch (UnsupportedDialectException | SQLException e) {
+            logger.error("Failed to dop database {}", config.getDbDatabaseName(), e);
+        }
+    }
+
+    protected abstract void dropDatabaseIfExists(Connection conn) throws SQLException;
+
+    /**
+     * Drop the non-root user associated with this endpoint.
+     *
+     * <p>This is intended primarily for use in tests, to remove a temporary user after all tests
+     * in a test class have completed.</p>
+     */
+    public void dropUser() {
+        try (Connection conn = getRootConnection(null)) {
+            dropUserIfExists(conn);
+        } catch (UnsupportedDialectException | SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    protected abstract void dropUserIfExists(Connection conn) throws SQLException;
 }

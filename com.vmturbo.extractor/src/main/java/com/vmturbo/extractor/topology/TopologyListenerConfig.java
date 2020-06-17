@@ -21,12 +21,11 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.models.ModelDefinitions;
+import com.vmturbo.extractor.schema.ExtractorDbConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -85,10 +84,9 @@ public class TopologyListenerConfig {
      * Create an instance of our topology listener.
      *
      * @return listener instance
-     * @throws UnsupportedDialectException if the associated db endpoint is mis-configured
      */
     @Bean
-    public TopologyEntitiesListener topologyEntitiesListener() throws UnsupportedDialectException {
+    public TopologyEntitiesListener topologyEntitiesListener() {
         final ImmutableList<Supplier<? extends ITopologyWriter>> writerFactories =
                 ImmutableList.<Supplier<? extends ITopologyWriter>>builder()
                         .addAll(writerFactories())
@@ -167,12 +165,10 @@ public class TopologyListenerConfig {
      * Create list of factories for writers that will participate in topology processing.
      *
      * @return writer factories
-     * @throws UnsupportedDialectException if there's a problem getting the associated db endpoint
      */
     @Bean
-    public List<Supplier<ITopologyWriter>> writerFactories()
-            throws UnsupportedDialectException {
-        final Supplier<DbEndpoint> dbEndpoint = extractorDbConfig.ingesterEndpoint();
+    public List<Supplier<ITopologyWriter>> writerFactories() {
+        final DbEndpoint dbEndpoint = extractorDbConfig.ingesterEndpoint();
         return ImmutableList.of(
                 () -> new EntityMetricWriter(dbEndpoint, pool())
         );

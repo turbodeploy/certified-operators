@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -33,12 +34,11 @@ public interface ITopologyWriter {
      * @throws IOException                 if there's a problem setting up for processing
      * @throws UnsupportedDialectException if our database endpoint is mis-configured
      * @throws SQLException                if there's a problem establishing database access
-     * @throws InterruptedException if interrupted
      */
-    InterruptibleConsumer<TopologyEntityDTO> startTopology(
+    Consumer<TopologyEntityDTO> startTopology(
             TopologyInfo topologyInfo, Map<Long, List<Grouping>> entityToGroups,
             WriterConfig writerConfig, MultiStageTimer timer)
-            throws IOException, UnsupportedDialectException, SQLException, InterruptedException;
+            throws IOException, UnsupportedDialectException, SQLException;
 
     /**
      * Perform any final processing required after the whole topology has been processed.
@@ -50,19 +50,10 @@ public interface ITopologyWriter {
      * @throws UnsupportedDialectException if the db endpoint is mis-configured
      * @throws SQLException                if there's a problem using the db endpoint
      */
-    int finish(Map<Long, Set<Long>> entityToRelatedEntities)
-            throws InterruptedException, UnsupportedDialectException, SQLException;
-
-    /**
-     * A {@link java.util.function.Consumer} that can throw {@link InterruptedException}.
-     *
-     * @param <T> consumed value type
-     */
-    @FunctionalInterface
-    interface InterruptibleConsumer<T> {
-        void accept(T item) throws InterruptedException;
+    default int finish(Map<Long, Set<Long>> entityToRelatedEntities)
+            throws InterruptedException, UnsupportedDialectException, SQLException {
+        return 0;
     }
-
 
     /**
      * Return a label for ingestion processing by the given writer, for logging.
