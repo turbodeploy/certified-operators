@@ -66,7 +66,7 @@ public class ActionLogger {
     private static final Logger logger = LogManager.getLogger();
 
     // to easily find the data in the log
-    private static final String prefix = "loggedActions";
+    private static final String prefix = "actionLogger";
 
     private static final String header = "market," + prefix + ",engine,CSP,billingFamily,businessAccount,region," +
         "osType,tenancy,vm,vmOid,vmGroup,savingsPerHour," +
@@ -171,14 +171,7 @@ public class ActionLogger {
             // Projected Template
             ActionEntity projectedActionEntity = changeProvider.getDestination();
             processTemplate(projectedActionEntity, projectedCloudTopology, false);
-
-            // determine if template or family changes in the scale action.
-            if (sourceTemplateName != projectedTemplateName) {
-                templateChange = 1;
-            }
-            if (sourceFamilyName != projectedFamilyName) {
-                familyChange = 1;
-            }
+            setChange();
             addRow(buffer);
         }
         logger.info(buffer.toString());
@@ -306,10 +299,10 @@ public class ActionLogger {
      * determine if template or family changes in the scale action.
      */
     private void setChange() {
-        if (sourceTemplateName != projectedTemplateName) {
+        if (!sourceTemplateName.equals(projectedTemplateName)) {
             templateChange = 1;
         }
-        if (sourceFamilyName != projectedFamilyName) {
+        if (!sourceFamilyName.equals(projectedFamilyName)) {
             familyChange = 1;
         }
     }
@@ -469,7 +462,16 @@ public class ActionLogger {
             ReservedInstanceData riData = optional.get();
             ReservedInstanceBought riBought = riData.getReservedInstanceBought();
             ReservedInstanceBoughtInfo riBoughtInfo = riBought.getReservedInstanceBoughtInfo();
-            String reservedInstanceName = riBoughtInfo.getProbeReservedInstanceId();
+            final String reservedInstanceName;
+            if (Strings.isNullOrEmpty(riBoughtInfo.getProbeReservedInstanceId())) {
+                final long regionId = riData.getReservedInstanceSpec()
+                        .getReservedInstanceSpecInfo()
+                        .getRegionId();
+                reservedInstanceName = SMAInput.constructRIName(cloudTopology, regionId,
+                        riBoughtInfo);
+            } else {
+                reservedInstanceName = riBoughtInfo.getProbeReservedInstanceId();
+            }
             boolean shared = riBoughtInfo.getReservedInstanceScopeInfo().getShared();
             ReservedInstanceSpec riSpec = riData.getReservedInstanceSpec();
             ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();

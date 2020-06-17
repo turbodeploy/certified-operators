@@ -38,7 +38,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.group.IGroupStore;
 
@@ -302,7 +302,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
             return Collections.singleton(typeError.get());
         }
         final Collection<String> errors = new ArrayList<>();
-        if (EntitySettingSpecs.isExecutionScheduleSetting(setting.getSettingSpecName())) {
+        if (ActionSettingSpecs.isExecutionScheduleSetting(setting.getSettingSpecName())) {
             final Optional<String> validationErrors =
                     validateExecutionScheduleSetting(settingPolicy);
             validationErrors.ifPresent(errors::add);
@@ -326,11 +326,10 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
      */
     private Optional<String> validateExecutionScheduleSetting(SettingPolicy settingPolicy) {
         final String settingName = settingPolicy.getCurrentSetting().getSettingSpecName();
-        if (EntitySettingSpecs.isExecutionScheduleSetting(settingName)
+        if (ActionSettingSpecs.isExecutionScheduleSetting(settingName)
                 && !settingPolicy.getSettingsInPolicy()
-                .contains(EntitySettingSpecs.getActionModeToExecutionScheduleSettings()
-                        .inverse()
-                        .get(settingName))) {
+                .contains(ActionSettingSpecs.getActionModeSettingFromExecutionScheduleSetting(
+                    settingName))) {
             return Optional.of("There is no corresponding ActionMode setting for current "
                     + "schedule setting " + settingName);
         }

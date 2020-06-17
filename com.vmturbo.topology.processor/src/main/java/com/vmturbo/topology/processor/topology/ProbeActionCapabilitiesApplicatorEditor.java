@@ -238,33 +238,6 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     private void editMovable(@Nonnull final TopologyEntity entity,
                              Map<ActionType, List<ProbeAction>> actionElementsMap,
                              @Nonnull final Context context, List<String> discoveringProbes) {
-
-        // If VV's discoveryTarget(s) all indicated movable NOT_SUPPORTED,
-        // The storage tier commodities of the VM, which VV is attached to, is set to movable false.
-        // This will not get overwritten by the VM enabling movable action setting since the existing
-        // logic only enable it if it hasn't been set.
-        if (EntityType.VIRTUAL_VOLUME_VALUE == entity.getEntityType()) {
-            // Here we try NOT to make the assumption that the target which discovered the VV and VM are the same.
-            // Even though we mark the commodity of VM as non-movable, the probe takes movable action against VV, not VM.
-            // Therefore the checking should be against vv's discovery targets
-            final boolean vvNotMovable = actionElementsMap.getOrDefault(ActionType.MOVE, Arrays.asList()).stream()
-                                                         .anyMatch(a -> a.actionSetting() == false);
-
-            if (vvNotMovable) {
-                entity.getInboundAssociatedEntities().stream()
-                    .filter(associatedEntity -> associatedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                    .forEach(vmEntity -> vmEntity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList().stream()
-                        .filter(CommoditiesBoughtFromProvider.Builder::hasProviderId)
-                        .filter(CommoditiesBoughtFromProvider.Builder::hasProviderEntityType)
-                        .filter(builder -> builder.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE)
-                        .filter(builder -> builder.getVolumeId() == entity.getOid())
-                        .forEach(builder -> {
-                            builder.setMovable(false);
-                            context.editorSummary.increaseMovableToFalseCount();
-                        })
-                    );
-            }
-        }
         entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList()
                 .forEach(builder ->
                         updateProperty(ActionType.MOVE, actionElementsMap,

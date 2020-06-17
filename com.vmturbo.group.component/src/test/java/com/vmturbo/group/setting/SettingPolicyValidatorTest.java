@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.group.IGroupStore;
@@ -159,7 +160,8 @@ public class SettingPolicyValidatorTest {
     public void testValidActionModeAndExecutionScheduleSettingsCombination()
             throws InvalidItemException {
         final String moveExecutionScheduleSettingName =
-                EntitySettingSpecs.MoveExecutionSchedule.getSettingName();
+            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                EntitySettingSpecs.Move);
         final String moveActionModeSettingName = EntitySettingSpecs.Move.getSettingName();
         final String settingPolicyName = "testSettingPolicy";
         when(specStore.getSettingSpec(eq(moveExecutionScheduleSettingName))).thenReturn(Optional.of(
@@ -204,7 +206,9 @@ public class SettingPolicyValidatorTest {
      */
     @Test
     public void testInvalidSettingCombination() throws InvalidItemException {
-        final String settingSpecName = EntitySettingSpecs.MoveExecutionSchedule.getSettingName();
+        final String settingSpecName =
+            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                EntitySettingSpecs.Move);
         final String settingPolicyName = "testSettingPolicy";
 
         expectedException.expect(InvalidItemException.class);
@@ -649,9 +653,10 @@ public class SettingPolicyValidatorTest {
     @Test
     public void testDefaultPoliciesFromSpec() {
         DefaultSettingPolicyValidator validator = new DefaultSettingPolicyValidator(
-                new EnumBasedSettingSpecStore(), mock(IGroupStore.class));
+                new EnumBasedSettingSpecStore(false, false),
+                mock(IGroupStore.class));
 
-        List<InvalidItemException> exceptions = Lists.newArrayList();
+            List<InvalidItemException> exceptions = Lists.newArrayList();
         List<SettingSpec> settings = Arrays.stream(EntitySettingSpecs.values()).map(
                 EntitySettingSpecs::getSettingSpec).collect(Collectors.toList());
         Collection<SettingPolicyInfo> policies =

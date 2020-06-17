@@ -100,6 +100,28 @@ public class SQLPriceTableStore implements PriceTableStore {
 
     @Nonnull
     @Override
+    public Map<Long, PriceTableKey> getPriceTableKeys(final Collection<Long> oids) {
+        final Map<Long, PriceTableKey> priceTableOidToKeyMap = Maps.newHashMap();
+        final Map<Long, String> result = dsl.select(Tables.PRICE_TABLE.OID, Tables.PRICE_TABLE.PRICE_TABLE_KEY)
+                .from(Tables.PRICE_TABLE)
+                .where(filterByOidsCondition(oids)).fetchMap(Tables.PRICE_TABLE.OID,
+                        Tables.PRICE_TABLE.PRICE_TABLE_KEY);
+
+        result.forEach((value, priceTableKey) -> {
+            try {
+                priceTableOidToKeyMap.put(value, PriceTableKeySerializationHelper
+                        .deserializeProbeKeyMaterial(priceTableKey));
+            } catch (InvalidProtocolBufferException e) {
+                logger.error("Unable to de-serialize priceTableKey {} - Reason: {}",
+                        priceTableKey.toString(), e.getMessage());
+            }
+        });
+
+        return priceTableOidToKeyMap;
+    }
+
+    @Nonnull
+    @Override
     public Map<Long, ReservedInstancePriceTable> getRiPriceTables(final Collection<Long> oids) {
         final Map<Long, ReservedInstancePriceTable> priceTables =
                 dsl.select(Tables.PRICE_TABLE.OID, Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA)

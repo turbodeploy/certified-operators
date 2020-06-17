@@ -19,10 +19,24 @@
         <db.schema>extractor_${maven.build.timestamp}</db.schema>
         <target.db.schema>extractor</target.db.schema>
         <db.driver>org.postgresql.Driver</db.driver>
+        <dockerHost>unix:///var/run/docker.sock</dockerHost>
     </properties>
 
-    <build>
+    <profiles>
+        <profile>
+            <id>windows-docker-host</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                </os>
+            </activation>
+            <properties>
+                <dockerHost>npipe:////./pipe/docker_engine</dockerHost>
+            </properties>
+        </profile>
+    </profiles>
 
+    <build>
         <plugins>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
@@ -130,6 +144,7 @@
                             <goal>start</goal>
                         </goals>
                         <configuration>
+                            <dockerHost>${dockerHost}</dockerHost>
                             <showLogs>true</showLogs>
                             <images>
                                 <image>
@@ -174,6 +189,7 @@
                             <goal>stop</goal>
                         </goals>
                         <configuration>
+                            <dockerHost>${dockerHost}</dockerHost>
                             <images>
                                 <image>
                                     <name>timescale/timescaledb:latest-pg12</name>

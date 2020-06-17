@@ -69,8 +69,8 @@ public class TopologyListenerConfig {
     private int lastSeenAdditionalFuzzMinutes;
 
     /**
-     * Max time to wait for results of COPY FROM command that streams data to postgres, after
-     * all records have been sent.
+     * Max time to wait for results of COPY FROM command that streams data to postgres, after all
+     * records have been sent.
      */
     @Value("${insertTimeoutSeconds:300}")
     private int insertTimeoutSeconds;
@@ -172,7 +172,7 @@ public class TopologyListenerConfig {
     @Bean
     public List<Supplier<ITopologyWriter>> writerFactories()
             throws UnsupportedDialectException {
-        final DbEndpoint dbEndpoint = extractorDbConfig.ingesterEndpoint();
+        final Supplier<DbEndpoint> dbEndpoint = extractorDbConfig.ingesterEndpoint();
         return ImmutableList.of(
                 () -> new EntityMetricWriter(dbEndpoint, pool())
         );

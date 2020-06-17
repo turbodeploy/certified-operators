@@ -17,7 +17,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 
 /**
  * Converter between proto settings {@link Setting} and topology processor setting representation
@@ -76,7 +76,7 @@ public class TopologyProcessorSettingsConverter {
         final Optional<String> actionModeSetting = Objects.requireNonNull(inputSettingsList)
                 .stream()
                 .map(Setting::getSettingSpecName)
-                .filter(EntitySettingSpecs::isActionModeSetting)
+                .filter(ActionSettingSpecs::isActionModeSetting)
                 .findFirst();
 
         if (actionModeSetting.isPresent()) {
@@ -116,9 +116,9 @@ public class TopologyProcessorSettingsConverter {
 
         for (Setting setting : settings) {
             final String settingName = setting.getSettingSpecName();
-            if (EntitySettingSpecs.isExecutionScheduleSetting(settingName)) {
+            if (ActionSettingSpecs.isExecutionScheduleSetting(settingName)) {
                 executionScheduleSetting = setting;
-            } else if (EntitySettingSpecs.isActionModeSetting(settingName)) {
+            } else if (ActionSettingSpecs.isActionModeSetting(settingName)) {
                 actionModeSetting = setting;
             }
         }
@@ -174,8 +174,8 @@ public class TopologyProcessorSettingsConverter {
                             .addAllOids(actionModeExecutionScheduleSetting.getExecutionSchedules())
                             .build())
                     .setSettingSpecName(
-                            EntitySettingSpecs.getActionModeToExecutionScheduleSettings()
-                                    .get(actionModeExecutionScheduleSetting.getSettingName()))
+                            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                                actionModeExecutionScheduleSetting.getSettingName()))
                     .build();
             resultSettings.add(executionScheduleSetting);
         }

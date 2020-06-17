@@ -9,10 +9,9 @@ import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlType;
 
-import org.apache.commons.lang.builder.ReflectionToStringBuilder;
+import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**

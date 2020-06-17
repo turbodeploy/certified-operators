@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.operation;
 
+import java.io.File;
 import java.io.IOException;
 
 import org.apache.logging.log4j.LogManager;
@@ -117,6 +118,12 @@ public class OperationConfig {
     @Value("${enableDiscoveryResponsesCaching:true}")
     private boolean enableDiscoveryResponsesCaching;
 
+    /**
+     * The path to cached discovery responses.
+     */
+    @Value("${discoveryResponsesCachePath:/home/turbonomic/data/cached_responses}")
+    private String discoveryResponsesCachePath;
+
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -149,7 +156,7 @@ public class OperationConfig {
     @Bean
     public BinaryDiscoveryDumper binaryDiscoveryDumper() {
         try {
-            return new BinaryDiscoveryDumper(DiscoveryDumperSettings.DISCOVERY_CACHE_DIRECTORY);
+            return new BinaryDiscoveryDumper(new File(discoveryResponsesCachePath));
         } catch (IOException e) {
             logger.warn("Failed to initialized binary discovery dumper; discovery responses will "
                 + "not be dumped and target won't be restored after a restart", e);

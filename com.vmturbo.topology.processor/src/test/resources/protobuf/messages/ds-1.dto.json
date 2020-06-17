@@ -5,7 +5,10 @@
   "commoditiesSold": [
     {
       "commodityType": "STORAGE_AMOUNT",
-      "capacity": 777216.0
+      "capacity": 777216.0,
+      "min_amount_for_consumer": 1.0,
+      "max_amount_for_consumer": 1024.0,
+      "check_min_amount_for_consumer": true
     },
     {
       "commodityType": "STORAGE_ACCESS",
@@ -15,6 +18,24 @@
       "ratio_dependency" : {
         "base_commodity": "STORAGE_AMOUNT",
         "ratio" : 3
+      }
+    },
+    {
+      "commodityType": "IO_THROUGHPUT",
+      "capacity": 1.0E9,
+      "max_amount_for_consumer": 250.0,
+      "range_dependency" : {
+        "base_commodity": "STORAGE_AMOUNT",
+        "range_tuple" : [
+          {
+            "base_max_amount_for_consumer": 170.0,
+            "dependent_max_amount_for_consumer": 128.0
+          },
+          {
+            "base_max_amount_for_consumer": 16384.0,
+            "dependent_max_amount_for_consumer": 250.0
+          }
+        ]
       }
     }
   ],

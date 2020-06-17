@@ -69,6 +69,7 @@ import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -179,6 +180,7 @@ public class SearchServiceTest {
             new EntityFilterMapper(groupUseCaseParser, targetCache);
     private final GroupFilterMapper groupFilterMapper = new GroupFilterMapper();
     private final EntityAspectMapper entityAspectMapper = mock(EntityAspectMapper.class);
+    private final PriceIndexPopulator priceIndexPopulator = mock(PriceIndexPopulator.class);
 
     private SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
@@ -250,7 +252,8 @@ public class SearchServiceTest {
                 serviceEntityMapper,
                 entityFilterMapper,
                 entityAspectMapper,
-                searchFilterResolver));
+                searchFilterResolver,
+                priceIndexPopulator));
     }
 
     /**

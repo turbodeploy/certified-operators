@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 
 import org.jooq.DSLContext;
 
@@ -26,7 +27,7 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
     protected final ExecutorService pool;
 
     protected TopologyInfo topologyInfo;
-    protected final DbEndpoint dbEndpoint;
+    protected final Supplier<DbEndpoint> dbEndpointSupplier;
     protected Map<Long, List<Grouping>> entityToGroups;
     protected MultiStageTimer timer;
     private final Model model;
@@ -35,13 +36,13 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
     /**
      * Create a new instance.
      *
-     * @param dbEndpoint a {@link DbEndpoint} for the database where extracted data will be
-     *                   persisted
-     * @param model      model containing tables that will take part
-     * @param pool       thread pool for parallel operations
+     * @param dbEndpointSupplier a {@link DbEndpoint} for the database where extracted data will be
+     *                           persisted
+     * @param model              model containing tables that will take part
+     * @param pool               thread pool for parallel operations
      */
-    public TopologyWriterBase(DbEndpoint dbEndpoint, Model model, ExecutorService pool) {
-        this.dbEndpoint = dbEndpoint;
+    public TopologyWriterBase(Supplier<DbEndpoint> dbEndpointSupplier, Model model, ExecutorService pool) {
+        this.dbEndpointSupplier = dbEndpointSupplier;
         this.model = model;
         this.pool = pool;
     }
@@ -55,7 +56,7 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
         this.config = config;
         this.timer = timer;
         // Attach a record sink to all the tables we might need to write to
-        final DSLContext dsl = dbEndpoint.dslContext();
+        final DSLContext dsl = dbEndpointSupplier.get().dslContext();
         model.getTables().forEach(table -> {
             if (!table.isAttached()) {
                 table.attach(new DslRecordSink(dsl, table, model, config, pool), true);

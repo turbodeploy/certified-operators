@@ -35,17 +35,17 @@
 
         <spring.version>5.2.4.RELEASE</spring.version>
         <spring.retry.version>1.2.4.RELEASE</spring.retry.version>
-        <spring.security.version>5.3.0.RELEASE</spring.security.version>
+        <spring.security.version>5.3.2.RELEASE</spring.security.version>
         <guava.version>28.2-jre</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
 
-        <grpc.version>1.28.0</grpc.version>
+        <grpc.version>1.29.0</grpc.version>
         <grpc.prometheus.version>0.3.0</grpc.prometheus.version>
 
         <protobuf.version>3.11.0</protobuf.version>
         <protobuf.maven.plugin.version>0.5.1</protobuf.maven.plugin.version>
         <os.maven.plugin.version>1.4.1.Final</os.maven.plugin.version>
-        <owasp.version>5.3.0</owasp.version>
+        <owasp.version>5.3.2</owasp.version>
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
 
         <lz4.version>1.4</lz4.version>
@@ -113,10 +113,10 @@
         <swagger.plugin.version>3.1.7</swagger.plugin.version>
         <asciidoctor.plugin.version>1.5.3</asciidoctor.plugin.version>
         <swagger2markup.plugin.version>0.9.3</swagger2markup.plugin.version>
-        <commons-validator.version>1.5.0</commons-validator.version>
+        <commons-validator.version>1.6</commons-validator.version>
         <!-- END swagger properties -->
 
-        <docker.compose.rule.version>0.31.1</docker.compose.rule.version>
+        <docker.compose.rule.version>1.5.0</docker.compose.rule.version>
         <asciitable.version>0.3.2</asciitable.version>
         <zjsonpatch.version>0.3.6</zjsonpatch.version>
 
@@ -152,6 +152,25 @@
         <roaringbitmap.version>0.8.13</roaringbitmap.version>
         <!-- java slang -->
         <javaslang.version>2.0.5</javaslang.version>
+
+        <!-- EM: The spring-security-saml2-service-provider:jar:5.3.0.RELEASE lib is bringing
+        cryptacular 1.1.3 as a transitive dependency, which is affected by a security vulnerability.
+        The dependency version below is used only to enforce a specific version that
+        does not suffer from a vulnerability. See bug OM-59184 -->
+        <cryptacular.version>1.1.4</cryptacular.version>
+
+        <!-- EM: The consul-api dependency is bringing a dependency on
+        commons-codec:jar:1.10, which is affected by a security vulnerability.
+        The dependency below is used only to enforce a specific version that
+        does not suffer from a vulnerability. See bug OM-59183 -->
+        <commons-codec.version>1.14</commons-codec.version>
+
+        <!-- EM: The commons-validator dependency is bringing a dependency on
+        commons-beanutils:jar:1.9.2, which is affected by a security vulnerability.
+        The dependency below is used only to enforce a specific version that
+        does not suffer from a vulnerability. See bug OM-59181 -->
+        <commons-beanutils.version>1.9.4</commons-beanutils.version>
+
     </properties>
 
     <prerequisites>
@@ -337,6 +356,13 @@
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
                 <module>../com.vmturbo.extractor.schema</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>licensing</id>
+            <modules>
+                <module>../com.vmturbo.licensing</module>
             </modules>
         </profile>
 
@@ -850,6 +876,7 @@
             <id>development</id>
             <modules>
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
@@ -934,6 +961,7 @@
             <id>platform</id>
             <modules>
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
@@ -1035,6 +1063,7 @@
                 <module>../nginx</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
@@ -2003,6 +2032,11 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
+                <artifactId>cloud-commitment-analysis</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
                 <artifactId>reserved-instance-coverage-allocator</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -2044,6 +2078,21 @@
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcprov-jdk15on</artifactId>
                 <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.cryptacular</groupId>
+                <artifactId>cryptacular</artifactId>
+                <version>${cryptacular.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-codec</groupId>
+                <artifactId>commons-codec</artifactId>
+                <version>${commons-codec.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-beanutils</groupId>
+                <artifactId>commons-beanutils</artifactId>
+                <version>${commons-beanutils.version}</version>
             </dependency>
 
             <!-- The Test dependencies for auth -->
@@ -2105,11 +2154,31 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.licensing</artifactId>
-                <version>${vmturbo.mt.branch.version}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.macrovision</groupId>
                 <artifactId>flexlm</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>flexlmutil</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>EccpressoAll</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>flexlmmgmt</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>magellaninfo</artifactId>
                 <version>${flex.lm.version}</version>
             </dependency>
             <dependency>
@@ -2765,6 +2834,11 @@
             <dependency>
                 <groupId>com.fasterxml.jackson.dataformat</groupId>
                 <artifactId>jackson-dataformat-yaml</artifactId>
+                <version>${jackson-core.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.dataformat</groupId>
+                <artifactId>jackson-dataformat-xml</artifactId>
                 <version>${jackson-core.version}</version>
             </dependency>
             <dependency>

@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -42,8 +43,8 @@ public class TemplateConverterFactory {
     private static final Logger logger = LogManager.getLogger();
 
     private final TemplateServiceBlockingStub templateService;
-
     private final IdentityProvider identityProvider;
+    private final SettingPolicyServiceBlockingStub settingPolicyService;
 
     private final Map<Integer, ITopologyEntityConstructor> templateConverterMap = ImmutableMap.of(
             EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(),
@@ -55,9 +56,11 @@ public class TemplateConverterFactory {
             .of(EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(true));
 
     public TemplateConverterFactory(@Nonnull TemplateServiceBlockingStub templateService,
-                                    @Nonnull final IdentityProvider identityProvider) {
+            @Nonnull final IdentityProvider identityProvider,
+            @Nonnull SettingPolicyServiceBlockingStub settingPolicyService) {
         this.templateService = Objects.requireNonNull(templateService);
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.settingPolicyService = Objects.requireNonNull(settingPolicyService);
     }
 
     /**
@@ -183,7 +186,7 @@ public class TemplateConverterFactory {
 
         for (int i = 0; i < additionCount; i++) {
             result.add(generateTopologyEntityByType(template, topology, null,
-                    isReservation, false));
+                    isReservation, false, "(Clone " + i + ")"));
         }
 
         return result;
@@ -202,13 +205,14 @@ public class TemplateConverterFactory {
 
         if (template.getTemplateInfo().getEntityType() == EntityType.HCI_PHYSICAL_MACHINE_VALUE) {
             return new HCIPhysicalMachineEntityConstructor(template, topology, entitiesToReplace,
-                    true, identityProvider).createTopologyEntitiesFromTemplate();
+                    true, identityProvider, settingPolicyService)
+                            .createTopologyEntitiesFromTemplate();
         } else {
             List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
             for (TopologyEntity.Builder entity : entitiesToReplace) {
                 result.add(generateTopologyEntityByType(template, topology,
-                        entity.getEntityBuilder(), false, true));
+                        entity.getEntityBuilder(), false, true, null));
             }
 
             return result;
@@ -260,7 +264,8 @@ public class TemplateConverterFactory {
             @Nonnull final Template template,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, final boolean isReservation,
-            boolean isReplaced) throws TopologyEntityConstructorException {
+            boolean isReplaced, @Nullable String nameSuffix)
+            throws TopologyEntityConstructorException {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
         final Map<Integer, ITopologyEntityConstructor> converterMap = isReservation
                 ? reservationTemplateConvertMap
@@ -270,6 +275,6 @@ public class TemplateConverterFactory {
         }
 
         return converterMap.get(templateEntityType).createTopologyEntityFromTemplate(template,
-                topology, originalTopologyEntity, isReplaced, identityProvider);
+                topology, originalTopologyEntity, isReplaced, identityProvider, nameSuffix);
     }
 }

@@ -17,8 +17,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowParameter;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowProperty;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -53,10 +60,10 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     private final long targetId;
 
     /**
-     * Indicates whether this action has a workflow associated with it
+     * Workflow, if any.
      * Workflows allow actions to be executed through a third party action orchestrator
      */
-    private final boolean hasWorkflow;
+    private final Workflow workflow;
 
     /**
      * The action type-specific data associated with this action, as sent from Action Orchestrator
@@ -102,7 +109,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         Objects.requireNonNull(request);
         this.actionId = request.getActionId();
         this.targetId = request.getTargetId();
-        this.hasWorkflow = request.hasWorkflowInfo();
+        this.workflow = request.hasWorkflowInfo() ? buildWorkflow(request.getWorkflowInfo()) : null;
         this.actionInfo = Objects.requireNonNull(request.getActionInfo());
         this.dataManager = Objects.requireNonNull(dataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
@@ -159,15 +166,10 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         return targetId;
     }
 
-    /**
-     * Indicates whether this action has a workflow associated with it.
-     * Workflows allow actions to be executed through a third party action orchestrator.
-     *
-     * @return true, if this action has a workflow associated with it; otherwise, false.
-     */
+    @Nonnull
     @Override
-    public boolean hasWorkflow() {
-        return hasWorkflow;
+    public Optional<Workflow> getWorkflow() {
+        return Optional.ofNullable(workflow);
     }
 
     /**
@@ -345,4 +347,97 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         return dataManager.getContextData(actionInfo);
     }
 
+    @Override
+    @Nonnull
+    public ActionExecutionDTO buildActionExecutionDto() {
+        final ActionExecutionDTO.Builder actionExecutionBuilder = ActionExecutionDTO.newBuilder()
+                .setActionOid(getActionId())
+                .setActionType(getSDKActionType())
+                .addAllActionItem(getActionItems());
+        // if a WorkflowInfo action execution override is present, translate it to a NonMarketEntity
+        // and include it in the ActionExecution to be sent to the target
+        getWorkflow().ifPresent(actionExecutionBuilder::setWorkflow);
+        return actionExecutionBuilder.build();
+    }
+
+    /**
+     * Create a Workflow DTO representing the given {@link WorkflowDTO.WorkflowInfo}.
+     *
+     * @param workflowInfo the information describing this Workflow, including ID, displayName,
+     *                     and defining data - parameters and properties.
+     * @return a newly created {@link Workflow} DTO
+     */
+    private static Workflow buildWorkflow(WorkflowDTO.WorkflowInfo workflowInfo) {
+        final Workflow.Builder wfBuilder = Workflow.newBuilder();
+        if (workflowInfo.hasDisplayName()) {
+            wfBuilder.setDisplayName(workflowInfo.getDisplayName());
+        }
+        if (workflowInfo.hasName()) {
+            wfBuilder.setId(workflowInfo.getName());
+        }
+        if (workflowInfo.hasDescription()) {
+            wfBuilder.setDescription(workflowInfo.getDescription());
+        }
+        wfBuilder.addAllParam(workflowInfo.getWorkflowParamList().stream()
+                .map(AbstractActionExecutionContext::buildWorkflowParameter)
+                .collect(Collectors.toList()));
+        // include the 'property' entries from the Workflow
+        wfBuilder.addAllProperty(workflowInfo.getWorkflowPropertyList().stream()
+                .map(AbstractActionExecutionContext::buildWorkflowProperty)
+                .collect(Collectors.toList()));
+        if (workflowInfo.hasScriptPath()) {
+            wfBuilder.setScriptPath(workflowInfo.getScriptPath());
+        }
+        if (workflowInfo.hasEntityType()) {
+            wfBuilder.setEntityType(EntityDTO.EntityType.forNumber(workflowInfo.getEntityType()));
+        }
+        if (workflowInfo.hasActionType()) {
+            ActionType converted = ActionConversions.convertActionType(workflowInfo.getActionType());
+            if (converted != null) {
+                wfBuilder.setActionType(converted);
+            }
+        }
+        if (workflowInfo.hasActionPhase()) {
+            final ActionScriptPhase converted = ActionConversions.convertActionPhase(workflowInfo.getActionPhase());
+            if (converted != null) {
+                wfBuilder.setPhase(converted);
+            }
+        }
+        if (workflowInfo.hasTimeLimitSeconds()) {
+            wfBuilder.setTimeLimitSeconds(workflowInfo.getTimeLimitSeconds());
+        }
+        return wfBuilder.build();
+    }
+
+    @Nonnull
+    private static Workflow.Parameter buildWorkflowParameter(
+            @Nonnull WorkflowParameter workflowParam) {
+        final Workflow.Parameter.Builder parmBuilder = Workflow.Parameter.newBuilder();
+        if (workflowParam.hasDescription()) {
+            parmBuilder.setDescription(workflowParam.getDescription());
+        }
+        if (workflowParam.hasName()) {
+            parmBuilder.setName(workflowParam.getName());
+        }
+        if (workflowParam.hasType()) {
+            parmBuilder.setType(workflowParam.getType());
+        }
+        if (workflowParam.hasMandatory()) {
+            parmBuilder.setMandatory(workflowParam.getMandatory());
+        }
+        return parmBuilder.build();
+    }
+
+    @Nonnull
+    private static Workflow.Property buildWorkflowProperty(
+            @Nonnull WorkflowProperty workflowProperty) {
+        final Workflow.Property.Builder propBUilder = Workflow.Property.newBuilder();
+        if (workflowProperty.hasName()) {
+            propBUilder.setName(workflowProperty.getName());
+        }
+        if (workflowProperty.hasValue()) {
+            propBUilder.setValue(workflowProperty.getValue());
+        }
+        return propBUilder.build();
+    }
 }

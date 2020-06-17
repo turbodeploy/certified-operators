@@ -1,6 +1,17 @@
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
+# Required OpenShift Labels
+LABEL name="arangodb" \
+      vendor="Turbonomic" \
+      version="7" \
+      release="1" \
+      summary="arangodb" \
+      description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
+
+# Required Licenses
+COPY licenses /licenses
+
 ENV ARANGO_VERSION 3.6.4-1.0
 ENV ARANGO_URL https://download.arangodb.com/arangodb36/RPM/x86_64/arangodb3-${ARANGO_VERSION}.x86_64.rpm
 ENV OPENSSL_URL http://mirror.centos.org/centos/8/AppStream/x86_64/os/Packages/compat-openssl10-1.0.2o-3.el8.x86_64.rpm
@@ -11,7 +22,7 @@ RUN userdel systemd-coredump
 
 # Install rsyslog and other packages
 RUN dnf install -y https://download.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
-    dnf install -y rsyslog procps-ng python2 jemalloc pwgen && \
+    dnf install -y rsyslog procps-ng python2 jemalloc pwgen gnutls && \
 # Install flask, for use by arango_dump_restore script
     python2.7 -m pip install flask && \
     dnf clean all && \

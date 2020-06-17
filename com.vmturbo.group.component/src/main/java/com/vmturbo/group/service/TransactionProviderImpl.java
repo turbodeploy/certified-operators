@@ -1,7 +1,6 @@
 package com.vmturbo.group.service;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -14,14 +13,15 @@ import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.IPlacementPolicyStore;
 import com.vmturbo.group.policy.PolicyStore;
+import com.vmturbo.group.policy.PolicyValidator;
 import com.vmturbo.group.setting.ISettingPolicyStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
 import com.vmturbo.group.setting.SettingStore;
@@ -32,22 +32,23 @@ import com.vmturbo.platform.sdk.common.util.Pair;
  */
 public class TransactionProviderImpl implements TransactionProvider {
 
-    private final PolicyStore policyStore;
     private final SettingStore settingStore;
     private final DSLContext dslContext;
+    private final IdentityProvider identityProvider;
 
     /**
      * Constructs transaction provider for RPC services.
      *
-     * @param policyStore placement policy store to use
+     * @param identityProvider identityProvider
      * @param settingStore setting policy store to use
      * @param dslContext Jooq connection
      */
-    public TransactionProviderImpl(@Nonnull PolicyStore policyStore,
-            @Nonnull SettingStore settingStore, @Nonnull DSLContext dslContext) {
-        this.policyStore = Objects.requireNonNull(policyStore);
+    public TransactionProviderImpl(
+            @Nonnull SettingStore settingStore, @Nonnull DSLContext dslContext, @Nonnull
+            IdentityProvider identityProvider) {
         this.settingStore = Objects.requireNonNull(settingStore);
         this.dslContext = Objects.requireNonNull(dslContext);
+        this.identityProvider = Objects.requireNonNull(identityProvider);
     }
 
     @Nonnull
@@ -57,10 +58,14 @@ public class TransactionProviderImpl implements TransactionProvider {
         try {
             return dslContext.transactionResult(config -> {
                 final DSLContext transactionContext = DSL.using(config);
-                final Stores stores =
-                        new StoresImpl(new SettingPolicyStoreImpl(settingStore, transactionContext),
-                                new PlacementPolicyStoreImpl(policyStore, transactionContext),
-                                new GroupDAO(transactionContext));
+                final GroupDAO groupStore = new GroupDAO(transactionContext);
+                final PolicyValidator policyValidator = new PolicyValidator(groupStore);
+                final IPlacementPolicyStore placementPolicyStore = new PolicyStore(
+                        transactionContext, identityProvider, policyValidator);
+                final Stores stores = new StoresImpl(
+                        new SettingPolicyStoreImpl(settingStore, transactionContext),
+                        placementPolicyStore,
+                        groupStore);
                 return operation.execute(stores);
             });
         } catch (DataAccessException | org.springframework.dao.DataAccessException e) {
@@ -158,30 +163,4 @@ public class TransactionProviderImpl implements TransactionProvider {
             return settingStore.updateSettingPolicy(id, newPolicyInfo);
         }
     }
-
-    /**
-     * Placement policy store substituting the DB connection.
-     */
-    private static class PlacementPolicyStoreImpl implements IPlacementPolicyStore {
-        private final PolicyStore policyStore;
-        private final DSLContext dslContext;
-
-        PlacementPolicyStoreImpl(@Nonnull PolicyStore policyStore, @Nonnull DSLContext dslContext) {
-            this.policyStore = policyStore;
-            this.dslContext = dslContext;
-        }
-
-        @Override
-        public void updateTargetPolicies(long targetId,
-                @Nonnull List<DiscoveredPolicyInfo> policyInfos,
-                @Nonnull Map<String, Long> groupOids) throws DataAccessException {
-            policyStore.updateTargetPolicies(dslContext, targetId, policyInfos, groupOids);
-        }
-
-        @Override
-        public void deletePoliciesForGroupBeingRemoved(@Nonnull Collection<Long> groupIds) {
-            policyStore.deletePoliciesForGroupBeingRemoved(dslContext, groupIds);
-        }
-    }
-
 }

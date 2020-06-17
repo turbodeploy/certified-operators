@@ -839,7 +839,7 @@ public class SMAInput {
         long computeTierOid = riSpecInfo.getTierId();
         if (Strings.isNullOrEmpty(name)) {
             logger.trace("RI name is null or empty for riBoughtID={}", riBoughtId);
-            name = constructRIName(cloudTopology, regionId, businessAccountId, riBoughtInfo);
+            name = constructRIName(cloudTopology, regionId, riBoughtInfo);
 
         }
         // for Azure, this RI covers a set of templates, one for each OSType.
@@ -888,19 +888,17 @@ public class SMAInput {
      *
      * @param cloudTopology      cloud topology dictionary
      * @param regionId           region OID
-     * @param businessAccountId  business account OID
      * @param riBoughtInfo       RI's bought information
      * @return constructed RI name
      */
-    private static String constructRIName(final CloudTopology<TopologyEntityDTO> cloudTopology,
-                                          long regionId, long businessAccountId,
-                                          ReservedInstanceBoughtInfo riBoughtInfo) {
+    public static String constructRIName(final CloudTopology<TopologyEntityDTO> cloudTopology,
+                                          long regionId, ReservedInstanceBoughtInfo riBoughtInfo) {
         Optional<TopologyEntityDTO> optionalDTO = cloudTopology.getEntity(regionId);
         String regionName = SMAUtils.UNKNOWN_NAME;
         if (optionalDTO.isPresent()) {
             regionName = optionalDTO.get().getDisplayName();
         }
-        optionalDTO = cloudTopology.getEntity(businessAccountId);
+        optionalDTO = cloudTopology.getEntity(riBoughtInfo.getBusinessAccountId());
         String businessName = SMAUtils.UNKNOWN_NAME;
         if (optionalDTO.isPresent()) {
             businessName = optionalDTO.get().getDisplayName();

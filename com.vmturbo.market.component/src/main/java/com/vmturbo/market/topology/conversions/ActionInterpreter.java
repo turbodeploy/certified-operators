@@ -75,6 +75,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTriggerTraderTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
@@ -200,8 +201,13 @@ public class ActionInterpreter {
                             actionTO.getProvisionByDemand(), projectedTopology));
                     break;
                 case RESIZE:
-                    infoBuilder.setResize(interpretResize(
-                            actionTO.getResize(), projectedTopology));
+                    Optional<ActionDTO.Resize> resize = interpretResize(
+                            actionTO.getResize(), projectedTopology);
+                    if (resize.isPresent()) {
+                        infoBuilder.setResize(resize.get());
+                    } else {
+                        return Optional.empty();
+                    }
                     break;
                 case ACTIVATE:
                     infoBuilder.setActivate(interpretActivate(
@@ -534,7 +540,7 @@ public class ActionInterpreter {
     }
 
     @Nonnull
-    private ActionDTO.Resize interpretResize(@Nonnull final ResizeTO resizeTO,
+    private Optional<ActionDTO.Resize> interpretResize(@Nonnull final ResizeTO resizeTO,
                      @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final long entityId = resizeTO.getSellingTrader();
         final CommoditySpecificationTO cs = resizeTO.getSpecification();
@@ -600,7 +606,7 @@ public class ActionInterpreter {
                             .setCommodityType(topologyCommodityType)
                             .setCommodityAttribute(CommodityAttribute.LIMIT);
                         setHotAddRemove(resizeBuilder, resizeCommSold);
-                        return resizeBuilder.build();
+                        return Optional.of(resizeBuilder.build());
                     }
                     break;
                 }
@@ -615,7 +621,30 @@ public class ActionInterpreter {
         if (resizeTO.hasScalingGroupId()) {
             resizeBuilder.setScalingGroupId(resizeTO.getScalingGroupId());
         }
-        return resizeBuilder.build();
+        if (!resizeTO.getResizeTriggerTraderList().isEmpty()) {
+            if (adjustedResizeTO.getNewCapacity() > adjustedResizeTO.getOldCapacity()) {
+                Optional<ResizeTriggerTraderTO> resizeTriggerTraderTO = resizeTO.getResizeTriggerTraderList().stream()
+                    .findFirst().filter(resizeTriggerTrader
+                        -> resizeTriggerTrader.getRelatedCommoditiesList().contains(cs.getBaseType()));
+                if (!resizeTriggerTraderTO.isPresent()) {
+                    return Optional.empty();
+                } else {
+                    resizeBuilder.setResizeTriggerTrader(createActionEntity(resizeTriggerTraderTO.get()
+                            .getTrader(), projectedTopology));
+                }
+            } else if (adjustedResizeTO.getNewCapacity() < adjustedResizeTO.getOldCapacity()) {
+                Optional<ResizeTriggerTraderTO> resizeTriggerTraderTO = resizeTO.getResizeTriggerTraderList().stream()
+                        .findFirst().filter(resizeTriggerTrader
+                            -> resizeTriggerTrader.getRelatedCommoditiesList().isEmpty());
+                if (!resizeTriggerTraderTO.isPresent()) {
+                    return Optional.empty();
+                } else {
+                    resizeBuilder.setResizeTriggerTrader(createActionEntity(resizeTriggerTraderTO.get()
+                            .getTrader(), projectedTopology));
+                }
+            }
+        }
+        return Optional.of(resizeBuilder.build());
     }
 
     /**

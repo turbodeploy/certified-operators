@@ -23,6 +23,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 
 import io.grpc.Status;
@@ -52,7 +53,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest;
@@ -130,6 +130,8 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final long realtimeTopologyContextId;
 
+    private final int maxNumberOfInnerStatRecords;
+
     /**
      * Create a new RIAndExpenseUploadRpcService.
      *
@@ -142,6 +144,7 @@ public class CostRpcService extends CostServiceImplBase {
      * @param businessAccountHelper Business account helper
      * @param clock A clock providing access to the current instant, date and time using a time-zone
      * @param realtimeTopologyContextId real-time topology context ID
+     * @param maxNumberOfInnerStatRecords maximum number of stats transferred in a single GRPC message
      */
     public CostRpcService(@Nonnull final DiscountStore discountStore,
                           @Nonnull final AccountExpensesStore accountExpensesStore,
@@ -151,7 +154,8 @@ public class CostRpcService extends CostServiceImplBase {
                           @Nonnull final TimeFrameCalculator timeFrameCalculator,
                           @Nonnull final BusinessAccountHelper businessAccountHelper,
                           @Nonnull final Clock clock,
-                          final long realtimeTopologyContextId) {
+                          final long realtimeTopologyContextId,
+                          final int maxNumberOfInnerStatRecords) {
         this.discountStore = Objects.requireNonNull(discountStore);
         this.accountExpensesStore = Objects.requireNonNull(accountExpensesStore);
         this.entityCostStore = Objects.requireNonNull(costStoreHouse);
@@ -162,6 +166,7 @@ public class CostRpcService extends CostServiceImplBase {
         this.forecastingContext = new ForecastingContext(new RegressionForecastingStrategy());
         this.clock = Objects.requireNonNull(clock);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.maxNumberOfInnerStatRecords = maxNumberOfInnerStatRecords;
     }
 
     /**
@@ -607,8 +612,7 @@ public class CostRpcService extends CostServiceImplBase {
     public void getCloudCostStats(GetCloudCostStatsRequest getCloudCostStatsRequest,
                                   StreamObserver<GetCloudCostStatsResponse> responseObserver) {
         try {
-            Builder response =
-                    GetCloudCostStatsResponse.newBuilder();
+            final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
             if (getCloudCostStatsRequest.getCloudCostStatsQueryList().isEmpty()) {
 
                 responseObserver.onError(Status.INTERNAL
@@ -670,22 +674,47 @@ public class CostRpcService extends CostServiceImplBase {
                         }
                     }
                 }
-                final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
                 // if this is not a grouping request; everything else.
                 snapshotToEntityCostMap.forEach((time, statRecords) -> {
-                    final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
+                    final CloudCostStatRecord.Builder outerRecordBuilder =
+                        CloudCostStatRecord.newBuilder()
                             .setSnapshotDate(time)
-                            .setQueryId(request.getQueryId())
-                            .addAllStatRecords(statRecords)
-                            .build();
-                    cloudStatRecords.add(cloudStatRecord);
+                            .setQueryId(request.getQueryId());
+                    if (statRecords.isEmpty()) {
+                        cloudStatRecords.add(outerRecordBuilder.build());
+                    } else {
+                        Iterators.partition(statRecords.iterator(), maxNumberOfInnerStatRecords)
+                            .forEachRemaining(innerStatChunk ->
+                                cloudStatRecords.add(outerRecordBuilder.clone()
+                                    .addAllStatRecords(innerStatChunk)
+                                    .build())
+                            );
+                    }
                 });
-
-                cloudStatRecords.sort(Comparator.comparingLong(CloudCostStatRecord::getSnapshotDate));
-                //add all the records to the final response.
-                response.addAllCloudStatRecord(cloudStatRecords);
             }
-            responseObserver.onNext(response.build());
+            cloudStatRecords.sort(Comparator.comparingLong(CloudCostStatRecord::getSnapshotDate));
+
+            GetCloudCostStatsResponse.Builder responseBuilder = GetCloudCostStatsResponse.newBuilder();
+            int innerRecordCount = 0;
+            for (final CloudCostStatRecord outerRecord : cloudStatRecords) {
+                if (innerRecordCount + outerRecord.getStatRecordsCount() <= maxNumberOfInnerStatRecords) {
+                    responseBuilder.addCloudStatRecord(outerRecord);
+                    innerRecordCount += outerRecord.getStatRecordsCount();
+                } else {
+                    logger.debug("Sending response chunk containing {} StatsRecords within " +
+                        "{} CloudCostStatRecords", innerRecordCount,
+                        responseBuilder.getCloudStatRecordCount());
+                    responseObserver.onNext(responseBuilder.build());
+                    responseBuilder.clear().addCloudStatRecord(outerRecord);
+                    innerRecordCount = outerRecord.getStatRecordsCount();
+                }
+            }
+            if (innerRecordCount > 0) {
+                logger.debug("Sending response chunk containing {} StatsRecords within " +
+                        "{} CloudCostStatRecords", innerRecordCount,
+                    responseBuilder.getCloudStatRecordCount());
+                responseObserver.onNext(responseBuilder.build());
+            }
             responseObserver.onCompleted();
         } catch (DbException e) {
             logger.error("Error getting stats snapshots for {}", getCloudCostStatsRequest);

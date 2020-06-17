@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -28,5 +29,21 @@ public class TopologyProcessorListenerConfig {
                 TopologyProcessorSubscription.forTopic(Topic.Notifications),
                 // used by TopologyInforTracker
                 TopologyProcessorSubscription.forTopic(Topic.TopologySummaries));
+    }
+
+    /**
+     * Used to track the latest real time topology.
+     *
+     * @return The topology info tracker.
+     */
+    @Bean
+    public TopologyInfoTracker liveTopologyInfoTracker() {
+
+        final TopologyInfoTracker topologyInfoTracker = new TopologyInfoTracker(
+                TopologyInfoTracker.SUCCESSFUL_REALTIME_TOPOLOGY_SUMMARY_SELECTOR,
+                10);
+
+        topologyProcessor().addTopologySummaryListener(topologyInfoTracker);
+        return topologyInfoTracker;
     }
 }

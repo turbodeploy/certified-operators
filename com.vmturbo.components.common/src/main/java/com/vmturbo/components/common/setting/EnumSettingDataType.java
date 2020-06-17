@@ -88,5 +88,10 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
             return null;
         }
     }
+
+    @Nonnull
+    public Class<T> getEnumClass() {
+        return enumClass;
+    }
 }
 

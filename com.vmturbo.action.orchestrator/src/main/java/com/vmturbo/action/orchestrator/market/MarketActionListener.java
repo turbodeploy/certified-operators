@@ -133,10 +133,12 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
             // Notify listeners that actions are ready for retrieval.
             try {
                 notificationSender.notifyActionsUpdated(orderedActions);
-            } catch (CommunicationException | InterruptedException e) {
+            } catch (CommunicationException e) {
                 logger.error("Could not send actions recommended notification for "
                         + orderedActions.getId(), e);
             }
+        } catch (InterruptedException e) {
+            logger.info("Thread interrupted while processing received actions", e);
         } catch (Exception e) {
             logger.error("An error happened while populating the actions.", e);
             notificationSender.notifyActionsUpdateFailure(orderedActions);

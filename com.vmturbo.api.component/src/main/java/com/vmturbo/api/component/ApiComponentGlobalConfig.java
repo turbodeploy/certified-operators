@@ -6,6 +6,8 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -28,6 +30,7 @@ import com.vmturbo.api.serviceinterfaces.IAppVersionInfo;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 /**
  * Configuration of things that affect the entire API component and don't fit into
@@ -106,6 +109,10 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
             .excludePathPatterns("/doc/**")
             .excludePathPatterns("/widgetsets/**")
             .excludePathPatterns("/app/**");
+        // add a planning feature interceptor that will block access to plan configuration endpoints
+        registry.addInterceptor(new LicenseInterceptor(licenseCheckClientConfig.licenseCheckClient(),
+                ImmutableSet.of(ProbeLicense.PLANNER)))
+                .addPathPatterns("/scenarios/**");
         registry.addInterceptor(devFreemiumInterceptor())
             .addPathPatterns("/actions/**")
             .addPathPatterns("/businessunits/**")

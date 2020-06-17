@@ -1,6 +1,17 @@
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
+# Required OpenShift Labels
+LABEL name="nginx" \
+      vendor="Turbonomic" \
+      version="7" \
+      release="1" \
+      summary="nginx" \
+      description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
+
+# Required Licenses
+COPY licenses /licenses
+
 # Add user and group beforehand, so that rpm won't create its own with differen uid/gid.
 RUN groupadd -g 1000 nginx && useradd -r -g 1000 -s /bin/bash -u 102 nginx && \
 passwd -l root
@@ -11,7 +22,7 @@ RUN echo "[nginx]" > /etc/yum.repos.d/nginx.repo && \
     echo "baseurl=http://nginx.org/packages/rhel/7/x86_64/" >> /etc/yum.repos.d/nginx.repo && \
     echo "gpgcheck=0" >> /etc/yum.repos.d/nginx.repo && \
     echo "enabled=1" >> /etc/yum.repos.d/nginx.repo && \
-    dnf install -y rsyslog procps-ng openssl nginx gettext  && \
+    dnf install -y rsyslog procps-ng openssl nginx gettext gnutls && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 

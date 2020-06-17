@@ -45,32 +45,10 @@ public enum EntitySettingSpecs {
                     EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
 
     /**
-     * Move action execution schedule.
-     * NOTE: for all ExecutionSchedule settings we use special tiebreaker logic.
-     * If actionModes settings (associated with this appropriate executionSchedule setting) have
-     * the same values then we merge execution windows from ExecutionSchedule settings.
-     * If actionModes values are different then we select execution window related to less
-     * aggressive mode.
-     */
-    MoveExecutionSchedule("moveExecutionSchedule", "Execution window for Move / Compute Scale",
-            Collections.emptyList(), SettingTiebreaker.UNION,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_VOLUME,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER, EntityType.DISK_ARRAY,
-                    EntityType.LOGICAL_POOL), sortedSetOfOid(Type.ENTITY), true),
-
-    /**
      * Move action automation mode for business user.
      */
     BusinessUserMove("businessUserMove", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.BUSINESS_USER), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Move action execution schedule for business user.
-     */
-    BusinessUserMoveExecutionSchedule("businessUserMoveExecutionSchedule",
-            "Execution schedule for Business User Move", Collections.emptyList(),
-            SettingTiebreaker.UNION, EnumSet.of(EntityType.BUSINESS_USER),
-            sortedSetOfOid(Type.ENTITY), true),
 
     /**
      * Storage Move action automation mode.
@@ -78,14 +56,6 @@ public enum EntitySettingSpecs {
     StorageMove("storageMove", "Storage Move / Storage Scale", Collections.emptyList(),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             actionExecutionModeSetToRecommend(), true),
-
-    /**
-     * Storage Move action execution schedule.
-     */
-    StorageMoveExecutionSchedule("storageMoveExecutionSchedule",
-            "Execution schedule for Storage Move / Storage Scale", Collections.emptyList(),
-            SettingTiebreaker.UNION, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            sortedSetOfOid(Type.ENTITY), true),
 
     /**
      * Shop together setting for VMs.
@@ -135,30 +105,11 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
 
     /**
-     * Resize action execution schedule.
-     */
-    ResizeExecutionSchedule("resizeExecutionSchedule", "Execution schedule for Resize",
-            Collections.emptyList(), SettingTiebreaker.UNION,
-            EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER, EntityType.DISK_ARRAY,
-                    EntityType.LOGICAL_POOL,
-                    EntityType.DATABASE_SERVER), sortedSetOfOid(Type.ENTITY), true),
-
-    /**
      * Resize action automation mode for vcpu resize ups where the target capacity is between
      * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
      */
     ResizeVcpuUpInBetweenThresholds("resizeVcpuUpInBetweenThresholds", "VCPU Resize Up", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Resize action execution schedule for vcpu resize ups where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
-     */
-    ResizeVcpuUpInBetweenThresholdsExecutionSchedule(
-            "resizeVcpuUpInBetweenThresholdsExecutionSchedule",
-            "Execution schedule for VCPU Resize Up", Collections.emptyList(),
-            SettingTiebreaker.UNION, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            sortedSetOfOid(Type.ENTITY), false),
 
     /**
      * Resize action automation mode for vcpu resize downs where the target capacity is between
@@ -168,44 +119,16 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
 
     /**
-     * Resize action execution schedule for vcpu resize downs where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
-     */
-    ResizeVcpuDownInBetweenThresholdsExecutionSchedule(
-            "resizeVcpuDownInBetweenThresholdsExecutionSchedule",
-            "Execution schedule for VCPU Resize Down", Collections.emptyList(),
-            SettingTiebreaker.UNION, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            sortedSetOfOid(Type.ENTITY), true),
-
-    /**
      * Resize action automation mode for vcpu resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
      */
     ResizeVcpuAboveMaxThreshold("resizeVcpuAboveMaxThreshold", "VCPU Resize Above Max", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
 
     /**
-     * Resize action execution schedule for vcpu resizes where the target capacity is above the max
-     * threshold value {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
-     */
-    ResizeVcpuAboveMaxThresholdExecutionSchedule("resizeVcpuAboveMaxThresholdExecutionSchedule",
-            "Execution schedule for VCPU Resize Above Max", Collections.emptyList(),
-            SettingTiebreaker.UNION, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            sortedSetOfOid(Type.ENTITY), true),
-
-    /**
      * Resize action automation mode for vcpu resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVcpuMinThreshold}.
      */
     ResizeVcpuBelowMinThreshold("resizeVcpuBelowMinThreshold", "VCPU Resize Below Min", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
-
-    /**
-     * Resize action execution schedule for vcpu resizes where the target capacity is below the min
-     * value {@link EntitySettingSpecs#ResizeVcpuMinThreshold}.
-     */
-    ResizeVcpuBelowMinThresholdExecutionSchedule("resizeVcpuBelowMinThresholdExecutionSchedule",
-            "Execution schedule for VCPU Resize Below Min", Collections.emptyList(),
-            SettingTiebreaker.UNION, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            sortedSetOfOid(Type.ENTITY), true),
 
     /**
      * The minimum number of vcpu cores which is the threshold to decide automation mode.
@@ -229,31 +152,11 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
 
     /**
-     * Resize action execution schedule for vmem resize ups where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
-     */
-    ResizeVmemUpInBetweenThresholdsExecutionSchedule(
-            "resizeVmemUpInBetweenThresholdsExecutionSchedule",
-            "Execution schedule for VMem Resize Up", Collections.emptyList(),
-            SettingTiebreaker.UNION, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            sortedSetOfOid(Type.ENTITY), true),
-
-    /**
      * Resize action automation mode for vmem resize downs where the target capacity is between
      * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
      */
     ResizeVmemDownInBetweenThresholds("resizeVmemDownInBetweenThresholds", "VMem Resize Down", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Resize action execution schedule for vmem resize downs where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
-     */
-    ResizeVmemDownInBetweenThresholdsExecutionSchedule(
-            "resizeVmemDownInBetweenThresholdsExecutionSchedule",
-            "Execution schedule for VMem Resize Down", Collections.emptyList(),
-            SettingTiebreaker.UNION, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            sortedSetOfOid(Type.ENTITY), true),
 
     /**
      * Resize action automation mode for vmem resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
@@ -262,28 +165,10 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
 
     /**
-     * Resize action execution schedule for vmem resizes where the target capacity is above the max
-     * threshold value {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
-     */
-    ResizeVmemAboveMaxThresholdExecutionSchedule("resizeVmemAboveMaxThresholdExecutionSchedule",
-            "Execution schedule for VMem Resize Above Max", Collections.emptyList(),
-            SettingTiebreaker.UNION, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            sortedSetOfOid(Type.ENTITY), true),
-
-    /**
      * Resize action automation mode for vmem resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVmemMinThreshold}.
      */
     ResizeVmemBelowMinThreshold("resizeVmemBelowMinThreshold", "VMem Resize Below Min", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
-
-    /**
-     * Resize action execution schedule for vmem resizes where the target capacity is below the min
-     * value {@link EntitySettingSpecs#ResizeVmemMinThreshold}.
-     */
-    ResizeVmemBelowMinThresholdExecutionSchedule("resizeVmemBelowMinThresholdExecutionSchedule",
-            "Execution schedule for VMem Resize Below Min", Collections.emptyList(),
-            SettingTiebreaker.UNION, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            sortedSetOfOid(Type.ENTITY), true),
 
     /**
      * The minimum number of vmem cores which is the threshold to decide automation mode.
@@ -326,40 +211,16 @@ public enum EntitySettingSpecs {
             EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
 
     /**
-     * Suspend action execution schedule.
-     */
-    SuspendExecutionSchedule("suspendExecutionSchedule", "Execution schedule for Suspend",
-            Collections.emptyList(), SettingTiebreaker.UNION,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER, EntityType.DISK_ARRAY,
-                    EntityType.LOGICAL_POOL), sortedSetOfOid(Type.ENTITY), true),
-
-    /**
      * For some types of entities Suspend actions are disabled by default.
      */
     DisabledSuspend("suspendIsDisabled", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.IO_MODULE), actionExecutionModeSetToDisabled(), true),
 
     /**
-     * Disable suspend execution schedule.
-     */
-    DisabledSuspendExecutionSchedule("suspendIsDisabledExecutionSchedule",
-            "Execution schedule for Suspend", Collections.emptyList(), SettingTiebreaker.UNION,
-            EnumSet.of(EntityType.IO_MODULE), sortedSetOfOid(Type.ENTITY), true),
-
-    /**
      * Delete action automation mode.
      */
     Delete("delete", "Delete", Collections.emptyList(), SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Delete action execution schedule.
-     */
-    DeleteExecutionSchedule("deleteExecutionSchedule", "Execution schedule for Delete",
-            Collections.emptyList(), SettingTiebreaker.UNION,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME), sortedSetOfOid(Type.ENTITY),
-            true),
 
     /**
      * Provision action automation mode.
@@ -377,29 +238,10 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE_CONTROLLER), actionExecutionModeSetToDisabled(), true),
 
     /**
-     * Provision action execution schedule.
-     */
-    ProvisionExecutionSchedule("provisionExecutionSchedule", "Provision", Collections.emptyList(),
-            SettingTiebreaker.UNION,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
-                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL),
-            sortedSetOfOid(Type.ENTITY), true),
-
-    /**
      * Reconfigure action automation mode (not executable).
      */
     Reconfigure("reconfigure", "Reconfigure", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD), nonExecutableActionMode(), true),
-
-    /**
-     * Reconfigure action execution schedule.
-     */
-    ReconfigureExecutionSchedule("reconfigureExecutionSchedule",
-            "Execution schedule for Reconfigure", Collections.emptyList(),
-            SettingTiebreaker.UNION,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
-            sortedSetOfOid(Type.ENTITY), true),
 
     /**
      * Activate action automation mode.
@@ -408,15 +250,6 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Activate action execution schedule.
-     */
-    ActivateExecutionSchedule("activateExecutionSchedule", "Execution schedule for Start",
-            Collections.emptyList(), SettingTiebreaker.UNION,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER, EntityType.DISK_ARRAY,
-                    EntityType.LOGICAL_POOL), sortedSetOfOid(Type.ENTITY), true),
 
     /**
      * CPU utilization threshold.
@@ -1352,75 +1185,6 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.ResizeDownDBMem.name,
             EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
                     EntitySettingSpecs.ShopTogether.name);
-    /**
-     * Contains information about ActionMode setting and corresponding ExecutionSchedule setting
-     * that can be used optionally in settings policies.
-     * Execution schedule windows define when action could be executed.
-     */
-    private static final BiMap<String, String> ACTION_MODE_TO_EXECUTION_SCHEDULE_SETTINGS =
-            new ImmutableBiMap.Builder<String, String>()
-    .put(EntitySettingSpecs.Activate.name, EntitySettingSpecs.ActivateExecutionSchedule.name)
-    .put(EntitySettingSpecs.Move.name, EntitySettingSpecs.MoveExecutionSchedule.name)
-    .put(EntitySettingSpecs.BusinessUserMove.name, EntitySettingSpecs.BusinessUserMoveExecutionSchedule.name)
-    .put(EntitySettingSpecs.StorageMove.name, EntitySettingSpecs.StorageMoveExecutionSchedule.name)
-    .put(EntitySettingSpecs.Resize.name, EntitySettingSpecs.ResizeExecutionSchedule.name)
-    .put(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.name, EntitySettingSpecs.ResizeVcpuUpInBetweenThresholdsExecutionSchedule.name)
-    .put(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.name, EntitySettingSpecs.ResizeVcpuDownInBetweenThresholdsExecutionSchedule.name)
-    .put(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.name, EntitySettingSpecs.ResizeVcpuAboveMaxThresholdExecutionSchedule.name)
-    .put(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.name, EntitySettingSpecs.ResizeVcpuBelowMinThresholdExecutionSchedule.name)
-    .put(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name, EntitySettingSpecs.ResizeVmemUpInBetweenThresholdsExecutionSchedule.name)
-    .put(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name, EntitySettingSpecs.ResizeVmemDownInBetweenThresholdsExecutionSchedule.name)
-    .put(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.name, EntitySettingSpecs.ResizeVmemAboveMaxThresholdExecutionSchedule.name)
-    .put(EntitySettingSpecs.ResizeVmemBelowMinThreshold.name, EntitySettingSpecs.ResizeVmemBelowMinThresholdExecutionSchedule.name)
-    .put(EntitySettingSpecs.Suspend.name, EntitySettingSpecs.SuspendExecutionSchedule.name)
-    .put(EntitySettingSpecs.DisabledSuspend.name, EntitySettingSpecs.DisabledSuspendExecutionSchedule.name)
-    .put(EntitySettingSpecs.Delete.name, EntitySettingSpecs.DeleteExecutionSchedule.name)
-    .put(EntitySettingSpecs.Provision.name, EntitySettingSpecs.ProvisionExecutionSchedule.name)
-    .put(EntitySettingSpecs.Reconfigure.name, EntitySettingSpecs.ReconfigureExecutionSchedule.name)
-    .build();
-
-    /**
-     * Check if the given setting spec name is an execution schedule.
-     *
-     * @param specName name of the setting spec
-     * @return true if the setting is an execution schedule setting otherwise false.
-     */
-    public static boolean isExecutionScheduleSetting(@Nonnull String specName) {
-        Objects.requireNonNull(specName);
-        return ACTION_MODE_TO_EXECUTION_SCHEDULE_SETTINGS.containsValue(specName);
-    }
-
-    /**
-     * Check if the given setting spec name is action mode setting.
-     *
-     * @param specName name of the setting spec
-     * @return true if the setting is an action mode setting otherwise false.
-     */
-    public static boolean isActionModeSetting(@Nonnull String specName) {
-        Objects.requireNonNull(specName);
-        return ACTION_MODE_TO_EXECUTION_SCHEDULE_SETTINGS.containsKey(specName);
-    }
-
-    /**
-     * Return map of corresponding settings. ActionMode settings has related ExecutionSchedule
-     * settings which determine schedules when actions could be executed.
-     *
-     * @return map of corresponding settings
-     */
-    @Nonnull
-    public static BiMap<String, String> getActionModeToExecutionScheduleSettings() {
-        return ACTION_MODE_TO_EXECUTION_SCHEDULE_SETTINGS;
-    }
-
-    /**
-     * Return all action mode settings.
-     *
-     * @return set of action mode settings names
-     */
-    @Nonnull
-    public static Set<String> getActionModeSettings() {
-        return ACTION_MODE_TO_EXECUTION_SCHEDULE_SETTINGS.keySet();
-    }
 
     /**
      * Default value for a String-type SettingDataStructure = empty String.
@@ -1594,6 +1358,10 @@ public enum EntitySettingSpecs {
         return cls.isInstance(value) ? cls.cast(value) : null;
     }
 
+    @Nonnull
+    public SettingDataStructure<?> getDataStructure() {
+        return dataStructure;
+    }
 
     @Nonnull
     private static SettingDataStructure<?> actionExecutionModeSetToManual() {
@@ -1637,9 +1405,8 @@ public enum EntitySettingSpecs {
     }
 
     @Nonnull
-    private static SettingDataStructure<?> sortedSetOfOid(@Nonnull final Type type,
-                                                          @Nonnull final Set<Long> defaultValue) {
-        return new SortedSetOfOidSettingDataType(type, defaultValue);
+    public boolean isAllowGlobalDefault() {
+        return allowGlobalDefault;
     }
 
     @Nonnull

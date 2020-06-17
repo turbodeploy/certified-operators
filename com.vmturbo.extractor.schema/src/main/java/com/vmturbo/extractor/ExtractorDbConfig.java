@@ -1,5 +1,7 @@
 package com.vmturbo.extractor;
 
+import java.util.function.Supplier;
+
 import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -25,22 +27,26 @@ public class ExtractorDbConfig {
      * General R/W endpoint for persisting data from topologies.
      *
      * @return ingestion endpoint
-     * @throws UnsupportedDialectException should not happen
      */
     @Bean
-    public DbEndpoint ingesterEndpoint() throws UnsupportedDialectException {
-        return sqlDatabaseConfig2.primaryDbEndpoint(SQLDialect.POSTGRES);
+    public Supplier<DbEndpoint> ingesterEndpoint() {
+        return sqlDatabaseConfig2.primaryDbEndpoint(SQLDialect.POSTGRES)
+                .withDbAccess(DbEndpointAccess.ALL)
+                .withDbDestructiveProvisioningEnabled(true)
+                .build();
     }
 
     /**
      * R/W endpoint to same data, for in query execution.
      *
      * @return query endpoint
-     * @throws UnsupportedDialectException should not happen
      */
     @Bean
-    public DbEndpoint queryEndpoint() throws UnsupportedDialectException {
+    public Supplier<DbEndpoint> queryEndpoint() {
         return sqlDatabaseConfig2.secondaryDbEndpoint("q", SQLDialect.POSTGRES)
-                .like(ingesterEndpoint()).withAccess(DbEndpointAccess.READ_ONLY).noMigration();
+                .like(ingesterEndpoint())
+                .withDbAccess(DbEndpointAccess.READ_ONLY)
+                .withNoDbMigrations()
+                .build();
     }
 }

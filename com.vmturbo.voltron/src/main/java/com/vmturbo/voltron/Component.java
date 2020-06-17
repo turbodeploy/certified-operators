@@ -31,6 +31,8 @@ import com.vmturbo.clustermgr.ClusterMgrMain;
 import com.vmturbo.clustermgr.db.Clustermgr;
 import com.vmturbo.cost.component.CostComponent;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.extractor.ExtractorComponent;
+import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.group.GroupComponent;
 import com.vmturbo.history.HistoryComponent;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
@@ -114,6 +116,15 @@ public enum Component {
      */
     REPOSITORY("repository", "com.vmturbo.repository.component",
             RepositoryComponent.class, Optional.empty()),
+
+    /**
+     * The extractor component.
+     */
+    EXTRACTOR("extractor", "com.vmturbo.extractor",
+            ExtractorComponent.class, Optional.of(Extractor.EXTRACTOR),
+            ImmutableMap.of("dbMigrationLocation", Voltron.migrationLocation("com.vmturbo.extractor.schema"),
+                    // The extractor connects to Postgres.
+                    "dbPort", "5432")),
 
     /**
      * The API component.
@@ -416,7 +427,12 @@ public enum Component {
     /**
      * XTremio.
      */
-    MEDIATION_XTREMIO("xtremio", "com.vmturbo.mediation.xtremio.component");
+    MEDIATION_XTREMIO("xtremio", "com.vmturbo.mediation.xtremio.component"),
+
+    /**
+     * ServiceNOW.
+     */
+    MEDIATION_SERVICENOW("servicenow", "com.vmturbo.mediation.servicenow.component");
 
     private final String shortName;
     private final String topLevelFolder;
@@ -481,7 +497,8 @@ public enum Component {
         context.setNamespace(topLevelFolder);
         context.setEnvironment(env);
         if (this == API) {
-            // Stupid hack.
+            // Stupid hack. We want to (and need to) serve the API from the root context,
+            // so we add the dispatcher servlet here.
             final ServletHolder dispatcherServlet = ApiComponent.addDispatcherToContext(context, contextServer);
             // Make it initialize after the parent context.
             dispatcherServlet.setInitOrder(100);

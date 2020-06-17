@@ -35,6 +35,8 @@ message TypeSpecificInfo {
         BusinessUserInfo business_user = 75;
         RegionInfo region = 76;
         WorkloadControllerInfo workload_controller = 77;
+        DatabaseTierInfo database_tier = 78;
+        DatabaseServerTierInfo database_server_tier = 79;
     }
 
     message ApplicationInfo {
@@ -198,6 +200,17 @@ message TypeSpecificInfo {
         optional bool burstableCPU = 9;
     }
 
+    message DatabaseTierInfo {
+        // Edition type of the specified database engine
+        optional string edition = 1;
+        // license model of database server; e.g. BYOL or license included
+        optional string family = 2;
+    }
+
+    message DatabaseServerTierInfo {
+        // license model of database server; e.g. BYOL or license included
+        optional string family = 1;
+    }
 
     // Architectures
     enum Architecture {
@@ -232,10 +245,12 @@ message TypeSpecificInfo {
     // specific data for virtual volume
     message VirtualVolumeInfo {
         // float iops capacity of volume needed for cost calculations
-        optional float storage_access_capacity = 1;
+        // The field is deprecated because the value is now carried in the sold commodity
+        optional float storage_access_capacity = 1 [deprecated = true];
 
         // float storage capacity (MB) of volume needed for cost calculations
-        optional float storage_amount_capacity = 2;
+        // The field is deprecated because the value is now carried in the sold commodity
+        optional float storage_amount_capacity = 2 [deprecated = true];
 
         // String identifying the replication type needed for cost calculations
         optional .common_dto.EntityDTO.VirtualVolumeData.RedundancyType redundancy_type = 3;
@@ -257,7 +272,8 @@ message TypeSpecificInfo {
         optional bool isEphemeral = 8;
 
         // float IO throughput capacity (MiB/s) needed for cost calculations
-        optional float io_throughput_capacity = 9;
+        // The field is deprecated because the value is now carried in the sold commodity
+        optional float io_throughput_capacity = 9 [deprecated = true];
     }
 
     // specific data for a Storage entity
@@ -890,6 +906,25 @@ message TopologyEntityDTO {
             // in their logic. Note that this is also the reverse of the SDK AGGREGATES_CONNECTION
             // connection type.
             AGGREGATED_BY_CONNECTION = 3;
+
+            // Controlling is a directional relationship between two entities, the "controller"
+            // and the "controlled entity".The semantics of a CONTROLLED_BY_CONNECTION are that the
+            // "controlled" entities participate in the market and the market generates the action on these
+            // "controlled" entities, but the action is actually executed on the "controller" entity.
+            // The controller contains the information like size, number of instances.
+            // When entities are controlled by controller:
+            // 1. A controller may maintain the "desired state" for the controlled entities and will continuously
+            // drive the controlled entities toward that desired state. Executing an action on the controlled entity
+            // without adjusting the controller's desired state is futile because the controller will change the entity back.
+            // 2. Often controlled entities are created as identical replicas specified by a configuration
+            // known to and managed by the controller. When the market generates actions for these replicas, they may be
+            // merged together on the controller where they are executed to minimize disruption and to make the actions
+            // more understandable to the user in the UI.
+            // Examples of Controls:
+            // (a) WorkloadController controls the ContainerSpec
+            // (b) AWS Auto-scaling-group controls the individual VMs under it
+            // (c) Azure ScaleSet controls the individual VMs under it
+            CONTROLLED_BY_CONNECTION = 4;
         }
     }
 
@@ -935,6 +970,9 @@ message TopologyEntityDTO {
 
             // An entity with an aggregated by connection to another entity that does not exist.
             INVALID_AGGREGATED_BY_CONNECTION = 8;
+
+            // An entity with an controlled by connection to another entity that does not exist.
+            INVALID_CONTROLLED_BY_CONNECTION = 9;
         }
     }
 }
@@ -1275,6 +1313,11 @@ message CommoditySoldDTO {
     // represents more of a logical grouping of entities rather than a proper supplier of resources ie
     // a Container buying from a ContainerPod.
     optional bool is_resold = 25;
+
+    // Whether min is a strict constraint. True when consumer must consume amount above min.
+    optional bool check_min_amount_for_consumer = 26 [default = false];
+
+    optional .common_dto.CommodityDTO.RangeDependency range_dependency = 27;
 
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {

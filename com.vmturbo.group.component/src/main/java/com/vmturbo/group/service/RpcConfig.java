@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceContro
 import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.group.GroupConfig;
+import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
 import com.vmturbo.group.policy.PolicyConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.setting.DefaultSettingPolicyCreator;
@@ -106,8 +107,8 @@ public class RpcConfig {
 
     @Bean
     public TransactionProvider transactionProvider() {
-        return new TransactionProviderImpl(policyConfig.policyStore(), settingConfig.settingStore(),
-                databaseConfig.dsl());
+        return new TransactionProviderImpl(settingConfig.settingStore(), databaseConfig.dsl(),
+                identityProviderConfig.identityProvider());
     }
 
     /**
@@ -121,8 +122,8 @@ public class RpcConfig {
                 repositoryClientConfig.searchServiceClient(),
                 userSessionConfig.userSessionContext(), groupStitchingManager(),
                 transactionProvider(), identityProviderConfig.identityProvider(),
-                targetSearchService(), settingsPoliciesUpdater(), groupRetrievePermitsSize,
-                groupLoadTimeoutSec);
+                targetSearchService(), settingsPoliciesUpdater(), placementPolicyUpdater(),
+                groupRetrievePermitsSize, groupLoadTimeoutSec);
     }
 
     /**
@@ -133,6 +134,16 @@ public class RpcConfig {
     @Bean
     public DiscoveredSettingPoliciesUpdater settingsPoliciesUpdater() {
         return new DiscoveredSettingPoliciesUpdater(identityProviderConfig.identityProvider());
+    }
+
+    /**
+     * Placement policies updater to process incoming discovered placement policies.
+     *
+     * @return placement policies updater
+     */
+    @Bean
+    public DiscoveredPlacementPolicyUpdater placementPolicyUpdater() {
+        return new DiscoveredPlacementPolicyUpdater(identityProviderConfig.identityProvider());
     }
 
     /**

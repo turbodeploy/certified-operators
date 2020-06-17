@@ -43,6 +43,8 @@ import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -138,7 +140,7 @@ public class ActionExecutionSecureRpcTest {
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-        executor, actionStoreLoader, actionModeCalculator);
+            executor, actionStoreLoader, Mockito.mock(ActionApprovalSender.class));
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
 
     private final LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
@@ -151,9 +153,10 @@ public class ActionExecutionSecureRpcTest {
 
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
-    private final EntitiesAndSettingsSnapshotFactory snapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
-
     private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+    private final ActionApprovalManager actionApprovalManager = new ActionApprovalManager(
+            actionExecutor, actionTargetSelector, entitySettingsCache, actionTranslator,
+            workflowStore, acceptedActionsStore);
 
     private final InvolvedEntitiesExpander involvedEntitiesExpander =
         mock(InvolvedEntitiesExpander.class);
@@ -161,12 +164,9 @@ public class ActionExecutionSecureRpcTest {
     private final ActionsRpcService actionsRpcService =
         new ActionsRpcService(clock,
             actionStorehouse,
-            actionExecutor,
-            actionTargetSelector,
-            entitySettingsCache,
+            actionApprovalManager,
             actionTranslator,
             paginatorFactory,
-            workflowStore,
             statReader,
             currentActionStatReader,
             userSessionContext, acceptedActionsStore);
@@ -287,10 +287,12 @@ public class ActionExecutionSecureRpcTest {
     }
 
     /**
-     * Test accepting an existing action with client providing JwtCallCredential
+     * Test accepting an existing action with client providing JwtCallCredential.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testAcceptAction() {
+    public void testAcceptAction() throws Exception {
         ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
@@ -321,10 +323,12 @@ public class ActionExecutionSecureRpcTest {
 
 
     /**
-     * Test accepting an existing action with client interceptor
+     * Test accepting an existing action with client interceptor.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testAcceptActionWithClientInterceptor() {
+    public void testAcceptActionWithClientInterceptor() throws Exception {
         Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
@@ -353,9 +357,11 @@ public class ActionExecutionSecureRpcTest {
 
     /**
      * Test accepting an existing action with invalid JWT token.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testAcceptActionWithInvalidJwtToken() {
+    public void testAcceptActionWithInvalidJwtToken() throws Exception {
         Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
@@ -378,9 +384,11 @@ public class ActionExecutionSecureRpcTest {
 
     /**
      * Test accepting an existing action without JWT token.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testAcceptActionWithoutJwtToken() {
+    public void testAcceptActionWithoutJwtToken() throws Exception {
         Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
@@ -454,8 +462,13 @@ public class ActionExecutionSecureRpcTest {
 
     }
 
+    /**
+     * Tests accept action with a scoped user.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
-    public void testAcceptActionWithScopedUser() {
+    public void testAcceptActionWithScopedUser() throws Exception {
         final Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID, 10L, 0, 1, 1, 1 );
         final ActionPlan plan = actionPlan(recommendation);
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);

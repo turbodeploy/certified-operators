@@ -12,8 +12,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.jetbrains.annotations.NotNull;
-
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -41,13 +39,20 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     private final List<SupplyChainEntity> ownedEntities = new ArrayList<>(0);
     private final List<SupplyChainEntity> aggregators = new ArrayList<>(0);
     private final List<SupplyChainEntity> aggregatedEntities = new ArrayList<>(0);
+    private final List<SupplyChainEntity> controllers = new ArrayList<>(0);
+    private final List<SupplyChainEntity> controlledEntities = new ArrayList<>(0);
     private final List<SupplyChainEntity> providers = new ArrayList<>(0);
     private final List<SupplyChainEntity> consumers = new ArrayList<>(0);
+    private boolean deletable = true;
 
     public SupplyChainEntity(@Nonnull final TopologyEntityDTO src) {
         this.oid = src.getOid();
         this.displayName = src.getDisplayName();
         this.type = src.getEntityType();
+
+        if (src.hasAnalysisSettings()) {
+            this.deletable = src.getAnalysisSettings().getDeletable();
+        }
     }
 
     public int getType() {
@@ -88,6 +93,14 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         this.aggregatedEntities.add(entity);
     }
 
+    private void addController(@Nonnull final SupplyChainEntity entity) {
+        this.controllers.add(entity);
+    }
+
+    private void addControlledEntity(@Nonnull final SupplyChainEntity entity) {
+        this.controlledEntities.add(entity);
+    }
+
     private void addProvider(@Nonnull final SupplyChainEntity entity) {
         this.providers.add(entity);
     }
@@ -104,6 +117,8 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         ownedEntities.clear();
         aggregators.clear();
         aggregatedEntities.clear();
+        controllers.clear();
+        controlledEntities.clear();
     }
 
     @Override
@@ -117,7 +132,7 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         return displayName;
     }
 
-    @NotNull
+    @Nonnull
     @Override
     public TypeSpecificInfo getTypeSpecificInfo() {
         return TypeSpecificInfo.getDefaultInstance();
@@ -208,6 +223,18 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
 
     @Nonnull
     @Override
+    public List<SupplyChainEntity> getControllers() {
+        return Collections.unmodifiableList(controllers);
+    }
+
+    @Nonnull
+    @Override
+    public List<SupplyChainEntity> getControlledEntities() {
+        return Collections.unmodifiableList(controlledEntities);
+    }
+
+    @Nonnull
+    @Override
     public Stream<Long> getDiscoveringTargetIds() {
         return Stream.empty();
     }
@@ -226,6 +253,17 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     @Override
     public String toString() {
         return displayName + "@" + oid;
+    }
+
+    /**
+     * Get deletable state of the topology entity. Default is true.
+     *
+     * @return true, means the Market can delete this entity.
+     *         false, means Market will not generate Delete Actions.
+     */
+    @Override
+    public boolean getDeletable() {
+        return deletable;
     }
 
     /**
@@ -317,6 +355,18 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         @Override
         public Builder addAggregatedEntity(final Builder aggregatedEntity) {
             supplyChainEntity.addAggregatedEntity(aggregatedEntity.supplyChainEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addController(final Builder controller) {
+            supplyChainEntity.addController(controller.supplyChainEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addControlledEntity(final Builder controlledEntity) {
+            supplyChainEntity.addControlledEntity(controlledEntity.supplyChainEntity);
             return this;
         }
     }

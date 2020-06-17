@@ -71,8 +71,8 @@ public class VsanStorageApplicator implements SettingApplicator {
                             compressionRatio, iopsCapacityPerHost);
             applyToStorageHosts(storage, settings, iopsCapacityPerHost, hciUsablePercentage);
         } catch (EntityApplicatorException e) {
-            logger.error("Error applying settings to Storage commodities for vSAN storage {}",
-                    storage.getDisplayName(), e);
+            logger.error("Error applying settings to Storage commodities for vSAN storage "
+                    + storage.getDisplayName(), e);
         }
     }
 
@@ -148,8 +148,11 @@ public class VsanStorageApplicator implements SettingApplicator {
                     double raidFactor, double slackSpaceRatio,
                     double compressionRatio, double iopsCapacityPerHost)
                                     throws EntityApplicatorException {
-        final double hostCapacityReservation = getNumericSetting(settings,
-                        EntitySettingSpecs.HciHostCapacityReservation);
+        // It is handled in HCIPhysicalMachineEntityConstructor for Plans
+        final double hostCapacityReservation = storage.getOrigin().hasPlanScenarioOrigin()
+                || storage.getOrigin().hasReservationOrigin() ? 0
+                        : getNumericSetting(settings,
+                                EntitySettingSpecs.HciHostCapacityReservation);
         final long hciHostCount = countHCIHosts(storage);
 
         CommoditySoldDTO.Builder storageAmount = getSoldStorageCommodityBuilder(
@@ -290,11 +293,12 @@ public class VsanStorageApplicator implements SettingApplicator {
      */
     private double checkCapacityAgainstThreshold(double capacity, CommodityType commodityType,
                     Builder storage, double hostCapacityReservation, long hciHostCount)  {
-        if (capacity < THRESHOLD_EFFECTIVE_CAPACITY)    {
-            logger.error("Setting sold {} capacity for {} to 1.0 because computed capacity"
+        if (capacity < THRESHOLD_EFFECTIVE_CAPACITY) {
+            logger.warn(
+                    "Setting sold {} capacity for '{}' to 1.0 because computed capacity"
                             + " was {}. Host capacity reservation: {}. Number of hosts: {}",
-                            commodityType, storage.getDisplayName(), capacity,
-                            hostCapacityReservation, hciHostCount);
+                    commodityType, storage.getDisplayName(), capacity, hostCapacityReservation,
+                    hciHostCount);
             return THRESHOLD_EFFECTIVE_CAPACITY;
         }
         return capacity;

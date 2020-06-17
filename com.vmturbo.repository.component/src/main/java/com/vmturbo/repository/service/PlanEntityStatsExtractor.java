@@ -141,10 +141,9 @@ interface PlanEntityStatsExtractor {
                     // stats. So setting histUtilizationValue to null.
                     final StatRecord statRecord =
                         buildStatRecord(commodityName, key, usedValues,
-                            PlanEntityStatsExtractorUtil.buildStatValue(0), providerOidString,
-                            StringConstants.RELATION_BOUGHT, null);
+                                PlanEntityStatsExtractorUtil.buildStatValue(0), providerOidString,
+                                StringConstants.RELATION_BOUGHT, null);
                     snapshot.addStatRecords(statRecord);
-
                 });
             }
             // commodities sold
@@ -307,7 +306,6 @@ interface PlanEntityStatsExtractor {
                 statRecordBuilder.addHistUtilizationValue(histUtilizationValue);
             }
             return statRecordBuilder.build();
-
         }
     }
 }

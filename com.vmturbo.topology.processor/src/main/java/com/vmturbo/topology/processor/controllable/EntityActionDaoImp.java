@@ -17,9 +17,7 @@ import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
 import com.vmturbo.topology.processor.db.enums.EntityActionActionType;

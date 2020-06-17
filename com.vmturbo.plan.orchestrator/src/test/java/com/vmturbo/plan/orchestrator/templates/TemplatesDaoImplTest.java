@@ -311,7 +311,8 @@ public class TemplatesDaoImplTest {
             .setName("template-instance")
             .setDescription("a template with the same name")
             .build();
-        assertEquals(templatesDao.createTemplate(templateInfo).getTemplateInfo(), templateInfo);
+        expectedException.expect(DuplicateTemplateException.class);
+        templatesDao.createTemplate(templateInfo);
     }
 
     /**

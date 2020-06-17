@@ -117,8 +117,8 @@ class LiveActions implements QueryableActionViews {
                 @Nonnull final UserSessionContext userSessionContext,
                 @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {
         this(actionHistoryDao,
-            clock,
             acceptedActionsStore,
+            clock,
             QueryFilter::new,
             userSessionContext,
             involvedEntitiesExpander);
@@ -126,8 +126,8 @@ class LiveActions implements QueryableActionViews {
 
     @VisibleForTesting
     LiveActions(@Nonnull final ActionHistoryDao actionHistoryDao,
-                @Nonnull final Clock clock,
                 @Nonnull final AcceptedActionsDAO acceptedActionsStore,
+                @Nonnull final Clock clock,
                 @Nonnull QueryFilterFactory queryFilterFactory,
                 @Nonnull final UserSessionContext userSessionContext,
                 @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {

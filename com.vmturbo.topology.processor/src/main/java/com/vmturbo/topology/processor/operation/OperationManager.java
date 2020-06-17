@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.operation;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -37,7 +38,6 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.matrix.component.external.MatrixInterface;
@@ -45,9 +45,6 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
-import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
-import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
@@ -55,13 +52,20 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionProgress;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest.Builder;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResult;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
-import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.RequestTargetId;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
@@ -82,6 +86,13 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
+import com.vmturbo.topology.processor.operation.action.ActionMessageHandler.ActionOperationCallback;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApprovalMessageHandler;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateStateMessageHandler;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionStateMessageHandler;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -107,12 +118,13 @@ import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
  */
 @ThreadSafe
 public class OperationManager implements ProbeStoreListener, TargetStoreListener,
-        IOperationManager {
+        IOperationManager, AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(OperationManager.class);
 
     // Mapping from OperationID -> Ongoing Operations
-    private final ConcurrentMap<Long, Operation> ongoingOperations = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, OperationMessageHandler<?, ?>> ongoingOperations =
+            new ConcurrentHashMap<>();
 
     // Mapping from TargetID -> Target operation context (validation/discovery/discoveryContext/...)
     private final ConcurrentMap<Long, TargetOperationContext> targetOperationContexts = new ConcurrentHashMap<>();
@@ -291,31 +303,43 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * {@inheritDoc}
      */
     @Override
-    public synchronized Action requestActions(final long actionId,
+    public synchronized Action requestActions(@Nonnull ActionExecutionDTO actionDto,
                                               final long targetId,
                                               @Nullable Long secondaryTargetId,
-                                              @Nonnull final ActionType actionType,
-                                              @Nonnull final List<ActionItemDTO> actionDtos,
-                                              @Nonnull Set<Long> controlAffectedEntities,
-                                              @Nonnull Optional<WorkflowDTO.WorkflowInfo> workflowInfoOpt)
+                                              @Nonnull Set<Long> controlAffectedEntities)
             throws ProbeException, TargetNotFoundException, CommunicationException, InterruptedException {
         final Target target = targetStore.getTarget(targetId)
                 .orElseThrow(() -> new TargetNotFoundException(targetId));
         final String probeType = getProbeTypeWithCheck(target);
 
-        final Action action = new Action(actionId, target.getProbeId(),
-                targetId, identityProvider, actionType);
-        final ActionExecutionDTO.Builder actionExecutionBuilder = ActionExecutionDTO.newBuilder()
-                .setActionType(actionType)
-                .addAllActionItem(actionDtos);
-        // if a WorkflowInfo action execution override is present, translate it to a NonMarketEntity
-        // and include it in the ActionExecution to be sent to the target
-        workflowInfoOpt.ifPresent(workflowInfo ->
-                actionExecutionBuilder.setWorkflow(buildWorkflow(workflowInfo)));
+        final Action action = new Action(actionDto.getActionOid(), target.getProbeId(),
+                targetId, identityProvider,
+                actionDto.getActionType());
+        final ActionOperationCallback callback = new ActionOperationCallback() {
+            @Override
+            public void onActionProgress(@Nonnull ActionProgress actionProgress) {
+                notifyActionProgress(action, actionProgress);
+            }
+
+            @Override
+            public void onSuccess(@Nonnull ActionResult response) {
+                notifyActionResult(action, response);
+            }
+
+            @Override
+            public void onFailure(@Nonnull String error) {
+                final ActionResult result = ActionResult.newBuilder().setResponse(
+                        ActionResponse.newBuilder()
+                                .setActionResponseState(ActionResponseState.FAILED)
+                                .setProgress(0)
+                                .setResponseDescription(error)).build();
+                notifyActionResult(action, result);
+            }
+        };
         final Builder actionRequestBuilder = ActionRequest.newBuilder()
                 .setProbeType(probeType)
                 .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver))
-                .setActionExecutionDTO(actionExecutionBuilder);
+                .setActionExecutionDTO(actionDto);
         // If a secondary target is defined, at it to the ActionRequest
         if (secondaryTargetId != null) {
             // This action requires interaction with a second target.
@@ -326,98 +350,24 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     secondaryTarget.getMediationAccountVals(groupScopeResolver));
         }
         final ActionRequest request = actionRequestBuilder.build();
-        final ActionMessageHandler messageHandler = new ActionMessageHandler(this,
+        final ActionMessageHandler messageHandler = new ActionMessageHandler(
                 action,
                 remoteMediationServer.getMessageHandlerExpirationClock(),
-                actionTimeoutMs);
+                actionTimeoutMs, callback);
 
         // Update the ENTITY_ACTION table in preparation for executing the action
-        insertControllableAndSuspendableState(actionId, actionType, controlAffectedEntities);
+        insertControllableAndSuspendableState(actionDto.getActionOid(), actionDto.getActionType(),
+                controlAffectedEntities);
 
-        logger.info("Sending action {} execution request to probe", actionId);
+        logger.info("Sending action {} execution request to probe", actionDto.getActionOid());
         remoteMediationServer.sendActionRequest(target,
                 request, messageHandler);
 
         logger.info("Beginning {}", action);
         logger.debug("Action execution DTO:\n" + request.getActionExecutionDTO().toString());
-        operationStart(action);
+        operationStart(messageHandler);
         return action;
     }
-
-    /**
-     * Create a Workflow DTO representing the given {@link WorkflowDTO.WorkflowInfo}.
-     *
-     * @param workflowInfo the information describing this Workflow, including ID, displayName,
-     *                     and defining data - parameters and properties.
-     * @return a newly created {@link }Workflow} DTO
-     */
-    private Workflow buildWorkflow(WorkflowDTO.WorkflowInfo workflowInfo) {
-        final Workflow.Builder wfBuilder = Workflow.newBuilder();
-        if (workflowInfo.hasDisplayName()) {
-            wfBuilder.setDisplayName(workflowInfo.getDisplayName());
-        }
-        if (workflowInfo.hasName()) {
-            wfBuilder.setId(workflowInfo.getName());
-        }
-        if (workflowInfo.hasDescription()) {
-            wfBuilder.setDescription(workflowInfo.getDescription());
-        }
-        wfBuilder.addAllParam(workflowInfo.getWorkflowParamList().stream()
-            .map(workflowParam -> {
-                final Workflow.Parameter.Builder parmBuilder = Workflow.Parameter.newBuilder();
-                if (workflowParam.hasDescription()) {
-                    parmBuilder.setDescription(workflowParam.getDescription());
-                }
-                if (workflowParam.hasName()) {
-                    parmBuilder.setName(workflowParam.getName());
-                }
-                if (workflowParam.hasType()) {
-                    parmBuilder.setType(workflowParam.getType());
-                }
-                if (workflowParam.hasMandatory()) {
-                    parmBuilder.setMandatory(workflowParam.getMandatory());
-                }
-                return parmBuilder.build();
-            })
-            .collect(Collectors.toList()));
-        // include the 'property' entries from the Workflow
-        wfBuilder.addAllProperty(workflowInfo.getWorkflowPropertyList().stream()
-            .map(workflowProperty -> {
-                final Workflow.Property.Builder propBUilder = Workflow.Property.newBuilder();
-                if (workflowProperty.hasName()) {
-                    propBUilder.setName(workflowProperty.getName());
-                }
-                if (workflowProperty.hasValue()) {
-                    propBUilder.setValue(workflowProperty.getValue());
-                }
-                return propBUilder.build();
-            })
-            .collect(Collectors.toList()));
-        if (workflowInfo.hasScriptPath()) {
-            wfBuilder.setScriptPath(workflowInfo.getScriptPath());
-        }
-        if (workflowInfo.hasEntityType()) {
-            wfBuilder.setEntityType(EntityDTO.EntityType.forNumber(workflowInfo.getEntityType()));
-        }
-        if (workflowInfo.hasActionType()) {
-
-            ActionType converted = ActionConversions.convertActionType(workflowInfo.getActionType());
-            if (converted != null) {
-                wfBuilder.setActionType(converted);
-            }
-        }
-        if (workflowInfo.hasActionPhase()) {
-            final ActionScriptPhase converted = ActionConversions.convertActionPhase(workflowInfo.getActionPhase());
-            if (converted != null) {
-                wfBuilder.setPhase(converted);
-            }
-        }
-        if (workflowInfo.hasTimeLimitSeconds()) {
-            wfBuilder.setTimeLimitSeconds(workflowInfo.getTimeLimitSeconds());
-        }
-        return wfBuilder.build();
-    }
-
 
     /**
      * Request a validation on a target. There may be only a single ongoing validation
@@ -456,19 +406,22 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
         final Validation validation = new Validation(target.getProbeId(),
                 target.getId(), identityProvider);
+        final OperationCallback<ValidationResponse> callback = new ValidationOperationCallback(
+                validation);
         final ValidationRequest validationRequest = ValidationRequest.newBuilder()
                 .setProbeType(probeType)
                 .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver)).build();
         final ValidationMessageHandler validationMessageHandler =
-                new ValidationMessageHandler(this,
+                new ValidationMessageHandler(
                         validation,
                         remoteMediationServer.getMessageHandlerExpirationClock(),
-                        validationTimeoutMs);
+                        validationTimeoutMs,
+                        callback);
         remoteMediationServer.sendValidationRequest(target,
                 validationRequest,
                 validationMessageHandler);
 
-        operationStart(validation);
+        operationStart(validationMessageHandler);
         targetOperationContext.setCurrentValidation(validation);
         logger.info("Beginning {}", validation);
         return validation;
@@ -646,12 +599,15 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             () -> discoveryType);
                     return currentDiscovery.get();
                 }
+                final OperationCallback<DiscoveryResponse> callback =
+                        new DiscoveryOperationCallback(discovery);
                 discoveryMessageHandler =
-                    new DiscoveryMessageHandler(this,
+                    new DiscoveryMessageHandler(
                         discovery,
                         remoteMediationServer.getMessageHandlerExpirationClock(),
-                        discoveryTimeoutMs);
-                operationStart(discovery);
+                        discoveryTimeoutMs,
+                            callback);
+                operationStart(discoveryMessageHandler);
                 targetOperationContexts.computeIfAbsent(targetId, k -> new TargetOperationContext())
                     .setCurrentDiscovery(discoveryType, discovery);
                 // associate the mediation message id with the Discovery object which will be used
@@ -761,50 +717,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             .map(TargetOperationContext::getLastValidationResult);
     }
 
-    private Future<?> notifyOperationError(@Nonnull final Operation operation, @Nonnull ErrorDTO error) {
-        if (operation instanceof Discovery) {
-            final DiscoveryResponse response =
-                            DiscoveryResponse.newBuilder().addErrorDTO(error).build();
-            return resultExecutor.submit(() -> processDiscoveryResponse((Discovery)operation, response));
-        } else if (operation instanceof Validation) {
-            final ValidationResponse response =
-                            ValidationResponse.newBuilder().addErrorDTO(error).build();
-            return resultExecutor.submit(
-                            () -> processValidationResponse((Validation)operation, response));
-        } else if (operation instanceof Action) {
-            // It's obnoxious to have to translate from ErrorDTO -> ActionResult -> ErrorDTO
-            // but unfortunately not easy to avoid due to the difference in the SDK.
-            final ActionResult result = ActionResult.newBuilder()
-                .setResponse(ActionResponse.newBuilder()
-                    .setActionResponseState(ActionResponseState.FAILED)
-                    .setProgress(0)
-                    .setResponseDescription(error.getDescription())
-                ).build();
-            return resultExecutor.submit(
-                () -> processActionResponse((Action)operation, result));
-        }
-        throw new UnsupportedOperationException("Unsupported operation: " + operation);
-    }
-
-    /**
-     * Notify the {@link OperationManager} that an {@link Operation} timed out.
-     *
-     * @param operation The {@link Operation} that timed out.
-     * @param secondsSinceStart The number of seconds the operation was active for.
-     * @return a Future representing pending completion of the task
-     */
-    public Future<?> notifyTimeout(@Nonnull final Operation operation,
-                              final long secondsSinceStart) {
-        final ErrorDTO error = SDKUtil.createCriticalError(new StringBuilder()
-                .append(operation.getClass().getSimpleName())
-                .append(" ")
-                .append(operation.getId())
-                .append(" timed out after ")
-                .append(secondsSinceStart)
-                .append(" seconds.").toString());
-        return notifyOperationError(operation, error);
-    }
-
     /**
      * Notify the {@link OperationManager} that a {@link Operation} completed
      * with a response returned by the probe.
@@ -852,33 +764,50 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         });
     }
 
-    public void notifyProgress(@Nonnull final Operation operation,
-                               @Nonnull final MediationClientMessage message) {
-        if (operation instanceof Action) {
-            resultExecutor.execute(() -> {
-                Action action = (Action)operation;
-                action.updateProgress(message.getActionProgress().getResponse());
-                operationListener.notifyOperationState(operation);
-                if (shouldUpdateEntityActionTable(action)) {
-                    updateControllableAndSuspendableState(action);
-                }
-            });
-        }
+    /**
+     * Notifies action execution progress.
+     *
+     * @param action operation
+     * @param progress action progress message
+     */
+    public void notifyActionProgress(@Nonnull final Action action,
+            @Nonnull ActionProgress progress) {
+        resultExecutor.execute(() -> {
+            action.updateProgress(progress.getResponse());
+            operationListener.notifyOperationState(action);
+            if (shouldUpdateEntityActionTable(action)) {
+                updateControllableAndSuspendableState(action);
+            }
+        });
     }
 
     /**
-     * Notify the {@link OperationManager} that an {@link Operation} is cancelled because transport
-     * executing operation is closed.
+     * Handles operation failed event.
      *
-     * @param operation The {@link Operation} that timed out.
-     * @param cancellationReason the reason why the operation was cancelled.
-     * @return a Future representing pending completion of the task
+     * @param operation operation that is failed
+     * @param targetFailure target failure details
      */
-    public Future<?> notifyOperationCancelled(@Nonnull final Operation operation,
-                                         @Nonnull final String cancellationReason) {
-        final ErrorDTO error = SDKUtil.createCriticalError(operation.getClass().getSimpleName()
-                        + " " + operation.getId() + " cancelled: " + cancellationReason);
-        return notifyOperationError(operation, error);
+    public void notifyOperationFailed(@Nonnull final Operation operation,
+            @Nonnull String targetFailure) {
+        resultExecutor.execute(() -> {
+            logger.info("Operation {} failed: {}", operation, targetFailure);
+            operationComplete(operation, false,
+                    Collections.singletonList(SDKUtil.createCriticalError(targetFailure)));
+        });
+    }
+
+    /**
+     * Notifies action state update response from a probe.
+     *
+     * @param operation operation
+     * @param message message received
+     */
+    public void notifyExternalActionState(@Nonnull final GetActionState operation,
+            @Nonnull GetActionStateResponse message) {
+        resultExecutor.execute(() -> {
+            logger.info("Reported external action states updated {}", message);
+            operationComplete(operation, true, Collections.emptyList());
+        });
     }
 
     /**
@@ -959,12 +888,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                          + " data in remote mediation container", e);
         }
 
-        List<Operation> targetOperations = ongoingOperations.values().stream()
-            .filter(operation -> operation.getTargetId() == targetId)
+        List<OperationMessageHandler<?, ?>> targetOperations = ongoingOperations.values().stream()
+            .filter(handler -> handler.getOperation().getTargetId() == targetId)
             .collect(Collectors.toList());
 
-        for (Operation operation : targetOperations) {
-            notifyOperationCancelled(operation, "Target removed.");
+        for (OperationMessageHandler<?, ?> operationHandler : targetOperations) {
+            operationHandler.onTargetRemoved(targetId);
         }
         targetOperationContexts.remove(targetId);
         discoveredGroupUploader.targetRemoved(targetId);
@@ -1002,11 +931,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final ValidationResult result = new ValidationResult(validation.getTargetId(), response);
         final Optional<TargetOperationContext> targetOperationContext =
             getTargetOperationContextOrLogError(validation.getTargetId());
-        if (!targetOperationContext.isPresent()) {
-            return;
+        if (targetOperationContext.isPresent()) {
+            targetOperationContext.get().setLastValidationResult(result);
         }
 
-        targetOperationContext.get().setLastValidationResult(result);
         logger.trace("Received validation result from target {}: {}", validation.getTargetId(), response);
         operationComplete(validation,
                           result.isSuccess(),
@@ -1014,7 +942,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     private void processDiscoveryResponse(@Nonnull final Discovery discovery,
-                                          @Nonnull final DiscoveryResponse response) {
+            @Nonnull final DiscoveryResponse response) {
         final boolean success = !hasGeneralCriticalError(response.getErrorDTOList());
         // Discovery response changed since last discovery
         final boolean change = !response.hasNoChange();
@@ -1074,6 +1002,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                 }
                                 discoveryDumper.dumpDiscovery(targetName, discoveryType, response,
                                         new ArrayList<>());
+                            }
+                            if (enableDiscoveryResponsesCaching && binaryDiscoveryDumper != null) {
+                                binaryDiscoveryDumper.dumpDiscovery(String.valueOf(targetId),
+                                    discoveryType,
+                                    response,
+                                    new ArrayList<>());
                             }
                             if (enableDiscoveryResponsesCaching && binaryDiscoveryDumper != null) {
                                 binaryDiscoveryDumper.dumpDiscovery(String.valueOf(targetId),
@@ -1202,8 +1136,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         });
     }
 
-    private void operationStart(Operation operation) {
-        ongoingOperations.put(operation.getId(), operation);
+    private void operationStart(OperationMessageHandler<? extends Operation, ?> handler) {
+        final Operation operation = handler.getOperation();
+        ongoingOperations.put(operation.getId(), handler);
         // Send the same notification as the complete notification,
         // just that completionTime is not yet set.
         operationListener.notifyOperationState(operation);
@@ -1245,13 +1180,18 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     private <T extends Operation> Optional<T> getInProgress(final long id, Class<T> type) {
-        final Operation op = ongoingOperations.get(id);
-        return op != null && type.isInstance(op) ? Optional.of(type.cast(op)) : Optional.empty();
+        final OperationMessageHandler<?, ?> handler = ongoingOperations.get(id);
+        if (handler == null) {
+            return Optional.empty();
+        }
+        final Operation op = handler.getOperation();
+        return type.isInstance(op) ? Optional.of(type.cast(op)) : Optional.empty();
     }
 
     private <T extends Operation> List<T> getAllInProgress(Class<T> type) {
         final ImmutableList.Builder<T> opBuilder = new ImmutableList.Builder<>();
         ongoingOperations.values().stream()
+                .map(OperationMessageHandler::getOperation)
                 .filter(type::isInstance)
                 .forEach(op -> opBuilder.add(type.cast(op)));
         return opBuilder.build();
@@ -1349,6 +1289,88 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             logger.error("Operation context not found for target {}", targetId);
         }
         return Optional.ofNullable(targetOperationContext);
+    }
+
+    @Override
+    public void close() {
+        resultExecutor.shutdownNow();
+        discoveryExecutor.shutdownNow();
+    }
+
+    @Nonnull
+    private RequestTargetId createTargetId(@Nonnull Target target) {
+        final RequestTargetId result = RequestTargetId.newBuilder().setProbeType(
+                target.getProbeInfo().getProbeType()).addAllAccountValue(
+                target.getMediationAccountVals(groupScopeResolver)).build();
+        return result;
+    }
+
+    @Nonnull
+    @Override
+    public ActionApproval approveActions(long targetId,
+            @Nonnull Collection<ActionExecutionDTO> requests,
+            @Nonnull OperationCallback<ActionApprovalResponse> callback)
+            throws TargetNotFoundException, InterruptedException, ProbeException,
+            CommunicationException {
+        final Target target = targetStore.getTarget(targetId).orElseThrow(
+                () -> new TargetNotFoundException(targetId));
+        final ActionApprovalRequest request = ActionApprovalRequest.newBuilder().setTarget(
+                createTargetId(target)).addAllAction(requests).build();
+        final ActionApproval operation = new ActionApproval(target.getProbeId(), target.getId(),
+                identityProvider);
+        final OperationCallback<ActionApprovalResponse> internalCallback =
+                new InternalOperationCallback<>(callback, operation);
+        final ActionApprovalMessageHandler handler = new ActionApprovalMessageHandler(operation,
+                remoteMediationServer.getMessageHandlerExpirationClock(), discoveryTimeoutMs,
+                internalCallback);
+        remoteMediationServer.sendActionApprovalsRequest(target, request, handler);
+        operationStart(handler);
+        return operation;
+    }
+
+    @Nonnull
+    @Override
+    public GetActionState getExternalActionState(long targetId, @Nonnull Collection<Long> actions,
+            @Nonnull OperationCallback<GetActionStateResponse> callback)
+            throws TargetNotFoundException, InterruptedException, ProbeException,
+            CommunicationException {
+        final Target target = targetStore.getTarget(targetId).orElseThrow(
+                () -> new TargetNotFoundException(targetId));
+        final GetActionStateRequest request = GetActionStateRequest.newBuilder().setTarget(
+                createTargetId(target)).addAllActionOid(actions).build();
+        final GetActionState operation = new GetActionState(target.getProbeId(), target.getId(),
+                identityProvider);
+        final OperationCallback<GetActionStateResponse> internalCallback =
+                new InternalOperationCallback<>(callback, operation);
+        final GetActionStateMessageHandler handler = new GetActionStateMessageHandler(operation,
+                remoteMediationServer.getMessageHandlerExpirationClock(), discoveryTimeoutMs,
+                internalCallback);
+        remoteMediationServer.sendGetActionStatesRequest(target, request, handler);
+        operationStart(handler);
+        return operation;
+    }
+
+    @Nonnull
+    @Override
+    public ActionUpdateState updateExternalAction(long targetId,
+            @Nonnull Collection<ActionResponse> actions,
+            @Nonnull OperationCallback<ActionErrorsResponse> callback)
+            throws TargetNotFoundException, InterruptedException, ProbeException,
+            CommunicationException {
+        final Target target = targetStore.getTarget(targetId).orElseThrow(
+                () -> new TargetNotFoundException(targetId));
+        final ActionUpdateStateRequest request = ActionUpdateStateRequest.newBuilder().setTarget(
+                createTargetId(target)).addAllActionState(actions).build();
+        final ActionUpdateState operation = new ActionUpdateState(target.getProbeId(), target.getId(),
+                identityProvider);
+        final OperationCallback<ActionErrorsResponse> internalCallback =
+                new InternalOperationCallback<>(callback, operation);
+        final ActionUpdateStateMessageHandler handler = new ActionUpdateStateMessageHandler(
+                operation, remoteMediationServer.getMessageHandlerExpirationClock(),
+                discoveryTimeoutMs, internalCallback);
+        remoteMediationServer.sendActionUpdateStateRequest(target, request, handler);
+        operationStart(handler);
+        return operation;
     }
 
     /**
@@ -1577,6 +1599,88 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 }
             }
             return false;
+        }
+    }
+
+    /**
+     * Internal operation callback is used to wrap the externally passed callback to implicitly
+     * close operations (transmit to terminal state and remove from collection of running ones).
+     *
+     * @param <T> type of an operation result.
+     */
+    private class InternalOperationCallback<T> implements OperationCallback<T> {
+        private final OperationCallback<T> callback;
+        private final Operation operation;
+
+        InternalOperationCallback(@Nonnull OperationCallback<T> callback, @Nonnull Operation operation) {
+            this.callback = Objects.requireNonNull(callback);
+            this.operation = Objects.requireNonNull(operation);
+        }
+
+        @Override
+        public void onSuccess(@Nonnull T response) {
+            resultExecutor.execute(() -> {
+                logger.info("Operation {} finished successfully", operation);
+                logger.debug("Received response for operation {}: {}", operation, response);
+                operationComplete(operation, true, Collections.emptyList());
+                callback.onSuccess(response);
+            });
+        }
+
+        @Override
+        public void onFailure(@Nonnull String error) {
+            resultExecutor.execute(() -> {
+                logger.info("Operation {} finished with error {}", operation, error);
+                operationComplete(operation, true,
+                        Collections.singletonList(SDKUtil.createCriticalError(error)));
+                callback.onFailure(error);
+            });
+        }
+    }
+
+    /**
+     * Operation callback for validation.
+     */
+    private class ValidationOperationCallback implements OperationCallback<ValidationResponse> {
+        private final Validation validation;
+
+        ValidationOperationCallback(@Nonnull Validation validation) {
+            this.validation = Objects.requireNonNull(validation);
+        }
+
+        @Override
+        public void onSuccess(@Nonnull ValidationResponse response) {
+            notifyValidationResult(validation, response);
+        }
+
+        @Override
+        public void onFailure(@Nonnull String error) {
+            notifyValidationResult(validation, ValidationResponse.newBuilder()
+                    .addErrorDTO(SDKUtil.createCriticalError(error))
+                    .build());
+        }
+    }
+
+    /**
+     * Operation callback for discovery operation.
+     */
+    private class DiscoveryOperationCallback implements OperationCallback<DiscoveryResponse> {
+        private final Discovery discovery;
+
+        DiscoveryOperationCallback(@Nonnull Discovery discovery) {
+            this.discovery = Objects.requireNonNull(discovery);
+        }
+
+        @Override
+        public void onSuccess(@Nonnull DiscoveryResponse response) {
+            notifyDiscoveryResult(discovery, response);
+        }
+
+        @Override
+        public void onFailure(@Nonnull String error) {
+            final DiscoveryResponse response = DiscoveryResponse.newBuilder().addErrorDTO(
+                    SDKUtil.createCriticalError(error)).build();
+            notifyDiscoveryResult(discovery, response);
         }
     }
 }

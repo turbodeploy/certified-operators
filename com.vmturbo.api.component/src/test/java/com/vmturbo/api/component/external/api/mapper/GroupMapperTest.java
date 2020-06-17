@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -66,6 +67,8 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.group.ResourceGroupApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -96,6 +99,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCrite
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Discovered;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
@@ -549,6 +553,123 @@ public class GroupMapperTest {
         assertEquals(EntityFilterMapper.REGEX_MATCH, dto.getCriteriaList().get(1).getExpType());
         assertEquals("^PM#1$", dto.getCriteriaList().get(1).getExpVal());
         assertEquals(EnvironmentType.ONPREM, dto.getEnvironmentType());
+    }
+
+    /**
+     * Tests that when we have multiple targets as source for a discovered group, the correct one
+     * will be returned. (This will probably be removed when proper handling for multiple targets
+     * is implemented). See GroupMapper.chooseTarget() for the logic.
+     *
+     * @throws InterruptedException from toGroupApiDto
+     * @throws ConversionException from toGroupApiDto
+     * @throws InvalidOperationException from toGroupApiDto
+     */
+    @Test
+    public void testToGroupApiDtoReturnsCorrectTarget()
+            throws InterruptedException, ConversionException, InvalidOperationException {
+        final ArrayList<Long> targetIds = new ArrayList();
+        final ArrayList<Long> memberIds = new ArrayList();
+        final ArrayList<Long> entityIds = new ArrayList();
+        long probeOid = 12345678L;
+
+        // check that when all targets are hidden, the one with the lowest uuid is being returned
+        long targetOid1 = 124L;
+        long targetOid2 = 123L;
+        targetIds.add(targetOid1);
+        targetIds.add(targetOid2);
+        addTargetToTargets(targetOid1, true, probeOid);
+        addTargetToTargets(targetOid2, true, probeOid);
+        GroupAndMembers groupAndMembers =
+                createGroupAndMembersWithDiscoveredTargets(targetIds, memberIds, entityIds);
+        final boolean populateSeverity = false;
+        final SearchPaginationRequest paginationRequest = null;
+        final EnvironmentType requestedEnvironment = null;
+
+        ObjectsPage<GroupApiDTO> objectsPage = groupMapper.toGroupApiDto(
+                Collections.singletonList(groupAndMembers),
+                populateSeverity,
+                paginationRequest,
+                requestedEnvironment);
+
+        assertEquals(1, objectsPage.getTotalCount());
+        assertNotNull(objectsPage.getObjects().get(0).getSource());
+        assertEquals(Long.toString(targetOid2),
+                objectsPage.getObjects().get(0).getSource().getUuid());
+        assertEquals("target123", objectsPage.getObjects().get(0).getSource().getDisplayName());
+        assertEquals("targetCategory", objectsPage.getObjects().get(0).getSource().getCategory());
+        assertEquals("targetType", objectsPage.getObjects().get(0).getSource().getType());
+
+
+        // check that when there are both hidden and non hidden targets, the one with the lowest
+        // uuid from the non-hidden onesq is being returned
+        long targetOid3 = 126L;
+        long targetOid4 = 125L;
+        targetIds.add(targetOid3);
+        targetIds.add(targetOid4);
+        addTargetToTargets(targetOid3, false, probeOid);
+        addTargetToTargets(targetOid4, false, probeOid);
+        groupAndMembers =
+                createGroupAndMembersWithDiscoveredTargets(targetIds, memberIds, entityIds);
+
+        objectsPage = groupMapper.toGroupApiDto(
+                Collections.singletonList(groupAndMembers),
+                populateSeverity,
+                paginationRequest,
+                requestedEnvironment);
+
+        assertEquals(1, objectsPage.getTotalCount());
+        assertNotNull(objectsPage.getObjects().get(0).getSource());
+        assertEquals(Long.toString(targetOid4),
+                objectsPage.getObjects().get(0).getSource().getUuid());
+        assertEquals("target" + targetOid4,
+                objectsPage.getObjects().get(0).getSource().getDisplayName());
+        assertEquals("targetCategory", objectsPage.getObjects().get(0).getSource().getCategory());
+        assertEquals("targetType", objectsPage.getObjects().get(0).getSource().getType());
+    }
+
+    /**
+     * Adds a target to the targets array, with dummy display/category/type names.
+     * @param targetOid the oid of the target
+     * @param isHidden whether the target should be marked as hidden
+     * @param probeOid the oid of the probe
+     */
+    private void addTargetToTargets(long targetOid, boolean isHidden, long probeOid) {
+        targets.add(ImmutableThinTargetInfo.builder()
+                .oid(targetOid)
+                .displayName("target" + targetOid)
+                .isHidden(isHidden)
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .oid(probeOid)
+                        .category("targetCategory")
+                        .uiCategory("targetUiCategory")
+                        .type("targetType")
+                        .build())
+                .build());
+    }
+
+    /**
+     * Utility function to create a GroupsAndMembers object with discovered origin and source
+     * targets.
+     * @param targetIds a list of target ids to be set as source targets. The target objects must be
+     *                  added to targets array externally.
+     * @param memberIds the ids of the members of the group
+     * @param entityIds the ids of the entities of the group
+     * @return the newly created object
+     */
+    private GroupAndMembers createGroupAndMembersWithDiscoveredTargets(ArrayList<Long> targetIds,
+            ArrayList<Long> memberIds,
+            ArrayList<Long> entityIds) {
+        return ImmutableGroupAndMembers.builder()
+                .group(Grouping.newBuilder()
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscovered(Discovered.newBuilder()
+                                        .addAllDiscoveringTargetId(targetIds)
+                                        .build())
+                                .build())
+                        .build())
+                .members(memberIds)
+                .entities(entityIds)
+                .build();
     }
 
     private SearchParameters.Builder getVmParameters() {
@@ -2344,7 +2465,7 @@ public class GroupMapperTest {
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest("0", 2, true, "COST");
         Mockito.when(costServiceMole.getCloudCostStats(Mockito.any()))
-                .thenReturn(GetCloudCostStatsResponse.newBuilder()
+                .thenReturn(Collections.singletonList(GetCloudCostStatsResponse.newBuilder()
                         .addCloudStatRecord(CloudCostStatRecord.newBuilder()
                                 .addStatRecords(StatRecord.newBuilder()
                                         .setAssociatedEntityId(10L)
@@ -2352,7 +2473,7 @@ public class GroupMapperTest {
                                 .addStatRecords(StatRecord.newBuilder()
                                         .setAssociatedEntityId(11L)
                                         .setValues(StatValue.newBuilder().setTotal(202F))))
-                        .build());
+                        .build()));
         final List<GroupApiDTO> resultPage1 = groupMapper.toGroupApiDto(
                 Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
                 paginationRequest, null).getObjects();

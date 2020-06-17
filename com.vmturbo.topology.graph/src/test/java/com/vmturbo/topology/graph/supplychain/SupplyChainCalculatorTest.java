@@ -69,6 +69,7 @@ public class SupplyChainCalculatorTest {
     private static final long VOLUME_ID = 5L;
     private static final long ACCOUNT_ID = 6L;
     private static final long APP_ID = 7L;
+    private static final long VMSPEC_ID = 25L;
     private TopologyGraph<TestGraphEntity> cloudTopology;
     private SupplyChainNode region;
     private SupplyChainNode zone;
@@ -76,6 +77,7 @@ public class SupplyChainCalculatorTest {
     private SupplyChainNode volume;
     private SupplyChainNode account;
     private SupplyChainNode app;
+    private SupplyChainNode vmspec;
     /**
      * Constants and variables for checks related to topologies with VDCs.
      */
@@ -455,6 +457,20 @@ public class SupplyChainCalculatorTest {
         assertEquals(Collections.singleton(PM_ID), getAllNodeIds(pmNode));
         assertEquals(Collections.singleton(ST_ID), getAllNodeIds(stNode));
     }
+    @Test
+    public void testVMSpecSeed() {
+        createCloudTopologyWithScalingGroup();
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(cloudTopology, VMSPEC_ID);
+        populateCloudEntityFields(supplyChain);
+        assertFullCloudSupplyChain(supplyChain, false, true);
+    }
+    @Test
+    public void testControlledEntitySeed() {
+        createCloudTopologyWithScalingGroup();
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(cloudTopology, VM_1_ID);
+        populateCloudEntityFields(supplyChain);
+        assertFullCloudSupplyChain(supplyChain, true, true);
+    }
 
     /**
      * Test cloud native topology starting from WorkloadController. Ensure that we include
@@ -593,7 +609,7 @@ public class SupplyChainCalculatorTest {
        createCloudTopology();
        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(cloudTopology, REGION_ID);
        populateCloudEntityFields(supplyChain);
-       assertFullCloudSupplyChain(supplyChain, false);
+       assertFullCloudSupplyChain(supplyChain, false, false);
    }
 
     /**
@@ -604,7 +620,7 @@ public class SupplyChainCalculatorTest {
         createCloudTopology();
         final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(cloudTopology, ZONE_ID);
         populateCloudEntityFields(supplyChain);
-        assertFullCloudSupplyChain(supplyChain, false);
+        assertFullCloudSupplyChain(supplyChain, false, false);
     }
 
     /**
@@ -615,7 +631,7 @@ public class SupplyChainCalculatorTest {
         createCloudTopology();
         final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(cloudTopology, VM_1_ID);
         populateCloudEntityFields(supplyChain);
-        assertFullCloudSupplyChain(supplyChain, true);
+        assertFullCloudSupplyChain(supplyChain, true, false);
     }
 
     /**
@@ -626,7 +642,7 @@ public class SupplyChainCalculatorTest {
         createCloudTopology();
         final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(cloudTopology, ACCOUNT_ID);
         populateCloudEntityFields(supplyChain);
-        assertFullCloudSupplyChain(supplyChain, true);
+        assertFullCloudSupplyChain(supplyChain, true, false);
     }
 
     /**
@@ -637,7 +653,7 @@ public class SupplyChainCalculatorTest {
         createCloudTopology();
         final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(cloudTopology, VOLUME_ID);
         populateCloudEntityFields(supplyChain);
-        assertFullCloudSupplyChain(supplyChain, true);
+        assertFullCloudSupplyChain(supplyChain, true, false);
     }
 
     /**
@@ -648,7 +664,7 @@ public class SupplyChainCalculatorTest {
         createCloudTopology();
         final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(cloudTopology, APP_ID);
         populateCloudEntityFields(supplyChain);
-        assertFullCloudSupplyChain(supplyChain, true);
+        assertFullCloudSupplyChain(supplyChain, true, false);
     }
 
     /**
@@ -736,15 +752,96 @@ public class SupplyChainCalculatorTest {
                                     zoneBuilder, regionBuilder, accountBuilder);
    }
 
+    /*
+     * Topology
+     * ACCOUNT -owns-> APP, VM1, VOLUME
+     * APP -consumes-> VM1
+     * VM1 -connects to-> VOLUME
+     * REGION -owns-> ZONE
+     * ZONE -aggregates-> VM1, VM2, VOLUME
+     * VM1, VM2 -consumes-> ZONE
+     * VMSpec -controls-> VM1, VM2
+     */
+    private void createCloudTopologyWithScalingGroup() {
+        // entities
+        final TestGraphEntity.Builder volumeBuilder =
+            TestGraphEntity.newBuilder(VOLUME_ID, ApiEntityType.VIRTUAL_VOLUME);
+        final TestGraphEntity.Builder vm1Builder =
+            TestGraphEntity.newBuilder(VM_1_ID, ApiEntityType.VIRTUAL_MACHINE);
+        final TestGraphEntity.Builder vm2Builder =
+            TestGraphEntity.newBuilder(VM_2_ID, ApiEntityType.VIRTUAL_MACHINE);
+        final TestGraphEntity.Builder appBuilder =
+            TestGraphEntity.newBuilder(APP_ID, ApiEntityType.APPLICATION);
+        final TestGraphEntity.Builder zoneBuilder =
+            TestGraphEntity.newBuilder(ZONE_ID, ApiEntityType.AVAILABILITY_ZONE);
+        final TestGraphEntity.Builder regionBuilder =
+            TestGraphEntity.newBuilder(REGION_ID, ApiEntityType.REGION);
+        final TestGraphEntity.Builder accountBuilder =
+            TestGraphEntity.newBuilder(ACCOUNT_ID, ApiEntityType.BUSINESS_ACCOUNT);
+        final TestGraphEntity.Builder vmspecBuilder =
+            TestGraphEntity.newBuilder(VMSPEC_ID, ApiEntityType.VM_SPEC);
+        // ACCOUNT -owns-> APP, VM1, VOLUME
+        accountBuilder.addConnectedEntity(VM_1_ID, ConnectionType.OWNS_CONNECTION);
+        accountBuilder.addConnectedEntity(VOLUME_ID, ConnectionType.OWNS_CONNECTION);
+        accountBuilder.addConnectedEntity(APP_ID, ConnectionType.OWNS_CONNECTION);
+
+        // APP -consumes-> VM1
+        appBuilder.addProviderId(VM_1_ID);
+
+        // VM1 -connects to-> VOLUME
+        vm1Builder.addConnectedEntity(VOLUME_ID, ConnectionType.NORMAL_CONNECTION);
+
+        // REGION -owns-> ZONE
+        regionBuilder.addConnectedEntity(ZONE_ID, ConnectionType.OWNS_CONNECTION);
+
+        // ZONE -aggregates-> VM1, VM2, VOLUME
+        vm1Builder.addConnectedEntity(ZONE_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
+        vm2Builder.addConnectedEntity(ZONE_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
+        volumeBuilder.addConnectedEntity(ZONE_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
+
+        // VM1, VM2 -consumes-> ZONE
+        vm1Builder.addProviderId(ZONE_ID);
+        vm2Builder.addProviderId(ZONE_ID);
+
+        //VM1, VM2 -controlledBy-> VMSpec
+        vm1Builder.addConnectedEntity(VMSPEC_ID, ConnectionType.CONTROLLED_BY_CONNECTION);
+        vm2Builder.addConnectedEntity(VMSPEC_ID, ConnectionType.CONTROLLED_BY_CONNECTION);
+
+        cloudTopology =
+            TestGraphEntity.newGraph(vm1Builder, vm2Builder, volumeBuilder, appBuilder,
+                zoneBuilder, regionBuilder, accountBuilder, vmspecBuilder);
+    }
+
    private void assertFullCloudSupplyChain(
-           @Nonnull Map<Integer, SupplyChainNode> supplyChain, boolean excludeVM2) {
-       assertThat(supplyChain.keySet(),
-                  containsInAnyOrder(ApiEntityType.REGION.typeNumber(),
-                                     ApiEntityType.AVAILABILITY_ZONE.typeNumber(),
-                                     ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
-                                     ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
-                                     ApiEntityType.BUSINESS_ACCOUNT.typeNumber(),
-                                     ApiEntityType.APPLICATION.typeNumber()));
+           @Nonnull Map<Integer, SupplyChainNode> supplyChain, boolean excludeVM2, boolean containsControls) {
+        if (containsControls) {
+            assertThat(supplyChain.keySet(),
+                containsInAnyOrder(ApiEntityType.REGION.typeNumber(),
+                    ApiEntityType.AVAILABILITY_ZONE.typeNumber(),
+                    ApiEntityType.VM_SPEC.typeNumber(),
+                    ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                    ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
+                    ApiEntityType.BUSINESS_ACCOUNT.typeNumber(),
+                    ApiEntityType.APPLICATION.typeNumber()));
+            assertThat(vm.getConnectedProviderTypesList(),
+                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr(),
+                    ApiEntityType.AVAILABILITY_ZONE.apiStr(),
+                    ApiEntityType.VM_SPEC.apiStr(),
+                    ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
+
+        } else {
+            assertThat(supplyChain.keySet(),
+                containsInAnyOrder(ApiEntityType.REGION.typeNumber(),
+                    ApiEntityType.AVAILABILITY_ZONE.typeNumber(),
+                    ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                    ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
+                    ApiEntityType.BUSINESS_ACCOUNT.typeNumber(),
+                    ApiEntityType.APPLICATION.typeNumber()));
+            assertThat(vm.getConnectedProviderTypesList(),
+                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr(),
+                    ApiEntityType.AVAILABILITY_ZONE.apiStr(),
+                    ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
+        }
 
        assertThat(getAllNodeIds(region), containsInAnyOrder(REGION_ID));
        assertThat(getAllNodeIds(zone), containsInAnyOrder(ZONE_ID));
@@ -769,10 +866,6 @@ public class SupplyChainCalculatorTest {
 
        assertThat(vm.getConnectedConsumerTypesList(),
                   containsInAnyOrder(ApiEntityType.APPLICATION.apiStr()));
-       assertThat(vm.getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr(),
-                                     ApiEntityType.AVAILABILITY_ZONE.apiStr(),
-                                     ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
 
        assertThat(volume.getConnectedConsumerTypesList(),
                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
@@ -799,6 +892,7 @@ public class SupplyChainCalculatorTest {
        volume = graph.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber());
        account = graph.get(ApiEntityType.BUSINESS_ACCOUNT.typeNumber());
        app = graph.get(ApiEntityType.APPLICATION.typeNumber());
+       vmspec = graph.get(ApiEntityType.VM_SPEC.typeNumber());
    }
 
    private Collection<Long> getAllNodeIds(@Nonnull SupplyChainNode supplyChainNode) {

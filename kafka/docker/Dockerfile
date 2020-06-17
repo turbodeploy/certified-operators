@@ -1,6 +1,17 @@
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
+# Required OpenShift Labels
+LABEL name="kafka" \
+      vendor="Turbonomic" \
+      version="7" \
+      release="1" \
+      summary="kafka" \
+      description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
+
+# Required Licenses
+COPY licenses /licenses
+
 # This is the release of Kafka and Scala to pull in.
 COPY kafka.profile /etc/kafka.profile
 COPY start-kafka /
@@ -12,7 +23,7 @@ RUN groupadd -g 1000 kafka && useradd -m -r -d /home/kafka -g 1000 -s /bin/bash 
     passwd -l root
 
 # Install rsyslog and java-11 packages
-RUN dnf install -y rsyslog procps-ng java-11-openjdk-headless && \
+RUN dnf install -y rsyslog procps-ng java-11-openjdk-headless gnutls && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 

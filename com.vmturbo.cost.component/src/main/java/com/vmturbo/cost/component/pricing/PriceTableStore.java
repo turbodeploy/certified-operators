@@ -55,6 +55,15 @@ public interface PriceTableStore {
     Map<Long, PriceTable> getPriceTables(Collection<Long> oids);
 
     /**
+     * Gets a list of price table keys corresponding to the list of oids.
+     *
+     * @param oids The oids whose price table keys to retrieve.
+     * @return The map of price table keys by price id.
+     */
+    @Nonnull
+    Map<Long, PriceTableKey> getPriceTableKeys(Collection<Long> oids);
+
+    /**
      * Get the reserved instance price tables.
      *
      * @param oids The oids whose price tables to retrieve.

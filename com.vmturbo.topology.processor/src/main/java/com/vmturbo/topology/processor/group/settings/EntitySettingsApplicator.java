@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -88,7 +89,8 @@ public class EntitySettingsApplicator {
                             EntitySettingSpecs.getSettingByName(setting.getSettingSpecName());
                     if (policySetting.isPresent()) {
                         settingsForEntity.put(policySetting.get(), setting);
-                    } else {
+                    } else if (!ActionSettingSpecs.isActionModeSubSetting(setting.getSettingSpecName())) {
+                        // action mode settings do not affect topology setting applicators
                         logger.warn("Unknown setting {} for entity {}",
                                 setting.getSettingSpecName(), entity.getOid());
                     }
@@ -386,7 +388,6 @@ public class EntitySettingsApplicator {
             super(EntitySettingSpecs.Move);
             this.graphWithSettings = Objects.requireNonNull(graphWithSettings);
             this.specialCases = new HashMap<>();
-            this.specialCases.put(EntityType.VIRTUAL_VOLUME, this::applyVirtualVolumeMove);
             this.specialCases.put(EntityType.VIRTUAL_MACHINE, (virtualMachine, isMoveEnabled) -> {
                 applyMovableToCommodities(virtualMachine, isMoveEnabled,
                         c -> c.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE);
@@ -398,39 +399,6 @@ public class EntitySettingsApplicator {
             this.specialCases.getOrDefault(EntityType.forNumber(entity.getEntityType()),
                     (e, s) -> applyMovableToCommodities(e, s, c -> true))
                     .accept(entity, isMoveEnabled);
-        }
-
-        private void applyVirtualVolumeMove(TopologyEntityDTO.Builder virtualVolume,
-                Boolean isMoveEnabled) {
-            logger.debug(
-                    "Setting will be applied to virtual machines connected to virtual volume {}",
-                    virtualVolume::getOid);
-            final Collection<TopologyEntityDTO.Builder> connectedVirtualMachines =
-                    this.graphWithSettings.getTopologyGraph()
-                            .getEntity(virtualVolume.getOid())
-                            .map(vv -> vv.getInboundAssociatedEntities()
-                                    .stream()
-                                    .filter(connectedEntity -> connectedEntity.getEntityType() ==
-                                            EntityType.VIRTUAL_MACHINE_VALUE)
-                                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                                    .collect(Collectors.toList()))
-                            .orElseGet(() -> {
-                                logger.error(
-                                        "Topology graph does not contain virtual volume with id {}",
-                                        virtualVolume.getOid());
-                                return Collections.emptyList();
-                            });
-            if (connectedVirtualMachines.isEmpty()) {
-                logger.debug("Unattached virtual volume {}. No move settings applied",
-                        virtualVolume::getOid);
-            } else {
-                connectedVirtualMachines.forEach(vm ->
-                        // Virtual machine may have more than one virtual volume with the same storage tier.
-                        // Only apply to the one with the associated virtual volume.
-                        applyMovableToCommodities(vm, isMoveEnabled,
-                                c -> c.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE &&
-                                        c.getVolumeId() == virtualVolume.getOid()));
-            }
         }
     }
 
@@ -1008,18 +976,20 @@ public class EntitySettingsApplicator {
 
         // convert into units that market uses.
         private final ImmutableMap<Integer, Float> conversionFactor =
-            ImmutableMap.of(
+            ImmutableMap.<Integer, Float>builder()
                 //VMEM setting value is in MBs. Market expects it in KBs.
-                CommodityType.VMEM_VALUE, 1024.0f,
+                .put(CommodityType.VMEM_VALUE, 1024.0f)
+                //VMEM_REQUEST setting value is in MBs. Market expects it in KBs.
+                .put(CommodityType.VMEM_REQUEST_VALUE, 1024.0f)
                 //VSTORAGE setting value is in GBs. Market expects it in MBs.
-                CommodityType.VSTORAGE_VALUE, 1024.0f,
+                .put(CommodityType.VSTORAGE_VALUE, 1024.0f)
                 //STORAGE_AMOUNT setting value is in GBs. Market expects it in MBs.
-                CommodityType.STORAGE_AMOUNT_VALUE, 1024.0f,
+                .put(CommodityType.STORAGE_AMOUNT_VALUE, 1024.0f)
                 //HEAP setting value is in MBs. Market expects it in KBs.
-                CommodityType.HEAP_VALUE, 1024.0f,
+                .put(CommodityType.HEAP_VALUE, 1024.0f)
                 //DB_MEM setting value is in MBs. Market expects it in KBs.
-                CommodityType.DB_MEM_VALUE, 1024.0f);
-
+                .put(CommodityType.DB_MEM_VALUE, 1024.0f)
+                .build();
 
         private ResizeIncrementApplicator(@Nonnull EntitySettingSpecs setting,
                 @Nonnull final CommodityType commodityType) {

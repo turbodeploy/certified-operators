@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
@@ -58,7 +59,9 @@ public class TopologyProcessorSettingsConverterTest {
             .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                     .addAllOids(Arrays.asList(1L, 2L))
                     .build())
-            .setSettingSpecName(EntitySettingSpecs.MoveExecutionSchedule.getSettingName())
+            .setSettingSpecName(
+                ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
+                    EntitySettingSpecs.Move))
             .build();
 
     /**

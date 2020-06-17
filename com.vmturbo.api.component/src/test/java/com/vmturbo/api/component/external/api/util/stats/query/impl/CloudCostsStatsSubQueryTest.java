@@ -440,7 +440,8 @@ public class CloudCostsStatsSubQueryTest {
                 ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
         final Cost.GetCloudCostStatsResponse response =
                 Cost.GetCloudCostStatsResponse.getDefaultInstance();
-        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
+            .thenReturn(Collections.singletonList(response));
 
         final List<StatSnapshotApiDTO> aggregateStats =
                 query.getAggregateStats(requestedStats, context);
@@ -682,7 +683,8 @@ public class CloudCostsStatsSubQueryTest {
             ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
         Cost.GetCloudCostStatsResponse response =
             Cost.GetCloudCostStatsResponse.getDefaultInstance();
-        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
+            .thenReturn(Collections.singletonList(response));
 
         // Behaviors associated to query scope
         when(queryScope.getScopeOids()).thenReturn(Collections.singleton(5L));
@@ -741,7 +743,8 @@ public class CloudCostsStatsSubQueryTest {
             ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
         Cost.GetCloudCostStatsResponse response =
             Cost.GetCloudCostStatsResponse.getDefaultInstance();
-        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
+            .thenReturn(Collections.singletonList(response));
 
         // Behaviors associated to query scope
         when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
@@ -814,7 +817,8 @@ public class CloudCostsStatsSubQueryTest {
             ArgumentCaptor.forClass(GetCloudCostStatsRequest.class);
         Cost.GetCloudCostStatsResponse response =
             Cost.GetCloudCostStatsResponse.getDefaultInstance();
-        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
+            .thenReturn(Collections.singletonList(response));
 
         // Behaviors associated to query scope
         when(queryScope.getScopeOids()).thenReturn(Collections.singleton(5L));
@@ -880,7 +884,8 @@ public class CloudCostsStatsSubQueryTest {
             ArgumentCaptor.forClass(GetCloudCostStatsRequest.class);
         Cost.GetCloudCostStatsResponse response =
             Cost.GetCloudCostStatsResponse.getDefaultInstance();
-        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
+            .thenReturn(Collections.singletonList(response));
 
         // Behaviors associated to query scope
         when(queryScope.getScopeOids()).thenReturn(Collections.singleton(5L));
@@ -946,7 +951,8 @@ public class CloudCostsStatsSubQueryTest {
                 ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
         Cost.GetCloudCostStatsResponse response =
                 Cost.GetCloudCostStatsResponse.getDefaultInstance();
-        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
+            .thenReturn(Collections.singletonList(response));
 
         // Behaviors associated to query scope
         when(queryScope.getScopeOids()).thenReturn(Collections.singleton(5L));
@@ -1021,7 +1027,8 @@ public class CloudCostsStatsSubQueryTest {
                 ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
         Cost.GetCloudCostStatsResponse response =
                 Cost.GetCloudCostStatsResponse.getDefaultInstance();
-        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
+            .thenReturn(Collections.singletonList(response));
 
         // Behaviors associated to query scope
         when(queryScope.getExpandedOids()).thenReturn(Collections.singleton(5L));

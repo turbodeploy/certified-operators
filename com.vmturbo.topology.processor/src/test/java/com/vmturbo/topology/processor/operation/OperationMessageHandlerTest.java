@@ -5,6 +5,7 @@ import static org.junit.Assert.assertEquals;
 import java.time.Clock;
 
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -17,8 +18,10 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.topology.processor.communication.BaseMessageHandler;
 import com.vmturbo.topology.processor.communication.ExpiringMessageHandler.HandlerStatus;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.operation.IOperationManager.OperationCallback;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
+import com.vmturbo.topology.processor.operation.action.ActionMessageHandler.ActionOperationCallback;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -29,9 +32,8 @@ import com.vmturbo.topology.processor.operation.validation.ValidationMessageHand
  */
 public class OperationMessageHandlerTest {
 
-    private final OperationManager operationManager = Mockito.mock(OperationManager.class);
     private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
-    private final Discovery discovery = new Discovery(0,0, identityProvider);
+    private final Discovery discovery = new Discovery(0, 0, identityProvider);
 
     /**
      * Test that the handler works properly when receiving a discovery response.
@@ -40,8 +42,10 @@ public class OperationMessageHandlerTest {
      */
     @Test
     public void testReceiveDiscoveryResponse() throws Exception {
-        final BaseMessageHandler handler = new DiscoveryMessageHandler(operationManager, discovery,
-                Clock.systemUTC(), 10000);
+        @SuppressWarnings("unckecked")
+        final OperationCallback<DiscoveryResponse> callback = Mockito.mock(OperationCallback.class);
+        final BaseMessageHandler handler = new DiscoveryMessageHandler(discovery,
+                Clock.systemUTC(), 10000, callback);
         final MediationClientMessage clientMessage = MediationClientMessage.newBuilder()
                 .setDiscoveryResponse(DiscoveryResponse.newBuilder()
                         .addEntityDTO(EntityDTO.newBuilder().setId("foo").setEntityType(EntityType.VIRTUAL_MACHINE))
@@ -55,8 +59,7 @@ public class OperationMessageHandlerTest {
         assertEquals(HandlerStatus.COMPLETE, status);
 
         // Verify result got queued.
-        Mockito.verify(operationManager)
-                .notifyDiscoveryResult(discovery, clientMessage.getDiscoveryResponse());
+        Mockito.verify(callback).onSuccess(clientMessage.getDiscoveryResponse());
     }
 
     /**
@@ -71,10 +74,13 @@ public class OperationMessageHandlerTest {
         Mockito.when(mockClock.millis())
                 .thenReturn(1000L)
                 .thenReturn(2000L);
+        @SuppressWarnings("unckecked")
+        final OperationCallback<DiscoveryResponse> callback = Mockito.mock(OperationCallback.class);
 
         // Before receiving a refresh, the expected expiration time is
         // the first time+timeout=1000+1000=2000
-        final BaseMessageHandler handler = new DiscoveryMessageHandler(operationManager, discovery, mockClock, 1000);
+        final BaseMessageHandler handler = new DiscoveryMessageHandler(discovery, mockClock, 1000,
+                callback);
         assertEquals(2000L, handler.expirationTime());
 
         // Verify the handler says it is in progress
@@ -95,12 +101,15 @@ public class OperationMessageHandlerTest {
      */
     @Test
     public void testOnExpiration() throws Exception {
-        final BaseMessageHandler handler = new DiscoveryMessageHandler(operationManager, discovery,
-                Clock.systemUTC(), 1000);
+        @SuppressWarnings("unckecked")
+        final OperationCallback<DiscoveryResponse> callback = Mockito.mock(OperationCallback.class);
+        final BaseMessageHandler handler = new DiscoveryMessageHandler(discovery,
+                Clock.systemUTC(), 1000, callback);
         Thread.sleep(1000);
         handler.onExpiration();
 
-        Mockito.verify(operationManager).notifyTimeout(discovery, 1);
+        final ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(callback).onFailure(Mockito.contains("Discovery 0 timed out after"));
     }
 
     /**
@@ -108,8 +117,10 @@ public class OperationMessageHandlerTest {
      */
     @Test
     public void testDiscoveryWrongMessage() {
-        final BaseMessageHandler handler = new DiscoveryMessageHandler(operationManager, discovery,
-                Clock.systemUTC(), 1000);
+        @SuppressWarnings("unckecked")
+        final OperationCallback<DiscoveryResponse> callback = Mockito.mock(OperationCallback.class);
+        final BaseMessageHandler handler = new DiscoveryMessageHandler(discovery, Clock.systemUTC(),
+                1000, callback);
         final MediationClientMessage clientMessage = MediationClientMessage.newBuilder()
                 .setValidationResponse(ValidationResponse.newBuilder())
                 .build();
@@ -123,8 +134,10 @@ public class OperationMessageHandlerTest {
     @Test
     public void testValidationWrongMessage() {
         final Validation validation = new Validation(0, 0, identityProvider);
-        final BaseMessageHandler handler = new ValidationMessageHandler(operationManager, validation,
-                Clock.systemUTC(), 1000);
+        @SuppressWarnings("unckecked")
+        final OperationCallback<ValidationResponse> callback = Mockito.mock(OperationCallback.class);
+        final BaseMessageHandler handler = new ValidationMessageHandler(validation,
+                Clock.systemUTC(), 1000, callback);
         final MediationClientMessage clientMessage = MediationClientMessage.newBuilder()
                 .setDiscoveryResponse(DiscoveryResponse.newBuilder())
                 .build();
@@ -138,8 +151,10 @@ public class OperationMessageHandlerTest {
     @Test
     public void testActionWrongMessage() {
         final Action action = new Action(0, 0, 0, identityProvider, ActionType.MOVE);
-        final BaseMessageHandler handler = new ActionMessageHandler(operationManager, action,
-                Clock.systemUTC(), 1000);
+        final ActionOperationCallback callback = Mockito.mock(ActionOperationCallback.class);
+
+        final BaseMessageHandler handler = new ActionMessageHandler(action, Clock.systemUTC(), 1000,
+                callback);
         final MediationClientMessage clientMessage = MediationClientMessage.newBuilder()
                 .setDiscoveryResponse(DiscoveryResponse.newBuilder())
                 .build();

@@ -113,16 +113,16 @@ public interface CloudTopology<ENTITY_CLASS> {
     Optional<ENTITY_CLASS> getStorageTier(final long entityId);
 
     /**
-     * Get the volumes connected to an entity.
+     * Get the volumes attached to an entity.
      *
-     * Only finds the immediately connected volumes.
+     * Only finds the immediately attached volumes.
      *
      * @param entityId The ID of the entity.
-     * @return A collection of volumes connected to the entity, or an empty collection if there
+     * @return A collection of volumes attached to the entity, or an empty collection if there
      *    are none.
      */
     @Nonnull
-    Collection<ENTITY_CLASS> getConnectedVolumes(final long entityId);
+    Collection<ENTITY_CLASS> getAttachedVolumes(long entityId);
 
     /**
      * Get the region associated with an entity.

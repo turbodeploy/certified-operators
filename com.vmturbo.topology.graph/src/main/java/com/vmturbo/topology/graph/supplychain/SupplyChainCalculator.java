@@ -150,14 +150,14 @@ public class SupplyChainCalculator {
     private static <E extends TopologyGraphEntity<E>> Stream<E> getOutgoingArrowsStream(@Nonnull E entity) {
         return Stream.concat(entity.getProviders().stream(),
                              Stream.concat(entity.getAggregatorsAndOwner().stream(),
-                                           entity.getOutboundAssociatedEntities().stream()));
+                                 Stream.concat(entity.getControllers().stream(), entity.getOutboundAssociatedEntities().stream())));
     }
 
     @Nonnull
     private static <E extends TopologyGraphEntity<E>> Stream<E> getIngoingArrowsStream(@Nonnull E entity) {
         return Stream.concat(entity.getConsumers().stream(),
                              Stream.concat(entity.getAggregatedAndOwnedEntities().stream(),
-                                           entity.getInboundAssociatedEntities().stream()));
+                                 Stream.concat(entity.getControlledEntities().stream(), entity.getInboundAssociatedEntities().stream())));
     }
 
     private static <E extends TopologyGraphEntity<E>> boolean isEntityInResult(
@@ -223,7 +223,11 @@ public class SupplyChainCalculator {
         /**
          * We are traversing owners and aggregators.
          */
-        AGGREGATED_BY
+        AGGREGATED_BY,
+        /**
+         * We are traversing controllers.
+         */
+        CONTROLLED_BY,
     }
 
     /**

@@ -19,6 +19,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -75,13 +76,19 @@ public class ComponentCluster {
     private final ServiceLogger serviceLogger;
 
     /**
+     * If we only want a non-Turbo component we don't need the cluster manager.
+     */
+    private final boolean disableClusterMgr;
+
+    /**
      * Health check used to verify ClusterMgr component readiness.
      */
     private final ComponentHealthCheck healthCheck;
 
     private ComponentCluster(@Nonnull String projectName,
+                             final boolean disableClusterMgr,
                              @Nonnull final LinkedHashMap<String, Component> components) {
-        this(components, DockerComposeRule.builder()
+        this(components, disableClusterMgr, DockerComposeRule.builder()
             .files(DockerComposeFiles.from(DockerEnvironment.getDockerComposeFiles()))
             .machine(DockerEnvironment.newLocalMachine(components).build())
             .projectName(ProjectName.fromString(projectName))
@@ -89,16 +96,19 @@ public class ComponentCluster {
     }
 
     private ComponentCluster(@Nonnull final LinkedHashMap<String, Component> components,
+                          final boolean disableClusterMgr,
                           @Nonnull final DockerComposeRule dockerComposeRule) {
-        this(components, dockerComposeRule, new ServiceLogger(dockerComposeRule), new ComponentHealthCheck());
+        this(components, disableClusterMgr, dockerComposeRule, new ServiceLogger(dockerComposeRule), new ComponentHealthCheck());
     }
 
     @VisibleForTesting
     ComponentCluster(@Nonnull final LinkedHashMap<String, Component> components,
+                  final boolean disableClusterMgr,
                   @Nonnull final DockerComposeRule dockerComposeRule,
                   @Nonnull final ServiceLogger serviceLogger,
                   @Nonnull final ComponentHealthCheck healthCheck) {
         this.dockerComposeRule = dockerComposeRule;
+        this.disableClusterMgr = disableClusterMgr;
         this.components = components;
         this.serviceLogger = serviceLogger;
         this.healthCheck = healthCheck;
@@ -130,9 +140,14 @@ public class ComponentCluster {
             dockerComposeRule.after();
 
             // Start up clustermgr.
-            Container clusterMgr = dockerComposeRule.containers().container("clustermgr");
-            clusterMgr.up();
-            healthCheck.waitUntilReady(clusterMgr, Duration.ofMinutes(DEFAULT_HEALTH_CHECK_WAIT_MINUTES));
+            Container clusterMgr;
+            if (disableClusterMgr) {
+                clusterMgr = null;
+            } else {
+                clusterMgr = dockerComposeRule.containers().container("clustermgr");
+                clusterMgr.up();
+                healthCheck.waitUntilReady(clusterMgr, Duration.ofMinutes(DEFAULT_HEALTH_CHECK_WAIT_MINUTES));
+            }
 
             components.values().forEach(component -> {
                     component.up(clusterMgr, dockerComposeRule, serviceLogger);
@@ -265,6 +280,7 @@ public class ComponentCluster {
          */
         private final LinkedHashMap<String, Component> componentsByName = new LinkedHashMap<>();
         private String projectName = PERF_TEST_PROJECT_NAME;
+        private boolean disableClusterMgr = false;
 
         @Nonnull
         public Builder withService(@Nonnull final Component component) {
@@ -282,13 +298,26 @@ public class ComponentCluster {
             return this;
         }
 
+        /**
+         * Normally we start up clustermgr before all other containers, and use the clustermgr
+         * API to override component properties. Use this method to disable the clustermgr
+         * dependency.
+         *
+         * @return The {@link Builder}, for method chaining.
+         */
+        @Nonnull
+        public Builder disableClusterMgr() {
+            this.disableClusterMgr = true;
+            return this;
+        }
+
         @Nonnull
         public Builder withService(@Nonnull final Component.Builder componentBuilder) {
             return withService(componentBuilder.build());
         }
 
         public ComponentCluster build() {
-            return new ComponentCluster(projectName, componentsByName);
+            return new ComponentCluster(projectName, disableClusterMgr, componentsByName);
         }
     }
 
@@ -380,7 +409,7 @@ public class ComponentCluster {
         }
 
         @VisibleForTesting
-        void up(@Nonnull final Container clusterMgr,
+        void up(@Nullable final Container clusterMgr,
                 @Nonnull final DockerComposeRule dockerComposeRule,
                 @Nonnull final ServiceLogger serviceLogger) {
             up(clusterMgr, dockerComposeRule, serviceLogger,
@@ -388,7 +417,7 @@ public class ComponentCluster {
         }
 
         @VisibleForTesting
-        void up(@Nonnull final Container clusterMgr,
+        void up(@Nullable final Container clusterMgr,
                 @Nonnull final DockerComposeRule dockerComposeRule,
                 @Nonnull final ServiceLogger serviceLogger,
                 @Nonnull final ServiceConfiguration serviceConfiguration) {

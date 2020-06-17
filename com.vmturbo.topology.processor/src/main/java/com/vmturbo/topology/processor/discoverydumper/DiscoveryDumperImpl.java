@@ -15,7 +15,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPOutputStream;
 
 import javax.annotation.Nonnull;
 
@@ -24,6 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Lists;
+
+import net.jpountz.lz4.LZ4FrameOutputStream;
 
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
@@ -181,7 +182,7 @@ public class DiscoveryDumperImpl implements DiscoveryDumper {
 
         logger.debug("Absolute path for text dump file: {}", txtFile::getAbsolutePath);
 
-        try (final OutputStream os = new GZIPOutputStream(new FileOutputStream(txtFile))) {
+        try (final OutputStream os = new LZ4FrameOutputStream(new FileOutputStream(txtFile))) {
             os.write(discoveryResponse.toString().getBytes(Charset.defaultCharset()));
             logger.trace("Successfully saved text discovery response");
         } catch (IOException e) {

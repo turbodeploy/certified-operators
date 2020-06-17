@@ -298,11 +298,9 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
 
             if (storageAmount.isPresent() && storageAmount.get().hasUsed()) {
                 double amountUsed = storageAmount.get().getUsed();
+                //storageProvionsedUsed is computed using consumers' used, so it can be < or > amount used.
                 if (provisionedUsed >= amountUsed) {
                     return (provisionedUsed - amountUsed);
-                } else {
-                    logger.error("{}: Storage provisioned used {} is smaller than storage amount used {}",
-                        stitchingEntity, provisionedUsed, amountUsed);
                 }
             } else {
                 logger.error("{}: Storage provisioned is specified but storage amount is not.", stitchingEntity);

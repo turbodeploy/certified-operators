@@ -36,6 +36,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
+import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumpFilename;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -43,6 +45,7 @@ import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
@@ -67,7 +70,7 @@ public class DiscoveryBasedUnblockTest {
 
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
-    private final long targetShortCircuitMs = 50_000;
+    private final long fastSlowBoundaryMs = 50_000;
 
     private static final long PROBE_ID = 123L;
 
@@ -82,6 +85,12 @@ public class DiscoveryBasedUnblockTest {
     private File dumpDir;
 
     private DiscoveryBasedUnblock unblock;
+
+    private TargetShortCircuitSpec targetShortCircuitSpec = TargetShortCircuitSpec.newBuilder()
+            .setFastRediscoveryThreshold(2)
+            .setFastSlowBoundary(fastSlowBoundaryMs, TimeUnit.MILLISECONDS)
+            .setSlowRediscoveryThreshold(1)
+            .build();
 
     /**
      * Create a temporary folder for cached responses.
@@ -99,7 +108,7 @@ public class DiscoveryBasedUnblockTest {
         final BinaryDiscoveryDumper discoveryDumper = new BinaryDiscoveryDumper(dumpDir);
         unblock = spy(new DiscoveryBasedUnblock(pipelineExecutorService,
                     targetStore, probeStore, scheduler, operationManager,
-                    targetShortCircuitMs, maxDiscoveryWaitMs, maxProbeRegistrationWaitMs, TimeUnit.MILLISECONDS,
+                    targetShortCircuitSpec, maxDiscoveryWaitMs, maxProbeRegistrationWaitMs, TimeUnit.MILLISECONDS,
                     clock, identityProvider, discoveryDumper, true));
         IdentityGenerator.initPrefix(1L);
         when(identityProvider.generateOperationId()).thenAnswer(invocation -> IdentityGenerator.next());
@@ -161,7 +170,7 @@ public class DiscoveryBasedUnblockTest {
      * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testProbeRegistrationTimeoutExceptino() throws Exception {
+    public void testProbeRegistrationTimeoutException() throws Exception {
         final Target t1 = setupTarget(1L);
         final long probeId = 121;
         when(t1.getProbeId()).thenReturn(probeId);
@@ -184,6 +193,49 @@ public class DiscoveryBasedUnblockTest {
         // Probe still not registered. We ignore that target from now on.
         assertTrue(unblock.runIteration());
 
+    }
+
+    /**
+     * Test that discovery errors caused by the probe not being registered don't count as errors,
+     * but count towards the PROBE_NOT_REGISTERED timeout.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testDiscoveryProbeException() throws Exception {
+        final Target t1 = setupTarget(1L);
+        final long probeId = 121;
+        final ErrorDTO probeNotRegisteredError = ErrorDTO.newBuilder()
+            .setSeverity(ErrorSeverity.CRITICAL)
+            .setDescription(new ProbeException(RemoteProbeStore.TRANSPORT_NOT_REGISTERED_PREFIX + probeId).getLocalizedMessage())
+            .build();
+        when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
+        when(t1.getProbeId()).thenReturn(probeId);
+        final Discovery t1d1 = newLastDiscovery(t1.getId());
+        t1d1.addError(probeNotRegisteredError);
+        t1d1.fail();
+        // The rediscovery interval of this target is above the boundary, so we should use the
+        // "slow" threshold, which is 1.
+        mockTargetDiscoverySchedule(t1.getId(), fastSlowBoundaryMs + 1);
+
+        // The failed discovery shouldn't count towards the error threshold, because this kind of
+        // failure indicates that the probe is not registered yet.
+        assertFalse(unblock.runIteration());
+
+        // Getting close to the threshold.
+        clock.addTime(maxProbeRegistrationWaitMs - 1, ChronoUnit.MILLIS);
+
+        final Discovery t1d2 = newLastDiscovery(t1.getId());
+        t1d2.addError(probeNotRegisteredError);
+        t1d2.fail();
+
+        // Still not at threshold, or at failure threshold - waiting for probe to register.
+        assertFalse(unblock.runIteration());
+
+        clock.addTime(1, ChronoUnit.MILLIS);
+
+        // Probe still not registered. We ignore that target from now on.
+        assertTrue(unblock.runIteration());
     }
 
     /**
@@ -250,14 +302,15 @@ public class DiscoveryBasedUnblockTest {
      * number of times in a row - if the target has a low discovery interval.
      */
     @Test
-    public void testTargetShortCircuitLowDiscoveryInterval() {
+    public void testTargetShortCircuitFastDiscoveryInterval() {
         final Target t1 = setupTarget(1L);
         final Discovery t1d1 = newLastDiscovery(t1.getId());
         t1d1.fail();
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
-        mockTargetDiscoverySchedule(t1.getId(), targetShortCircuitMs / 2);
+        // The re-discovery interval of this target is below the boundary, so we should use
+        // the "fast" threshold, which is 2.
+        mockTargetDiscoverySchedule(t1.getId(), fastSlowBoundaryMs - 1);
 
-        // The re-discovery interval of this target is low - the failure threshold should be 2.
         // This is the first failure.
         assertFalse(unblock.runIteration());
         // At the second iteration, t2 has Status == FAILED, but it's still the same failed discovery
@@ -276,14 +329,16 @@ public class DiscoveryBasedUnblockTest {
      * number of times in a row - if the target has a high discovery interval.
      */
     @Test
-    public void testTargetShortCircuitHighDiscoveryInterval() {
+    public void testTargetShortCircuitSlowDiscoveryInterval() {
         final Target t1 = setupTarget(1L);
         final Discovery t1d1 = newLastDiscovery(t1.getId());
         t1d1.fail();
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
-        mockTargetDiscoverySchedule(t1.getId(), targetShortCircuitMs * 2);
+        // The rediscovery interval of this target is above the boundary, so we should use the
+        // "slow" threshold, which is 1.
+        mockTargetDiscoverySchedule(t1.getId(), fastSlowBoundaryMs + 1);
 
-        // The re-discovery interval of this target is very high, so the failure threshold is 1.
+        // Since the first discovery failed, it should hit the short-circuit limit (1).
         assertTrue(unblock.runIteration());
     }
 

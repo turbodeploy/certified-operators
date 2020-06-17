@@ -138,12 +138,14 @@ public class BusinessAccountPriceTableKeyStore implements DiagsRestorable {
     }
 
     /**
-     * Retrieve mapping of all businessAccount OIDs to {@link PriceTableKey} indexed by BA OIDs;
-     * if not OIDs are specified.
-     * If businessAccount OIDs are specified in args, only those mapping are retrieved.
+     * Retrieve ALL mappings of BA OID to {@link PriceTableKey}'s OID indexed by BA OID
+     * (if no OIDs are specified in the argument i.e argument list is empty).
      *
-     * @param businessAccountOIDs list of business account OIDs to retrieve.
-     * @return map of BA OIDs to {@link PriceTableKey}.
+     * If BA OIDs are specified in collection argument, only those mappings are retrieved.
+     *
+     * @param businessAccountOIDs list of business account OIDs to retrieve mappings for.
+     *
+     * @return mappings of BA OID to {@link PriceTableKey}'s OID.
      */
     @Nonnull
     public Map<Long, Long> fetchPriceTableKeyOidsByBusinessAccount(@Nonnull final Set<Long> businessAccountOIDs) {
@@ -218,6 +220,8 @@ public class BusinessAccountPriceTableKeyStore implements DiagsRestorable {
         PriceTableKey priceTableKey = longPriceTableKeyEntry.getValue();
         Long businessAccountOID = longPriceTableKeyEntry.getKey();
         try {
+            logger.info("Create/update a record for BA: {} to priceTableKey {}",
+                    businessAccountOID, priceTableKey);
             // assign oid using priceTableKeyIdentityStore.
             Entry<IdentityMatchingAttributes, Long> newPriceTableKeyOidEntry = priceTableKeyIdentityStore
                     .assignPriceTableKeyOid(context, priceTableKey, currentPriceTableKeys);

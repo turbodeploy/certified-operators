@@ -107,7 +107,7 @@ public class ReservedInstanceSpecMatcherTest {
 
         ReservedInstanceSpecMatcher matcher = matcherFactory.createRegionalMatcher(
                 cloudTopologyFactory.newCloudTopology(entityMap.values().stream()),
-                purchaseConstraints.get(CategoryPathConstants.AWS.toUpperCase()), REGION_AWS);
+                purchaseConstraints, REGION_AWS);
         Optional<ReservedInstanceSpecData> spec =
                 matcher.matchToPurchasingRISpecData(entityMap.get(REGION_AWS),
                         entityMap.get(AWS_TIER_ID), OSType.LINUX, Tenancy.DEFAULT);
@@ -129,7 +129,7 @@ public class ReservedInstanceSpecMatcherTest {
         when(riSpecStore.getAllRISpecsForRegion(any(Long.class))).thenReturn(riSpecs);
         ReservedInstanceSpecMatcher matcher = matcherFactory.createRegionalMatcher(
                 cloudTopologyFactory.newCloudTopology(entityMap.values().stream()),
-            purchaseConstraints.get(CategoryPathConstants.AWS.toUpperCase()), REGION_AWS);
+                purchaseConstraints, REGION_AWS);
         Optional<ReservedInstanceSpecData> spec =
                 matcher.matchToPurchasingRISpecData(entityMap.get(REGION_AWS),
                         entityMap.get(AWS_TIER_ID), OSType.LINUX, Tenancy.DEFAULT);
@@ -152,7 +152,7 @@ public class ReservedInstanceSpecMatcherTest {
 
         ReservedInstanceSpecMatcher matcher = matcherFactory.createRegionalMatcher(
                 cloudTopologyFactory.newCloudTopology(entityMap.values().stream()),
-            purchaseConstraints.get(CategoryPathConstants.AZURE.toUpperCase()), REGION_AZURE);
+                purchaseConstraints, REGION_AZURE);
         Optional<ReservedInstanceSpecData> spec =
                 matcher.matchToPurchasingRISpecData(entityMap.get(REGION_AZURE),
                         entityMap.get(AZURE_TIER_ID), OSType.WINDOWS, Tenancy.DEFAULT);
@@ -182,7 +182,7 @@ public class ReservedInstanceSpecMatcherTest {
         when(riSpecStore.getAllRISpecsForRegion(any(Long.class))).thenReturn(riSpecs);
         ReservedInstanceSpecMatcher matcher = matcherFactory.createRegionalMatcher(
                 cloudTopologyFactory.newCloudTopology(entityMap.values().stream()),
-            purchaseConstraints.get(CategoryPathConstants.AWS.toUpperCase()), REGION_AWS);
+                purchaseConstraints, REGION_AWS);
         Optional<ReservedInstanceSpecData> spec =
                 matcher.matchToPurchasingRISpecData(entityMap.get(REGION_AZURE),
                         entityMap.get(AZURE_TIER_ID), OSType.WINDOWS, Tenancy.DEFAULT);

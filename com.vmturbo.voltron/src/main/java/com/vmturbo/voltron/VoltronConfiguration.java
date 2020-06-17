@@ -463,6 +463,11 @@ public class VoltronConfiguration {
         REPOSITORY(Component.REPOSITORY),
 
         /**
+         * Extractor.
+         */
+        EXTRACTOR(Component.EXTRACTOR),
+
+        /**
          * API.
          */
         API(Component.API);
@@ -770,7 +775,12 @@ public class VoltronConfiguration {
         /**
          * XTremio.
          */
-        MEDIATION_XTREMIO(Component.MEDIATION_XTREMIO);
+        MEDIATION_XTREMIO(Component.MEDIATION_XTREMIO),
+
+        /**
+         * ServiceNOW.
+         */
+        MEDIATION_SERVICENOW(Component.MEDIATION_SERVICENOW);
 
         private Component component;
 

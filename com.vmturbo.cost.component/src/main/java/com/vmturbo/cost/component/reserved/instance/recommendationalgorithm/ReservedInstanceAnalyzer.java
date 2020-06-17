@@ -4,7 +4,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -14,15 +13,18 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
-
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap.Builder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -38,8 +40,10 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithm;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithmResult;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.setting.CategoryPathConstants;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
@@ -110,7 +114,7 @@ public class ReservedInstanceAnalyzer {
     private final RIBuyAnalysisContextProvider analysisContextProvider;
 
     /*
-     * Needed to create the RIBuyRateProvider.
+    * Needed to create the RIBuyRateProvider.
      */
     private final PriceTableStore priceTableStore;
     private final BusinessAccountPriceTableKeyStore baPriceTableStore;
@@ -123,7 +127,7 @@ public class ReservedInstanceAnalyzer {
      * @param baPriceTableStore Business Account oids to their respective price table key store
      * @param analysisContextProvider Provides unique analysis contexts based on the analysis scope.
      * @param demandCalculatorFactory A factory for demand calculators, used to merge recorded demand
-     *                                with RI inventory, in order to calculate uncovered demand for analysis.
+    *                                with RI inventory, in order to calculate uncovered demand for analysis.
      * @param actionsSender used to broadcast the actions.
      * @param buyRiStore Place to store all the buy RIs suggested by this algorithm
      * @param actionContextRIBuyStore the class to perform database operation on the cost.action_context_ri_buy
@@ -170,6 +174,7 @@ public class ReservedInstanceAnalyzer {
      * Run the RI buy algorithm and send the RI buy actions to the action orchestrator.
      *
      * @param topologyContextId  this may be the plan id or the realtime topology context ID.
+     * @param cloudTopology Cloud Topology.
      * @param scope analysis scope
      * @param historicalDemandDataType the type of demand data: allocated or consumption.
      * @throws CommunicationException Exception thrown on errors occurred during communications.
@@ -177,17 +182,18 @@ public class ReservedInstanceAnalyzer {
      *                              and the thread is interrupted, either before or during the activity.
      */
     public void runRIAnalysisAndSendActions(final long topologyContextId,
-                                            @Nonnull ReservedInstanceAnalysisScope scope,
-                                            @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
-        throws CommunicationException, InterruptedException {
+            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+            @Nonnull ReservedInstanceAnalysisScope scope,
+            @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
+                throws CommunicationException, InterruptedException {
         ActionPlan actionPlan;
         // If the analysis is for real time delete all entries for real time from
         // action_context_ri_buy table.
         if (topologyContextId == realtimeTopologyContextId) {
             actionContextRIBuyStore.deleteRIBuyContextData(realtimeTopologyContextId);
         }
-        @Nullable ReservedInstanceAnalysisResult result = analyze(topologyContextId, scope,
-            historicalDemandDataType);
+        ReservedInstanceAnalysisResult result = analyze(topologyContextId, cloudTopology,
+                scope, historicalDemandDataType);
         if (result == null) {
             // when result is null, it may be that no need to buy any ri
             // so we create a dummy action plan and send to action orchestrator
@@ -204,24 +210,27 @@ public class ReservedInstanceAnalyzer {
     /**
      * Create a dummy action plan and send to action orchestrator.
      *
-     * @param topologyContextId Topology context ID
-     * @return Empty action plan
+     * @param topologyContextId Topology context ID.
+     *
+     * @return Empty action plan.
      */
-    private ActionPlan createEmptyActionPlan(long topologyContextId) {
+    public ActionPlan createEmptyActionPlan(long topologyContextId) {
         return ActionPlan.newBuilder()
-            .setId(IdentityGenerator.next())
-            .setInfo(ActionPlanInfo.newBuilder()
-                .setBuyRi(BuyRIActionPlanInfo.newBuilder()
-                    .setTopologyContextId(topologyContextId)))
-            .build();
+                .setId(IdentityGenerator.next())
+                .setInfo(ActionPlanInfo.newBuilder()
+                        .setBuyRi(BuyRIActionPlanInfo.newBuilder()
+                                .setTopologyContextId(topologyContextId)))
+                .build();
     }
 
     /**
      * Run the analysis and produce recommendations.
      *
-     * @param topologyContextId the topology used to analyze buy ri
+     * @param topologyContextId the topology used to analyze Buy RI.
+     * @param cloudTopology Cloud Topology.
      * @param scope describes the scope of the analysis including regions, platforms, etc. under consideration.
      * @param historicalDemandDataType type of data used in RI Buy Analysis -- ALLOCATION or CONSUMPTION based.
+     *
      * @return the resulting recommendations plus contextual information, or null
      *         if there was an error. A successful analysis always returns an
      *         AnalysisResult, but it may not contain any recommendations if there
@@ -230,29 +239,31 @@ public class ReservedInstanceAnalyzer {
      */
     @Nullable
     public ReservedInstanceAnalysisResult analyze(final long topologyContextId,
-                                                  @Nonnull ReservedInstanceAnalysisScope scope,
-                                                  @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType) {
+            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+            @Nonnull ReservedInstanceAnalysisScope scope,
+            @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType) {
         Objects.requireNonNull(scope);
         Objects.requireNonNull(historicalDemandDataType);
 
         final Date analysisStartTime = new Date();
         final Stopwatch overallTime = Stopwatch.createStarted();
         try {
-            // Describes what kind of RIs can be considered for purchase
-            final ReservedInstancePurchaseConstraints purchaseConstraints =
-                getPurchaseConstraints(scope);
+            // Describes what kind of RIs can be considered for purchase. The purchase
+            // constraints are retrieved as mapping from the service provider display name.
+            final Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints =
+                    getPurchaseConstraints(scope);
 
             // Find the historical demand by context and create analysis clusters.
             final Stopwatch stopWatch = Stopwatch.createStarted();
-            final RIBuyAnalysisContextInfo analysisContextInfo =
-                analysisContextProvider.computeAnalysisContexts(scope, purchaseConstraints);
+            final RIBuyAnalysisContextInfo analysisContextInfo = analysisContextProvider.computeAnalysisContexts(
+                    scope, purchaseConstraints, cloudTopology);
             if (analysisContextInfo.regionalContexts().isEmpty()) {
                 logger.info("Something went wrong: discovered 0 Analyzer clusters, time: {} ms",
                     stopWatch.elapsed(TimeUnit.MILLISECONDS));
             } else {
                 logger.info("discovered {} Analyzer clusters, time: {} ms",
-                    analysisContextInfo.regionalContexts().size(),
-                    stopWatch.elapsed(TimeUnit.MILLISECONDS));
+                        analysisContextInfo.regionalContexts().size(),
+                        stopWatch.elapsed(TimeUnit.MILLISECONDS));
 
 
                 // A count of the number of separate contexts that were analyzed -- separate
@@ -262,20 +273,20 @@ public class ReservedInstanceAnalyzer {
 
                 // compute the recommendations
                 List<ReservedInstanceAnalysisRecommendation> recommendations = computeRecommendations(
-                    analysisContextInfo,
-                    clustersAnalyzed,
-                    historicalDemandDataType);
+                        analysisContextInfo,
+                        clustersAnalyzed,
+                        historicalDemandDataType);
                 logRecommendations(recommendations);
                 removeBuyZeroRecommendations(recommendations);
                 ReservedInstanceAnalysisResult result =
-                    new ReservedInstanceAnalysisResult(scope, purchaseConstraints, recommendations,
-                        topologyContextId, analysisStartTime.getTime(),
-                        (new Date()).getTime(), clustersAnalyzed, buyRiStore, actionContextRIBuyStore);
+                        new ReservedInstanceAnalysisResult(scope, purchaseConstraints, recommendations,
+                                topologyContextId, analysisStartTime.getTime(),
+                                (new Date()).getTime(), clustersAnalyzed, buyRiStore, actionContextRIBuyStore);
 
                 logger.info("process {} Analyzer clusters for {} recommendations, in time: {} ms",
-                    analysisContextInfo.regionalContexts().size(),
-                    recommendations.size(),
-                    overallTime.elapsed(TimeUnit.MILLISECONDS));
+                        analysisContextInfo.regionalContexts().size(),
+                        recommendations.size(),
+                        overallTime.elapsed(TimeUnit.MILLISECONDS));
                 return result;
             }
         } catch (Exception e) {
@@ -324,9 +335,9 @@ public class ReservedInstanceAnalyzer {
      * @return list of RIs to buy
      */
     private List<ReservedInstanceAnalysisRecommendation> computeRecommendations(
-        @Nonnull RIBuyAnalysisContextInfo analysisContextInfo,
-        @Nonnull Integer clustersAnalyzed,
-        @Nonnull ReservedInstanceHistoricalDemandDataType demandDataType) {
+            @Nonnull RIBuyAnalysisContextInfo analysisContextInfo,
+            @Nonnull Integer clustersAnalyzed,
+            @Nonnull ReservedInstanceHistoricalDemandDataType demandDataType) {
 
         Preconditions.checkNotNull(analysisContextInfo);
         Preconditions.checkNotNull(clustersAnalyzed);
@@ -335,32 +346,32 @@ public class ReservedInstanceAnalyzer {
         List<ReservedInstanceAnalysisRecommendation> recommendations = new ArrayList<>();
 
         final RIBuyDemandCalculator demandCalculator = demandCalculatorFactory.newCalculator(
-            analysisContextInfo.regionalRIMatcherCache(),
-            demandDataType);
+                analysisContextInfo.regionalRIMatcherCache(),
+                demandDataType);
         //get all the BA oids from analysis context
         final Set<Long> primaryAccounts =  analysisContextInfo.regionalContexts().stream()
-            .map(e -> demandCalculator.calculateUncoveredDemand(e))
-            .map(RIBuyDemandCalculationInfo::primaryAccountOid).collect(Collectors.toSet());
+                .map(e -> demandCalculator.calculateUncoveredDemand(e))
+                .map(RIBuyDemandCalculationInfo::primaryAccountOid).collect(Collectors.toSet());
         final RIBuyRateProvider rateProvider =
-            new RIBuyRateProvider(priceTableStore, baPriceTableStore, primaryAccounts);
+                new RIBuyRateProvider(priceTableStore, baPriceTableStore, primaryAccounts);
         // For each cluster
         for (RIBuyRegionalContext regionalContext : analysisContextInfo.regionalContexts()) {
             final RIBuyDemandCalculationInfo demandCalculationInfo =
-                demandCalculator.calculateUncoveredDemand(regionalContext);
+                    demandCalculator.calculateUncoveredDemand(regionalContext);
 
             if (demandCalculationInfo.activeHours() < riMinimumDataPoints) {
                 logger.debug("{}activeHours={} < riMinimumDataPoints={}, regionalContext={}, continue",
-                    regionalContext.analysisTag(),
-                    demandCalculationInfo.activeHours(),
-                    riMinimumDataPoints, regionalContext.contextTag());
+                        regionalContext.analysisTag(),
+                        demandCalculationInfo.activeHours(),
+                        riMinimumDataPoints, regionalContext.contextTag());
                 continue;
             }
 
             logger.debug("{}Buy RIs for profile={} in {} from cluster={}",
-                regionalContext.analysisTag(),
-                regionalContext.computeTier().getDisplayName(),
-                regionalContext.region().getDisplayName(),
-                regionalContext.contextTag());
+                    regionalContext.analysisTag(),
+                    regionalContext.computeTier().getDisplayName(),
+                    regionalContext.region().getDisplayName(),
+                    regionalContext.contextTag());
             final long primaryAccountOid = demandCalculationInfo.primaryAccountOid();
             // Get the rates for the first instance type we're considering.
             // This will either be the only one, or if instance size flexible
@@ -373,27 +384,27 @@ public class ReservedInstanceAnalyzer {
             clustersAnalyzed++;
             RecommendationKernelAlgorithmResult kernelResult;
             kernelResult = RecommendationKernelAlgorithm.computation(
-                rates.onDemandRate(),
-                rates.reservedInstanceRate(),
-                removeNegativeDataPoints(demandCalculationInfo.aggregateUncoveredDemand()),
-                regionalContext.contextTag(),
-                regionalContext.analysisTag());
+                    rates.onDemandRate(),
+                    rates.reservedInstanceRate(),
+                    removeNegativeDataPoints(demandCalculationInfo.aggregateUncoveredDemand()),
+                    regionalContext.contextTag(),
+                    regionalContext.analysisTag());
             if (kernelResult == null) {
                 continue;
             }
             ReservedInstanceAnalysisRecommendation recommendation = generateRecommendation(
-                regionalContext, demandCalculationInfo, kernelResult, rates);
+                    regionalContext, demandCalculationInfo, kernelResult, rates);
             if (recommendation != null) {
                 recommendations.add(recommendation);
                 if (recommendation.getCount() > 0) {
                     // Get the graph data.
                     Map<TopologyEntityDTO, float[]> riBuyChartDemand =
-                        demandCalculationInfo.uncoveredDemandByComputeTier();
+                            demandCalculationInfo.uncoveredDemandByComputeTier();
                     float hourlyOnDemandCost =
-                        getHourlyOnDemandCost(primaryAccountOid, regionalContext, riBuyChartDemand, rateProvider);
+                            getHourlyOnDemandCost(primaryAccountOid, regionalContext, riBuyChartDemand, rateProvider);
                     recommendation.setEstimatedOnDemandCost(hourlyOnDemandCost *
-                        RIBuyRateProvider.HOURS_IN_A_MONTH
-                        * 12 * recommendation.getTermInYears());
+                            RIBuyRateProvider.HOURS_IN_A_MONTH
+                            * 12 * recommendation.getTermInYears());
                     recommendation.setTemplateTypeHourlyDemand(riBuyChartDemand);
                 }
             }
@@ -414,10 +425,10 @@ public class ReservedInstanceAnalyzer {
      * @return the average hourly charges for the weekly demand.
      */
     public float getHourlyOnDemandCost(
-        long primaryAccountOid,
-        @Nonnull RIBuyRegionalContext regionalContext,
-        @Nonnull final Map<TopologyEntityDTO, float[]> templateTypeHourlyDemand,
-        @Nonnull final RIBuyRateProvider rateProvider) {
+            long primaryAccountOid,
+            @Nonnull RIBuyRegionalContext regionalContext,
+            @Nonnull final Map<TopologyEntityDTO, float[]> templateTypeHourlyDemand,
+            @Nonnull final RIBuyRateProvider rateProvider) {
 
         float totalCostAcrossWorkloads = 0f;
         for (Entry<TopologyEntityDTO, float[]> entry : templateTypeHourlyDemand.entrySet()) {
@@ -493,8 +504,8 @@ public class ReservedInstanceAnalyzer {
      * If RI hourly cost is 0, then don't log, because logged previously.  Otherwise log.
      */
     private boolean logExplanation(RecommendationKernelAlgorithmResult kernelResult, String logTag,
-                                   RIBuyRegionalContext regionalContext, float hourlyCostSavings,
-                                   int numberOfRIsToBuy) {
+                                RIBuyRegionalContext regionalContext, float hourlyCostSavings,
+                                int numberOfRIsToBuy) {
         boolean result = true;
         float riHourlyCost = kernelResult.getRiHourlyCost();
         if (riHourlyCost <= 0) {
@@ -543,56 +554,96 @@ public class ReservedInstanceAnalyzer {
     }
 
     @VisibleForTesting
-    private ReservedInstancePurchaseConstraints getPurchaseConstraints(
+    Map<String, ReservedInstancePurchaseConstraints> getPurchaseConstraints(
             ReservedInstanceAnalysisScope scope) throws IllegalArgumentException {
-        if (scope.getRiPurchaseProfile() == null) {
-            return getPurchaseConstraints();
+        if (scope.getRiPurchaseProfiles() == null) {
+            final Map<String, ReservedInstancePurchaseConstraints> constraints = getPurchaseConstraints();
+            logger.info("Using the global purchase constraint settings: {}", constraints);
+            return constraints;
         } else {
-            RIPurchaseProfile profile = scope.getRiPurchaseProfile();
-            if (!profile.hasRiType()) {
-                throw new IllegalArgumentException(
-                        "No ReservedInstanceType is defined in ReservedInstanceAnalysisScope");
-            }
-            ReservedInstanceType type = profile.getRiType();
-            return new ReservedInstancePurchaseConstraints(type.getOfferingClass(),
-                    type.getTermYears(), type.getPaymentOption());
+            Map<String, RIPurchaseProfile> profiles = scope.getRiPurchaseProfiles();
+            final Builder<String, ReservedInstancePurchaseConstraints> constraintBuilder =
+                    ImmutableMap.builder();
+            profiles.forEach((key, profile) -> {
+                if (!profile.hasRiType()) {
+                    throw new IllegalArgumentException("No ReservedInstanceType is defined" +
+                            " for profile " + key + " in ReservedInstanceAnalysisScope");
+                }
+                ReservedInstanceType type = profile.getRiType();
+                final ReservedInstancePurchaseConstraints constraints =
+                        new ReservedInstancePurchaseConstraints(type.getOfferingClass(),
+                                type.getTermYears(), type.getPaymentOption());
 
+                constraintBuilder.put(key.toUpperCase(), constraints);
+
+            });
+            Map<String, ReservedInstancePurchaseConstraints> constraints = constraintBuilder.build();
+            logger.info("Using the purchase profiles in analysis scope: {}",
+                    constraints);
+            return constraints;
         }
     }
 
     /**
      * Fetch RI Purchase constraints settings from the Settings Service.
      *
-     * @return RI Purchase Settings constraints object.
+     * @return a Map of the service provider OID and the corresponding
+     * RI Purchase Settings constraints object.
      */
-    public ReservedInstancePurchaseConstraints getPurchaseConstraints() {
-        List<String> settingNames =
-            Arrays.asList(GlobalSettingSpecs.AWSPreferredOfferingClass,
-                GlobalSettingSpecs.AWSPreferredPaymentOption,
-                GlobalSettingSpecs.AWSPreferredTerm)
-                .stream()
-                .map(GlobalSettingSpecs::getSettingName)
-                .collect(Collectors.toList());
+    @VisibleForTesting
+    protected Map<String, ReservedInstancePurchaseConstraints> getPurchaseConstraints() {
 
-        Map<String, Setting> settings = new HashMap<>();
+        final List<String> awsSettingNames =
+                Stream.of(GlobalSettingSpecs.AWSPreferredOfferingClass,
+                        GlobalSettingSpecs.AWSPreferredPaymentOption,
+                        GlobalSettingSpecs.AWSPreferredTerm)
+                        .map(GlobalSettingSpecs::getSettingName)
+                        .collect(Collectors.toList());
+
+        final List<String> azureSettingNames =
+                Stream.of(GlobalSettingSpecs.AzurePreferredOfferingClass,
+                        GlobalSettingSpecs.AzurePreferredPaymentOption,
+                        GlobalSettingSpecs.AzurePreferredTerm)
+                        .map(GlobalSettingSpecs::getSettingName)
+                        .collect(Collectors.toList());
+
+
+        final Map<String, Setting> settings = new HashMap<>();
         settingsServiceClient.getMultipleGlobalSettings(
-            GetMultipleGlobalSettingsRequest.newBuilder().build().newBuilder()
-                .addAllSettingSpecName(settingNames)
-                .build())
-            .forEachRemaining( setting -> {
-                settings.put(setting.getSettingSpecName(), setting);
-            });
+                GetMultipleGlobalSettingsRequest.newBuilder()
+                        .addAllSettingSpecName(awsSettingNames)
+                        .addAllSettingSpecName(azureSettingNames)
+                        .build())
+                .forEachRemaining(setting -> {
+                    settings.put(setting.getSettingSpecName(), setting);
+                });
 
-        ReservedInstancePurchaseConstraints reservedInstancePurchaseConstraints =
-            new ReservedInstancePurchaseConstraints(
-                OfferingClass.valueOf(
-                    settings.get(GlobalSettingSpecs.AWSPreferredOfferingClass.getSettingName()).getEnumSettingValue().getValue()),
-                PreferredTerm.valueOf(
-                    settings.get(GlobalSettingSpecs.AWSPreferredTerm.getSettingName()).getEnumSettingValue().getValue()).getYears(),
-                PaymentOption.valueOf(
-                    settings.get(GlobalSettingSpecs.AWSPreferredPaymentOption.getSettingName()).getEnumSettingValue().getValue()));
+        ReservedInstancePurchaseConstraints awsReservedInstancePurchaseConstraints =
+                new ReservedInstancePurchaseConstraints(
+                        OfferingClass.valueOf(
+                                settings.get(GlobalSettingSpecs.AWSPreferredOfferingClass.getSettingName()).getEnumSettingValue().getValue()),
+                        PreferredTerm.valueOf(
+                                settings.get(GlobalSettingSpecs.AWSPreferredTerm.getSettingName()).getEnumSettingValue().getValue()).getYears(),
+                        PaymentOption.valueOf(
+                                settings.get(GlobalSettingSpecs.AWSPreferredPaymentOption.getSettingName()).getEnumSettingValue().getValue()));
 
-        return reservedInstancePurchaseConstraints;
+        ReservedInstancePurchaseConstraints azureReservedInstancePurchaseConstraints =
+                new ReservedInstancePurchaseConstraints(
+                        OfferingClass.valueOf(
+                                settings.get(GlobalSettingSpecs.AzurePreferredOfferingClass.getSettingName()).getEnumSettingValue().getValue()),
+                        PreferredTerm.valueOf(
+                                settings.get(GlobalSettingSpecs.AzurePreferredTerm.getSettingName()).getEnumSettingValue().getValue()).getYears(),
+                        PaymentOption.valueOf(
+                                settings.get(GlobalSettingSpecs.AzurePreferredPaymentOption.getSettingName()).getEnumSettingValue().getValue()));
 
+        return ImmutableMap.<String, ReservedInstancePurchaseConstraints>builder()
+                .put(CategoryPathConstants.AWS.toUpperCase(), awsReservedInstancePurchaseConstraints)
+                .put(CategoryPathConstants.AZURE.toUpperCase(), azureReservedInstancePurchaseConstraints)
+                .build();
+
+    }
+
+    public ReservedInstanceActionsSender getActionsSender() {
+        return actionsSender;
     }
 }

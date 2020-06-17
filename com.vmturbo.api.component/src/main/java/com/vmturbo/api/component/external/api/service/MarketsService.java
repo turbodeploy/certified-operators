@@ -87,6 +87,7 @@ import com.vmturbo.api.utils.ParamStrings.MarketOperations;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -152,6 +153,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
@@ -219,6 +221,8 @@ public class MarketsService implements IMarketsService {
 
     private final EntitySettingQueryExecutor entitySettingQueryExecutor;
 
+    private final LicenseCheckClient licenseCheckClient;
+
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
                           @Nonnull final ActionsServiceBlockingStub actionRpcService,
@@ -244,6 +248,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                           @Nonnull final ActionSearchUtil actionSearchUtil,
                           @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
+                          @Nonnull final LicenseCheckClient licenseCheckClient,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -273,6 +278,7 @@ public class MarketsService implements IMarketsService {
                 new MergePolicyHandler(groupRpcService, policyRpcService, repositoryApi);
         this.actionSearchUtil = actionSearchUtil;
         this.entitySettingQueryExecutor = Objects.requireNonNull(entitySettingQueryExecutor);
+        this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
     }
 
     /**
@@ -287,6 +293,7 @@ public class MarketsService implements IMarketsService {
     @Nonnull
     public List<MarketApiDTO> getMarkets(@Nullable List<String> scopeUuids)
             throws ConversionException, InterruptedException {
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         logger.debug("Get all markets in scopes: {}", scopeUuids);
         final Iterator<PlanInstance> plans =
                 planRpcService.getAllPlans(GetPlansOptions.getDefaultInstance());
@@ -339,6 +346,7 @@ public class MarketsService implements IMarketsService {
         if (apiId.isRealtimeMarket()) {
            return createRealtimeMarketApiDTO();
         } else if (apiId.isPlan()) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
             OptionalPlanInstance response = planRpcService.getPlan(PlanId.newBuilder()
                     .setPlanId(Long.valueOf(uuid))
                     .build());
@@ -419,6 +427,10 @@ public class MarketsService implements IMarketsService {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
                                                 inputDto, Optional.empty(), apiId);
+        if (apiId.isPlan()) {
+            // require the "planner" license feature to get plan actions
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+        }
         return actionSearchUtil.callActionService(filter, paginationRequest, inputDto.getDetailLevel(),
                 apiId.getTopologyContextId());
     }
@@ -438,6 +450,11 @@ public class MarketsService implements IMarketsService {
                                               @Nonnull final String actionUuid,
                                               @Nullable final ActionDetailLevel detailLevel) throws Exception {
         logger.debug("Request to get action by market UUID: {}, action ID: {}", marketUuid, actionUuid);
+        // require "planner" feature access to request plan market actions
+        if (Long.valueOf(marketUuid) != realtimeTopologyContextId) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+        }
+
         ActionOrchestratorAction action = actionOrchestratorRpcService
                 .getAction(actionRequest(marketUuid, actionUuid));
         if (!action.hasActionSpec()) {
@@ -478,6 +495,9 @@ public class MarketsService implements IMarketsService {
                 .map(nextCursor -> paginationRequest.nextPageResponse(nextPage, nextCursor, response.getPaginationResponse().getTotalRecordCount()))
                 .orElseGet(() -> paginationRequest.finalPageResponse(nextPage, response.getPaginationResponse().getTotalRecordCount()));
         } else if (apiId.isPlan()) {
+            // require the "planner" license feature to get plan actions
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+
             // In the plan case we do the pagination in the API component. The main reason is
             // that we need to use the repository service (instead of the search service), and that
             // service doesn't currently support pagination parameters.
@@ -766,6 +786,8 @@ public class MarketsService implements IMarketsService {
         logger.info("Running scenario. Market UUID: {}, Scenario ID: {}, " +
                         "Ignore Constraints: {}, Plan Market Name: {}",
                 marketUuid, scenarioId, ignoreConstraints, planMarketName);
+        // this feature requires access to the "planner" feature in the license.
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         // todo: The 'ignoreConstraints' parameter will move into the Scenario in OM-18012
         // Until OM-18012 is fixed, we will have to do a get and set of scenario to add the
@@ -880,6 +902,9 @@ public class MarketsService implements IMarketsService {
     @Override
     public List<StatSnapshotApiDTO> getActionCountStatsByUuid(String uuid, ActionApiInputDTO actionApiInputDTO) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
+        if (apiId.isPlan()) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+        }
         try {
             final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
                     actionStatsQueryExecutor.retrieveActionStats(
@@ -915,6 +940,9 @@ public class MarketsService implements IMarketsService {
         if (UuidMapper.isRealtimeMarket(marketUuid)) {
             return statsService.getStatsByUuidsQuery(statScopesApiInputDTO, paginationRequest);
         }
+
+        // make sure the planner feature is available
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         final long planId = Long.parseLong(marketUuid);
 
@@ -952,18 +980,23 @@ public class MarketsService implements IMarketsService {
         // Look up the group members and then check how the members overlap with an input scope, if specified
         // If the plan was scoped to a different group
         // we won't return anything (since the requested entities won't be found in the repository).
-            ApiId apiId = uuidMapper.fromUuid(marketUuid);
-            // if this is for a plan market, we will not check user scope.
-            boolean enforceUserScope = !apiId.isPlan();
+        ApiId apiId = uuidMapper.fromUuid(marketUuid);
 
-            final GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
-                    .addId(Long.parseLong(groupUuid))
-                    .setEnforceUserScope(enforceUserScope)
-                    .setExpectPresent(false)
-                    .build();
+        // if this is a plan, make sure the planner feature is available
+        if (apiId.isPlan()) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+        }
+        // if this is for a plan market, we will not check user scope.
+        boolean enforceUserScope = !apiId.isPlan();
 
-            final Iterator<GetMembersResponse> groupMembersResp =
-                    groupRpcService.getMembers(getGroupMembersReq);
+        final GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
+                .addId(Long.parseLong(groupUuid))
+                .setEnforceUserScope(enforceUserScope)
+                .setExpectPresent(false)
+                .build();
+
+        final Iterator<GetMembersResponse> groupMembersResp =
+                groupRpcService.getMembers(getGroupMembersReq);
         final List<String> membersUuids;
         if (groupMembersResp.hasNext()) {
             membersUuids = groupMembersResp.next().getMemberIdList().stream()
@@ -985,6 +1018,9 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public List<ServiceEntityApiDTO> getUnplacedEntitiesByMarketUuid(String uuid) throws Exception {
+        // requires "planner" feature to access
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+
         // get the topology id for the plan
         OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
                 .setPlanId(Long.valueOf(uuid))
@@ -1031,6 +1067,11 @@ public class MarketsService implements IMarketsService {
      */
     @Override
     public ActionDetailsApiDTO getActionsDetailsByUuid(String marketUuid, String actionuuid) throws Exception {
+        // if the request is for a plan-related action, make sure the feature is available.
+        ApiId apiId = uuidMapper.fromUuid(marketUuid);
+        if (apiId.isPlan()) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+        }
         ActionOrchestratorAction action = actionOrchestratorRpcService
                 .getAction(actionRequest(marketUuid, actionuuid));
         if (action.hasActionSpec()) {
@@ -1355,8 +1396,13 @@ public class MarketsService implements IMarketsService {
     @Override
     public List<SettingsManagerApiDTO> getSettingsByEntityAndMarketId(String marketUuid, String entityUuid) throws Exception {
         final ApiId id = uuidMapper.fromUuid(entityUuid);
+        final ApiId marketId = uuidMapper.fromUuid(marketUuid);
+        if (!marketId.isRealtimeMarket() && !marketId.isPlan()) {
+            throw new UnknownObjectException("The ID " + marketUuid
+                    + " doesn't belong to a plan or a real-time market.");
+        }
         final List<SettingsManagerApiDTO> retMgrs =
-                entitySettingQueryExecutor.getEntitySettings(id, false, null, Long.parseLong(marketUuid));
+                entitySettingQueryExecutor.getEntitySettings(id, false, null, marketId.getTopologyContextId());
         return retMgrs;
     }
 }

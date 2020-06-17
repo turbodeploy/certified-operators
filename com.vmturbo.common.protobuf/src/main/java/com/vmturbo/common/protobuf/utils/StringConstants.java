@@ -34,6 +34,7 @@ public class StringConstants {
     public static final String NAMESPACE = "Namespace";
     public static final String WORKLOAD_CONTROLLER = "WorkloadController";
     public static final String CONTAINER_SPEC = "ContainerSpec";
+    public static final String VM_SPEC = "VMSpec";
     public static final String EMPTY_STRING = "";
     public static final String ENTITY = "entity";
     public static final String ENTITIES = "entities";
