@@ -325,6 +325,7 @@ public class PlanActionStore implements ActionStore {
      * {@inheritDoc}
      * The {@link PlanActionStore} permits the clear operation.
      */
+    @Override
     public boolean clear() {
         try {
             actionPlanIdByActionPlanType.values().forEach(planId -> cleanActions(dsl, planId));
@@ -442,11 +443,15 @@ public class PlanActionStore implements ActionStore {
      */
     private List<ActionAndInfo> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
                                                      @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
+        // Check if there are any delete volume actions.  If so we need to
+        // get these from the real-time SOURCE topology as plan projected topology
+        // won't have them.
         Set<ActionDTO.Action> deleteVolumeActions = actions.stream()
                 .filter(action -> action.getInfo().getActionTypeCase() == ActionTypeCase.DELETE)
                 .collect(Collectors.toSet());
         final Set<Long> deleteVolumesToRetrieve = ActionDTOUtil.getInvolvedEntityIds(deleteVolumeActions);
 
+        //TODO: Remove deleteVolumesToRetrieve from entitiesToRetrieve
         final Set<Long> entitiesToRetrieve =
             new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
         // snapshot contains the entities information that is required for the actions descriptions
@@ -464,8 +469,9 @@ public class PlanActionStore implements ActionStore {
             // This should only occur initially when the plan  created.
             logger.warn("translatePlanActions: failed for topologyContextId={} topologyId={}, try realtime",
                 planContextId, planData.getTopologyId());
-            snapshotHack = entitySettingsCache.newSnapshot(
-                    entitiesToRetrieve, deleteVolumesToRetrieve, realtimeTopologyContextId);
+            snapshotHack = entitySettingsCache.newSnapshot(entitiesToRetrieve,
+                                                           deleteVolumesToRetrieve,
+                                                           realtimeTopologyContextId);
         }
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
         final List<ActionDTO.Action> actionsStream = new ArrayList<>(actions.size());

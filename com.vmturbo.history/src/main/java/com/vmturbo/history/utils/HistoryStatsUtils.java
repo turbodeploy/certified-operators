@@ -70,18 +70,13 @@ public class HistoryStatsUtils {
     public static final ImmutableBiMap<String, String> countSEsMetrics =
             ConfiguredPropertyType.getMetricPropertyTypes().stream()
                     .collect(ImmutableBiMap.toImmutableBiMap(
-                            prop -> prop.getCountedEntityType().toString(),
+                            prop -> prop.getCountedEntityType().getName(),
                             PropertyType::getName));
 
 
     /**
-     * Map from SDK EntityType Enum to Database EntityType Enum.
-     *
-     * <p>note that CLUSTER database EntityType is internally generated and does not come from SDK
-     *
-     * <p>note that VPOD and DPOD EntityType Service Entities are created by the network control
-     * module, which has not been converted to SDK yet. When added to the
-     * CommonDTO.EntityDTO.EntityType Enum they will need to be included here.
+     * Map from Database EntityType String name to SDK EntityType Enum numeric value for
+     * Entity Types to be counted.
      */
     public static final ImmutableMap<CommonDTO.EntityDTO.EntityType, EntityType>
             SDK_ENTITY_TYPE_TO_ENTITY_TYPE =

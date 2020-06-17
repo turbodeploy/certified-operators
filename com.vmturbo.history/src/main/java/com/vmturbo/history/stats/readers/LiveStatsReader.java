@@ -180,7 +180,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
 
         // resolve the time range for pagination param
         final Optional<TimeRange> paginationTimeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
-                Optional.empty(), Optional.of(entityType), Optional.of(paginationParams), Optional.empty());
+                Optional.empty(), Optional.ofNullable(entityType), Optional.of(paginationParams), Optional.empty());
 
         if (!paginationTimeRangeOpt.isPresent()) {
             // no data persisted yet; just return an empty answer
@@ -357,8 +357,12 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
             final Instant start = Instant.now();
 
             for (List<String> entityIdChunk : Lists.partition(entityIdsForType, entitiesPerChunk)) {
+                final Optional<Table<?>> table = entityType.getTimeFrameTable(timeRange.getTimeFrame());
+                if (!table.isPresent()) {
+                    continue;
+                }
                 final Optional<Select<?>> query = statsQueryFactory.createStatsQuery(
-                        entityIdChunk, entityType.getTimeFrameTable(timeRange.getTimeFrame()).get(),
+                        entityIdChunk, table.get(),
                         commodityRequests, timeRange, AGGREGATE.NO_AGG);
                 if (!query.isPresent()) {
                     continue;
@@ -386,9 +390,9 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                     .map(CommodityRequest::getCommodityName)
                     .map(PropertyType::named)
                     .collect(Collectors.toList());
-            answer.addAll(getCountStats(timeRangeOpt.get().getMostRecentSnapshotTime(),
-                    entityTypeToIdsMap, requestedProperties.stream()
-                            .filter(PropertyType::isCountMetric)));
+            answer.addAll(getCountStats(timeRangeOpt.get().getMostRecentSnapshotTime(), entityTypeToIdsMap,
+                    requestedProperties.isEmpty() ? PropertyType.getMetricPropertyTypes().stream()
+                            : requestedProperties.stream().filter(PropertyType::isCountMetric)));
 
             answer.addAll(getComputedStats(timeRangeOpt.get().getMostRecentSnapshotTime(),
                     entityTypeToIdsMap, requestedProperties.stream()

@@ -1009,12 +1009,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                     response,
                                     new ArrayList<>());
                             }
-                            if (enableDiscoveryResponsesCaching && binaryDiscoveryDumper != null) {
-                                binaryDiscoveryDumper.dumpDiscovery(String.valueOf(targetId),
-                                    discoveryType,
-                                    response,
-                                    new ArrayList<>());
-                            }
                             // set discovery context
                             if (response.hasDiscoveryContext()) {
                                 getTargetOperationContextOrLogError(targetId).ifPresent(

@@ -270,6 +270,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      *
      * @param entities The new set of entities to get settings for. This set should contain
      *                 the IDs of all entities involved in all actions we expose to the user.
+     * @param nonProjectedEntities entities not in projected topology such as detached volume OIDs.
      * @param topologyContextId The topology context of the topology broadcast that
      *                          triggered the cache update.
      * @param topologyId The topology id of the topology, the broadcast of which triggered the
@@ -314,7 +315,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      */
     @Nonnull
     private EntitiesAndSettingsSnapshot internalNewSnapshot(@Nonnull final Set<Long> entities,
-                                                            @Nonnull Set<Long> nonProjectedEntities,
+                                                            @Nonnull final Set<Long> nonProjectedEntities,
                                                             final long topologyContextId,
                                                             @Nullable final Long topologyId) {
         final Map<Long, Map<String, SettingAndPolicies>> settingAndPoliciesMapByEntityAndSpecName =
@@ -343,6 +344,14 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                 topologyAvailabilityTracker.queueAnyTopologyRequest(topologyContextId, targetTopologyType)
                     .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
             }
+            // This will be the case for plans with detached volume actions only.
+            // We need to get the information for these entities from the real-time SOURCE topology,
+            // as they're not added to the plan projected topology.
+            if (!nonProjectedEntities.isEmpty()) {
+                topologyAvailabilityTracker.queueAnyTopologyRequest(topologyContextId, TopologyType.SOURCE)
+                .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
+            }
+
             entityMap = retrieveOidToEntityMap(entities,
                 topologyContextId, topologyId, targetTopologyType);
             ownershipGraph = retrieveOwnershipGraph(entities, topologyContextId, topologyId, targetTopologyType);

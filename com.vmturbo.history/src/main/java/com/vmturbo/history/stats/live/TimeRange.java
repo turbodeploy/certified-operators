@@ -373,7 +373,7 @@ public class TimeRange {
                     }
                     if (startDate == endDate) {
                         // equal timestamps, resolve to latest prior (or equal) timestamp in timeframe table
-                        final Timestamp latest = getMaxTimestamp(statsFilter.getStartDate(),
+                        final Timestamp latest = getMaxTimestamp(startDate,
                                 clusterId, statsFilter, timeFrame);
 
                         if (latest != null) {

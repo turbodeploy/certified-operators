@@ -36,9 +36,11 @@ import com.vmturbo.history.stats.live.LiveStatsAggregator;
 public class EntityStatsWriter extends TopologyWriterBase {
     private static Logger logger = LogManager.getLogger(EntityStatsWriter.class);
 
-    private final LiveStatsAggregator aggregator;
-    private final SimpleBulkLoaderFactory loaders;
     private final TopologyInfo topologyInfo;
+    private final Set<String> commoditiesToExclude;
+    private final HistorydbIO historydbIO;
+    private final SimpleBulkLoaderFactory loaders;
+    private LiveStatsAggregator aggregator;
 
     /**
      * Create a new writer instance.
@@ -52,12 +54,19 @@ public class EntityStatsWriter extends TopologyWriterBase {
                               Set<String> commoditiesToExclude,
                               HistorydbIO historydbIO,
                               SimpleBulkLoaderFactory loaders) {
-        this.loaders = loaders;
         this.topologyInfo = topologyInfo;
-        // create an aggregator to do all the real work of matching buyers and sellers and
-        // recording stats
+        this.commoditiesToExclude = commoditiesToExclude;
+        this.historydbIO = historydbIO;
+        this.loaders = loaders;
+    }
+
+    @VisibleForTesting
+    LiveStatsAggregator getAggregator() {
+        if (aggregator == null) {
         this.aggregator = new LiveStatsAggregator(
             historydbIO, topologyInfo, commoditiesToExclude, loaders);
+        }
+        return aggregator;
     }
 
     @Override
@@ -68,7 +77,7 @@ public class EntityStatsWriter extends TopologyWriterBase {
         final Map<Long, TopologyEntityDTO> entityByOid = entities.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Functions.identity()));
         for (TopologyEntityDTO entity : entities) {
-            aggregator.aggregateEntity(entity, entityByOid);
+            getAggregator().aggregateEntity(entity, entityByOid);
         }
         return ChunkDisposition.SUCCESS;
     }
@@ -79,14 +88,15 @@ public class EntityStatsWriter extends TopologyWriterBase {
 
         if (!expedite) {
             try {
-                aggregator.writeFinalStats();
+                getAggregator().writeFinalStats();
+                getAggregator().logShortenedCommodityKeys();
             } catch (VmtDbException e) {
                 logger.warn("EntityStatsWriter failed to record final stats for topology {}",
                     infoSummary);
             }
             // assuming we wrote any records to entity_stats tables, record this topology's snapshot_time in
             // available_timestamps table
-            if (loaders.getStats().getOutTables().stream().anyMatch(t -> EntityType.fromTable(t) != null)) {
+            if (loaders.getStats().getOutTables().stream().anyMatch(t -> EntityType.fromTable(t).isPresent())) {
                 AvailableTimestampsRecord record = Tables.AVAILABLE_TIMESTAMPS.newRecord();
                 Timestamp snapshot_time = new Timestamp(topologyInfo.getCreationTime());
                 record.setTimeStamp(snapshot_time);

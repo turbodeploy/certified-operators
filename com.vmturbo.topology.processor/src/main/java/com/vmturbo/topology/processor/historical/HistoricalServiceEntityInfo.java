@@ -16,9 +16,6 @@ public class HistoricalServiceEntityInfo {
 
     private List<HistoricalCommodityInfo> historicalCommodityBought;
 
-    private float usedHistoryWeight;
-
-    private float peakHistoryWeight;
 
     public HistoricalServiceEntityInfo() {
         historicalCommoditySold = new ArrayList<>();
@@ -37,13 +34,6 @@ public class HistoricalServiceEntityInfo {
         return historicalCommodityBought;
     }
 
-    public float getUsedHistoryWeight() {
-        return usedHistoryWeight;
-    }
-
-    public float getPeakHistoryWeight() {
-        return peakHistoryWeight;
-    }
 
     public void setSeOid(long seOid) {
         this.seOid = seOid;
@@ -57,13 +47,6 @@ public class HistoricalServiceEntityInfo {
         this.historicalCommodityBought = historicalCommodityBought;
     }
 
-    public void setUsedHistoryWeight(float usedHistoryWeight) {
-        this.usedHistoryWeight = usedHistoryWeight;
-    }
-
-    public void setPeakHistoryWeight(float peakHistoryWeight) {
-        this.peakHistoryWeight = peakHistoryWeight;
-    }
 
     public boolean addHistoricalCommoditySold(HistoricalCommodityInfo histCommSold) {
         return historicalCommoditySold.add(histCommSold);
