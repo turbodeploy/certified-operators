@@ -334,8 +334,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
 
     private Set<Long> getTemplateIds(@Nonnull final Reservation reservation) {
         return reservation.getReservationTemplateCollection().getReservationTemplateList().stream()
-                .map(ReservationTemplate::getTemplate)
-                .map(Template::getId)
+                .map(ReservationTemplate::getTemplateId)
                 .collect(Collectors.toSet());
     }
 }

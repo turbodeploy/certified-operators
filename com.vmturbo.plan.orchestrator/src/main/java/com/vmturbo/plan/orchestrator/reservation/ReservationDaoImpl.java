@@ -390,8 +390,7 @@ public class ReservationDaoImpl implements ReservationDao {
     private Set<Long> getTemplateIds(@Nonnull final ReservationDTO.Reservation reservation) {
         return reservation.getReservationTemplateCollection()
                 .getReservationTemplateList().stream()
-                .map(ReservationTemplate::getTemplate)
-                .map(Template::getId)
+                .map(ReservationTemplate::getTemplateId)
                 .collect(Collectors.toSet());
     }
 

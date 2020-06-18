@@ -351,7 +351,7 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
         for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection()
                 .getReservationTemplateList()) {
             ReservationTemplate.Builder reservationTemplateBuilder = reservationTemplate.toBuilder();
-            Optional<Template> templateOptional = templatesDao.getTemplate(reservationTemplateBuilder.getTemplate().getId());
+            Optional<Template> templateOptional = templatesDao.getTemplate(reservationTemplateBuilder.getTemplateId());
             if (!templateOptional.isPresent()) {
                 return reservation;
             }

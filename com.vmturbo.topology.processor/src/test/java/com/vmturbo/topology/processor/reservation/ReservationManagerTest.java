@@ -80,7 +80,7 @@ public class ReservationManagerTest {
             .setStatus(ReservationStatus.RESERVED)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
-                            .setTemplate(Template.newBuilder().setId(456L))
+                            .setTemplateId(456)
                             .setCount(1)
                             .addReservationInstance(ReservationInstance.newBuilder()
                                     .setEntityId(1)
@@ -118,7 +118,7 @@ public class ReservationManagerTest {
             .setExpirationDate(nextMonth.getTime())
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
-                            .setTemplate(Template.newBuilder().setId(567))
+                            .setTemplateId(567)
                             .setCount(1)))
             .build();
 

@@ -555,7 +555,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
                 .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                         .addReservationTemplate(ReservationTemplate.newBuilder()
                                 .setCount(1)
-                                .setTemplate(Template.newBuilder().setId(templateId))
+                                .setTemplateId(templateId)
                                 .addReservationInstance(ReservationInstance.newBuilder()
                                         .setEntityId(456)
                                         .addPlacementInfo(PlacementInfo.newBuilder()

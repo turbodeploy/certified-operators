@@ -113,7 +113,7 @@ public class ReservationManagerTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
-                            .setTemplate(template)))
+                            .setTemplateId(234L)))
             .build();
 
     // active 100 hrs later expires 101 hrs later
@@ -125,7 +125,7 @@ public class ReservationManagerTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
-                            .setTemplate(template)))
+                            .setTemplateId(234L)))
             .build();
 
 
@@ -136,7 +136,7 @@ public class ReservationManagerTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
-                            .setTemplate(template)))
+                            .setTemplateId(234L)))
             .build();
 
     private Reservation inProgressReservation1 = Reservation.newBuilder()
@@ -146,7 +146,7 @@ public class ReservationManagerTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
-                            .setTemplate(template)
+                            .setTemplateId(234L)
                             .addReservationInstance(ReservationInstance.newBuilder())))
             .build();
 
@@ -157,7 +157,7 @@ public class ReservationManagerTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(2L)
-                            .setTemplate(template)))
+                            .setTemplateId(234L)))
             .build();
 
 
@@ -169,7 +169,7 @@ public class ReservationManagerTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
-                            .setTemplate(template)
+                            .setTemplateId(234L)
                             .addReservationInstance(ReservationInstance.newBuilder()
                                     .addPlacementInfo(PlacementInfo.newBuilder()))))
             .build();
@@ -181,7 +181,7 @@ public class ReservationManagerTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
-                            .setTemplate(template)
+                            .setTemplateId(234L)
                             .addReservationInstance(ReservationInstance.newBuilder()
                                     .addPlacementInfo(PlacementInfo.newBuilder().setProviderId(500L)))))
             .build();
@@ -196,7 +196,7 @@ public class ReservationManagerTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
-                            .setTemplate(template)))
+                            .setTemplateId(234L)))
             .build();
 
     // active for the last 2 hrs and expires in another hr
@@ -208,7 +208,7 @@ public class ReservationManagerTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
-                            .setTemplate(template)))
+                            .setTemplateId(234L)))
             .build();
 
     private Reservation testReservationForBroadcast1 = Reservation.newBuilder()
@@ -218,7 +218,7 @@ public class ReservationManagerTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(10L)
-                            .setTemplate(template)))
+                            .setTemplateId(4444L)))
             .build();
 
     private Reservation testReservationForBroadcast2 = Reservation.newBuilder()
@@ -228,7 +228,7 @@ public class ReservationManagerTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(20L)
-                            .setTemplate(template)))
+                            .setTemplateId(5555L)))
             .build();
 
     /**
@@ -503,7 +503,7 @@ public class ReservationManagerTest {
                 .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                         .addReservationTemplate(ReservationTemplate.newBuilder()
                                 .setCount(1L)
-                                .setTemplate(template)
+                                .setTemplateId(234L)
                                 .addReservationInstance(ReservationInstance.newBuilder()
                                         .addPlacementInfo(PlacementInfo.newBuilder()
                                                 .setProviderId(600L)))))

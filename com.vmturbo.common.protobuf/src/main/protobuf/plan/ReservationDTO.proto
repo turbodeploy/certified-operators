@@ -84,8 +84,8 @@ message ReservationTemplateCollection {
         // Count of templates.
         optional int64 count = 1;
 
-        // Id of template. deprecated
-        optional int64 __deprecated_template_id = 2 [deprecated = true];
+        // Id of template.
+        optional int64 template_id = 2;
 
         // A list of reservation instance which contains placement information.
         repeated ReservationInstance reservation_instance = 3;

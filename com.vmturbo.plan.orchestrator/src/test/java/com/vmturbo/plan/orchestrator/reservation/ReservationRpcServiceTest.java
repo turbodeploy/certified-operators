@@ -66,7 +66,7 @@ public class ReservationRpcServiceTest {
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
-                            .setTemplate(Template.newBuilder().setId(234L))))
+                            .setTemplateId(234L)))
             .build();
 
     @Before

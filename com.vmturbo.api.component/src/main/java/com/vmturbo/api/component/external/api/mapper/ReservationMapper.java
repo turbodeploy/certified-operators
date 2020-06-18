@@ -19,7 +19,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -64,8 +63,8 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -97,12 +96,16 @@ public class ReservationMapper {
 
     private final GroupServiceBlockingStub groupServiceBlockingStub;
 
+    private final TemplateServiceBlockingStub templateService;
+
     private final PolicyServiceBlockingStub policyService;
 
     ReservationMapper(@Nonnull final RepositoryApi repositoryApi,
+                      @Nonnull final TemplateServiceBlockingStub templateService,
                       @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
                       @Nonnull final PolicyServiceBlockingStub policyService) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.templateService = Objects.requireNonNull(templateService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
         this.policyService = Objects.requireNonNull(policyService);
     }
@@ -230,7 +233,12 @@ public class ReservationMapper {
         //TODO: need to make sure templates are always available, if templates are deleted, need to
         // mark Reservation not available or also delete related reservations.
         try {
-            final Template template = reservationTemplate.getTemplate();
+            final Template template = reservationTemplate.getTemplate() != null
+                    ? reservationTemplate.getTemplate()
+                    : templateService.getTemplate(GetTemplateRequest.newBuilder()
+                    .setTemplateId(reservationTemplate.getTemplateId())
+                    .build()).getTemplate();
+
             final List<PlacementInfo> placementInfos = reservationTemplate.getReservationInstanceList().stream()
                     .map(reservationInstance -> {
                         final List<ProviderInfo> providerInfos = reservationInstance.getPlacementInfoList().stream()
@@ -301,10 +309,7 @@ public class ReservationMapper {
             @Nonnull final PlacementParametersDTO placementParameter) {
         return ReservationTemplate.newBuilder()
                 .setCount(placementParameter.getCount())
-                .setTemplate(Template.newBuilder()
-                        .setId(Long.valueOf(placementParameter.getTemplateID()))
-                        .setTemplateInfo(TemplateInfo.newBuilder().setName("TEMP-NAME-"
-                                + placementParameter.getTemplateID())))
+                .setTemplateId(Long.valueOf(placementParameter.getTemplateID()))
                 .build();
     }
 

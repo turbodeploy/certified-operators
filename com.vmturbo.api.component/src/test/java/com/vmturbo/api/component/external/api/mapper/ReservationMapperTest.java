@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraint
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
+import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -126,6 +127,7 @@ public class ReservationMapperTest {
         repositoryApi = Mockito.mock(RepositoryApi.class);
 
         reservationMapper = new ReservationMapper(repositoryApi,
+            TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
@@ -212,6 +214,7 @@ public class ReservationMapperTest {
                         .setUsed(3000)
                         .build();
         ReservationTemplate reservationTemplate = ReservationTemplate.newBuilder()
+                .setTemplateId(TEMPLATE_ID)
                 .setTemplate(TEMPLATE)
                 .setCount(1)
                 .addReservationInstance(ReservationInstance.newBuilder()
