@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementSuccess;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceImplBase;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 
@@ -46,7 +47,8 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
                     .newBuilder()
                     .setBuyerId(triplet.getRowKey())
                     .setCommoditiesBoughtFromProviderId(triplet.getColumnKey())
-                    .setProviderId(triplet.getValue())
+                    .setInitialPlacementSuccess(InitialPlacementSuccess.newBuilder()
+                            .setProviderOid(triplet.getValue()))
                     .build());
         }
         try {

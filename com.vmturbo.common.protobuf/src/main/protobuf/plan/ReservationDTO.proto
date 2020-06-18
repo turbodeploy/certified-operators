@@ -103,6 +103,9 @@ message ReservationTemplateCollection {
             // Name of entity
             optional string name = 3;
 
+            // details of why a reservation instance was unplaced.
+            repeated InitialPlacementFailureInfo failure_info = 4;
+
             // Contains placement information of reservation instance.
             message PlacementInfo {
                 // The provider id of this reservation instance.
@@ -118,6 +121,13 @@ message ReservationTemplateCollection {
             }
         }
     }
+}
+
+message InitialPlacementFailureInfo {
+    optional .topology.CommodityType commType = 1;
+    optional int64 closest_seller = 2;
+    optional double max_quantity_available = 3;
+    optional double requested_quantity = 4;
 }
 
 message ConstraintInfoCollection {

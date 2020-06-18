@@ -33,7 +33,18 @@ message InitialPlacementBuyerPlacementInfo {
 
     optional int64 commoditiesBoughtFromProviderId = 2;
 
-    optional int64 providerId = 3;
+    oneof initial_placement_result {
+        InitialPlacementSuccess initial_placement_success = 3;
+        InitialPlacementFailure initial_placement_failure = 4;
+    }
+}
+
+message InitialPlacementSuccess {
+    required int64 provider_oid = 1;
+}
+
+message InitialPlacementFailure {
+    repeated .plan.InitialPlacementFailureInfo failure_info = 1;
 }
 
 message FindInitialPlacementResponse {

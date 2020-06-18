@@ -25,6 +25,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
+import com.vmturbo.api.dto.reservation.FailureInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.enums.ReservationAction;
@@ -35,6 +36,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTOMoles.DeploymentProfileServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementFailureInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
@@ -42,14 +44,12 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
-import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -126,7 +126,6 @@ public class ReservationMapperTest {
         repositoryApi = Mockito.mock(RepositoryApi.class);
 
         reservationMapper = new ReservationMapper(repositoryApi,
-            TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
@@ -263,6 +262,97 @@ public class ReservationMapperTest {
                 .stream().filter(a -> a.getName().equals("STORAGE"))
                 .collect(Collectors.toList())
                 .get(0).getValue()));
+    }
+
+    /**
+     * Test converting a {@link Reservation} protobuf message to a {@link DemandReservationApiDTO}.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testConvertReservationToApiDTOFailure() throws Exception {
+        final Date today = new Date();
+        LocalDateTime ldt = today.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
+        final Date nextMonth = Date.from(ldt.plusMonths(1).atOffset(ZoneOffset.UTC).toInstant());
+        Reservation.Builder reservationBuider = Reservation.newBuilder();
+        reservationBuider.setId(111);
+        reservationBuider.setName("test-reservation");
+        reservationBuider.setConstraintInfoCollection(ConstraintInfoCollection
+                .newBuilder()
+                .addReservationConstraintInfo(ReservationConstraintInfo
+                        .newBuilder().setConstraintId(123456L)
+                        .setType(Type.CLUSTER)));
+        reservationBuider.setStartDate(today.getTime());
+        reservationBuider.setExpirationDate(nextMonth.getTime());
+        reservationBuider.setStatus(ReservationStatus.PLACEMENT_FAILED);
+        final CommodityBoughtDTO cpuProvisionedCommodityBoughtDTO =
+                CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .setType(CommodityType.CPU_PROVISIONED_VALUE))
+                        .setUsed(1000)
+                        .build();
+        final CommodityBoughtDTO memProvisionedCommodityBoughtDTO =
+                CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .setType(CommodityType.MEM_PROVISIONED_VALUE))
+                        .setUsed(2000)
+                        .build();
+        final CommodityBoughtDTO storageProvisionedCommodityBoughtDTO =
+                CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .setType(CommodityType.STORAGE_PROVISIONED_VALUE))
+                        .setUsed(3000)
+                        .build();
+        ReservationTemplate reservationTemplate = ReservationTemplate.newBuilder()
+                .setTemplate(TEMPLATE)
+                .setCount(1)
+                .addReservationInstance(ReservationInstance.newBuilder()
+                        .setEntityId(1L)
+                        .addFailureInfo(InitialPlacementFailureInfo
+                                .newBuilder()
+                                .setClosestSeller(2L)
+                                .setCommType(TopologyDTO.CommodityType
+                                        .newBuilder().setType(CommodityType.MEM_PROVISIONED_VALUE))
+                                .setMaxQuantityAvailable(1000)
+                                .setRequestedQuantity(1200))
+                        .addPlacementInfo(PlacementInfo.newBuilder()
+                                .addCommodityBought(cpuProvisionedCommodityBoughtDTO)
+                                .addCommodityBought(memProvisionedCommodityBoughtDTO)
+                                .setPlacementInfoId(1L)
+                                .setProviderType(1))
+                        .addPlacementInfo(PlacementInfo.newBuilder()
+                                .addCommodityBought(storageProvisionedCommodityBoughtDTO)
+                                .setPlacementInfoId(2L)
+                                .setProviderType(1)))
+                .build();
+        final Reservation reservation = reservationBuider.setReservationTemplateCollection(
+                ReservationTemplateCollection.newBuilder()
+                        .addReservationTemplate(reservationTemplate))
+                .build();
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
+        when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req);
+
+        final DemandReservationApiDTO reservationApiDTO =
+                reservationMapper.convertReservationToApiDTO(reservation);
+        assertEquals("test-reservation", reservationApiDTO.getDisplayName());
+        assertEquals("PLACEMENT_FAILED", reservationApiDTO.getStatus());
+        assertEquals(1L, reservationApiDTO.getDemandEntities().size());
+        assertEquals("123456", reservationApiDTO.getConstraintInfos().get(0).getUuid());
+        assertEquals("CLUSTER", reservationApiDTO.getConstraintInfos()
+                .get(0).getConstraintType());
+        assert (reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getComputeResources() == null);
+        assert (reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getStorageResources() == null);
+        assertEquals(1, reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getFailureInfos().size());
+        FailureInfoDTO failureInfo = reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getFailureInfos().get(0);
+        assertEquals(pmServiceEntity.getDisplayName(), failureInfo.getClosestSeller().getDisplayName());
+        assertEquals("MEM", failureInfo.getCommodity());
+        assertEquals(1000, Math.round(failureInfo.getMaxQuantityAvailable().doubleValue()));
+        assertEquals(1200, Math.round(failureInfo.getQuantityRequested().doubleValue()));
     }
 
     /**

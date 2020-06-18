@@ -233,6 +233,12 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
         }
         for (InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo : response.getInitialPlacementBuyerPlacementInfoList()) {
             Reservation currentReservation = buyerIdToReservation.get(initialPlacementBuyerPlacementInfo.getBuyerId());
+            if (currentReservation == null) {
+                logger.error("The buyer id {} does not "
+                                + "correspond to any reservation in the request",
+                        initialPlacementBuyerPlacementInfo.getBuyerId());
+                continue;
+            }
             Reservation reservation = (updatedReservations.get(currentReservation.getId()) == null)
                     ? currentReservation
                     : updatedReservations.get(currentReservation.getId());
@@ -278,7 +284,18 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                     .get(instanceIndex).toBuilder();
             PlacementInfo.Builder placementInfo = reservationInstance
                     .getPlacementInfo(placementInfoIndex)
-                    .toBuilder().setProviderId(initialPlacementBuyerPlacementInfo.getProviderId());
+                    .toBuilder();
+            if (initialPlacementBuyerPlacementInfo.hasInitialPlacementSuccess()) {
+                placementInfo
+                        .setProviderId(
+                                initialPlacementBuyerPlacementInfo.getInitialPlacementSuccess()
+                                        .getProviderOid());
+            } else {
+                reservationInstance
+                        .addAllFailureInfo(
+                                initialPlacementBuyerPlacementInfo.getInitialPlacementFailure()
+                                        .getFailureInfoList());
+            }
             reservationInstance.setPlacementInfo(placementInfoIndex, placementInfo);
             reservationTemplate.setReservationInstance(instanceIndex, reservationInstance);
             reservationTemplateCollection.setReservationTemplate(templateIndex, reservationTemplate);
@@ -515,21 +532,25 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
             Set<ReservationDTO.Reservation> statusUpdatedReservation = new HashSet<>();
             for (ReservationDTO.Reservation reservation : reservationSet) {
                 boolean isSuccessful = isReservationSuccessful(reservation);
-                ReservationDTO.Reservation.Builder updatedReservation = reservation.toBuilder();
+                ReservationDTO.Reservation updatedReservation;
                 // We should call the updateReservationBatch for all reservations including the ones
                 // whose status didn't change..Because the provider could have changed.
                 if (isSuccessful) {
-                    updatedReservation.setStatus(ReservationStatus.RESERVED);
+                    updatedReservation = ReservationProtoUtil.clearReservationInstance(
+                            reservation,
+                            false, true).toBuilder()
+                            .setStatus(ReservationStatus.RESERVED).build();
                 } else {
-                    updatedReservation.setStatus(ReservationStatus.PLACEMENT_FAILED);
+                    updatedReservation = reservation.toBuilder()
+                            .setStatus(ReservationStatus.PLACEMENT_FAILED).build();
                 }
-                updatedReservations.add(updatedReservation.build());
+                updatedReservations.add(updatedReservation);
                 // we should not broadcast the reservation change to the UI if the status does not change.
                 // The provider change happens only during the main market and that need not be updated
                 // in the UI. A refresh of screen will get the user the new providers.
                 if (updatedReservation.getStatus() != reservation.getStatus()) {
                     logger.info("Finished Reservation: " + reservation.getName());
-                    statusUpdatedReservation.add(updatedReservation.build());
+                    statusUpdatedReservation.add(updatedReservation);
                 }
             }
             try {
