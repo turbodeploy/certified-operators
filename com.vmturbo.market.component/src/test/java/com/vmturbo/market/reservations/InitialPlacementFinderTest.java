@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -66,7 +67,7 @@ public class InitialPlacementFinderTest {
         InitialPlacementFinder pf = new InitialPlacementFinder();
         pf.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap);
         List<TraderTO> traderTO = pf.constructTraderTOs(getTradersToPlace(vmID, pmSlOid, PM_TYPE,
-                MEM_TYPE, 100));
+                MEM_TYPE, 100), commTypeToSpecMap);
         assertTrue(traderTO.size() == 1);
         TraderTO vmTO = traderTO.get(0);
         assertTrue(vmTO.getOid() == vmID);
@@ -91,12 +92,12 @@ public class InitialPlacementFinderTest {
         Economy originalEconomy = getOriginalEconomy();
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap);
         double used = 10;
-        Table<Long, Long, Long> result = pf.findPlacement(getTradersToPlace(vmID, pmSlOid, PM_TYPE,
+        Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(getTradersToPlace(vmID, pmSlOid, PM_TYPE,
                 MEM_TYPE, used));
-        for (Table.Cell<Long, Long, Long> cell : result.cellSet()) {
+        for (Table.Cell<Long, Long, InitialPlacementFinderResult> cell : result.cellSet()) {
             assertTrue(cell.getRowKey() == vmID);
             assertTrue(cell.getColumnKey() == pmSlOid);
-            assertTrue(cell.getValue() == pm2Oid);
+            assertTrue(cell.getValue().getProviderOid().get() == pm2Oid);
         }
         Field economy = InitialPlacementFinder.class.getDeclaredField("cachedEconomy");
         economy.setAccessible(true);
@@ -106,7 +107,25 @@ public class InitialPlacementFinderTest {
         assertTrue(pm2.getCommoditiesSold().get(0).getQuantity() == quantity + used);
     }
 
-
+    /**
+     * Test initial placement finder failed. The original economy has two hosts.
+     * PM1 mem used 25, capacity 100. PM2 mem used 20, capacity 100.
+     * Expected: reservation failed with a new reservation VM requesting 100 mem.
+     */
+    @Test
+    public void testInitialPlacementFinderResultWithFailureInfo() {
+        InitialPlacementFinder pf = new InitialPlacementFinder();
+        Economy originalEconomy = getOriginalEconomy();
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap);
+        List<InitialPlacementBuyer> buyer = getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100);
+        Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(buyer);
+        List<FailureInfo> failureInfo = result.get(vmID, pmSlOid).getFailureInfoList();
+        assertTrue(failureInfo.size() == 1);
+        assertTrue(failureInfo.get(0).getCommodityType().getType() == MEM_TYPE);
+        assertTrue(failureInfo.get(0).getRequestedAmount() == 100);
+        assertTrue(failureInfo.get(0).getClosestSellerOid() == pm2Oid);
+        assertTrue(failureInfo.get(0).getMaxQuantity() == 80);
+    }
 
     /**
      * Create a InitialPlacementBuyer list with one object based on given parameters.

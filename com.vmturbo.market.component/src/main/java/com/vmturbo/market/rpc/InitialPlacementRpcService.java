@@ -15,9 +15,14 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementSuccess;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceImplBase;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementFailureInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementFinderResult;
+import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 
 /**
  * Implementation of gRpc service for Reservation.
@@ -40,16 +45,34 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
     public void findInitialPlacement(final FindInitialPlacementRequest request,
                                      final StreamObserver<FindInitialPlacementResponse> responseObserver) {
         logger.info("The number of workloads to find inital placement is " + request.getInitialPlacementBuyerList().size());
-        Table<Long, Long, Long> result = initPlacementFinder.findPlacement(request.getInitialPlacementBuyerList());
+        Table<Long, Long, InitialPlacementFinderResult> result = initPlacementFinder.findPlacement(request.getInitialPlacementBuyerList());
         FindInitialPlacementResponse.Builder response = FindInitialPlacementResponse.newBuilder();
-        for (Table.Cell<Long, Long, Long> triplet : result.cellSet()) {
-            response.addInitialPlacementBuyerPlacementInfo(InitialPlacementBuyerPlacementInfo
+        for (Table.Cell<Long, Long, InitialPlacementFinderResult> triplet : result.cellSet()) {
+            InitialPlacementBuyerPlacementInfo.Builder builder = InitialPlacementBuyerPlacementInfo
                     .newBuilder()
                     .setBuyerId(triplet.getRowKey())
-                    .setCommoditiesBoughtFromProviderId(triplet.getColumnKey())
-                    .setInitialPlacementSuccess(InitialPlacementSuccess.newBuilder()
-                            .setProviderOid(triplet.getValue()))
-                    .build());
+                    .setCommoditiesBoughtFromProviderId(triplet.getColumnKey());
+            // InitialPlacementFinderResult provider oid exist means placement succeeded
+            InitialPlacementFinderResult reservationResult = triplet.getValue();
+            if (reservationResult.getProviderOid().isPresent()) {
+                builder.setInitialPlacementSuccess(
+                        InitialPlacementSuccess.newBuilder().setProviderOid(reservationResult
+                                .getProviderOid().get()));
+            } else {
+                InitialPlacementFailure.Builder failureBuilder = InitialPlacementFailure.newBuilder();
+                for (FailureInfo info: triplet.getValue().getFailureInfoList()) {
+                    CommodityType commodityType = info.getCommodityType();
+                    InitialPlacementFailureInfo failureInfo = InitialPlacementFailureInfo.newBuilder()
+                            .setCommType(commodityType)
+                            .setClosestSeller(info.getClosestSellerOid())
+                            .setMaxQuantityAvailable(info.getMaxQuantity())
+                            .setRequestedQuantity(info.getRequestedAmount())
+                            .build();
+                    failureBuilder.addFailureInfo(failureInfo);
+                }
+                builder.setInitialPlacementFailure(failureBuilder);
+            }
+            response.addInitialPlacementBuyerPlacementInfo(builder.build());
         }
         try {
             responseObserver.onNext(response.build());

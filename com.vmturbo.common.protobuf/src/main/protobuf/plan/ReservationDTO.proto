@@ -203,7 +203,6 @@ message UpdateConstraintMapResponse {
     required int64 count = 1;
 }
 
-
 message UpdateFutureAndExpiredReservationsResponse {
     // The number of reservations that are activated by the RPC.
     // If this number is greater than 0, the reservation service will be kicking off

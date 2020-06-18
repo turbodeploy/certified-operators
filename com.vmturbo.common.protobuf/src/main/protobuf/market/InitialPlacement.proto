@@ -34,6 +34,7 @@ message InitialPlacementBuyerPlacementInfo {
     optional int64 commoditiesBoughtFromProviderId = 2;
 
     oneof initial_placement_result {
+
         InitialPlacementSuccess initial_placement_success = 3;
         InitialPlacementFailure initial_placement_failure = 4;
     }
