@@ -143,32 +143,39 @@ public class ActionApprovalService extends AbstractActionApprovalService {
     }
 
     private void requestExternalStateUpdates() {
-        final Collection<Long> actionsToQuery = currentApprovals;
-        if (actionsToQuery.isEmpty()) {
-            getLogger().trace(
+        try {
+            final Collection<Long> actionsToQuery = currentApprovals;
+            if (actionsToQuery.isEmpty()) {
+                getLogger().trace(
                     "There is no current action approvals. Will not request their states");
-            return;
-        }
-        final Optional<Long> targetId = getTargetId();
-        if (!targetId.isPresent()) {
-            getLogger().warn(
+                return;
+            }
+            final Optional<Long> targetId = getTargetId();
+            if (!targetId.isPresent()) {
+                getLogger().warn(
                     "There is not external action approval target. Skipping external state updates for actions [{}]",
                     actionsToQuery);
-            return;
-        }
-        getLogger().debug("Requesting action states for the following actions from target {}: {}",
-                targetId::get, actionsToQuery::toString);
-        if (getActionStateOperation == null) {
-            try {
-                // There is only one thread able to set this variable
-                getActionStateOperation = operationManager.getExternalActionState(targetId.get(),
-                        actionsToQuery, new GetActionStatesCallback(targetId.get()));
-            } catch (InterruptedException | TargetNotFoundException | ProbeException | CommunicationException e) {
-                getLogger().warn("Error getting external action state", e);
+                return;
             }
-        } else {
-            getLogger().info("Previous getActionState operation is still processing: {}",
+            getLogger().debug("Requesting action states for the following actions from target {}: {}",
+                targetId::get, actionsToQuery::toString);
+            if (getActionStateOperation == null) {
+                try {
+                    // There is only one thread able to set this variable
+                    getActionStateOperation = operationManager.getExternalActionState(targetId.get(),
+                        actionsToQuery, new GetActionStatesCallback(targetId.get()));
+                } catch (InterruptedException | TargetNotFoundException | ProbeException | CommunicationException e) {
+                    getLogger().warn("Error getting external action state", e);
+                }
+            } else {
+                getLogger().info("Previous getActionState operation is still processing: {}",
                     getActionStateOperation);
+            }
+        } catch (Exception e) {
+            // Do not rethrow the exception. This prevents rescheduling of all future
+            // ScheduledExecutorService.scheduleWithFixedDelay(this::requestExternalStateUpdates...
+            // As a result, without this catch, this method would never run again.
+            getLogger().error("Unable to requestExternalStateUpdates due to exception", e);
         }
     }
 

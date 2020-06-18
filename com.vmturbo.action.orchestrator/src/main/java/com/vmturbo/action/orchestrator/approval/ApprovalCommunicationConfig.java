@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
+import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -21,8 +22,12 @@ public class ApprovalCommunicationConfig {
 
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
+
     @Autowired
     private WorkflowConfig workflowConfig;
+
+    @Autowired
+    private ActionTranslationConfig actionTranslationConfig;
 
     /**
      * A message sender to notify about new actions ready for approval.

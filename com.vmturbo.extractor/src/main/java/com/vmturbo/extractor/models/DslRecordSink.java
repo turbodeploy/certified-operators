@@ -1,4 +1,4 @@
- package com.vmturbo.extractor.models;
+package com.vmturbo.extractor.models;
 
 import java.io.IOException;
 import java.io.PipedReader;
@@ -17,9 +17,12 @@ import java.util.function.Consumer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
 import org.postgresql.copy.CopyManager;
 import org.postgresql.jdbc.PgConnection;
 
@@ -58,26 +61,20 @@ public class DslRecordSink implements Consumer<Record> {
     private final DSLContext dsl;
     private final ExecutorService pool;
     protected final Table table;
-    protected final Model model;
     private final WriterConfig config;
-    private PrintWriter writer;
-    private Future<InsertResults> future;
-    private int recordSentCount = 0;
+    private RecordWriter recordWriter;
 
     /**
      * Create a new record sink.
      *
      * @param dsl    jOOQ DSL Context that can be used for the COPY operation
      * @param table  table we're attached to, target of the record insertions
-     * @param model  model the table belongs to
      * @param config writer config
      * @param pool   thread pool
      */
-    public DslRecordSink(DSLContext dsl, Table table, Model model, WriterConfig config,
-            ExecutorService pool) {
+    public DslRecordSink(DSLContext dsl, Table table, WriterConfig config, ExecutorService pool) {
         this.dsl = dsl;
         this.table = table;
-        this.model = model;
         this.config = config;
         this.pool = pool;
     }
@@ -102,72 +99,157 @@ public class DslRecordSink implements Consumer<Record> {
     @Override
     public void accept(final Record record) {
         if (record == null) {
-            close();
+            if (recordWriter != null) {
+                recordWriter.close(false);
+            }
         } else {
-            final String csv = record.toCSVRow(getRecordColumns());
             try {
-                if (writer == null) {
-                    setupWriter();
+                if (recordWriter == null) {
+                    this.recordWriter = createRecordWriter();
+                } else if (recordWriter.isClosed()) {
+                    throw new IllegalStateException("Attempt to write to closed record writer");
                 }
-                writer.println(csv);
-                if (++recordSentCount % 1000 == 0) {
-                    logger.debug("Wrote {} records to {}", recordSentCount, getWriteTableName());
-                }
+                recordWriter.write(record);
             } catch (IOException e) {
                 logger.error("Failed to write record to table {}", getWriteTableName(), e);
             }
         }
     }
 
-    /**
-     * Executed when the first record is posted to the sink, establishes a COPY operation in a
-     * parallel thread and a {@link Future} that we can use later to await completion and obtain
-     * results.
-     *
-     * @throws IOException if there's a problem setting things up
-     */
-    private void setupWriter() throws IOException {
-        PipedReader reader = new PipedReader();
-        this.writer = new PrintWriter(new PipedWriter(reader));
-        this.future = pool.submit(() -> writeData(reader));
+    RecordWriter createRecordWriter() throws IOException {
+        return new RecordWriter(getRecordColumns(), pool);
     }
 
     /**
-     * This method set up the COPY operation in a parallel thread.
+     * Class that performs database writes.
      *
-     * @param reader a {@link Reader} from which data for the operation can be read
-     * @return a {@link Future} that will report results when we're finished, in the form of a # of
-     * records copied to db, and duration in milliseconds.
+     * <p>We use the high-speed Postgres COPY statement, sending records in CSV format.</p>
      */
-    private InsertResults writeData(Reader reader) {
-        long start = System.nanoTime();
-        long recordCount = dsl.transactionResult(configuration -> {
-            Connection conn = null;
+    class RecordWriter {
+        private PrintWriter writer;
+        private final Collection<Column<?>> columns;
+        private final Connection conn;
+        private Future<InsertResults> future;
+        private int recordSentCount = 0;
+        private boolean closed = false;
+
+        RecordWriter(Collection<Column<?>> columns, ExecutorService pool) throws IOException {
+            this.columns = columns;
+            this.conn = getTransactionalConnection();
+            if (conn != null && runPreCopyHook(conn)) {
+                final PipedReader reader = new PipedReader();
+                this.writer = new PrintWriter(new PipedWriter(reader));
+                this.future = pool.submit(() -> writeData(String.format("COPY \"%s\" FROM STDIN WITH CSV", getWriteTableName()), conn, reader));
+            } else {
+                if (future != null) {
+                    future.cancel(true);
+                }
+                close(true);
+            }
+        }
+
+        private Connection getTransactionalConnection() {
             try {
-                conn = configuration.connectionProvider().acquire();
-                // perform sink-specific setup, like creating a temp table as a direct recipient
-                // of copied records
+                final Connection conn = dsl.configuration().connectionProvider().acquire();
+                conn.setAutoCommit(false);
+                return conn;
+            } catch (DataAccessException | SQLException e) {
+                logger.error("Failed to obtain a connection for sink operation", e);
+                return null;
+            }
+        }
+
+        private boolean runPreCopyHook(Connection conn) {
+            try {
                 preCopyHook(conn);
-                // execute the copy operation, with data coming from our reader
-                final String copySql = String.format("COPY \"%s\" FROM STDIN WITH CSV", getWriteTableName());
-                long count = new CopyManager(conn.unwrap(PgConnection.class))
-                        .copyIn(copySql, reader);
-                // perform sink-specific completion, like merging temp table data into the target
-                // table
+                return true;
+            } catch (SQLException e) {
+                logger.error("Failed to execute pre-copy hook; will not write any records", e);
+                return false;
+            }
+        }
+
+        private void runPostCopyHook(Connection conn) {
+            try {
                 postCopyHook(conn);
-                return count;
+            } catch (SQLException e) {
+                logger.error("Failed to execute postCopy hook; rolling back all work", e);
+            }
+        }
+
+        /**
+         * This method set up the COPY operation in a parallel thread.
+         *
+         * @param copySql SQL for copy operation
+         * @param conn    connection to use
+         * @param reader  a {@link Reader} from which data for the operation can be read
+         * @return a {@link Future} that will report results when we're finished
+         */
+        private InsertResults writeData(String copySql, Connection conn, Reader reader) {
+            long start = System.nanoTime();
+            long recordCount;
+            try {
+                // execute the copy operation, with data coming from our reader
+                recordCount = new CopyManager(conn.unwrap(PgConnection.class))
+                        .copyIn(copySql, reader);
             } catch (Exception e) {
                 logger.error("Failed performing copy to table {}", getWriteTableName(), e);
-                return 0L;
+                recordCount = 0L;
+            }
+            final long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            return new InsertResults(recordCount, elapsed);
+        }
+
+        public void write(final Record record) {
+            final String csv = record.toCSVRow(columns);
+            writer.println(csv);
+            if (++recordSentCount % 1000 == 0) {
+                logger.debug("Wrote {} records to {}", recordSentCount, getWriteTableName());
+            }
+        }
+
+        /**
+         * Called when the sink is detached from its table, to finish up the COPY operation and
+         * report its results.
+         *
+         * @param failed true if the operation is known to have failed
+         */
+        @VisibleForTesting
+        void close(boolean failed) {
+            try {
+                if (writer != null) {
+                    // this will cause the COPY operation to hit EOF on its reader and complete its
+                    // operation with the DB
+                    writer.close();
+                }
+                // await completion and report results
+                if (future != null) {
+                    InsertResults result = future.get(config.insertTimeoutSeconds(), TimeUnit.SECONDS);
+                    logger.info("Wrote {} records to table {}", result.getRecordCount(), getWriteTableName());
+                    runPostCopyHook(conn);
+                }
+            } catch (TimeoutException | InterruptedException | ExecutionException e) {
+                logger.error("Failed to complete writing to table {}", getWriteTableName(), e);
             } finally {
                 if (conn != null) {
-                    configuration.connectionProvider().release(conn);
+                    try {
+                        if (failed) {
+                            conn.rollback();
+                        } else {
+                            conn.commit();
+                        }
+                    } catch (SQLException e) {
+                        logger.error("Failed to rollback failed transaction", e);
+                    }
+                    dsl.configuration().connectionProvider().release(conn);
                 }
-                reader.close();
             }
-        });
-        final long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-        return new InsertResults(recordCount, elapsed);
+            this.closed = true;
+        }
+
+        public boolean isClosed() {
+            return closed;
+        }
     }
 
     /**
@@ -193,30 +275,9 @@ public class DslRecordSink implements Consumer<Record> {
     }
 
     /**
-     * Called when the sink is detached from its table, to finish up the COPY operation and
-     * report its results.
-     */
-    private void close() {
-        try {
-            if (writer != null) {
-                // this will cause the COPY operation to hit EOF on its reader and complete its
-                // operation with the DB
-                writer.close();
-            }
-            // await completion and report results
-            if (future != null) {
-                InsertResults result = future.get(config.insertTimeoutSeconds(), TimeUnit.SECONDS);
-                logger.info("Wrote {} records to table {}", result.getRecordCount(), getWriteTableName());
-            }
-        } catch (TimeoutException | InterruptedException | ExecutionException e) {
-            logger.error("Failed to complete writing to table {}", getWriteTableName(), e);
-        }
-    }
-
-    /**
      * Class for results of a COPY operation.
      */
-    private static class InsertResults {
+    static class InsertResults {
 
         private final long recordCount;
         private final long msec;

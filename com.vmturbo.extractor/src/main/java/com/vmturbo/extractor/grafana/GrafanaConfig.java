@@ -1,9 +1,6 @@
 package com.vmturbo.extractor.grafana;
 
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.collect.Sets;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,10 +8,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.client.GrafanaClientConfig;
+import com.vmturbo.extractor.schema.ExtractorDbConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
@@ -62,7 +59,7 @@ public class GrafanaConfig {
      */
     @Bean
     public Grafanon grafanon() {
-        GrafanonConfig config = new GrafanonConfig(() -> extractorDbConfig.ingesterEndpoint().get().getConfig())
+        GrafanonConfig config = new GrafanonConfig(() -> extractorDbConfig.ingesterEndpoint().getConfig())
                 .setTimescaleDisplayName(datasourceName)
                 .setErrorSleepInterval(grafanaErrorSleepIntervalSec, TimeUnit.SECONDS);
         return new Grafanon(config, dashboardsOnDisk(), grafanaClient());

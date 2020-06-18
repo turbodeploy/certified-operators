@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.approval;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -38,6 +39,7 @@ public class ActionApprovalSenderTest {
     private static final long ACTION_PLAN_ID = 10000L;
     private static final long ACTION1 = 10001L;
     private static final long ACTION2 = 10002L;
+    private static final String EXPLANATION = "Resize VM from 3.0GB to 4.0GB";
     @Mock
     private IMessageSender<ActionApprovalRequests> requestSender;
     @Mock
@@ -83,6 +85,17 @@ public class ActionApprovalSenderTest {
                 .stream()
                 .map(ExecuteActionRequest::getActionId)
                 .collect(Collectors.toSet()));
+
+        // all actions should have an explanation
+        Assert.assertTrue(
+            captor.getAllValues().stream()
+                .map(ActionApprovalRequests::getActionsList)
+                .flatMap(List::stream)
+                .allMatch(
+                    executeActionRequest -> executeActionRequest.hasExplanation()
+                        && EXPLANATION.equals(executeActionRequest.getExplanation())
+                )
+        );
     }
 
     /**
@@ -136,6 +149,17 @@ public class ActionApprovalSenderTest {
                 .stream()
                 .map(ExecuteActionRequest::getActionId)
                 .collect(Collectors.toSet()));
+
+        // all actions should have an explanation
+        Assert.assertTrue(
+            captor.getAllValues().stream()
+                .map(ActionApprovalRequests::getActionsList)
+                .flatMap(List::stream)
+                .allMatch(
+                    executeActionRequest -> executeActionRequest.hasExplanation()
+                        && EXPLANATION.equals(executeActionRequest.getExplanation())
+                )
+        );
     }
 
     private Action createAction(long oid, @Nonnull ActionMode actionMode) {
@@ -159,7 +183,9 @@ public class ActionApprovalSenderTest {
         action.getActionTranslation()
                 .setTranslationSuccess(actionDTO);
         Mockito.when(action.getMode())
-                .thenReturn(actionMode);
+            .thenReturn(actionMode);
+        Mockito.when(action.getDescription())
+            .thenReturn(EXPLANATION);
         storeActions.put(oid, action);
         return action;
     }
