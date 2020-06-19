@@ -93,7 +93,7 @@ public class DiscoveredPlacementPoliciesUpdaterTest {
                 Collections.singletonMap(TGT1, Collections.singletonMap(POLICY1_NAME, oid1)));
         updater.updateDiscoveredPolicies(policyStore,
                 Collections.singletonMap(TGT1, Collections.singletonList(POLICY1_INFO)),
-                groupIdsMap);
+                groupIdsMap, Collections.emptySet());
         Mockito.verify(policyStore).deletePolicies(Collections.singletonList(oid1));
         Mockito.verify(policyStore).createPolicies(policiesCaptor.capture());
         Assert.assertEquals(Collections.singleton(oid1),
@@ -111,7 +111,7 @@ public class DiscoveredPlacementPoliciesUpdaterTest {
                 Collections.singletonMap(TGT1, Collections.singletonMap(POLICY1_NAME, oid1)));
         updater.updateDiscoveredPolicies(policyStore,
                 Collections.singletonMap(TGT1, Arrays.asList(POLICY1_INFO, POLICY2_INFO)),
-                groupIdsMap);
+                groupIdsMap, Collections.emptySet());
         Mockito.verify(policyStore).deletePolicies(Collections.singletonList(oid1));
         Mockito.verify(policyStore).createPolicies(policiesCaptor.capture());
         Assert.assertEquals(Sets.newHashSet(oid1, oid2),
@@ -130,11 +130,31 @@ public class DiscoveredPlacementPoliciesUpdaterTest {
                 Collections.singletonMap(TGT1, Collections.singletonMap(POLICY1_NAME, oid1)));
         updater.updateDiscoveredPolicies(policyStore,
                 Collections.singletonMap(TGT2, Arrays.asList(POLICY1_INFO, POLICY2_INFO)),
-                groupIdsMap);
+                groupIdsMap, Collections.singleton(TGT1));
         Mockito.verify(policyStore).deletePolicies(Collections.emptyList());
         Mockito.verify(policyStore).createPolicies(policiesCaptor.capture());
         Assert.assertEquals(Sets.newHashSet(oid2),
                 policiesCaptor.getValue().stream().map(Policy::getId).collect(Collectors.toSet()));
+    }
+
+    /**
+     * Tests a policy is reported for one target, and the other target is no longer is the list
+     * of policies that report discovered policy. It is expected that we remove the policies
+     * previous discovered by other target.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testTargetRemoved() throws Exception {
+        Mockito.when(policyStore.getDiscoveredPolicies()).thenReturn(
+            Collections.singletonMap(TGT1, Collections.singletonMap(POLICY1_NAME, oid1)));
+        updater.updateDiscoveredPolicies(policyStore,
+            Collections.singletonMap(TGT2, Arrays.asList(POLICY1_INFO, POLICY2_INFO)),
+            groupIdsMap, Collections.emptySet());
+        Mockito.verify(policyStore).deletePolicies(Collections.singletonList(oid1));
+        Mockito.verify(policyStore).createPolicies(policiesCaptor.capture());
+        Assert.assertEquals(Sets.newHashSet(oid2),
+            policiesCaptor.getValue().stream().map(Policy::getId).collect(Collectors.toSet()));
     }
 
     /**
@@ -150,7 +170,7 @@ public class DiscoveredPlacementPoliciesUpdaterTest {
         Mockito.when(policyStore.getDiscoveredPolicies()).thenReturn(
                 Collections.singletonMap(TGT1, Collections.singletonMap(POLICY1_NAME, oid1)));
         updater.updateDiscoveredPolicies(policyStore,
-                Collections.singletonMap(TGT1, Arrays.asList(POLICY1_INFO, policy)), groupIdsMap);
+                Collections.singletonMap(TGT1, Arrays.asList(POLICY1_INFO, policy)), groupIdsMap, Collections.emptySet());
         Mockito.verify(policyStore).deletePolicies(Collections.singletonList(oid1));
         Mockito.verify(policyStore).createPolicies(policiesCaptor.capture());
         Assert.assertEquals(Sets.newHashSet(oid1),

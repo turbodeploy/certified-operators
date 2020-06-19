@@ -134,7 +134,7 @@ public class TransactionProviderImpl implements TransactionProvider {
         @Override
         public void deletePolicies(@Nonnull Collection<Long> oids, @Nonnull Type allowedType)
                 throws StoreOperationException {
-            settingStore.deleteSettingPolcies(dslContext, oids, allowedType);
+            settingStore.deleteSettingPolicies(dslContext, oids, allowedType);
         }
 
         @Override
