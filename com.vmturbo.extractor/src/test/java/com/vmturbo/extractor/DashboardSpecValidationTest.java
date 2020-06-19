@@ -4,6 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.extractor.grafana.DashboardsOnDisk;
 
 /**
@@ -15,11 +16,13 @@ public class DashboardSpecValidationTest {
 
     /**
      * Test that all dashboards are valid.
+     *
+     * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testDashboardsValid() {
-        final DashboardsOnDisk dashboards =
-                new DashboardsOnDisk(DashboardsOnDisk.class.getClassLoader().getResource("dashboards").getFile());
+    public void testDashboardsValid() throws Exception {
+        final DashboardsOnDisk dashboards = new DashboardsOnDisk(
+            ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString());
         // The "visit" method performs validation on the dashboards, so we make sure that
         // it doesn't crash.
         dashboards.visit(folderData -> {

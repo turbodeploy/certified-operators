@@ -11,6 +11,7 @@ import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration;
 import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
+import com.vmturbo.components.api.StackTrace;
 import com.vmturbo.trax.TraxConfiguration.TopicSettings;
 import com.vmturbo.trax.TraxConfiguration.TraxContext;
 import com.vmturbo.trax.TraxConfiguration.TraxUseLimit;
@@ -667,37 +668,11 @@ public class Trax {
      */
     @Nullable
     public static String callerFromStackTrace() {
-        final StackTraceElement[] stackTrace = new Throwable().getStackTrace();
-        if (stackTrace != null) {
-            return Stream.of(stackTrace)
-                .filter(Trax::isInterestingCallSite)
-                .map(element -> element.getFileName() + ":" + element.getLineNumber())
-                .findFirst()
-                .orElse(null);
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * Check whether the stack trace element is interesting enough to track. Stack frames from within
-     * the stack source library or within the Java library code (ie. java.util.stream, java.util.Collection, etc.)
-     * are not considered interesting because they don't actually help someone who is debugging figure out
-     * where in the source code to look for the related calculation.
-     *
-     * @param element The stack trace element to check
-     * @return Whether or not this file is an interesting call site to track.
-     */
-    static boolean isInterestingCallSite(@Nonnull final StackTraceElement element) {
-        final String fileName = element.getFileName();
-        final int len = fileName.length();
-        if (len < JAVA_SOURCE_FILE_SUFFIX_LENGTH) {
-            return false;
-        }
-
-        final String withoutJavaSuffix = fileName.substring(0, len - JAVA_SOURCE_FILE_SUFFIX_LENGTH);
-        return (!withoutJavaSuffix.startsWith(TRAX_SOURCE_NAME_PREFIX) || withoutJavaSuffix.endsWith("Test")) &&
-            !element.getClassName().startsWith("java");
+        return StackTrace.getFilteredCaller(element -> {
+            return (element.getFileName() != null
+                    && !element.getFileName().startsWith(TRAX_SOURCE_NAME_PREFIX))
+                || element.getClassName().endsWith("Test");
+        });
     }
 
     /**

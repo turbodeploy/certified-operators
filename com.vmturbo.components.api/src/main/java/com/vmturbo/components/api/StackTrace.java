@@ -1,5 +1,7 @@
 package com.vmturbo.components.api;
 
+import java.util.function.Predicate;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -27,6 +29,27 @@ public class StackTrace {
     public static String getCaller() {
         final StackTraceElement callerElement = getCallerElement(0);
         return callerElement == null ? "" : callerElement.getFileName() + ":" + callerElement.getLineNumber();
+    }
+
+    /**
+     * Like the {@link StackTrace#getCaller()} method, but allows additional filters for what
+     * are considered to be "interesting" methods.
+     *
+     * @param elementFilter The filter for {@link StackTraceElement}s that should be considered
+     *                      interesting. Note - this will be applied on top of the builtin filters.
+     * @return See {@link StackTrace#getCaller()}.
+     */
+    @Nonnull
+    public static String getFilteredCaller(@Nonnull final Predicate<StackTraceElement> elementFilter) {
+        final StackTraceElement[] stackTrace = new Throwable().getStackTrace();
+        if (stackTrace != null) {
+            for (StackTraceElement element : stackTrace) {
+                if (StackTrace.isInterestingCallSite(element) && elementFilter.test(element)) {
+                    return element.getFileName() + ":" + element.getLineNumber();
+                }
+            }
+        }
+        return "";
     }
 
     /**

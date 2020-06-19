@@ -5,13 +5,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
 
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.mediation.conversion.onprem.AddVirtualVolumeDiscoveryConverter;
 import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -20,23 +21,22 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
 public class AddVirtualVolumeDiscoveryConverterTest {
 
-    private static final String SIMPLE_TEST_CASE = AddVirtualVolumeDiscoveryConverterTest.class
-        .getClassLoader().getResource("data/OneStorageOneVM").getPath();
+    private static final Path SIMPLE_TEST_CASE = ResourcePath.getTestResource(
+            AddVirtualVolumeDiscoveryConverterTest.class, "data/OneStorageOneVM");
 
-    private static final String STORAGE_ONLY_TEST_CASE = AddVirtualVolumeDiscoveryConverterTest.class
-        .getClassLoader().getResource("data/OneStorage").getPath();
+    private static final Path STORAGE_ONLY_TEST_CASE = ResourcePath.getTestResource(
+            AddVirtualVolumeDiscoveryConverterTest.class, "data/OneStorage");
 
-    private static final String VM_ONLY_TEST_CASE = AddVirtualVolumeDiscoveryConverterTest.class
-        .getClassLoader().getResource("data/OneVM").getPath();
+    private static final Path VM_ONLY_TEST_CASE = ResourcePath.getTestResource(
+            AddVirtualVolumeDiscoveryConverterTest.class, "data/OneVM");
 
-    private static final String STORAGE_NO_FILES_TEST_CASE =
-        AddVirtualVolumeDiscoveryConverterTest.class
-        .getClassLoader().getResource("data/OneEmptyStorage").getPath();
+    private static final Path STORAGE_NO_FILES_TEST_CASE = ResourcePath.getTestResource(
+            AddVirtualVolumeDiscoveryConverterTest.class, "data/OneEmptyStorage");
 
     @Test
     public void testNormalCase() {
         final String wastedFilePath = "/File1.log";
-        DiscoveryResponse discoveryResponse = TestUtils.readResponseFromFile(SIMPLE_TEST_CASE);
+        DiscoveryResponse discoveryResponse = TestUtils.readResponseFromFile(SIMPLE_TEST_CASE.toString());
         AddVirtualVolumeDiscoveryConverter vimConverter =
                 new AddVirtualVolumeDiscoveryConverter(discoveryResponse, true);
         DiscoveryResponse convertedResponse = vimConverter.convert();
@@ -62,7 +62,7 @@ public class AddVirtualVolumeDiscoveryConverterTest {
 
     @Test
     public void testStorageOnlyCase() {
-        DiscoveryResponse discoveryResponse = TestUtils.readResponseFromFile(STORAGE_ONLY_TEST_CASE);
+        DiscoveryResponse discoveryResponse = TestUtils.readResponseFromFile(STORAGE_ONLY_TEST_CASE.toString());
         AddVirtualVolumeDiscoveryConverter vimConverter =
                 new AddVirtualVolumeDiscoveryConverter(discoveryResponse, true);
         DiscoveryResponse convertedResponse = vimConverter.convert();
@@ -84,7 +84,7 @@ public class AddVirtualVolumeDiscoveryConverterTest {
 
     @Test
     public void testVMOnlyCase() {
-        DiscoveryResponse discoveryResponse = TestUtils.readResponseFromFile(VM_ONLY_TEST_CASE);
+        DiscoveryResponse discoveryResponse = TestUtils.readResponseFromFile(VM_ONLY_TEST_CASE.toString());
         AddVirtualVolumeDiscoveryConverter vimConverter =
             new AddVirtualVolumeDiscoveryConverter(discoveryResponse, true);
         DiscoveryResponse convertedResponse = vimConverter.convert();
@@ -110,7 +110,7 @@ public class AddVirtualVolumeDiscoveryConverterTest {
     @Test
     public void testEmptyStorage() {
         DiscoveryResponse discoveryResponse =
-            TestUtils.readResponseFromFile(STORAGE_NO_FILES_TEST_CASE);
+            TestUtils.readResponseFromFile(STORAGE_NO_FILES_TEST_CASE.toString());
         AddVirtualVolumeDiscoveryConverter vimConverter =
             new AddVirtualVolumeDiscoveryConverter(discoveryResponse, true);
         DiscoveryResponse convertedResponse = vimConverter.convert();

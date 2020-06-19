@@ -106,5 +106,10 @@
             <artifactId>hamcrest-all</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>components-api-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

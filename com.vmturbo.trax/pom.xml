@@ -37,6 +37,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>common-protobuf</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>components-api</artifactId>
+        </dependency>
 
         <!-- test dependencies -->
         <dependency>

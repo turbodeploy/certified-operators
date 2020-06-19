@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -14,6 +15,7 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.mediation.conversion.onprem.AddVirtualVolumeDiscoveryConverter;
 import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.mediation.vmware.sdk.VimAccount;
@@ -27,9 +29,9 @@ public class VimStorageBrowsingConversionProbeTest {
     private VimAccount vimAccount = Mockito.mock(VimAccount.class);
     private DiscoveryContextDTO discoveryContext = null;
 
-    private static final String STORAGE_BROWSING_PATH = VimStorageBrowsingConversionProbeTest.class
-        .getClassLoader().getResource("data/vCenter_Storage_Browsing_vsphere_dc7.eng.vmturbo.com.txt")
-        .getPath();
+    private static final Path STORAGE_BROWSING_PATH = ResourcePath.getTestResource(
+            VimStorageBrowsingConversionProbeTest.class,
+            "data/vCenter_Storage_Browsing_vsphere_dc7.eng.vmturbo.com.txt");
 
     /**
      * Used captured data from a discovery of vsphere-dc7.eng.vmturbo.com to ensure that the
@@ -39,7 +41,7 @@ public class VimStorageBrowsingConversionProbeTest {
      */
     @Test
     public void testDc7() throws Exception {
-        DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(STORAGE_BROWSING_PATH);
+        DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(STORAGE_BROWSING_PATH.toString());
         VimStorageBrowsingConversionProbe probe = Mockito.spy(new VimStorageBrowsingConversionProbe());
         Mockito.doReturn(oldResponse).when(probe).getRawDiscoveryResponse(vimAccount, discoveryContext);
 

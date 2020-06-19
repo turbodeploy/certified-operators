@@ -6,7 +6,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URL;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
@@ -241,8 +241,7 @@ public class StatsTestUtils {
      */
     public static TopologyEntityDTO generateEntityDTO(String testDTOFilePath)
             throws Exception {
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        File file = new File(classLoader.getResource(testDTOFilePath).getFile());
+        File file = ResourcePath.getTestResource(StatsTestUtils.class, testDTOFilePath).toFile();
         final InputStream dtoInputStream = new FileInputStream(file);
         InputStreamReader inputStreamReader = new InputStreamReader(dtoInputStream);
         JsonReader topologyReader = new JsonReader(inputStreamReader);
@@ -260,9 +259,8 @@ public class StatsTestUtils {
     public static Collection<TopologyEntityDTO> generateEntityDTOs(String testTopologyPath,
                                                                    String testTopologyFileName)
             throws Exception {
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        URL zipUrl = classLoader.getResource(testTopologyPath);
-        ZipFile zip = new ZipFile(new File(zipUrl.toURI()));
+        File zipFile = ResourcePath.getTestResource(StatsTestUtils.class, testTopologyPath).toFile();
+        ZipFile zip = new ZipFile(zipFile);
         final ZipEntry zipEntry = zip.getEntry(testTopologyFileName);
         final InputStream topologyInputStream = zip.getInputStream(zipEntry);
         InputStreamReader inputStreamReader = new InputStreamReader(topologyInputStream);
