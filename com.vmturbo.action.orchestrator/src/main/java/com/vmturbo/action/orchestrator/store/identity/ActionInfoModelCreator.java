@@ -175,6 +175,22 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
     }
 
     /**
+     * Corrects positive floating point value to the values suitable for JSON.
+     *
+     * @param src positive floating point value to convert
+     * @return fixed float value suitable for JSON
+     */
+    private static float fixPositiveValue(final float src) {
+        if (Float.isNaN(src)) {
+            return -1;
+        } else if (Float.isInfinite(src)) {
+            return -2;
+        } else {
+            return src;
+        }
+    }
+
+    /**
      * Move change object. Used for JSON serialization. It is just a composition of fields.
      */
     private static class MoveChange {
@@ -206,8 +222,8 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
                 boolean hotRemoveSupported) {
             this.commodityType = commodityType;
             this.commodityAttribute = commodityAttribute;
-            this.oldCapacity = oldCapacity;
-            this.newCapacity = newCapacity;
+            this.oldCapacity = fixPositiveValue(oldCapacity);
+            this.newCapacity = fixPositiveValue(newCapacity);
             this.hotAddSupported = hotAddSupported;
             this.hotRemoveSupported = hotRemoveSupported;
         }
