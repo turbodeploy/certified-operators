@@ -184,7 +184,7 @@ public class StringConstants {
     /**
      * Group types set.
      */
-    public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER, RESOURCE_GROUP);
+    public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER, RESOURCE_GROUP, VIRTUAL_MACHINE_CLUSTER);
 
     // Entity type class names
     public static final String VIRTUAL_MACHINE = "VirtualMachine";
