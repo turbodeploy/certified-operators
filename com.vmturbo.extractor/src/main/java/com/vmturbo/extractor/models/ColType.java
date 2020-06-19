@@ -11,11 +11,15 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import net.jpountz.xxhash.StreamingXXHash64;
-
 import org.apache.commons.codec.binary.Hex;
 
+import net.jpountz.xxhash.StreamingXXHash64;
+
 import com.vmturbo.extractor.models.Column.JsonString;
+import com.vmturbo.extractor.schema.enums.EntitySeverity;
+import com.vmturbo.extractor.schema.enums.EntityState;
+import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.schema.enums.EnvironmentType;
 
 /**
  * Column types that we support in our model definitions.
@@ -52,7 +56,20 @@ public enum ColType {
     /** JSON string column - like string but corresponds to JSONB postscript type. */
     JSON("jsonb"),
     /** Timestamp column. */
-    TIMESTAMP("timestamptz");
+    TIMESTAMP("timestamptz"),
+    /**
+     *  entity_type column. the type selected here doesn't really matter, getName here means the
+     *  type name (like entity_type) registered in db, not the member name (APPLICATION).
+     *  Unfortunately Jooq doesn't generate a static method to get type name, and getName() returns
+     *  same type name for all enum members. Same for other enums below.
+     */
+    ENTITY_TYPE(EntityType.values()[0].getName()),
+    /** environment_type column. */
+    ENVIRONMENT_TYPE(EnvironmentType.values()[0].getName()),
+    /** entity_state column. */
+    ENTITY_STATE(EntityState.values()[0].getName()),
+    /** entity_severity column. */
+    ENTITY_SEVERITY(EntitySeverity.values()[0].getName());
 
     static final byte[] NULL_BYTE_ARRAY = {0};
     static final byte[] TRUE_BYTE_ARRAY = {1};
@@ -166,6 +183,14 @@ public enum ColType {
                 return value.toString().getBytes(UTF_8);
             case TIMESTAMP:
                 return ByteBuffer.allocate(Long.BYTES).putLong(((Timestamp)value).getTime()).array();
+            case ENTITY_TYPE:
+                return ((EntityType)value).getLiteral().getBytes(UTF_8);
+            case ENVIRONMENT_TYPE:
+                return ((EnvironmentType)value).getLiteral().getBytes(UTF_8);
+            case ENTITY_SEVERITY:
+                return ((EntitySeverity)value).getLiteral().getBytes(UTF_8);
+            case ENTITY_STATE:
+                return ((EntityState)value).getLiteral().getBytes(UTF_8);
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());
         }
@@ -268,6 +293,14 @@ public enum ColType {
                 return new JsonString(new String(bytes, UTF_8));
             case TIMESTAMP:
                 return new Timestamp(ByteBuffer.wrap(bytes).getLong());
+            case ENTITY_TYPE:
+                return EntityType.valueOf(new String(bytes, UTF_8));
+            case ENVIRONMENT_TYPE:
+                return EnvironmentType.valueOf(new String(bytes, UTF_8));
+            case ENTITY_SEVERITY:
+                return EntitySeverity.valueOf(new String(bytes, UTF_8));
+            case ENTITY_STATE:
+                return EntityState.valueOf(new String(bytes, UTF_8));
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());
         }
@@ -352,6 +385,14 @@ public enum ColType {
                 return quoteString(value.toString());
             case TIMESTAMP:
                 return value.toString();
+            case ENTITY_TYPE:
+                return ((EntityType)value).getLiteral();
+            case ENVIRONMENT_TYPE:
+                return ((EnvironmentType)value).getLiteral();
+            case ENTITY_SEVERITY:
+                return ((EntitySeverity)value).getLiteral();
+            case ENTITY_STATE:
+                return ((EntityState)value).getLiteral();
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());
         }

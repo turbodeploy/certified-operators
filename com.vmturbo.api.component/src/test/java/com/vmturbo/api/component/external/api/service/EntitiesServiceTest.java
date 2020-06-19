@@ -56,6 +56,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.ActionChunk;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -71,11 +72,11 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reporting.api.protobuf.ReportingMoles.ReportingServiceMole;
@@ -523,8 +524,10 @@ public class EntitiesServiceTest {
         final ActionSpec dummyActionSpec = ActionSpec.getDefaultInstance();
         final FilteredActionResponse dummyActionOrchestratorResponse =
             FilteredActionResponse.newBuilder()
-                .addActions(ActionOrchestratorAction.newBuilder().setActionSpec(dummyActionSpec).build())
-                .build();
+                    .setActionChunk(ActionChunk.newBuilder()
+                            .addActions(ActionOrchestratorAction.newBuilder()
+                                    .setActionSpec(dummyActionSpec)))
+                    .build();
 
         final MinimalEntity minimalEntityVM = MinimalEntity.newBuilder()
                 .setOid(VM_ID)
@@ -532,7 +535,7 @@ public class EntitiesServiceTest {
                 .setDisplayName("VM")
                 .build();
 
-        when(actionsService.getAllActions(any())).thenReturn(dummyActionOrchestratorResponse);
+        when(actionsService.getAllActions(any())).thenReturn(Collections.singletonList(dummyActionOrchestratorResponse));
         final ActionApiDTO actionApiDTO = mock(ActionApiDTO.class);
         when(actionSpecMapper.mapActionSpecsToActionApiDTOs(any(), anyLong(), any()))
             .thenReturn(Collections.singletonList(actionApiDTO));

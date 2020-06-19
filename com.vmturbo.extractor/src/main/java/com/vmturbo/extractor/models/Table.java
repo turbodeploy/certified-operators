@@ -191,6 +191,20 @@ public class Table {
         }
 
         /**
+         * Insert a record into current table using attached sink.
+         *
+         * @param full record with full data
+         */
+        public void accept(Record full) {
+            if (!closed) {
+                sink.accept(full);
+            } else {
+                throw new IllegalStateException(
+                        String.format("TableWriter for table %s is closed", name));
+            }
+        }
+
+        /**
          * Close this writer and tie off its attached sink.
          *
          * <p>This completes the operation of sending a stream of records to the database.</p>

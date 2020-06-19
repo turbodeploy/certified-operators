@@ -2,12 +2,23 @@ package com.vmturbo.extractor.util;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Discovered;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.DiskTypeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.GeoDataInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
@@ -47,6 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Workloa
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData.DedicatedStorageNetworkState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolAssignmentType;
@@ -66,6 +78,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineFileTyp
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -162,15 +175,16 @@ public class TopologyTestUtil {
      */
     public static TopologyEntityDTO mkEntity(EntityType type) {
         final long oid = nextId.getAndIncrement();
-        return (TopologyEntityDTO.newBuilder()
+        Optional<TypeSpecificInfo> defaultTSI = getDefaultTSI(type);
+        TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
                 .setOid(oid)
                 .setEntityType(type.getNumber())
-                .setDisplayName(String.format("%s #%d", type, oid))
-                .setTypeSpecificInfo(getDefaultTSI(type)))
-                .build();
+                .setDisplayName(String.format("%s #%d", type, oid));
+        defaultTSI.ifPresent(builder::setTypeSpecificInfo);
+        return builder.build();
     }
 
-    private static TypeSpecificInfo getDefaultTSI(EntityType type) {
+    private static Optional<TypeSpecificInfo> getDefaultTSI(EntityType type) {
         TypeSpecificInfo.Builder builder = TypeSpecificInfo.newBuilder();
         switch (type) {
             case APPLICATION:
@@ -219,9 +233,10 @@ public class TopologyTestUtil {
                 builder.setWorkloadController(fillWorkloadController(WorkloadControllerInfo.newBuilder()));
                 break;
             default:
-                throw new IllegalArgumentException("Unknown entity type " + type.name());
+                // no type specific info for this entity type
+                return Optional.empty();
         }
-        return builder.build();
+        return Optional.of(builder.build());
     }
 
     private static ApplicationInfo fillApplication(ApplicationInfo.Builder builder) {
@@ -426,6 +441,31 @@ public class TopologyTestUtil {
                         .build())
                 .setStatefulSetInfo(StatefulSetInfo.newBuilder()
                         .build())
+                .build();
+    }
+
+    public static CommoditySoldDTO soldCommodity(CommodityDTO.CommodityType commodityType,
+            double used, double capacity) {
+        return CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(commodityType.getNumber()))
+                .setUsed(used)
+                .setCapacity(capacity)
+                .build();
+    }
+
+    public static Grouping mkGroup(GroupType groupType, List<Long> members) {
+        final long oid = nextId.getAndIncrement();
+        return Grouping.newBuilder()
+                .setId(oid)
+                .setOrigin(Origin.newBuilder()
+                        .setDiscovered(Discovered.newBuilder()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName(String.format("%s #%d", groupType, oid))
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
+                                        .addAllMembers(members))))
                 .build();
     }
 }
