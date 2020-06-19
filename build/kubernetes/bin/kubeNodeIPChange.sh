@@ -99,3 +99,7 @@ sleep 120
 
 /usr/local/bin/kubectl apply -f /etc/kubernetes/calico-config.yml -n kube-system
 /usr/local/bin/kubectl apply -f /etc/kubernetes/calico-kube-controllers.yml -n kube-system
+
+# Apply the ip change to the instance
+sed -i "s/${oldIP}/${newIP}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+/usr/local/bin/kubectl apply -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
