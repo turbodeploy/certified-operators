@@ -1,8 +1,6 @@
 package com.vmturbo.extractor.schema;
 
-import org.apache.commons.lang3.StringUtils;
 import org.jooq.SQLDialect;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,11 +13,6 @@ import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 @Configuration
 public class ExtractorDbConfig {
 
-    private static final String DEFAULT_MIGRATION_LOCATIONS = "db.migration";
-
-    @Value("${dbMigrationLocation:}")
-    private String migrationLocationsOverride;
-
     /**
      * General R/W endpoint for persisting data from topologies.
      *
@@ -27,14 +20,10 @@ public class ExtractorDbConfig {
      */
     @Bean
     public DbEndpoint ingesterEndpoint() {
-        String migrationLocations = DEFAULT_MIGRATION_LOCATIONS;
-        if (!StringUtils.isEmpty(migrationLocationsOverride)) {
-            migrationLocations = migrationLocationsOverride;
-        }
         return DbEndpoint.primaryDbEndpoint(SQLDialect.POSTGRES)
                 .withDbAccess(DbEndpointAccess.ALL)
                 .withDbDestructiveProvisioningEnabled(true)
-                .withDbMigrationLocations(migrationLocations)
+                .withDbMigrationLocations("db.migration")
                 .build();
     }
 

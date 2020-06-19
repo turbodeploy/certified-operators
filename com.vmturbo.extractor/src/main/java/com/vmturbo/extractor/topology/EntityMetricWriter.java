@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,7 +22,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.MessageOrBuilder;
 import com.google.protobuf.util.JsonFormat;
@@ -56,7 +56,6 @@ import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.topology.EntityHashManager.SnapshotManager;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -65,9 +64,6 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 public class EntityMetricWriter extends TopologyWriterBase {
     private static final Logger logger = LogManager.getLogger();
-
-    private static final Set<GroupType> GROUP_TYPE_BLACKLIST = ImmutableSet.of(
-            GroupType.RESOURCE, GroupType.BILLING_FAMILY);
 
     private static final Long[] EMPTY_SCOPE = new Long[0];
 
@@ -102,9 +98,9 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     @Override
     public Consumer<TopologyEntityDTO> startTopology(final TopologyInfo topologyInfo,
-            final WriterConfig config, final MultiStageTimer timer)
-            throws IOException, UnsupportedDialectException, SQLException {
-        super.startTopology(topologyInfo, config, timer);
+            final Map<Long, List<Grouping>> entityToGroups, final WriterConfig config,
+            final MultiStageTimer timer) throws IOException, UnsupportedDialectException, SQLException {
+        super.startTopology(topologyInfo, entityToGroups, config, timer);
         this.snapshotManager = entityHashManager.open(topologyInfo.getCreationTime());
         return this::writeEntity;
     }
@@ -174,7 +170,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     }
 
     @Override
-    public int finish(final DataProvider dataProvider)
+    public int finish(final Map<Long, Set<Long>> entitiesToRelated)
             throws UnsupportedDialectException, SQLException {
         final DSLContext dsl = dbEndpoint.dslContext();
         final ImmutableList<Column<?>> upsertConflicts = ImmutableList.of(
@@ -192,8 +188,8 @@ public class EntityMetricWriter extends TopologyWriterBase {
                      dsl, updateIncludes, updateMatches, updateUpdates));
              TableWriter metricInserter = METRIC_TABLE.open(getMetricInserterSink(dsl))) {
 
-            writeGroupsAsEntities(dataProvider);
-            upsertEntityRecords(dataProvider, entitiesUpserter);
+            writeGroupsAsEntities();
+            upsertEntityRecords(entitiesToRelated, entitiesUpserter);
             writeMetricRecords(metricInserter);
             snapshotManager.processChanges(entitiesUpdater);
             entityHashManager.close(snapshotManager);
@@ -220,10 +216,10 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 upsertConflicts, upsertUpdates);
     }
 
-    private void writeGroupsAsEntities(final DataProvider dataProvider) {
-        dataProvider.getAllGroups()
-                .filter(grouping -> !GROUP_TYPE_BLACKLIST.contains(grouping.getDefinition().getType()))
-                .forEach(group -> {
+    private void writeGroupsAsEntities() {
+        entityToGroups.values().stream()
+                .flatMap(Collection::stream)
+                .distinct().forEach(group -> {
             final GroupDefinition def = group.getDefinition();
             Record r = new Record(ENTITY_TABLE);
             r.set(ENTITY_OID_AS_OID, group.getId());
@@ -243,12 +239,12 @@ public class EntityMetricWriter extends TopologyWriterBase {
         });
     }
 
-    private void upsertEntityRecords(final DataProvider dataProvider, TableWriter tableWriter) {
+    private void upsertEntityRecords(final Map<Long, Set<Long>> entitiesToRelated, TableWriter tableWriter) {
         final long topologyTime = topologyInfo.getCreationTime();
         entityRecordsMap.long2ObjectEntrySet().forEach(entry -> {
             long oid = entry.getLongKey();
             Record record = entry.getValue();
-            final Long[] scope = getRelatedEntitiesAndGroups(oid, dataProvider);
+            final Long[] scope = getRelatedEntitiesAndGroups(oid, entitiesToRelated);
             record.set(ModelDefinitions.SCOPED_OIDS, scope);
 
             // only store entity if hash changes
@@ -262,11 +258,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
         });
     }
 
-    private Long[] getRelatedEntitiesAndGroups(long oid, DataProvider dataProvider) {
-        final Set<Long> related = dataProvider.getRelatedEntities(oid);
+    private Long[] getRelatedEntitiesAndGroups(long oid, Map<Long, Set<Long>> entityToRelated) {
+        final Set<Long> related = entityToRelated.getOrDefault(oid, Collections.emptySet());
         LongSet result = new LongOpenHashSet(related);
         related.stream()
-                .map(id -> dataProvider.getGroupsForEntity(oid))
+                .map(id -> entityToGroups.getOrDefault(id, Collections.emptyList()))
                 .flatMap(Collection::stream)
                 .mapToLong(Grouping::getId)
                 .forEach(result::add);

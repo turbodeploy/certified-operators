@@ -15,6 +15,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -62,7 +63,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
@@ -800,8 +800,13 @@ public class TopologyEntitiesHandlerTest {
 
     public static Set<TopologyEntityDTO.Builder> readCloudTopologyFromJsonFile(String fileName)
                     throws FileNotFoundException, InvalidProtocolBufferException {
-        final InputStream dtoInputStream = new FileInputStream(
-            ResourcePath.getTestResource(TopologyEntitiesHandlerTest.class, fileName).toFile());
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        final URL topologyFileResource = classLoader.getResource(fileName);
+        if (topologyFileResource == null) {
+            throw new FileNotFoundException("Error reading " + fileName);
+        }
+        File file = new File(topologyFileResource.getFile());
+        final InputStream dtoInputStream = new FileInputStream(file);
         InputStreamReader inputStreamReader = new InputStreamReader(dtoInputStream);
         JsonReader topologyReader = new JsonReader(inputStreamReader);
         List<Object> dtos = GSON.fromJson(topologyReader, List.class);
@@ -983,8 +988,11 @@ public class TopologyEntitiesHandlerTest {
      */
     public static <Msg extends AbstractMessage> List<Msg> messagesFromJsonFile(
                     @Nonnull final String fileName,
-                    @Nonnull final Supplier<AbstractMessage.Builder> builderSupplier) throws IOException {
-        File file = ResourcePath.getTestResource(TopologyEntitiesHandlerTest.class, fileName).toFile();
+                    @Nonnull final Supplier<AbstractMessage.Builder> builderSupplier)
+                    throws IOException {
+        URL fileUrl = TopologyEntitiesHandlerTest.class.getClassLoader().getResources(fileName)
+                        .nextElement();
+        File file = new File(fileUrl.getFile());
         LineProcessor<List<Msg>> callback = new LineProcessor<List<Msg>>() {
             List<Msg> list = Lists.newArrayList();
 

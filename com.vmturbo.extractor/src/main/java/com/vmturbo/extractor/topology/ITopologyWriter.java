@@ -27,6 +27,7 @@ public interface ITopologyWriter {
      * Start processing a new topology ingestion.
      *
      * @param topologyInfo   the {@link TopologyInfo} for the topology
+     * @param entityToGroups map linking each entity to the groups to which it belongs
      * @param writerConfig   writer config properties
      * @param timer          a {@link MultiStageTimer} to collect overall timing information
      * @return a consumer to which topology entities will be delivered for processing by this writer
@@ -35,20 +36,21 @@ public interface ITopologyWriter {
      * @throws SQLException                if there's a problem establishing database access
      */
     Consumer<TopologyEntityDTO> startTopology(
-            TopologyInfo topologyInfo, WriterConfig writerConfig, MultiStageTimer timer)
+            TopologyInfo topologyInfo, Map<Long, List<Grouping>> entityToGroups,
+            WriterConfig writerConfig, MultiStageTimer timer)
             throws IOException, UnsupportedDialectException, SQLException;
 
     /**
      * Perform any final processing required after the whole topology has been processed.
      *
-     * @param dataProvider object containing all different aspects of data for entity and group
-     *                     needed for ingestion, like supply chain, actions, severity, etc.
+     * @param entityToRelatedEntities map relating each entity to to members of its "enhanced"
+     *                                supply chain, including related groups
      * @return number of entities processed
      * @throws InterruptedException        if the operation is interrupted
      * @throws UnsupportedDialectException if the db endpoint is mis-configured
      * @throws SQLException                if there's a problem using the db endpoint
      */
-    default int finish(DataProvider dataProvider)
+    default int finish(Map<Long, Set<Long>> entityToRelatedEntities)
             throws InterruptedException, UnsupportedDialectException, SQLException {
         return 0;
     }

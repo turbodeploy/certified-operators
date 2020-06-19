@@ -435,7 +435,7 @@ public class ScheduleStore implements DiagsRestorable {
                         .setInfo(SettingPolicyInfo.newBuilder(settingPolicy.get().getInfo())
                                 .setScheduleId(scheduleId))
                         .build();
-                settingStore.deleteSettingPolicies(context, Collections.singleton(settingPolicyId),
+                settingStore.deleteSettingPolcies(context, Collections.singleton(settingPolicyId),
                         Type.USER);
                 settingStore.createSettingPolicies(context, Collections.singleton(updatedPolicy));
             });

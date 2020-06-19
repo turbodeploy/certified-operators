@@ -1133,29 +1133,19 @@ message FilteredActionRequest {
     optional ActionQueryFilter filter = 2;
 
     // The pagination parameters for the request.
-    // if enforce_limit in the pagination_params is true (default), it will stream actions in
-    // next page in chunks to client, with the first response to be pagination info. (if no fields
-    // in pagination_params are set, the service will use the default sort order and limit.)
-    // if enforce_limit is set to false, it will stream all actions to client in chunks.
+    // If not set, the service will use the default sort order and limit.
     optional common.PaginationParameters pagination_params = 3;
 }
 
 message FilteredActionResponse {
-    oneof type {
-        // A chunk of actions.
-        // The length of this list will not exceed the limit set in the request pagination
-        // parameters or the max limit for the service
-        // The actions will be ordered according to the order in the request pagination parameters.
-        ActionChunk action_chunk = 1;
+    // The list of actions.
+    // The length of this list will not exceed the limit set in the request pagination
+    // parameters.
+    // The actions will be ordered according to the order in the request pagination parameters.
+    repeated ActionOrchestratorAction actions = 1;
 
-        // The response message containing pagination-related response parameters.
-        // this is only set if pagination_params is set in request
-        common.PaginationResponse pagination_response = 2;
-    }
-
-    message ActionChunk {
-        repeated ActionOrchestratorAction actions = 1;
-    }
+    // The response message containing pagination-related response parameters.
+    optional common.PaginationResponse pagination_response = 2;
 }
 
 // The response to an AcceptAction request.
@@ -1829,11 +1819,7 @@ service ActionsService {
     rpc GetAction(SingleActionRequest) returns (ActionOrchestratorAction);
 
     // Get information about all actions the Action Orchestrator knows about for an a given context.
-    // if enforce_limit in the pagination_params is true (default), it will stream actions in
-    // next page in chunks to client, with the first response to be pagination info. (if no fields
-    // in pagination_params are set, the service will use the default sort order and limit.)
-    // if enforce_limit is set to false, it will stream all actions to client in chunks.
-    rpc GetAllActions(FilteredActionRequest) returns (stream FilteredActionResponse);
+    rpc GetAllActions(FilteredActionRequest) returns (FilteredActionResponse);
 
     // Get information about multiple actions in a topology context.
     // If an ID present in the IDs in the MultiActionRequest
@@ -1873,6 +1859,7 @@ service ActionsService {
     // actions are no longer valid as their execution state has changed. So we need to
     // cancel such actions.
     rpc CancelQueuedActions(CancelQueuedActionsRequest) returns (CancelQueuedActionsResponse);
+
 
     // Get historical action stats. Current action stats supports more filtering and grouping options.
     rpc GetHistoricalActionStats(GetHistoricalActionStatsRequest) returns (GetHistoricalActionStatsResponse);

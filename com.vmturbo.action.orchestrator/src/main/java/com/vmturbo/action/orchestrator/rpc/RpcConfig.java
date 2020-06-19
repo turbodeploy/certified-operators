@@ -87,8 +87,7 @@ public class RpcConfig {
             actionStatsConfig.historicalActionStatReader(),
             actionStatsConfig.currentActionStatReader(),
             userSessionConfig.userSessionContext(),
-            actionStoreConfig.acceptedActionsStore(),
-            actionPaginationMaxLimit);
+            actionStoreConfig.acceptedActionsStore());
     }
 
     /**

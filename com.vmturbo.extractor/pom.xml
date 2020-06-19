@@ -220,10 +220,6 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>action-orchestrator-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>auth-api</artifactId>
         </dependency>
         <dependency>
@@ -237,10 +233,6 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>topology-graph</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>search-metadata</artifactId>
         </dependency>
         <dependency>
             <groupId>org.jooq</groupId>

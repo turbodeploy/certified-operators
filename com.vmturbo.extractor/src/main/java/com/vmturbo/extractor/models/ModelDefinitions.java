@@ -6,10 +6,6 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.extractor.models.Column.JsonString;
-import com.vmturbo.extractor.schema.enums.EntitySeverity;
-import com.vmturbo.extractor.schema.enums.EntityState;
-import com.vmturbo.extractor.schema.enums.EntityType;
-import com.vmturbo.extractor.schema.enums.EnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -73,6 +69,7 @@ public class ModelDefinitions {
                     COMMODITY_CURRENT, COMMODITY_CAPACITY, COMMODITY_UTILIZATION, COMMODITY_CONSUMED,
                     COMMODITY_PROVIDER)
             .build();
+
 
     /** REPORTING_MODEL. */
     public static final Model REPORTING_MODEL = Model.named("reporting")
@@ -148,26 +145,4 @@ public class ModelDefinitions {
                     .add(CommodityType.VMEM_REQUEST_QUOTA)
                     .add(CommodityType.VSTORAGE)
                     .build();
-
-    /** ENTITY STATE enum column. */
-    public static final Column<EntityState> ENTITY_STATE_ENUM = Column.entityStateColumn("state");
-    /** ENVIRONMENT TYPE enum column. */
-    public static final Column<EnvironmentType> ENVIRONMENT_TYPE_ENUM = Column.environmentTypeColumn("environment");
-    /** ENTITY TYPE enum column. */
-    public static final Column<EntityType> ENTITY_TYPE_ENUM = Column.entityTypeColumn("type");
-    /** ENTITY SEVERITY enum column. */
-    public static final Column<EntitySeverity> ENTITY_SEVERITY_ENUM = Column.entitySeverityColumn("severity");
-    /** ACTIONS COUNT enum column. */
-    public static final Column<Integer> NUM_ACTIONS = Column.intColumn("num_actions");
-
-    /** SEARCH_ENTITY_TABLE. */
-    public static final Table SEARCH_ENTITY_TABLE = Table.named("search_entity")
-            .withColumns(ENTITY_OID_AS_OID, ENTITY_TYPE_ENUM, ENTITY_NAME, ENVIRONMENT_TYPE_ENUM,
-                    ENTITY_STATE_ENUM, ENTITY_SEVERITY_ENUM, NUM_ACTIONS, ATTRS)
-            .build();
-
-    /** SEARCH_MODEL. */
-    public static final Model SEARCH_MODEL = Model.named("search")
-            .withTables(SEARCH_ENTITY_TABLE)
-            .build();
 }

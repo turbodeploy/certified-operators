@@ -62,7 +62,6 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
@@ -469,7 +468,7 @@ public class DiscoveredGroupUploaderTest {
     }
 
     private String readResourceFileAsString(String fileName) throws IOException {
-        File file = ResourcePath.getTestResource(getClass(), fileName).toFile();
-        return Files.asCharSource(file, Charset.defaultCharset()).read();
+        String path = getClass().getClassLoader().getResource(fileName).getFile();
+        return Files.asCharSource(new File(path), Charset.defaultCharset()).read();
     }
 }

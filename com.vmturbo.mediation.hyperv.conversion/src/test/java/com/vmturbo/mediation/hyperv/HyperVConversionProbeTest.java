@@ -1,8 +1,8 @@
 package com.vmturbo.mediation.hyperv;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -12,7 +12,6 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -20,9 +19,9 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
 public class HyperVConversionProbeTest {
 
-    private static final Path HYPERV_FILE_PATH =
-        ResourcePath.getTestResource(HyperVConversionProbeTest.class,
-          "data/Hyper_V_hv08_cluster1.corp.vmturbo.com-2019.07.17.19.34.29.595-FULL.txt");
+    private static final String HYPERV_FILE_PATH = HyperVConversionProbeTest.class.getClassLoader()
+        .getResource("data/Hyper_V_hv08_cluster1.corp.vmturbo.com-2019.07.17.19.34.29.595-FULL.txt")
+        .getPath();
 
     private HypervAccount hypervAccount = Mockito.mock(HypervAccount.class);
 
@@ -31,7 +30,7 @@ public class HyperVConversionProbeTest {
      */
     @Test
     public void testHyperVConversionProbe() throws Exception {
-        DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(HYPERV_FILE_PATH.toString());
+        DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(HYPERV_FILE_PATH);
         HyperVConversionProbe probe = Mockito.spy(new HyperVConversionProbe());
         Mockito.doReturn(oldResponse).when(probe).getRawDiscoveryResponse(hypervAccount);
         DiscoveryResponse newResponse = probe.discoverTarget(hypervAccount);

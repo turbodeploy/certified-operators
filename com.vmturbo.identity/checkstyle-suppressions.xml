@@ -4,19 +4,19 @@
         "https://checkstyle.org/dtds/suppressions_1_0.dtd">
 
 <suppressions>
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]attributes[/\\]HeuristicMatchingAttributesTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]attributes[/\\]SimpleMatchingAttributesTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]attributes[/\\]SimpleMatchingAttributeTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]store[/\\]CachingIdentityStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]exceptions[/\\]IdentityStoreException.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]exceptions[/\\]IdentifierConflictException.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]attributes[/\\]AttributeExtractor.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]attributes[/\\]IdentityMatchingAttribute.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]attributes[/\\]IdentityMatchingAttributes.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]attributes[/\\]SimpleMatchingAttributes.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]attributes[/\\]HeuristicMatchingAttributes.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]store[/\\]PersistentIdentityStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]store[/\\]IdentityStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]store[/\\]CachingIdentityStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]identity[/\\]store[/\\]IdentityStoreUpdate.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/identity/attributes/HeuristicMatchingAttributesTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/identity/attributes/SimpleMatchingAttributesTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/identity/attributes/SimpleMatchingAttributeTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/identity/store/CachingIdentityStoreTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/identity/exceptions/IdentityStoreException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/identity/exceptions/IdentifierConflictException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/identity/attributes/AttributeExtractor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/identity/attributes/IdentityMatchingAttribute.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/identity/attributes/IdentityMatchingAttributes.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/identity/attributes/SimpleMatchingAttributes.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/identity/attributes/HeuristicMatchingAttributes.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/identity/store/PersistentIdentityStore.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/identity/store/IdentityStore.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/identity/store/CachingIdentityStore.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/identity/store/IdentityStoreUpdate.java" />
 </suppressions>

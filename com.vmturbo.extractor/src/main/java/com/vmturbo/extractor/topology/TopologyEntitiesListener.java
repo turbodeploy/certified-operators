@@ -7,7 +7,11 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -15,12 +19,29 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Streams;
+
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
+import it.unimi.dsi.fastutil.longs.LongList;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -32,8 +53,12 @@ import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.extractor.topology.SupplyChainEntity.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
+import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 
 /**
@@ -45,27 +70,23 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
     private final List<Supplier<? extends ITopologyWriter>> writerFactories;
     private final GroupServiceBlockingStub groupService;
-    private final ActionsServiceBlockingStub actionService;
     private final WriterConfig config;
     private final AtomicBoolean busy = new AtomicBoolean(false);
+    private static final Set<GroupType> GROUP_TYPE_BLACKLIST = ImmutableSet.of(GroupType.RESOURCE, GroupType.BILLING_FAMILY);
 
     /**
      * Create a new instance.
      *
+     * @param groupService    group service endpoint
      * @param writerFactories factories to create required writers
      * @param writerConfig    common config parameters for writers
-     * @param groupService    group service endpoint
-     * @param actionService   action service endpoint
      */
-    public TopologyEntitiesListener(
+    public TopologyEntitiesListener(@Nonnull final GroupServiceBlockingStub groupService,
             @Nonnull final List<Supplier<? extends ITopologyWriter>> writerFactories,
-            @Nonnull final WriterConfig writerConfig,
-            @Nonnull final GroupServiceBlockingStub groupService,
-            @Nonnull final ActionsServiceBlockingStub actionService) {
+            @Nonnull final WriterConfig writerConfig) {
+        this.groupService = groupService;
         this.writerFactories = writerFactories;
         this.config = writerConfig;
-        this.groupService = groupService;
-        this.actionService = actionService;
     }
 
     /**
@@ -98,8 +119,9 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
         private final MultiStageTimer timer = new MultiStageTimer(logger);
 
-        private final TopologyGraphCreator<Builder, SupplyChainEntity> graphBuilder
+        private TopologyGraphCreator<Builder, SupplyChainEntity> graphBuilder
                 = new TopologyGraphCreator<>();
+        private final Long2ObjectMap<List<Grouping>> entityToGroupInfo = getGroupMemberships();
 
         private final TopologyInfo topologyInfo;
         private final RemoteIterator<DataSegment> entityIterator;
@@ -136,7 +158,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
             final List<Pair<Consumer<TopologyEntityDTO>, ITopologyWriter>> entityConsumers = new ArrayList<>();
             for (ITopologyWriter writer : writers) {
                 Consumer<TopologyEntityDTO> entityConsumer =
-                        writer.startTopology(topologyInfo, config, timer);
+                        writer.startTopology(topologyInfo, entityToGroupInfo, config, timer);
                 entityConsumers.add(Pair.of(entityConsumer, writer));
             }
             long entityCount = 0L;
@@ -156,14 +178,12 @@ public class TopologyEntitiesListener implements EntitiesListener {
                         }
                     }
                 }
-
-                // fetch all data from other components
-                final DataProvider dataProvider = new DataProvider(timer, graphBuilder.build(),
-                        groupService, actionService, topologyContextId);
-
+                timer.start("Compute Supply Chain");
+                final Map<Long, Set<Long>> entityToRelated = computeRelatedEntities();
+                timer.stop();
                 for (final ITopologyWriter writer : writers) {
                     timer.start(getFinishPhaseLabel(writer));
-                    writer.finish(dataProvider);
+                    writer.finish(entityToRelated);
                     timer.stop();
                 }
             } catch (CommunicationException | TimeoutException e) {
@@ -180,12 +200,88 @@ public class TopologyEntitiesListener implements EntitiesListener {
             return entityCount;
         }
 
+        private Map<Long, Set<Long>> computeRelatedEntities() {
+            Map<Long, Set<Long>> entityToRelated = new Long2ObjectOpenHashMap<>();
+            final TopologyGraph<SupplyChainEntity> graph = graphBuilder.build();
+            graphBuilder = null;
+            final Map<Long, Set<Long>> syncEntityToRelated = Collections.synchronizedMap(entityToRelated);
+            SupplyChainCalculator calc = new SupplyChainCalculator();
+            final TraversalRulesLibrary<SupplyChainEntity> ruleChain = new TraversalRulesLibrary<>();
+            graph.entities().parallel().forEach(e -> {
+                final Map<Integer, SupplyChainNode> related = calc.getSupplyChainNodes(
+                        graph, Collections.singletonList(e.getOid()), _e -> true, ruleChain);
+                final long[] memberOids = related.values().stream()
+                        .map(SupplyChainNode::getMembersByStateMap)
+                        .flatMap(map -> map.values().stream())
+                        .map(MemberList::getMemberOidsList)
+                        .flatMap(Collection::stream)
+                        .mapToLong(Long::longValue)
+                        .toArray();
+                // TODO maybe try to optimize hash set creation
+                syncEntityToRelated.put(e.getOid(), new LongOpenHashSet(memberOids));
+            });
+            return entityToRelated;
+        }
+
         private void addChunkToGraph(final Collection<DataSegment> chunk) {
             chunk.stream()
                     .filter(DataSegment::hasEntity)
                     .map(DataSegment::getEntity)
                     .map(SupplyChainEntity::newBuilder)
                     .forEach(graphBuilder::addEntity);
+        }
+
+        /**
+         * Load group information from group component.
+         *
+         * @return map linking each entity id to the groups to which it belongs
+         */
+        private Long2ObjectMap<List<Grouping>> getGroupMemberships() {
+            // TODO Maybe compute groups from our topology rather than asking group component to
+            // do it. That way, groups will be in sync with topology, which is otherwise not
+            // guaranteed.
+            timer.start("Load group memberships");
+            Long2ObjectMap<List<Grouping>> entityToGroup = new Long2ObjectOpenHashMap<>();
+            Long2ObjectMap<Grouping> groupsById = new Long2ObjectOpenHashMap<>();
+            // request all non-temporary, visible group definitions
+            final Iterator<Grouping> groups = groupService.getGroups(GetGroupsRequest.newBuilder()
+                    .setGroupFilter(GroupFilter.newBuilder()
+                            .setIncludeTemporary(false)
+                            .setIncludeHidden(false)
+                            .build())
+                    .build());
+            // filter out the group types we don't care about, build map of all groups, as well
+            // as a list of group ids.
+            final LongList groupIds = new LongArrayList();
+            try {
+                Streams.stream(groups)
+                        .filter(g -> !GROUP_TYPE_BLACKLIST.contains(g.getDefinition().getType()))
+                        .peek(g -> groupsById.put(g.getId(), g))
+                        .mapToLong(Grouping::getId)
+                        .forEach(groupIds::add);
+            } catch (StatusRuntimeException e) {
+                logger.error("Error retrieving groups from the group component."
+                    + " No group memberships for this round of extraction. Error: {}", e.getMessage());
+            }
+
+            // retrieve (flattened) group memberships for all the groups we care about
+            if (!groupIds.isEmpty()) {
+                final Iterator<GetMembersResponse> memberships = groupService.getMembers(
+                        GetMembersRequest.newBuilder()
+                                .addAllId(groupIds)
+                                .setExpectPresent(true)
+                                .setEnforceUserScope(false)
+                                .setExpandNestedGroups(true)
+                                .build());
+                // and finally add each group's GroupInfo to each of its members
+                memberships.forEachRemaining(ms -> ms.getMemberIdList().forEach(
+                        member -> entityToGroup.computeIfAbsent((long)member, m -> new ArrayList<>())
+                                .add(groupsById.get(ms.getGroupId()))));
+            }
+            timer.stop();
+            logger.info("Fetched {} groups totaling {} members from group service",
+                    groupIds.size(), entityToGroup.size());
+            return entityToGroup;
         }
     }
 }

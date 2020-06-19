@@ -170,8 +170,7 @@ public class ActionExecutionSecureRpcTest {
             paginatorFactory,
             statReader,
             currentActionStatReader,
-            userSessionContext, acceptedActionsStore,
-            500);
+            userSessionContext, acceptedActionsStore);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
     private ActionStore actionStoreSpy;

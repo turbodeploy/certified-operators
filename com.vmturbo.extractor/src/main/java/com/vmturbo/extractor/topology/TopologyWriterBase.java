@@ -2,9 +2,13 @@ package com.vmturbo.extractor.topology;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
@@ -20,6 +24,7 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
 
     protected TopologyInfo topologyInfo;
     protected final DbEndpoint dbEndpoint;
+    protected Map<Long, List<Grouping>> entityToGroups;
     protected MultiStageTimer timer;
     private final Model model;
     protected WriterConfig config;
@@ -40,9 +45,11 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
 
     @Override
     public Consumer<TopologyEntityDTO> startTopology(
-            final TopologyInfo topologyInfo, WriterConfig config, MultiStageTimer timer)
+            final TopologyInfo topologyInfo, final Map<Long, List<Grouping>> entityToGroups,
+            WriterConfig config, MultiStageTimer timer)
             throws IOException, UnsupportedDialectException, SQLException {
         this.topologyInfo = topologyInfo;
+        this.entityToGroups = entityToGroups;
         this.config = config;
         this.timer = timer;
         return this::writeEntity;
@@ -51,7 +58,7 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
     protected abstract void writeEntity(TopologyEntityDTO entity);
 
     @Override
-    public int finish(final DataProvider entityToRelated)
+    public int finish(final Map<Long, Set<Long>> entityToRelated)
             throws UnsupportedDialectException, SQLException {
         return 0;
     }

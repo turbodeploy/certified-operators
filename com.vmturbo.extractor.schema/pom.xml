@@ -23,6 +23,8 @@
         -->
         <postgresUserName>postgres</postgresUserName>
         <postgresPassword>vmturbo</postgresPassword>
+        <postgresUserName>postgres</postgresUserName>
+        <postgresPassword>vmturbo</postgresPassword>
         <targetSchemaName>extractor</targetSchemaName>
         <postgresSchemaName>${targetSchemaName}_{maven.build.timestamp}</postgresSchemaName>
         <postgresDriver>org.postgresql.Driver</postgresDriver>

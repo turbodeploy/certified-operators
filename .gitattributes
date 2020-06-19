@@ -1,17 +1,4 @@
 * text=auto !eol
-*.yml            text eol=lf
-*.json           text eol=lf
-*.properties     text eol=lf
-*.sh             text eol=lf
-*.sql            text eol=lf
-*.md             text eol=lf
-*.config         text eol=lf
-*.conf           text eol=lf
-*.cnf            text eol=lf
-*.conf.template  text eol=lf
-*.profile        text eol=lf
-Dockerfile       text eol=lf
-
 build/.env -text
 build/VMTurbo.spec -text
 build/build_rpm.sh -text
@@ -1526,7 +1513,6 @@ kafka/docker/Dockerfile -text
 kafka/docker/log4j.properties -text
 kafka/docker/rsyslog.conf -text
 kafka/docker/start-kafka -text
-kafka/docker/kafka.profile -text
 kafka/pom.xml -text
 persistence/README -text
 persistence/Rakefile -text

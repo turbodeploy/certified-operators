@@ -15,7 +15,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ServiceHealthCheck.BasicServiceHealthCheck;
@@ -52,11 +51,9 @@ public class GrafanaConfigurationIT {
 
     /**
      * Common code to run before the test. Initializes all the dependencies.
-     *
-     * @throws Exception When there is an error.
      */
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         final GrafanaClientConfig clientConfig = new GrafanaClientConfig()
                 .setGrafanaHost("localhost")
                 // TODO - dynamic port so we don't crash if there is a local Grafana instance running.
@@ -66,7 +63,7 @@ public class GrafanaConfigurationIT {
         grafanaClient = new GrafanaClient(clientConfig);
 
         dashboardsOnDisk = new DashboardsOnDisk(
-            ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString());
+                DashboardsOnDisk.class.getClassLoader().getResource("dashboards").getFile());
 
 
         DbEndpointConfig endpointConfig = new DbEndpointConfig();

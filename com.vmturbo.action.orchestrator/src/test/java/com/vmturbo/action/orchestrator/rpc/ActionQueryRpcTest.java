@@ -19,10 +19,8 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,7 +31,6 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterators;
 
 import io.grpc.Status.Code;
 
@@ -80,7 +77,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRequest;
@@ -162,13 +158,13 @@ public class ActionQueryRpcTest {
         approvalManager = Mockito.mock(ActionApprovalManager.class);
         actionsRpcService = new ActionsRpcService(clock, actionStorehouse, approvalManager,
                 actionTranslator, paginatorFactory, historicalStatReader, liveStatReader,
-                userSessionContext, acceptedActionsStore, 500);
+                userSessionContext, acceptedActionsStore);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
 
         actionsRpcServiceWithFailedTranslator = new ActionsRpcService(clock, actionStorehouse,
                 approvalManager, actionTranslatorWithFailedTranslation, paginatorFactory,
-                historicalStatReader, liveStatReader, userSessionContext, acceptedActionsStore, 500);
+                historicalStatReader, liveStatReader, userSessionContext, acceptedActionsStore);
         IdentityGenerator.initPrefix(0);
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         grpcServerForFailedTranslation = GrpcTestServer.newServer(actionsRpcServiceWithFailedTranslator);
@@ -269,8 +265,10 @@ public class ActionQueryRpcTest {
             .setTopologyContextId(topologyContextId)
             .build();
 
-        final List<ActionSpec> actionSpecs = fetchSpecList(
-                actionOrchestratorServiceClient.getAllActions(actionRequest));
+        final List<ActionSpec> actionSpecs = actionOrchestratorServiceClient.getAllActions(actionRequest)
+                .getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                .collect(Collectors.toList());
         assertThat(actionSpecs, containsInAnyOrder(spec(visibleAction), spec(disabledAction)));
     }
 
@@ -304,8 +302,10 @@ public class ActionQueryRpcTest {
                 .setTopologyContextId(topologyContextId)
                 .build();
 
-        final List<ActionSpec> actionSpecs = fetchSpecList(
-                actionOrchestratorServiceClient.getAllActions(actionRequest));
+        final List<ActionSpec> actionSpecs = actionOrchestratorServiceClient.getAllActions(actionRequest)
+                .getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                .collect(Collectors.toList());
         assertEquals(1, actionSpecs.size());
     }
 
@@ -337,7 +337,7 @@ public class ActionQueryRpcTest {
                 .setPaginationParams(paginationParameters)
                 .build();
 
-        final FilteredActionResponse response = actionOrchestratorServiceClient.getAllActions(actionRequest).next();
+        final FilteredActionResponse response = actionOrchestratorServiceClient.getAllActions(actionRequest);
         assertTrue(response.hasPaginationResponse());
         assertThat(response.getPaginationResponse().getNextCursor(), is(cursor));
     }
@@ -369,7 +369,7 @@ public class ActionQueryRpcTest {
                 .setPaginationParams(paginationParameters)
                 .build();
 
-        final FilteredActionResponse response = actionOrchestratorServiceClient.getAllActions(actionRequest).next();
+        final FilteredActionResponse response = actionOrchestratorServiceClient.getAllActions(actionRequest);
         assertTrue(response.hasPaginationResponse());
         assertFalse(response.getPaginationResponse().hasNextCursor());
     }
@@ -391,10 +391,12 @@ public class ActionQueryRpcTest {
             .setFilter(ActionQueryFilter.newBuilder().setVisible(true))
             .build();
 
-        Iterators.advance(actionOrchestratorServiceClient.getAllActions(actionRequest), 1);
+        final FilteredActionResponse response =
+                actionOrchestratorServiceClient.getAllActions(actionRequest);
+        final List<ActionSpec> resultSpecs = response.getActionsList().stream()
+            .map(ActionOrchestratorAction::getActionSpec)
+            .collect(Collectors.toList());
 
-        final List<ActionSpec> resultSpecs = fetchSpecList(
-                actionOrchestratorServiceClient.getAllActions(actionRequest));
         assertThat(resultSpecs, contains(spec(visibleAction)));
         assertThat(resultSpecs, not(contains(spec(disabledAction))));
     }
@@ -418,8 +420,11 @@ public class ActionQueryRpcTest {
             .setFilter(ActionQueryFilter.newBuilder().setVisible(true))
             .build();
 
-        final List<ActionSpec> actionSpecs = fetchSpecList(
-                actionOrchestratorServiceClient.getAllActions(actionRequest));
+        final List<ActionSpec> actionSpecs = actionOrchestratorServiceClient.getAllActions(actionRequest)
+                .getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                .collect(Collectors.toList());
+
         assertThat(actionSpecs, containsInAnyOrder(spec(visibleAction), spec(disabledAction)));
     }
 
@@ -433,7 +438,7 @@ public class ActionQueryRpcTest {
 
         // Because getAllActions returns a lazily-evaluated stream, we have to force the evaluation somehow
         // to get the desired exception.
-        actionOrchestratorServiceClient.getAllActions(actionRequest).next();
+        actionOrchestratorServiceClient.getAllActions(actionRequest);
     }
 
     @Test
@@ -448,7 +453,7 @@ public class ActionQueryRpcTest {
 
         // Because getAllActions returns a lazily-evaluated stream, we have to force the evaluation somehow
         // to get the desired exception.
-        actionOrchestratorServiceClient.getAllActions(actionRequest).next();
+        actionOrchestratorServiceClient.getAllActions(actionRequest);
     }
 
     @Test
@@ -846,19 +851,6 @@ public class ActionQueryRpcTest {
         return StreamSupport.stream(rpcIter.spliterator(), false)
             .map(ActionOrchestratorAction::getActionSpec)
             .collect(Collectors.toList());
-    }
-
-    private List<ActionSpec> fetchSpecList(Iterator<FilteredActionResponse> responseIterator) {
-        // check that first is pagination response
-        assertThat(responseIterator.next().getTypeCase(), is(TypeCase.PAGINATION_RESPONSE));
-        // collect all actions
-        final List<ActionSpec> actionSpecs = new ArrayList<>();
-        while (responseIterator.hasNext()) {
-            actionSpecs.addAll(responseIterator.next().getActionChunk().getActionsList().stream()
-                    .map(ActionOrchestratorAction::getActionSpec)
-                    .collect(Collectors.toList()));
-        }
-        return actionSpecs;
     }
 
     @Nonnull

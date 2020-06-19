@@ -184,8 +184,7 @@ public class ActionExecutionRpcTest {
                         statReader,
                         liveStatReader,
                         userSessionContext,
-                        acceptedActionsStore,
-                        500);
+                        acceptedActionsStore);
         grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole,
                 supplyChainServiceMole, repositoryServiceMole);
         grpcServer.start();
@@ -544,7 +543,7 @@ public class ActionExecutionRpcTest {
                     paginatorFactory,
                     statReader,
                     liveStatReader,
-                    userSessionContext, acceptedActionsStore, 500);
+                    userSessionContext, acceptedActionsStore);
         GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService,
                 supplyChainServiceMole, repositoryServiceMole);
         grpcServer.start();

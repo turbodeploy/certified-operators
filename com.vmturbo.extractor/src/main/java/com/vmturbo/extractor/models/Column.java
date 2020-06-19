@@ -2,11 +2,6 @@ package com.vmturbo.extractor.models;
 
 import java.sql.Timestamp;
 
-import com.vmturbo.extractor.schema.enums.EntitySeverity;
-import com.vmturbo.extractor.schema.enums.EntityState;
-import com.vmturbo.extractor.schema.enums.EntityType;
-import com.vmturbo.extractor.schema.enums.EnvironmentType;
-
 /**
  * Class to represent columns in database tables.
  *
@@ -228,45 +223,5 @@ public class Column<T> {
         public String toString() {
             return json;
         }
-    }
-
-    /**
-     * Create a new entity_type column builder with standard functions.
-     *
-     * @param name column name
-     * @return new builder
-     */
-    public static Column<EntityType> entityTypeColumn(final String name) {
-        return new Column<>(name, ColType.ENTITY_TYPE);
-    }
-
-    /**
-     * Create a new entity_state column builder with standard functions.
-     *
-     * @param name column name
-     * @return new builder
-     */
-    public static Column<EntityState> entityStateColumn(final String name) {
-        return new Column<>(name, ColType.ENTITY_STATE);
-    }
-
-    /**
-     * Create a new entity_severity column builder with standard functions.
-     *
-     * @param name column name
-     * @return new builder
-     */
-    public static Column<EntitySeverity> entitySeverityColumn(final String name) {
-        return new Column<>(name, ColType.ENTITY_SEVERITY);
-    }
-
-    /**
-     * Create a new entity_type column builder with standard functions.
-     *
-     * @param name column name
-     * @return new builder
-     */
-    public static Column<EnvironmentType> environmentTypeColumn(final String name) {
-        return new Column<>(name, ColType.ENVIRONMENT_TYPE);
     }
 }

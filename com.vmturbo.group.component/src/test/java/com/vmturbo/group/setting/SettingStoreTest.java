@@ -554,7 +554,7 @@ public class SettingStoreTest {
                 .stream()
                 .map(SettingPolicy::getId)
                 .collect(Collectors.toSet()));
-        settingStore.deleteSettingPolicies(dbConfig.getDslContext(),
+        settingStore.deleteSettingPolcies(dbConfig.getDslContext(),
             Collections.singleton(userPolicy.getId()), Type.USER);
         Assert.assertEquals(Collections.emptySet(),
             settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build())
@@ -582,7 +582,7 @@ public class SettingStoreTest {
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
             Collections.singleton(policy));
         try {
-            settingStore.deleteSettingPolicies(dbConfig.getDslContext(),
+            settingStore.deleteSettingPolcies(dbConfig.getDslContext(),
                 Collections.singleton(policy.getId()), Type.DISCOVERED);
             Assert.fail("StoreOperationException is expected");
         } catch (StoreOperationException e) {
@@ -609,7 +609,7 @@ public class SettingStoreTest {
             .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
         try {
-            settingStore.deleteSettingPolicies(dbConfig.getDslContext(),
+            settingStore.deleteSettingPolcies(dbConfig.getDslContext(),
                 Collections.singleton(policy.getId() + 1), Type.DISCOVERED);
             Assert.fail("StoreOperationException is expected");
         } catch (StoreOperationException e) {

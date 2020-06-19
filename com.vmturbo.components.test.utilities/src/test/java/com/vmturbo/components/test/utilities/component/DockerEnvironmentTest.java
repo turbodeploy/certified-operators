@@ -5,13 +5,14 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.junit.Test;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.components.test.utilities.component.ComponentCluster.Component;
 

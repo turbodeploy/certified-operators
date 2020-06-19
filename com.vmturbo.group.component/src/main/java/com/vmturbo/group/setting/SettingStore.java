@@ -1199,8 +1199,8 @@ public class SettingStore implements DiagsRestorable {
      *         client is expecting removal of a specific type of policies only
      * @throws StoreOperationException if some operation failed with this store.
      */
-    public void deleteSettingPolicies(@Nonnull DSLContext context, @Nonnull Collection<Long> oids,
-                                      @Nonnull Type allowedType) throws StoreOperationException {
+    public void deleteSettingPolcies(@Nonnull DSLContext context, @Nonnull Collection<Long> oids,
+            @Nonnull Type allowedType) throws StoreOperationException {
         logger.debug("Deleting policies of type {}: {}", allowedType, oids);
         final Set<Long> forbiddenOids = context.select(SETTING_POLICY.ID)
                 .from(SETTING_POLICY)

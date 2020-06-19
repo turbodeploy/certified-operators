@@ -48,10 +48,6 @@ public class ColumnTest {
         assertThat(Column.boolColumn("x").getColType(), is(ColType.BOOL));
         assertThat(Column.jsonColumn("x").getColType(), is(ColType.JSON));
         assertThat(Column.timestampColumn("x").getColType(), is(ColType.TIMESTAMP));
-        assertThat(Column.entityTypeColumn("x").getColType(), is(ColType.ENTITY_TYPE));
-        assertThat(Column.entityStateColumn("x").getColType(), is(ColType.ENTITY_STATE));
-        assertThat(Column.entitySeverityColumn("x").getColType(), is(ColType.ENTITY_SEVERITY));
-        assertThat(Column.environmentTypeColumn("x").getColType(), is(ColType.ENVIRONMENT_TYPE));
     }
 
     /**

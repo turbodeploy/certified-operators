@@ -1406,10 +1406,10 @@ public class GroupRpcServiceTest {
 
         Mockito.verify(placementPolicyUpdater)
                 .updateDiscoveredPolicies(Mockito.eq(transactionProvider.getPlacementPolicyStore()),
-                        Mockito.any(), Mockito.any(), Mockito.any());
+                        Mockito.any(), Mockito.any());
         Mockito.verify(settingPolicyUpdater)
                 .updateSettingPolicies(Mockito.eq(transactionProvider.getSettingPolicyStore()),
-                        Mockito.any(), Mockito.any(), Mockito.any());
+                        Mockito.any(), Mockito.any());
     }
 
     /**

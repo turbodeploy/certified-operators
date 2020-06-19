@@ -4,6 +4,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.Paths;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -15,8 +18,6 @@ import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.AbstractMessage.Builder;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-
-import com.vmturbo.components.api.test.ResourcePath;
 
 /**
  * General-purpose utils for use by the component tests..
@@ -46,7 +47,14 @@ public class TestUtils {
                     + fileName);
         }
 
-        final ZipFile zipFile = new ZipFile(ResourcePath.getTestResource(TestUtils.class, fileName).toFile());
+        final URI filePath;
+        try {
+            filePath = TestUtils.class.getClassLoader().getResource(fileName).toURI();
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException("Got invalid URI from resource.", e);
+        }
+
+        final ZipFile zipFile = new ZipFile(Paths.get(filePath).toAbsolutePath().toString());
         final ZipEntry entry = zipFile.stream().findFirst().get();
         final InputStream inputStream = zipFile.getInputStream(entry);
         final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));

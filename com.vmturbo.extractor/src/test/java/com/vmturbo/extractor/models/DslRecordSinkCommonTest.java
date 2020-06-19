@@ -75,8 +75,7 @@ public class DslRecordSinkCommonTest {
         return ImmutableList.of(
                 new Object[]{"insert", DslRecordSink.class},
                 new Object[]{"update", DslUpdateRecordSink.class},
-                new Object[]{"upsert", DslUpsertRecordSink.class},
-                new Object[]{"replace", DslReplaceRecordSink.class}
+                new Object[]{"upsert", DslUpsertRecordSink.class}
         );
     }
 
@@ -123,8 +122,6 @@ public class DslRecordSinkCommonTest {
         } else if (sinkClass == DslUpsertRecordSink.class) {
             this.sink = spy(new DslUpsertRecordSink(dsl, table, config, pool, "upsert",
                     ImmutableList.of(idColumn), ImmutableList.of(valueColumn)));
-        } else if (sinkClass == DslReplaceRecordSink.class) {
-            this.sink = spy(new DslReplaceRecordSink(dsl, table, config, pool, "replace"));
         }
         // when the sink accepts a record, we stash it away so we can test what was inserted
         this.sinkCapture = RecordTestUtil.captureSink(sink, true);
@@ -229,9 +226,6 @@ public class DslRecordSinkCommonTest {
             case "upsert":
                 matcher = contains("CREATE TEMPORARY TABLE t_upsert (LIKE t)");
                 break;
-            case "replace":
-                matcher = contains("CREATE TABLE t_replace (LIKE t INCLUDING ALL)");
-                break;
             default:
                 throw new IllegalArgumentException("Unknown sink type: " + sinkType);
         }
@@ -263,11 +257,6 @@ public class DslRecordSinkCommonTest {
             case "upsert":
                 matcher = contains("INSERT INTO t SELECT * FROM t_upsert "
                         + "ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value");
-                break;
-            case "replace":
-                matcher = contains("ALTER TABLE t RENAME TO t_old",
-                                   "ALTER TABLE t_replace RENAME TO t",
-                                   "DROP TABLE t_old");
                 break;
             default:
                 throw new IllegalArgumentException("Unknown sink type: " + sinkType);
