@@ -420,8 +420,8 @@ then
 
   # Create the operator
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/service_account.yaml -n turbonomic
-  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/cluster_role.yaml -n turbonomic
-  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/cluster_role_binding.yaml -n turbonomic
+  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role.yaml -n turbonomic
+  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role_binding.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_crd.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/operator.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml -n turbonomic

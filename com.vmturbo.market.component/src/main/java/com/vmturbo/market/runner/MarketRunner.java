@@ -243,6 +243,7 @@ public class MarketRunner {
             analysis.execute();
         } finally {
             TheMatrix.clearInstance(analysis.getTopologyInfo().getTopologyId());
+            analysisMap.remove(analysis.getContextId());
         }
         try {
             if (analysis.isDone()) {
@@ -310,8 +311,6 @@ public class MarketRunner {
                          + analysis.getTopologyInfo().getTopologyId(), e);
             // Send notification of Analysis FAILURE
             sendAnalysisStatus(analysis, AnalysisState.FAILED.ordinal());
-        } finally {
-            analysisMap.remove(analysis.getContextId());
         }
     }
 

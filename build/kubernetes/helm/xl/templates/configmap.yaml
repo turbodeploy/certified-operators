@@ -42,7 +42,7 @@ data:
         # Auth
         authRetryDelaySecs: 10
         # Consul Key/Value and Service Discovery Utility
-        kvStoreRetryIntervalMillis: 1000
+        kvStoreTimeoutSeconds: 120
         # Default stat retention times
         retention.numRetainedMinutes: 130
         # DB
@@ -131,6 +131,8 @@ data:
         statsRecordsQueryBatchSize : 5000
         # Save Allocation Demand Tables in Diags
         saveAllocationDemandStores: true
+        # Record allocation data for workloads.
+        recordCloudAllocationData: true
         reservedInstanceStatCleanup.corePoolSize: 1
         # One thread per table - latest, hourly, daily, monthly for RI coverage and utilization
         reservedInstanceStatCleanup.maxPoolSize: 8

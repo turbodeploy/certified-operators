@@ -1276,9 +1276,9 @@ public class GroupRpcService extends GroupServiceImplBase {
             final Table<Long, String, Long> allGroupsMap = createGroupIdTable(stitchingResult);
 
             placementPolicyUpdater.updateDiscoveredPolicies(stores.getPlacementPolicyStore(),
-                    policiesByTarget, allGroupsMap, groupStitchingContext.getUndiscoveredTargets());
+                    policiesByTarget, allGroupsMap);
             settingPolicyUpdater.updateSettingPolicies(stores.getSettingPolicyStore(),
-                    settingPoliciesByTarget, allGroupsMap, groupStitchingContext.getUndiscoveredTargets());
+                    settingPoliciesByTarget, allGroupsMap);
             responseObserver.onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
             responseObserver.onCompleted();
         }

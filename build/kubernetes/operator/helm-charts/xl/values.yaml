@@ -124,6 +124,8 @@ aix:
   enabled: false
 appdynamics:
   enabled: false
+udt:
+  enabled: true
 appinsights:
   enabled: false
 aws:
@@ -194,8 +196,6 @@ ucs:
   enabled: false
 ucsdirector:
   enabled: false
-udt:
-  enabled: true
 vcd:
   enabled: false
 vcenter:

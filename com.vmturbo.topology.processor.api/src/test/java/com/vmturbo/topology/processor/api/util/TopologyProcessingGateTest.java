@@ -72,33 +72,4 @@ public class TopologyProcessingGateTest {
         secondTicket.close();
     }
 
-    /**
-     * Test that the {@link SingleTopologyProcessingGate} enforces analysis of a single topology at a time.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testSingleTopologyGateEnforcement() throws Exception {
-        ConcurrentLimitProcessingGate gate = new ConcurrentLimitProcessingGate(1, 1, TimeUnit.MILLISECONDS);
-        Ticket firstTicket = gate.enter(REALTIME_INFO, Collections.emptyList());
-        // Got first ticket no problem.
-        try {
-            gate.enter(PLAN_INFO, Collections.emptyList());
-            Assert.fail("Unexpectedly got ticket for second enter() call.");
-        } catch (TimeoutException e) {
-            // This is expected - we can't get a ticket because the first ticket is still open.
-        }
-
-        try {
-            gate.enter(REALTIME_INFO, Collections.emptyList());
-            Assert.fail("Unexpectedly got ticket for second enter() call.");
-        } catch (TimeoutException e) {
-            // This is expected - we can't get a ticket because the first ticket is still open.
-        }
-        firstTicket.close();
-
-        // This should succeed.
-        Ticket secondTicket = gate.enter(REALTIME_INFO, Collections.emptyList());
-        secondTicket.close();
-    }
 }

@@ -194,8 +194,6 @@ ucs:
   enabled: false
 ucsdirector:
   enabled: false
-udt:
-  enabled: true
 vcd:
   enabled: false
 vcenter:
