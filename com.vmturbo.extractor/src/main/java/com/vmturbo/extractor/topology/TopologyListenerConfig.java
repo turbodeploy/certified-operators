@@ -19,10 +19,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.extractor.models.ModelDefinitions;
 import com.vmturbo.extractor.schema.ExtractorDbConfig;
+import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -38,6 +42,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
 @Import({
         TopologyProcessorClientConfig.class,
         GroupClientConfig.class,
+        ActionOrchestratorClientConfig.class,
         ExtractorDbConfig.class
 })
 public class TopologyListenerConfig {
@@ -47,9 +52,11 @@ public class TopologyListenerConfig {
     @Autowired
     private ExtractorDbConfig extractorDbConfig;
 
-
     @Autowired
     private GroupClientConfig groupClientConfig;
+
+    @Autowired
+    private ActionOrchestratorClientConfig actionClientConfig;
 
     /**
      * How often we update last-seen timestamps for entities whose hash values have not changed.
@@ -81,6 +88,14 @@ public class TopologyListenerConfig {
     private String[] reportingCommodityWhitelistRemoved;
 
     /**
+     * Whether or not to enable search data ingestion. This feature flag is needed since XLR may
+     * be released first, but we don't want to ingest search data.
+     * todo: remove once search is released.
+     */
+    @Value("${enableSearchApi:false}")
+    private boolean enableSearchApi;
+
+    /**
      * Create an instance of our topology listener.
      *
      * @return listener instance
@@ -92,7 +107,8 @@ public class TopologyListenerConfig {
                         .addAll(writerFactories())
                         .build();
         final TopologyEntitiesListener topologyEntitiesListener = new TopologyEntitiesListener(
-                groupServiceBlockingStub(), writerFactories, writerConfig());
+                writerFactories, writerConfig(), groupServiceBlockingStub(),
+                actionServiceBlockingStub());
         topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
         return topologyEntitiesListener;
     }
@@ -162,6 +178,16 @@ public class TopologyListenerConfig {
     }
 
     /**
+     * Create a group service endpoint.
+     *
+     * @return service endpoint
+     */
+    @Bean
+    public ActionsServiceBlockingStub actionServiceBlockingStub() {
+        return ActionsServiceGrpc.newBlockingStub(actionClientConfig.actionOrchestratorChannel());
+    }
+
+    /**
      * Create list of factories for writers that will participate in topology processing.
      *
      * @return writer factories
@@ -169,9 +195,12 @@ public class TopologyListenerConfig {
     @Bean
     public List<Supplier<ITopologyWriter>> writerFactories() {
         final DbEndpoint dbEndpoint = extractorDbConfig.ingesterEndpoint();
-        return ImmutableList.of(
-                () -> new EntityMetricWriter(dbEndpoint, entityHashManager(), pool())
-        );
+        ImmutableList.Builder<Supplier<ITopologyWriter>> builder = ImmutableList.builder();
+        if (enableSearchApi) {
+            builder.add(() -> new SearchEntityWriter(dbEndpoint, pool()));
+        }
+        builder.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(), pool()));
+        return builder.build();
     }
 
     /**

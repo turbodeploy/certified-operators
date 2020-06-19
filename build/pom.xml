@@ -302,6 +302,8 @@
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.topology.graph</module>
+                <module>../com.vmturbo.search.metadata</module>
+                <module>../com.vmturbo.sql.utils</module>
             </modules>
         </profile>
 
@@ -908,6 +910,7 @@
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -995,6 +998,7 @@
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -1098,6 +1102,7 @@
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -1852,6 +1857,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>extractor-schema</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>search-metadata</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

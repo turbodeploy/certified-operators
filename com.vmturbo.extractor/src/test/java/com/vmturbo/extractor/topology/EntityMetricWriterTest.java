@@ -29,12 +29,12 @@ import static org.mockito.Mockito.spy;
 
 import java.io.IOException;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.MessageOrBuilder;
@@ -68,6 +68,7 @@ public class EntityMetricWriterTest {
             Executors.newSingleThreadScheduledExecutor()));
     final TopologyInfo info = TopologyTestUtil.mkRealtimeTopologyInfo(1L);
     final MultiStageTimer timer = mock(MultiStageTimer.class);
+    private final DataProvider dataProvider = mock(DataProvider.class);
     private List<Record> entitiesUpsertCapture;
     private List<Record> entitiesUpdateCapture;
     private List<Record> metricInsertCapture;
@@ -96,6 +97,7 @@ public class EntityMetricWriterTest {
         doReturn(entitiesUpdaterSink).when(writer).getEntityUpdaterSink(
                 any(DSLContext.class), any(), any(), any());
         doReturn(metricInsertrSink).when(writer).getMetricInserterSink(any(DSLContext.class));
+        doReturn(Stream.empty()).when(dataProvider).getAllGroups();
     }
 
     /**
@@ -181,12 +183,12 @@ public class EntityMetricWriterTest {
     @Test
     public void testIngesterFlow() throws InterruptedException, SQLException, UnsupportedDialectException, IOException {
         final Consumer<TopologyEntityDTO> entityConsumer = writer.startTopology(
-                info, Collections.emptyMap(), ExtractorTestUtil.config, timer);
+                info, ExtractorTestUtil.config, timer);
         final TopologyEntityDTO vm = mkEntity(VIRTUAL_MACHINE);
         entityConsumer.accept(vm);
         final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE);
         entityConsumer.accept(pm);
-        int n = writer.finish(Collections.emptyMap());
+        int n = writer.finish(dataProvider);
         assertThat(n, is(2));
         // We didn't have any buys or sells in our entities
         assertThat(metricInsertCapture, is(empty()));

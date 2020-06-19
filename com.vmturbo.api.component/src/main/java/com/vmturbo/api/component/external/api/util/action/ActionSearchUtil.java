@@ -1,6 +1,8 @@
 package com.vmturbo.api.component.external.api.util.action;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -33,8 +35,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 
 /**
@@ -149,26 +153,40 @@ public class ActionSearchUtil {
                                                     : ActionDetailLevel.STANDARD;
 
         // call the service and retrieve results
-        final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
+        Iterator<FilteredActionResponse> responseIterator = actionOrchestratorRpc.getAllActions(
                 FilteredActionRequest.newBuilder()
                         .setTopologyContextId(contextId)
                         .setFilter(filter)
                         .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
                         .build());
 
-        final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
-                                                response.getActionsList().stream()
-                                                        .map(ActionOrchestratorAction::getActionSpec)
-                                                        .collect(Collectors.toList()),
-                                                contextId,
-                                                detailLevel);
+        final List<ActionApiDTO> results = new ArrayList<>();
+        PaginationResponse paginationResponse = null;
+        while (responseIterator.hasNext()) {
+            final FilteredActionResponse response = responseIterator.next();
+            // first response should be pagination response
+            if (response.getTypeCase() == TypeCase.PAGINATION_RESPONSE) {
+                paginationResponse = response.getPaginationResponse();
+            } else {
+                results.addAll(actionSpecMapper.mapActionSpecsToActionApiDTOs(
+                        response.getActionChunk().getActionsList().stream()
+                                .map(ActionOrchestratorAction::getActionSpec)
+                                .collect(Collectors.toList()),
+                        contextId,
+                        detailLevel));
+            }
+        }
 
-            final PaginationResponse paginationResponse = response.getPaginationResponse();
+        if (paginationResponse != null) {
             final int totalRecordCount = paginationResponse.getTotalRecordCount();
             return PaginationProtoUtil.getNextCursor(paginationResponse)
                     .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, totalRecordCount))
                     .orElseGet(() -> paginationRequest.finalPageResponse(results, totalRecordCount));
+        } else {
+            // this should not happen, since enforceLimit it true by default
+            return paginationRequest.allResultsResponse(results);
         }
+    }
 
     /**
      * Call the action RPC with a constructed {@link ActionQueryFilter}. No pagination involved.
@@ -184,16 +202,25 @@ public class ActionSearchUtil {
     @Nonnull
     public List<ActionApiDTO> callActionServiceWithNoPagination(@Nonnull ActionQueryFilter filter)
             throws  InterruptedException, UnsupportedActionException, ExecutionException, ConversionException {
-        final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
+        final Iterator<FilteredActionResponse> responseIterator = actionOrchestratorRpc.getAllActions(
                 FilteredActionRequest.newBuilder()
                         .setTopologyContextId(realtimeTopologyContextId)
                         .setFilter(filter)
+                        // stream all actions
+                        .setPaginationParams(PaginationParameters.newBuilder().setEnforceLimit(false))
                         .build());
-        return actionSpecMapper.mapActionSpecsToActionApiDTOs(
-                response.getActionsList().stream()
-                        .map(ActionOrchestratorAction::getActionSpec)
-                        .collect(Collectors.toList()),
-                realtimeTopologyContextId,
-                ActionDetailLevel.STANDARD);
+        final List<ActionApiDTO> results = new ArrayList<>();
+        while (responseIterator.hasNext()) {
+            FilteredActionResponse response = responseIterator.next();
+            if (response.getTypeCase() == TypeCase.ACTION_CHUNK) {
+                results.addAll(actionSpecMapper.mapActionSpecsToActionApiDTOs(
+                        response.getActionChunk().getActionsList().stream()
+                                .map(ActionOrchestratorAction::getActionSpec)
+                                .collect(Collectors.toList()),
+                        realtimeTopologyContextId,
+                        ActionDetailLevel.STANDARD));
+            }
+        }
+        return results;
     }
 }

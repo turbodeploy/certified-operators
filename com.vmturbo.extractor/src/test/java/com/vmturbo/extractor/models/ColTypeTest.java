@@ -16,6 +16,10 @@ import java.util.TimeZone;
 import org.junit.Test;
 
 import com.vmturbo.extractor.models.Column.JsonString;
+import com.vmturbo.extractor.schema.enums.EntitySeverity;
+import com.vmturbo.extractor.schema.enums.EntityState;
+import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.schema.enums.EnvironmentType;
 
 /**
  * Tests for the {@link ColType} class, covering hash and csv functionality.
@@ -239,6 +243,54 @@ public class ColTypeTest {
     }
 
     /**
+     * Test that entity_type coltype operates properly.
+     */
+    @Test
+    public void testEntityTypeColType() {
+        for (EntityType value : EntityType.values()) {
+            assertThat(Collections.singletonList(ColType.ENTITY_TYPE.fromBytes(
+                    ColType.ENTITY_TYPE.toBytes(value))), contains(value));
+            assertThat(ColType.ENTITY_TYPE.toCsv(value), is(value.getLiteral()));
+        }
+    }
+
+    /**
+     * Test that entity_state coltype operates properly.
+     */
+    @Test
+    public void testEntityStateColType() {
+        for (EntityState value : EntityState.values()) {
+            assertThat(Collections.singletonList(ColType.ENTITY_STATE.fromBytes(
+                    ColType.ENTITY_STATE.toBytes(value))), contains(value));
+            assertThat(ColType.ENTITY_STATE.toCsv(value), is(value.getLiteral()));
+        }
+    }
+
+    /**
+     * Test that entity_severity coltype operates properly.
+     */
+    @Test
+    public void testEntitySeverityColType() {
+        for (EntitySeverity value : EntitySeverity.values()) {
+            assertThat(Collections.singletonList(ColType.ENTITY_SEVERITY.fromBytes(
+                    ColType.ENTITY_SEVERITY.toBytes(value))), contains(value));
+            assertThat(ColType.ENTITY_SEVERITY.toCsv(value), is(value.getLiteral()));
+        }
+    }
+
+    /**
+     * Test that environment_type coltype operates properly.
+     */
+    @Test
+    public void testEnvironmentTypeColType() {
+        for (EnvironmentType value : EnvironmentType.values()) {
+            assertThat(Collections.singletonList(ColType.ENVIRONMENT_TYPE.fromBytes(
+                    ColType.ENVIRONMENT_TYPE.toBytes(value))), contains(value));
+            assertThat(ColType.ENVIRONMENT_TYPE.toCsv(value), is(value.getLiteral()));
+        }
+    }
+
+    /**
      * Test that the db types configured for all the column types are correct.
      */
     @Test
@@ -258,5 +310,9 @@ public class ColTypeTest {
         assertThat(ColType.BOOL.getPostgresType(), is("boolean"));
         assertThat(ColType.JSON.getPostgresType(), is("jsonb"));
         assertThat(ColType.TIMESTAMP.getPostgresType(), is("timestamptz"));
+        assertThat(ColType.ENTITY_TYPE.getPostgresType(), is("entity_type"));
+        assertThat(ColType.ENTITY_STATE.getPostgresType(), is("entity_state"));
+        assertThat(ColType.ENTITY_SEVERITY.getPostgresType(), is("entity_severity"));
+        assertThat(ColType.ENVIRONMENT_TYPE.getPostgresType(), is("environment_type"));
     }
 }
