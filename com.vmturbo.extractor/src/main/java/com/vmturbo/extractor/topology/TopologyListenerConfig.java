@@ -170,8 +170,18 @@ public class TopologyListenerConfig {
     public List<Supplier<ITopologyWriter>> writerFactories() {
         final DbEndpoint dbEndpoint = extractorDbConfig.ingesterEndpoint();
         return ImmutableList.of(
-                () -> new EntityMetricWriter(dbEndpoint, pool())
+                () -> new EntityMetricWriter(dbEndpoint, entityHashManager(), pool())
         );
+    }
+
+    /**
+     * Entity hash manager to track entity hash evoluation across topology broadcasts.
+     *
+     * @return the hash manager
+     */
+    @Bean
+    public EntityHashManager entityHashManager() {
+        return new EntityHashManager(writerConfig());
     }
 
     /**

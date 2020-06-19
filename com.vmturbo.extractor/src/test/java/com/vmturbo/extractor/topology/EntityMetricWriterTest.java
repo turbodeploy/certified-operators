@@ -64,6 +64,7 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 public class EntityMetricWriterTest {
     DbEndpoint endpoint = spy(new ExtractorDbConfig().ingesterEndpoint());
     EntityMetricWriter writer = spy(new EntityMetricWriter(endpoint,
+            new EntityHashManager(ExtractorTestUtil.config),
             Executors.newSingleThreadScheduledExecutor()));
     final TopologyInfo info = TopologyTestUtil.mkRealtimeTopologyInfo(1L);
     final MultiStageTimer timer = mock(MultiStageTimer.class);

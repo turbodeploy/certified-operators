@@ -86,11 +86,14 @@ public class EntityMetricWriter extends TopologyWriterBase {
     /**
      * Create a new writer instance.
      *
-     * @param dbEndpoint db endpoint for persisting data
-     * @param pool       thread pool
+     * @param dbEndpoint        db endpoint for persisting data
+     * @param entityHashManager to track entity hash evolution across topology broadcasts
+     * @param pool              thread pool
      */
-    public EntityMetricWriter(final DbEndpoint dbEndpoint, final ExecutorService pool) {
+    public EntityMetricWriter(final DbEndpoint dbEndpoint, final EntityHashManager entityHashManager,
+            final ExecutorService pool) {
         super(dbEndpoint, ModelDefinitions.REPORTING_MODEL, pool);
+        this.entityHashManager = entityHashManager;
     }
 
     @Override
@@ -98,7 +101,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
             final Map<Long, List<Grouping>> entityToGroups, final WriterConfig config,
             final MultiStageTimer timer) throws IOException, UnsupportedDialectException, SQLException {
         super.startTopology(topologyInfo, entityToGroups, config, timer);
-        this.entityHashManager = new EntityHashManager(config);
         this.snapshotManager = entityHashManager.open(topologyInfo.getCreationTime());
         return this::writeEntity;
     }
@@ -190,6 +192,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
             upsertEntityRecords(entitiesToRelated, entitiesUpserter);
             writeMetricRecords(metricInserter);
             snapshotManager.processChanges(entitiesUpdater);
+            entityHashManager.close(snapshotManager);
         }
         return n;
     }

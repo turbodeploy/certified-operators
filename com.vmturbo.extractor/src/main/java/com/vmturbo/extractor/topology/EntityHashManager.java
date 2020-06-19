@@ -46,21 +46,15 @@ public class EntityHashManager {
             ModelDefinitions.ATTRS.getName(),
             ModelDefinitions.SCOPED_OIDS.getName());
 
-    // keep the previous hash to compare with current hash
-    private final Long2LongMap entityHash = new Long2LongOpenHashMap();
-    // last seen timestamps for hashes seen since last update
-    private final Long2LongMap hashLastSeen = new Long2LongOpenHashMap();
-    // TODO this should be probably in consul, maybe the maps too... how big can consul storage get?
-    private Long timeOfLastLastSeenUpdate = null;
+    private final EntityHashState state;
     // currently open snapshot manager
     private final AtomicReference<SnapshotManager> openSnapshot = new AtomicReference<>();
-    // time of previously open snapshot manager
-    private Long priorSnapshotTime = null;
-
     private final WriterConfig config;
+    private Long priorSnapshotTime = null;
 
     EntityHashManager(WriterConfig config) {
         this.config = config;
+        this.state = new EntityHashState(this, new Long2LongOpenHashMap(), new Long2LongOpenHashMap(), null);
     }
 
     /**
@@ -71,10 +65,11 @@ public class EntityHashManager {
      */
     public SnapshotManager open(long time) {
         synchronized (openSnapshot) {
-            if (!openSnapshot.compareAndSet(null, new SnapshotManager(time))) {
+            if (!openSnapshot.compareAndSet(null, new SnapshotManager(time, state, config))) {
                 throw new IllegalStateException("Cannot open a snapshot time when another is open");
             }
             if (priorSnapshotTime != null && priorSnapshotTime >= time) {
+                openSnapshot.set(null);
                 throw new IllegalArgumentException("Snapshot times must be strictly increasing");
             }
             this.priorSnapshotTime = time;
@@ -89,7 +84,7 @@ public class EntityHashManager {
      * @return current hash
      */
     public Long getEntityHash(long entityOid) {
-        return entityHash.containsKey(entityOid) ? entityHash.get(entityOid) : null;
+        return state.entityHash.containsKey(entityOid) ? state.entityHash.get(entityOid) : null;
     }
 
     /**
@@ -99,53 +94,64 @@ public class EntityHashManager {
      * @return last seen time
      */
     public Long getHashLastSeen(long entityHash) {
-        return hashLastSeen.containsKey(entityHash) ? hashLastSeen.get(entityHash) : null;
+        return state.hashLastSeen.containsKey(entityHash) ? state.hashLastSeen.get(entityHash) : null;
     }
 
-    public Long getTimeOfLastLastSeenUpdate() {
-        return timeOfLastLastSeenUpdate;
+    /**
+     * Close the given snapshot manager, which must be the currently open manager.
+     *
+     * @param snapshotManager snapshot manager to close
+     */
+    public void close(SnapshotManager snapshotManager) {
+        synchronized (openSnapshot) {
+            if (!openSnapshot.compareAndSet(snapshotManager, null)) {
+                throw new IllegalStateException(
+                        "Closing a SnapshotManager should not happen when it's not the currently open manager");
+            }
+        }
     }
 
     /**
      * Class to operate on the {@link EntityHashManager} data in the context of a specific
      * topology.
      */
-    public class SnapshotManager implements AutoCloseable {
+    public static class SnapshotManager implements AutoCloseable {
 
         private final long time;
+        private final EntityHashState state;
         private final Timestamp firstSeenTimestamp;
         private final Timestamp lastSeenTimestamp;
-        private final long updateInterval;
-        private final long updateFuzz;
         private boolean doLastSeenUpdateForThisSnapshot = false;
         private final LongSet addedHashes = new LongOpenHashSet();
 
         /**
          * Create a new instance.
          *
-         * @param time creation time fo the topology being processed
+         * @param time   creation time fo the topology being processed
+         * @param state  entity manager state to be updated by this snapshot manager
+         * @param config writer config, for access to relevant config properties
          */
-        SnapshotManager(long time) {
+        SnapshotManager(long time, EntityHashState state, WriterConfig config) {
             this.time = time;
-            this.updateInterval = TimeUnit.MINUTES.toMillis(config.lastSeenUpdateIntervalMinutes());
-            this.updateFuzz = TimeUnit.MINUTES.toMillis(config.lastSeenAdditionalFuzzMinutes());
+            this.state = state;
+            final long updateInterval = TimeUnit.MINUTES.toMillis(config.lastSeenUpdateIntervalMinutes());
+            final long updateFuzz = TimeUnit.MINUTES.toMillis(config.lastSeenAdditionalFuzzMinutes());
             // compute timestamps to use as first- and last-seen times in current topology
             // also, coming out of this, timeOfLastSeenUpdate be updated to reflect this
             // snapshot time, if we'll be doing an update as part of processing this snapshot
             this.firstSeenTimestamp = new Timestamp(time);
-            long priorUpdate = timeOfLastLastSeenUpdate != null ? timeOfLastLastSeenUpdate
+            long priorUpdate = state.lastLastSeenUpdateTime != null ? state.lastLastSeenUpdateTime
                     // for first snapshot, pretend that we did one exactly one interval before time
                     // zero, so that we'll treat it like landing precisely on our next expected
                     // update time, and proceed accordingly
                     : -updateInterval;
-            long timeOfNextUpdate = priorUpdate
-                    + updateInterval;
+            long timeOfNextUpdate = priorUpdate + updateInterval;
             if (timeOfNextUpdate <= time) {
                 // we'll be doing a new last-seen update for this topology, so use its time
                 // as a basis for this and following topologies
                 this.doLastSeenUpdateForThisSnapshot = true;
                 timeOfNextUpdate = time + updateInterval;
-                timeOfLastLastSeenUpdate = time;
+                state.lastLastSeenUpdateTime = time;
             }
             this.lastSeenTimestamp = new Timestamp(timeOfNextUpdate
                     + updateFuzz);
@@ -164,11 +170,11 @@ public class EntityHashManager {
         public Long updateEntityHash(final Record entityRecord) {
             final long oid = entityRecord.get(ENTITY_OID_AS_OID);
             long hash = entityRecord.getXxHash(INCLUDE_COLUMNS_FOR_ENTITY_HASH);
-            hashLastSeen.put(hash, time);
-            if (entityHash.containsKey(oid) && hash == entityHash.get(oid)) {
+            state.hashLastSeen.put(hash, time);
+            if (state.entityHash.containsKey(oid) && hash == state.entityHash.get(oid)) {
                 return null;
             } else {
-                entityHash.put(oid, hash);
+                state.entityHash.put(oid, hash);
                 addedHashes.add(hash);
                 return hash;
             }
@@ -200,8 +206,8 @@ public class EntityHashManager {
         void processChanges(TableWriter entitiesUpdater) {
             LongList drops = computeDroppedHashes();
             updateDroppedHashLastSeen(drops, entitiesUpdater);
-            hashLastSeen.keySet().removeAll(drops);
-            entityHash.keySet().removeAll(computeOrphanedOids(new LongOpenHashSet(drops)));
+            state.hashLastSeen.keySet().removeAll(drops);
+            state.entityHash.keySet().removeAll(computeOrphanedOids(new LongOpenHashSet(drops)));
             maybeUpdateLastSeenForCurrentEntities(entitiesUpdater);
         }
 
@@ -215,7 +221,7 @@ public class EntityHashManager {
          */
         private LongList computeDroppedHashes() {
             // figure out what entity hashes dropped out of the topology in this cycle
-            long[] drops = hashLastSeen.long2LongEntrySet().stream()
+            long[] drops = state.hashLastSeen.long2LongEntrySet().stream()
                     .filter(e -> e.getLongValue() != time)
                     .mapToLong(Long2LongMap.Entry::getLongKey)
                     .toArray();
@@ -223,8 +229,8 @@ public class EntityHashManager {
         }
 
         /**
-         * Add dropped hash values - with corresponding last-seen times according to our current data
-         * - to the updates to be applied to the entities table.
+         * Add dropped hash values - with corresponding last-seen times according to our current
+         * data - to the updates to be applied to the entities table.
          *
          * @param drops           hash values that are being dropped
          * @param entitiesUpdater table writer that will update last-seen values in entities table
@@ -234,7 +240,7 @@ public class EntityHashManager {
             drops.forEach((long oid) -> {
                 try (Record r = entitiesUpdater.open()) {
                     r.set(ModelDefinitions.ENTITY_HASH_AS_HASH, oid);
-                    r.set(ModelDefinitions.LAST_SEEN, new Timestamp(hashLastSeen.get(oid)));
+                    r.set(ModelDefinitions.LAST_SEEN, new Timestamp(state.hashLastSeen.get(oid)));
                 }
             });
         }
@@ -249,7 +255,7 @@ public class EntityHashManager {
          * @return oids of orphaned entities
          */
         private LongList computeOrphanedOids(LongSet drops) {
-            long[] orphans = entityHash.long2LongEntrySet().stream()
+            long[] orphans = state.entityHash.long2LongEntrySet().stream()
                     .filter(e -> drops.contains(e.getLongValue()))
                     .mapToLong(Long2LongMap.Entry::getLongKey)
                     .toArray();
@@ -270,7 +276,7 @@ public class EntityHashManager {
          */
         private void maybeUpdateLastSeenForCurrentEntities(TableWriter entitiesUpdater) {
             if (doLastSeenUpdateForThisSnapshot) {
-                hashLastSeen.long2LongEntrySet().forEach(e -> {
+                state.hashLastSeen.long2LongEntrySet().forEach(e -> {
                     // no need to send updates for current-topology additions, since their upserted
                     // records will already set the last-seen time correctly
                     if (!addedHashes.contains(e.getLongKey())) {
@@ -280,16 +286,32 @@ public class EntityHashManager {
                         }
                     }
                 });
-                timeOfLastLastSeenUpdate = time;
             }
         }
 
         @Override
         public void close() {
-            if (!openSnapshot.compareAndSet(this, null)) {
-                throw new IllegalStateException(
-                        "Closing a SnapshotManager should not happen when it's not the currently open manager");
-            }
+            state.entityHashManager.close(this);
+        }
+    }
+
+    /**
+     * State maintained from one topology to the next by {@link EntityHashManager}, packaged for
+     * easy access by {@link SnapshotManager} instances.
+     */
+    private static class EntityHashState {
+
+        private final EntityHashManager entityHashManager;
+        private final Long2LongMap entityHash;
+        private final Long2LongMap hashLastSeen;
+        private Long lastLastSeenUpdateTime;
+
+        private EntityHashState(EntityHashManager entityHashManager,
+                Long2LongMap entityHash, Long2LongMap hashLastSeen, Long lastLastSeenUpdateTime) {
+            this.entityHashManager = entityHashManager;
+            this.entityHash = entityHash;
+            this.hashLastSeen = hashLastSeen;
+            this.lastLastSeenUpdateTime = lastLastSeenUpdateTime;
         }
     }
 }
