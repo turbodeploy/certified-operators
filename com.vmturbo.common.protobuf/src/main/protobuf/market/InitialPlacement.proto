@@ -52,7 +52,15 @@ message FindInitialPlacementResponse {
     repeated InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo = 1;
 }
 
+message DeleteInitialPlacementBuyerRequest {
+    repeated int64 buyerId = 1;
+}
+
+message DeleteInitialPlacementBuyerResponse {
+    optional bool result = 1;
+}
+
 service InitialPlacementService {
     rpc FindInitialPlacement (FindInitialPlacementRequest) returns (FindInitialPlacementResponse);
-
+    rpc DeleteInitialPlacementBuyer (DeleteInitialPlacementBuyerRequest) returns (DeleteInitialPlacementBuyerResponse);
 }

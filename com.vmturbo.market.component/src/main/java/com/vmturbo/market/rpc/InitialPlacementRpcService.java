@@ -12,6 +12,8 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
@@ -84,4 +86,24 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
         }
         return;
     }
+
+    @Override
+    public void deleteInitialPlacementBuyer(final DeleteInitialPlacementBuyerRequest request,
+                                            final StreamObserver<DeleteInitialPlacementBuyerResponse> responseObserver) {
+        logger.info("The number of workloads to delete is " + request.getBuyerIdList().size());
+        DeleteInitialPlacementBuyerResponse.Builder response = DeleteInitialPlacementBuyerResponse
+                .newBuilder().setResult(true);
+        try {
+            responseObserver.onNext(response.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Failed to delete reservation.")
+                    .asException());
+        }
+        return;
+
+    }
+
+
 }

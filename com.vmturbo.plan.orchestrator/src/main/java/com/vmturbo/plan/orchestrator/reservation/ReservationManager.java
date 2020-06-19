@@ -24,6 +24,8 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
+import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
@@ -792,6 +794,17 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
 
     @Override
     public void onReservationDeleted(@Nonnull final Reservation reservation) {
+        DeleteInitialPlacementBuyerRequest.Builder deleteInitialPlacementBuyerRequest =
+                DeleteInitialPlacementBuyerRequest.newBuilder();
+        reservation.getReservationTemplateCollection().getReservationTemplateList()
+                .stream().forEach(template -> template.getReservationInstanceList()
+                .stream().forEach(buyer -> deleteInitialPlacementBuyerRequest
+                        .addBuyerId(buyer.getEntityId())));
+        DeleteInitialPlacementBuyerResponse response = initialPlacementServiceBlockingStub
+                .deleteInitialPlacementBuyer(deleteInitialPlacementBuyerRequest.build());
+        if (!response.getResult()) {
+            logger.error("Deletion of Initial Placement Buyer failed");
+        }
         checkAndStartReservationPlan();
     }
 }
