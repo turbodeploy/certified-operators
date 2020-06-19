@@ -5,6 +5,7 @@ import static junit.framework.TestCase.assertTrue;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -65,7 +66,7 @@ public class InitialPlacementFinderTest {
     @Test
     public void testConstructTraderTOs() {
         InitialPlacementFinder pf = new InitialPlacementFinder();
-        pf.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap);
+        pf.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, new HashSet<>());
         List<TraderTO> traderTO = pf.constructTraderTOs(getTradersToPlace(vmID, pmSlOid, PM_TYPE,
                 MEM_TYPE, 100), commTypeToSpecMap);
         assertTrue(traderTO.size() == 1);
@@ -90,7 +91,7 @@ public class InitialPlacementFinderTest {
     public void testFindPlacement() throws NoSuchFieldException, IllegalAccessException {
         InitialPlacementFinder pf = new InitialPlacementFinder();
         Economy originalEconomy = getOriginalEconomy();
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap);
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, new HashSet<>());
         double used = 10;
         Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(getTradersToPlace(vmID, pmSlOid, PM_TYPE,
                 MEM_TYPE, used));
@@ -116,7 +117,7 @@ public class InitialPlacementFinderTest {
     public void testInitialPlacementFinderResultWithFailureInfo() {
         InitialPlacementFinder pf = new InitialPlacementFinder();
         Economy originalEconomy = getOriginalEconomy();
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap);
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, new HashSet<>());
         List<InitialPlacementBuyer> buyer = getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100);
         Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(buyer);
         List<FailureInfo> failureInfo = result.get(vmID, pmSlOid).getFailureInfoList();
@@ -199,5 +200,33 @@ public class InitialPlacementFinderTest {
         t.getModifiableTraderOids().put(pm2, pm2Oid);
         t.getModifiableTraderOids().put(vm1, vm1Oid);
         return economy;
+    }
+
+    /**
+     * Test reservation deletion in the findPlacement. The original economy contains VM1, PM1 and PM2.
+     * VM1 resides on PM1. PM1 mem used 25, capacity 100. PM2 mem used 20, capacity 100.
+     * Expected: new reservation VM2 with mem used 20 selects PM2. PM2 new mem used is 40.
+     * Then deleting VM2, a new reservation VM3 with mem used 10 selects PM2.
+     */
+    @Test
+    public void testReservationDeletionAndAdd() {
+        InitialPlacementFinder pf = new InitialPlacementFinder();
+        Economy originalEconomy = getOriginalEconomy();
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, new HashSet<>());
+
+        long vm2Oid = 10002l;
+        long vm2SlOid = 20002l;
+        long vm2Used = 20;
+        Table<Long, Long, InitialPlacementFinderResult> vm2Result = pf.findPlacement(
+                getTradersToPlace(vm2Oid, vm2SlOid, PM_TYPE, MEM_TYPE, vm2Used));
+        assertTrue(vm2Result.get(vm2Oid, vm2SlOid).getProviderOid().get() == pm2Oid);
+        // delete the VM1 which stays on PM1, now the utilization of PM1 is lower
+        pf.buyersToBeDeleted(Arrays.asList(vm2Oid));
+        long vm3Oid = 10003l;
+        long vm3SlOid = 20003l;
+        long vm3Used = 10;
+        Table<Long, Long, InitialPlacementFinderResult> vm3Result = pf.findPlacement(
+                getTradersToPlace(vm3Oid, vm3SlOid, PM_TYPE, MEM_TYPE, vm3Used));
+        assertTrue(vm3Result.get(vm3Oid, vm3SlOid).getProviderOid().get() == pm2Oid);
     }
 }

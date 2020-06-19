@@ -3,10 +3,12 @@ package com.vmturbo.market.reservations;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -47,6 +49,7 @@ import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker.IndividualCommodityQuote;
@@ -79,6 +82,8 @@ public class InitialPlacementFinder {
     // TraderId -> <ShoppingList -> ProviderId>
     private Map<Long, Map<ShoppingList, Long>> reservationBuyerToShoppingLists = new HashMap<>();
 
+    private Set<Long> buyersToBeDeleted = new HashSet<>();
+
     private static final Logger logger = LogManager.getLogger();
 
     private static final String PLACEMENT_CLONE_SUFFIX = "_PLACEMENT_CLONE";
@@ -96,19 +101,25 @@ public class InitialPlacementFinder {
      *
      * @param originalEconomy the economy to be cloned
      * @param commTypeToSpecMap the commodity type to commoditySpecification's type mapping
+     * @param reservationBuyers reservation traderTOs
      */
     public void updateCachedEconomy(@Nonnull final UnmodifiableEconomy originalEconomy,
-                                    @Nonnull final Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap) {
-        Economy newEconomy = cloneEconomy(originalEconomy);
+                                    @Nonnull final Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap,
+                                    @Nonnull final Set<TraderTO> reservationBuyers) {
+        Economy newEconomy = cloneEconomy(originalEconomy, reservationBuyers);
         synchronized (economyLock) {
             // add reservation entities to newEconomy which currently only contains PM and DS
             addReservationEntities(newEconomy);
+            // for any existing reservation that user issued a delete request we have to remove them
+            // and roll back its provider's utilization.
+            clearDeletedBuyersImpact(newEconomy);
             // update cachedEconomy
             cachedEconomy = newEconomy;
             // update commodity type to specification map, it can be different very market cycle
             cachedCommTypeMap = commTypeToSpecMap;
             // clear any reservation entities that already added to cachedEconomy
             reservationBuyerToShoppingLists.clear();
+            buyersToBeDeleted.clear();
             // set state to ready once the market cycle calls updateCachedEconomy
             setState(PlacementFinderState.READY);
             logger.info("InitialPlacementFinder is ready now.");
@@ -116,13 +127,15 @@ public class InitialPlacementFinder {
     }
 
     /**
-     * Clones the economy which contains the latest broadcast entities. Only physical machine
-     * and storage traders are kept in the cloned economy.
+     * Clones the economy which contains the latest broadcast entities. Only physical machine,
+     * storage traders and existing reservation entities are kept in the cloned economy.
      *
      * @param originalEconomy the economy to be cloned
+     * @param reservationBuyers existing reservation entities
      * @return a copy of original economy which contains only PM and DS.
      */
-    private Economy cloneEconomy(@Nonnull final UnmodifiableEconomy originalEconomy) {
+    private Economy cloneEconomy(@Nonnull final UnmodifiableEconomy originalEconomy,
+                                 @Nonnull Set<TraderTO> reservationBuyers) {
         Topology t = new Topology();
         Economy cloneEconomy = t.getEconomyForTesting();
         cloneEconomy.setTopology(t);
@@ -145,6 +158,15 @@ public class InitialPlacementFinder {
                     cloneTrader.getSettings().setIsShopTogether(true);
                     cloneCommoditiesSold(trader, cloneTrader);
                 });
+        // Clone all the existing reservation entities to economy so that we can find the VM and
+        // its utilization impact on providers. If previous reservation entities are not included
+        // in the economy, we can not find their requested amount thus there is no way to roll back
+        // the quantities on previous reservation's providers.
+        reservationBuyers.stream().forEach(r -> {
+            // make sure the existing reservation entity does not shop
+            r.getShoppingListsList().forEach(sl -> sl.toBuilder().setMovable(false));
+            ProtobufToAnalysis.addTrader(cloneEconomy.getTopology(), r);
+        });
         return cloneEconomy;
     }
 
@@ -268,6 +290,54 @@ public class InitialPlacementFinder {
     }
 
     /**
+     * Cache the oids of reservation buyers to be deleted. Remove them from buyerIdToSL cache.
+     *
+     * @param deleteBuyerOids the list of reservation buyer oids
+     * @return true cache and remove completes
+     */
+    public boolean buyersToBeDeleted(List<Long> deleteBuyerOids) {
+        synchronized (economyLock) {
+            buyersToBeDeleted.addAll(deleteBuyerOids);
+            reservationBuyerToShoppingLists.keySet().removeAll(deleteBuyerOids);
+            logger.info("Prepare to delete reservation entities from cached economy {}",
+                    deleteBuyerOids);
+        }
+        return true;
+    }
+
+    /**
+     * Remove reservation buyers from economy as well as topology. Update the provider quantities
+     * for already placed reservation buyers.
+     *
+     * @param economy the economy
+     */
+    public void clearDeletedBuyersImpact(@Nonnull final Economy economy) {
+        BiMap<Long, Trader> traderByOid = economy.getTopology().getTraderOids().inverse();
+        Set<Trader> removeBuyers = new HashSet<>();
+        for (long oid : buyersToBeDeleted) {
+            Trader removeBuyer = traderByOid.get(oid);
+            if (removeBuyer != null) {
+                removeBuyers.add(removeBuyer);
+            }
+        }
+        for (Trader buyer : removeBuyers) {
+            for (ShoppingList sl : economy.getMarketsAsBuyer(buyer).keySet()) {
+                Trader supplier = sl.getSupplier();
+                if (supplier != null) { // get rid of the buyer's quantity from supplier
+                    Move.updateQuantities(economy, sl, supplier,
+                            FunctionalOperatorUtil.SUB_COMM);
+                }
+            }
+            // remove deleted reservation entities from economy and topology
+            economy.removeTrader(buyer);
+            economy.getTopology().getModifiableTraderOids().remove(buyer);
+        }
+        logger.info("Removed reservation entities {}", removeBuyers.stream()
+                .map(Trader::getDebugInfoNeverUseInCode)
+                .collect(Collectors.toList()));
+    }
+
+    /**
      * Find initial placement for a given list of reservation entities.
      *
      * @param buyers a list of reservation entities
@@ -289,6 +359,10 @@ public class InitialPlacementFinder {
             // cachedEconomy commodity construction
             BiMap commTypeToSpecMap = HashBiMap.create();
             cachedCommTypeMap.entrySet().forEach(e -> commTypeToSpecMap.put(e.getKey(), e.getValue()));
+            // There maybe cases where the deletion arrives market component after new reservation request,
+            // even though user trigger the deletion first. In that case, we failed to clear the impact of
+            // deleted reservations, but it should be self-resolved when the next market analysis cycle completes.
+            clearDeletedBuyersImpact(cachedEconomy);
             reservationTraders = constructTraderTOs(buyers, commTypeToSpecMap);
             // NOTE: reservation id is not passed into traderTO
             reservationTraders.stream().forEach(
@@ -298,7 +372,6 @@ public class InitialPlacementFinder {
             cachedEconomy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
             PlacementResults placementResults = Placement.placementDecisions(cachedEconomy);
-
 
             final Map<Long, ShoppingList> slOidToSlMap =
                     cachedEconomy.getTopology().getShoppingListOids().inverse();

@@ -405,11 +405,17 @@ public class Analysis {
                 // here, the effect on the analysis is exactly equivalent if we had unplaced them
                 // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
                 // an infinite quote which is exactly the same as not having a provider.
-                topologyDTOs.values().stream()
-                        .filter(dto -> dto.hasEdit())
-                        .filter(dto -> dto.getEdit().hasRemoved()
-                                || dto.getEdit().hasReplaced())
-                        .forEach(e -> oidsToRemove.add(e.getOid()));
+                Set<Long> reservationEntityOids = new HashSet<>();
+                for (TopologyEntityDTO dto : topologyDTOs.values()) {
+                    if (dto.hasEdit()) {
+                        if (dto.getEdit().hasRemoved() || dto.getEdit().hasReplaced()) {
+                            oidsToRemove.add(dto.getOid());
+                        }
+                    }
+                    if (dto.hasOrigin() && dto.getOrigin().hasReservationOrigin()) {
+                        reservationEntityOids.add(dto.getOid());
+                    }
+                }
 
                 if (oidsToRemove.size() > 0) {
                     logger.debug("Removing {} traders before analysis: ", oidsToRemove.size());
@@ -436,7 +442,8 @@ public class Analysis {
                                 && converter.getCommodityConverter().getCommTypeAllocator() != null) {
                             Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap =
                                     converter.getCommodityConverter().getCommTypeAllocator().getReservationCommTypeToSpecMapping();
-                            initialPlacementFinder.updateCachedEconomy(topology.getEconomy(), commTypeToSpecMap);
+                            initialPlacementFinder.updateCachedEconomy(topology.getEconomy(), commTypeToSpecMap, traderTOs.stream()
+                                    .filter(t -> reservationEntityOids.contains(t.getOid())).collect(Collectors.toSet()));
                         }
                     }
                     results = TopologyEntitiesHandler.performAnalysis(traderTOs,

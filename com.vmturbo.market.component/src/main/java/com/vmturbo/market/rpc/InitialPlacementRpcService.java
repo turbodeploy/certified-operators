@@ -91,8 +91,9 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
     public void deleteInitialPlacementBuyer(final DeleteInitialPlacementBuyerRequest request,
                                             final StreamObserver<DeleteInitialPlacementBuyerResponse> responseObserver) {
         logger.info("The number of workloads to delete is " + request.getBuyerIdList().size());
+        boolean remove = initPlacementFinder.buyersToBeDeleted(request.getBuyerIdList());
         DeleteInitialPlacementBuyerResponse.Builder response = DeleteInitialPlacementBuyerResponse
-                .newBuilder().setResult(true);
+                .newBuilder().setResult(remove);
         try {
             responseObserver.onNext(response.build());
             responseObserver.onCompleted();
