@@ -1,6 +1,7 @@
 package com.vmturbo.auth.component;
 
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -236,7 +237,7 @@ public class RestTest {
         AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + suffix,
                                           constructPassword(suffix), "1.1.1.1", null, null,
                                           ImmutableList.of(new Random().nextBoolean() ? ADMINISTRATOR.toUpperCase()
-                                                  : ADMINISTRATOR.toLowerCase(), "USER"), null);
+                                                  : ADMINISTRATOR.toLowerCase(), OBSERVER), null);
         // For debigging purposes.
         String json = GSON.toJson(dto, AuthUserDTO.class);
         return json;
@@ -247,7 +248,7 @@ public class RestTest {
         AuthUserDTO dto = new AuthUserDTO(PROVIDER.LDAP, "user" + suffix,
                 constructPassword(suffix), "1.1.1.1", null, null,
                 ImmutableList.of(new Random().nextBoolean() ? ADMINISTRATOR.toUpperCase()
-                        : ADMINISTRATOR.toLowerCase(), "USER"), null);
+                        : ADMINISTRATOR.toLowerCase(), OBSERVER), null);
         // For debigging purposes.
         String json = GSON.toJson(dto, AuthUserDTO.class);
         return json;
@@ -325,9 +326,32 @@ public class RestTest {
     }
 
     /**
-     * Validate that the add user result is a oid which is a string
-     * with a long number
-     * @param result from calling post to add a new user
+     * Verify invalid role will throw security exception.
+     * @throws Exception security exception.
+     */
+    @Test
+    public void testAddInvalidRole() throws Exception {
+
+        String json = GSON.toJson(new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user",
+                "1", "1.1.1.1", null, null,
+                ImmutableList.of("invalid_role"), null), AuthUserDTO.class);
+
+
+        logon("ADMINISTRATOR");
+        String result = mockMvc.perform(post("/users/add")
+                .content(json)
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().is4xxClientError())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
+    /**
+     * Validate that the add user result is a oid which is a string with a long number.
+     * @param result from calling post to add a new user.
      */
     private void validateAddUserResult(String result) {
         Assert.assertNotNull(result);
@@ -412,7 +436,7 @@ public class RestTest {
         validateAddUserResult(result);
 
         AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + 12, null,
-                                          ImmutableList.of("ADMIN", "USER2"));
+                                          ImmutableList.of(ADMINISTRATOR, OBSERVER));
         String json = GSON.toJson(dto, AuthUserDTO.class);
 
         mockMvc.perform(put("/users/setroles")
@@ -427,7 +451,7 @@ public class RestTest {
                         .andExpect(status().isOk())
                         .andReturn().getResponse().getContentAsString();
         JWTAuthorizationToken token = new JWTAuthorizationToken(result);
-        verifier.verify(token, ImmutableList.of("ADMIN", "USER2"));
+        verifier.verify(token, ImmutableList.of(ADMINISTRATOR, OBSERVER));
 
         // delete all other admin users except user11
         String allUsersJson = mockMvc.perform(get("/users")).andReturn().getResponse().getContentAsString();
@@ -439,7 +463,7 @@ public class RestTest {
         }
         // expect security exception if trying to change role for last admin user
         dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user11", null,
-            ImmutableList.of("ADMIN", "USER2"));
+            ImmutableList.of(OBSERVER));
         json = GSON.toJson(dto, AuthUserDTO.class);
         mockMvc.perform(put("/users/setroles")
             .content(json)
@@ -468,6 +492,25 @@ public class RestTest {
                                 .contentType(RET_TYPE)
                                 .accept(RET_TYPE))
                .andExpect(status().isForbidden());
+        SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
+    /**
+     * Verify changing to invalid role will throw security exception.
+     *
+     * @throws Exception security exception.
+     */
+    @Test
+    public void testSetRolesInvalidRole() throws Exception {
+        logon("ADMINISTRATOR");
+        AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + 25, null,
+                ImmutableList.of("INVALID ROLE"));
+        String json = GSON.toJson(dto, AuthUserDTO.class);
+        mockMvc.perform(put("/users/setroles")
+                .content(json)
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().is4xxClientError());
         SecurityContextHolder.getContext().setAuthentication(null);
     }
 
