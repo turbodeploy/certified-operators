@@ -61,14 +61,14 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
         return getReferenceSetting(context, reference,
                         EntitySettingSpecs.MaxObservationPeriodDesktopPool,
                         ss -> ss.getNumericSettingValueType().getDefault(), Float.class,
-                        Float::intValue).intValue();
+                        Float::intValue);
     }
 
-    private static <V> Number getReferenceSetting(@Nonnull HistoryAggregationContext context,
+    private static <V> int getReferenceSetting(@Nonnull HistoryAggregationContext context,
                     @Nonnull EntityCommodityReference reference,
                     @Nonnull EntitySettingSpecs settingSpecs,
                     @Nonnull Function<SettingSpec, V> defaultValueProvider,
-                    Class<V> settingValueType, @Nonnull Function<V, ? extends Number> converter) {
+                    Class<V> settingValueType, @Nonnull Function<V, Integer> converter) {
         final long relatedId = reference.getProviderOid() == null ?
                         reference.getEntityOid() :
                         reference.getProviderOid();
@@ -89,6 +89,6 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
                         EntitySettingSpecs.DailyObservationWindowDesktopPool,
                         ss -> DailyObservationWindowsCount.THREE,
                         DailyObservationWindowsCount.class,
-                        DailyObservationWindowsCount::getCountOfWindowsPerDay).intValue();
+                        DailyObservationWindowsCount::getCountOfWindowsPerDay);
     }
 }

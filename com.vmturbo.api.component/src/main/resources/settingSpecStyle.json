@@ -39,29 +39,20 @@
             "range": {
                 "step": 1,
                 "labels": [
-                    "More Efficiency",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "More Performance",
-                    "P90",
-                    "P95",
-                    "P99",
-                    "P99.1",
-                    "P99.5",
-                    "P99.9",
-                    "P100"
+                    "Least Aggressive",
+                    "Less Aggressive",
+                    "Recommended",
+                    "More Aggressive",
+                    "100th Percentile",
+                    "99th Percentile",
+                    "95th Percentile",
+                    "90th Percentile"
                 ],
                 "customStepValues": [
-                    90,
-                    95,
+                    100,
                     99,
-                    99.1,
-                    99.5,
-                    99.9,
-                    100
+                    95,
+                    90
                 ]
             }
         },

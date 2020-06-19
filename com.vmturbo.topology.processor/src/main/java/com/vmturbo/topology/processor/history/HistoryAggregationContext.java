@@ -36,7 +36,7 @@ public class HistoryAggregationContext {
     private final ICommodityFieldAccessor accessor;
     private final EntitySettingsCollection entitySettings;
     private final boolean isPlan;
-    private final Map<Pair<Long, EntitySettingSpecs>, Number> oidSettingToValue =
+    private final Map<Pair<Long, EntitySettingSpecs>, Integer> oidSettingToValue =
                     new ConcurrentHashMap<>();
 
     /**
@@ -66,12 +66,10 @@ public class HistoryAggregationContext {
      * @param converter converts raw setting value into integer.
      * @param defaultValueProvider provider for default setting value.
      * @param <V> type of raw setting value.
-     * @param <D> type of the converted setting value.
-     * @return value of the setting.
+     * @return integer value of the setting.
      */
-    public <V, D extends Number> Number getSettingValue(long relatedId,
-                                               @Nonnull EntitySettingSpecs settingSpecs,
-                    @Nonnull Class<V> settingValueType, @Nonnull Function<V, D> converter,
+    public <V> int getSettingValue(long relatedId, @Nonnull EntitySettingSpecs settingSpecs,
+                    @Nonnull Class<V> settingValueType, @Nonnull Function<V, Integer> converter,
                     Function<SettingSpec, V> defaultValueProvider) {
         return oidSettingToValue.computeIfAbsent(Pair.create(relatedId, settingSpecs), k -> {
             final V rawValue = entitySettings.getEntitySettingValue(relatedId, settingSpecs,

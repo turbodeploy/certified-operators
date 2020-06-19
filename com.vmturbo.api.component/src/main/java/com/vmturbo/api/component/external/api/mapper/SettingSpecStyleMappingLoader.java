@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -140,7 +139,7 @@ public class SettingSpecStyleMappingLoader {
         /**
          * The custom step values by which the UI slider can move.
          */
-        private final List<Float> customStepValues;
+        private final List<Integer> customStepValues;
 
         /**
          * The lables corresponding to the max and min values of the range.
@@ -161,8 +160,8 @@ public class SettingSpecStyleMappingLoader {
             return step;
         }
 
-        List<Float> getCustomStepValues() {
-            return new ArrayList<Float>(customStepValues);
+        List<Integer> getCustomStepValues() {
+            return new ArrayList<Integer>(customStepValues);
         }
 
         List<String> getLabels() {
@@ -173,11 +172,7 @@ public class SettingSpecStyleMappingLoader {
         RangeApiDTO getRangeApiDTO() {
             RangeApiDTO rangeDTO = new RangeApiDTO();
             rangeDTO.setStep(step);
-            rangeDTO.setStepValues(customStepValues);
-            // convert step values to int and set in custom step values
-            rangeDTO.setCustomStepValues(customStepValues.stream()
-              .map(Float::intValue)
-              .collect(Collectors.toList()));
+            rangeDTO.setCustomStepValues(customStepValues);
             rangeDTO.setLabels(labels);
             return rangeDTO;
         }
