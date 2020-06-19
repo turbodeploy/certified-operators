@@ -78,7 +78,8 @@ systemctl restart kubelet
 
 # Add the ~/.kube/config file
 cp /etc/kubernetes/admin.conf /root/.kube/config
-cp /etc/kubernetes/admin.conf /opt/turbonomic/.kube/config
+/usr/local/bin/kubectl config set-context kubernetes-admin@kubernetes --namespace=turbonomic
+cp /root/.kube/config /opt/turbonomic/.kube/config
 
 # Update calico
 sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/calico-config.yml
@@ -96,5 +97,5 @@ done
 
 sleep 120
 
-kubectl apply -f /etc/kubernetes/calico-config.yml -n kube-system
-kubectl apply -f /etc/kubernetes/calico-kube-controllers.yml -n kube-system
+/usr/local/bin/kubectl apply -f /etc/kubernetes/calico-config.yml -n kube-system
+/usr/local/bin/kubectl apply -f /etc/kubernetes/calico-kube-controllers.yml -n kube-system
