@@ -229,6 +229,7 @@ public class UtilizationCountArray {
     public void clear() {
         Arrays.fill(counts, 0);
         capacity = 0f;
+        startTimestamp = 0;
     }
 
     /**
