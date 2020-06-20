@@ -27,6 +27,7 @@ sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/manifests/kube-apiserver.yaml
 sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-images.yaml
 sed -i "s/${oldIP}/${newIP}/g" /etc/ssl/etcd/openssl.conf
 sed -i "s/${oldIP}/${newIP}/g" /etc/cni/net.d/calico.conflist.template
+sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubelet-config.yaml
 
 # Generate new certificates for etcd
 cd /etc/ssl/etcd/ssl/
