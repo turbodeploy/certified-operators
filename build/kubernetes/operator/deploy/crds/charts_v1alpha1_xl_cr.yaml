@@ -28,6 +28,8 @@ spec:
     enabled: true
   appdynamics:
     enabled: true
+  udt:
+    enabled: true
   appinsights:
     enabled: true
   aws:
@@ -60,8 +62,6 @@ spec:
   pure:
     enabled: true
   ucs:
-    enabled: true
-  udt:
     enabled: true
   vcenter:
     enabled: true
