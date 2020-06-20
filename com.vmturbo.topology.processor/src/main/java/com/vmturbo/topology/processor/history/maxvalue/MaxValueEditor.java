@@ -15,7 +15,7 @@ import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 
 /**
  * Provide the max quantity for topology commodities.
- * TODO dmitry provide config similar to SetCommodityMaxQuantityPostStitchingOperationConfig
+ * TODO dmitry provide config similar to CommodityPostStitchingOperationConfig
  */
 public class MaxValueEditor extends
                 AbstractCachingHistoricalEditor<MaxValueCommodityData,

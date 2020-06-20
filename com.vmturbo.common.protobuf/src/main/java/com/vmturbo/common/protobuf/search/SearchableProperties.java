@@ -10,6 +10,10 @@ public class SearchableProperties {
 
     public static final String ENTITY_STATE = "state";
 
+    // Find entities discovered only by the target whose ID is passed in.
+    // This is currently used to find entities created by the UserDefinedTopology probe.
+    public static final String EXCLUSIVE_DISCOVERING_TARGET = "exclusiveDiscoveringTarget";
+
     public static final String ENVIRONMENT_TYPE = "environmentType";
 
     public static final String TAGS_TYPE_PROPERTY_NAME = "tags";

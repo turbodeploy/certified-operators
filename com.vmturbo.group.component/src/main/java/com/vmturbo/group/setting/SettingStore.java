@@ -278,7 +278,7 @@ public class SettingStore implements DiagsRestorable {
 
     @Nonnull
     private Collection<SettingPolicyGroupsRecord> attachGroupsToPolicy(@Nonnull Long policyId,
-            @Nonnull Scope policyScope) {
+                                                                       @Nonnull Scope policyScope) {
         final Collection<SettingPolicyGroupsRecord> allGroups =
                 new ArrayList<>(policyScope.getGroupsCount());
         for (long groupIds : policyScope.getGroupsList()) {
@@ -1199,8 +1199,8 @@ public class SettingStore implements DiagsRestorable {
      *         client is expecting removal of a specific type of policies only
      * @throws StoreOperationException if some operation failed with this store.
      */
-    public void deleteSettingPolcies(@Nonnull DSLContext context, @Nonnull Collection<Long> oids,
-            @Nonnull Type allowedType) throws StoreOperationException {
+    public void deleteSettingPolicies(@Nonnull DSLContext context, @Nonnull Collection<Long> oids,
+                                      @Nonnull Type allowedType) throws StoreOperationException {
         logger.debug("Deleting policies of type {}: {}", allowedType, oids);
         final Set<Long> forbiddenOids = context.select(SETTING_POLICY.ID)
                 .from(SETTING_POLICY)

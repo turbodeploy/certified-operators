@@ -7,7 +7,7 @@ spec:
   # Global settings
   global:
     repository: turbonomic
-    tag: 7.22.1-SNAPSHOT
+    tag: 7.22.4-SNAPSHOT
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
     externalTimescaleDBIP: 10.0.2.15
@@ -35,6 +35,8 @@ spec:
     enabled: false
   appdynamics:
     enabled: false
+  udt:
+    enabled: true # UDT is for internal use only, it must be enabled.
   appinsight:
     enabled: false
   aws:
@@ -334,6 +336,10 @@ spec:
       limits:
         memory: 4Gi
   mediation-vcenterbrowsing:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-udt:
     resources:
       limits:
         memory: 512Mi

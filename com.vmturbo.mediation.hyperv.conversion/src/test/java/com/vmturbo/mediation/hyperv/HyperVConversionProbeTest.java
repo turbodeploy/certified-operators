@@ -43,7 +43,7 @@ public class HyperVConversionProbeTest {
         assertEquals(8, entitiesByType.size());
 
         // check each changed entity
-        assertEquals(2, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(2, entitiesByType.get(EntityType.APPLICATION_COMPONENT).size());
         assertEquals(2, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
         assertEquals(2, entitiesByType.get(EntityType.STORAGE).size());

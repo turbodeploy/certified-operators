@@ -24,6 +24,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -37,6 +41,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.matrix.component.external.MatrixInterface;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -50,6 +55,7 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionProgress;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
@@ -89,6 +95,8 @@ import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState
 import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateStateMessageHandler;
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionStateMessageHandler;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAuditMessageHandler;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -895,7 +903,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         discoveredGroupUploader.targetRemoved(targetId);
         discoveredTemplateDeploymentProfileNotifier.deleteTemplateDeploymentProfileByTarget(targetId);
         discoveredWorkflowUploader.targetRemoved(targetId);
-        discoveredCloudCostUploader.targetRemoved(targetId);
+        discoveredCloudCostUploader.targetRemoved(targetId, targetStore.getProbeCategoryForTarget(targetId));
     }
 
     /**
@@ -984,21 +992,20 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             // information will be inconsistent with each other because we do not roll back on failure.
                             // these operations apply to all discovery types (FULL and INCREMENTAL for now)
                             entityStore.entitiesDiscovered(discovery.getProbeId(), targetId,
-                                discovery.getMediationMessageId(), discoveryType,
-                                response.getEntityDTOList());
+                                    discovery.getMediationMessageId(), discoveryType, response.getEntityDTOList());
                             DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOCount());
                             // dump discovery response if required
                             if (discoveryDumper != null) {
                                 final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
-                                String displayName = target.map(Target::getDisplayName)
-                                    .orElseGet(() -> "targetID-" + targetId);
-                                String targetName = probeInfo.get().getProbeType() + "_" + displayName;
+                                String displayName = target.map(Target::getDisplayName).orElseGet(() -> "targetID-" + targetId);
+                                String targetName =
+                                        probeInfo.get().getProbeType() + "_" + displayName;
                                 if (discovery.getUserInitiated()) {
                                     // make sure we have up-to-date settings if this is a user-initiated discovery
                                     targetDumpingSettings.refreshSettings();
                                 }
                                 discoveryDumper.dumpDiscovery(targetName, discoveryType, response,
-                                    new ArrayList<>());
+                                        new ArrayList<>());
                             }
                             if (enableDiscoveryResponsesCaching && binaryDiscoveryDumper != null) {
                                 binaryDiscoveryDumper.dumpDiscovery(String.valueOf(targetId),
@@ -1009,8 +1016,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             // set discovery context
                             if (response.hasDiscoveryContext()) {
                                 getTargetOperationContextOrLogError(targetId).ifPresent(
-                                    targetOperationContext -> targetOperationContext
-                                        .setCurrentDiscoveryContext(response.getDiscoveryContext()));
+                                        targetOperationContext -> targetOperationContext.setCurrentDiscoveryContext(
+                                                response.getDiscoveryContext()));
                             }
                             // send notification from probe
                             systemNotificationProducer.sendSystemNotification(response.getNotificationList(), target.get());
@@ -1019,24 +1026,22 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             if (discoveryType == DiscoveryType.FULL) {
                                 discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
                                 discoveredTemplateDeploymentProfileNotifier.recordTemplateDeploymentInfo(
-                                    targetId, response.getEntityProfileList(), response.getDeploymentProfileList(),
-                                    response.getEntityDTOList());
-                                discoveredWorkflowUploader.setTargetWorkflows(targetId,
-                                    response.getWorkflowList());
+                                        targetId, response.getEntityProfileList(), response.getDeploymentProfileList(),
+                                        response.getEntityDTOList());
+                                discoveredWorkflowUploader.setTargetWorkflows(targetId, response.getWorkflowList());
                                 derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
                                 discoveredCloudCostUploader.recordTargetCostData(targetId,
-                                    targetStore.getProbeTypeForTarget(targetId), discovery,
-                                    response.getNonMarketEntityDTOList(), response.getCostDTOList(),
-                                    response.getPriceTable());
+                                        targetStore.getProbeTypeForTarget(targetId), targetStore.getProbeCategoryForTarget(targetId), discovery,
+                                        response.getNonMarketEntityDTOList(), response.getCostDTOList(),
+                                        response.getPriceTable());
                                 // Flows
                                 matrix.update(response.getFlowDTOList());
                             }
                         } catch (TargetNotFoundException e) {
-                            final String message = "Failed to process " + discoveryType
-                                    + " discovery for target "
-                                    + targetId
-                                    + ", which does not exist. "
-                                    + "The target may have been deleted during discovery processing.";
+                            final String message = "Failed to process " + discoveryType +
+                                    " discovery for target " + targetId +
+                                    ", which does not exist. " +
+                                    "The target may have been deleted during discovery processing.";
                             // Logging at warn level--this is unexpected, but should not cause any harm
                             logger.warn(message);
                             failDiscovery(discovery, message);
@@ -1329,8 +1334,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             CommunicationException {
         final Target target = targetStore.getTarget(targetId).orElseThrow(
                 () -> new TargetNotFoundException(targetId));
-        final GetActionStateRequest request = GetActionStateRequest.newBuilder().setTarget(
-                createTargetId(target)).addAllActionOid(actions).build();
+        final GetActionStateRequest request = GetActionStateRequest.newBuilder()
+            .setTarget(createTargetId(target))
+            .addAllActionOid(actions)
+            .setIncludeAllActionsInTransition(true)
+            .build();
         final GetActionState operation = new GetActionState(target.getProbeId(), target.getId(),
                 identityProvider);
         final OperationCallback<GetActionStateResponse> internalCallback =
@@ -1362,6 +1370,32 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 operation, remoteMediationServer.getMessageHandlerExpirationClock(),
                 discoveryTimeoutMs, internalCallback);
         remoteMediationServer.sendActionUpdateStateRequest(target, request, handler);
+        operationStart(handler);
+        return operation;
+    }
+
+    @Nonnull
+    @Override
+    public ActionAudit sendActionAuditEvents(long targetId,
+            @Nonnull Collection<ActionEventDTO> events,
+            @Nonnull OperationCallback<ActionErrorsResponse> callback)
+            throws TargetNotFoundException, InterruptedException, ProbeException,
+            CommunicationException {
+        final Target target = targetStore.getTarget(targetId).orElseThrow(
+                () -> new TargetNotFoundException(targetId));
+        final ActionAuditRequest request = ActionAuditRequest
+                .newBuilder()
+                .setTarget(createTargetId(target))
+                .addAllAction(events)
+                .build();
+        final ActionAudit operation = new ActionAudit(target.getProbeId(), target.getId(),
+                identityProvider);
+        final OperationCallback<ActionErrorsResponse> internalCallback =
+                new InternalOperationCallback<>(callback, operation);
+        final ActionAuditMessageHandler handler = new ActionAuditMessageHandler(
+                operation, remoteMediationServer.getMessageHandlerExpirationClock(),
+                discoveryTimeoutMs, internalCallback);
+        remoteMediationServer.sendActionAuditRequest(target, request, handler);
         operationStart(handler);
         return operation;
     }

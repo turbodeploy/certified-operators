@@ -50,6 +50,7 @@ import com.vmturbo.api.component.security.IntersightIdTokenVerifier;
 import com.vmturbo.api.component.security.OpenIdAuthenticationCondition;
 import com.vmturbo.api.component.security.SamlAuthenticationCondition;
 import com.vmturbo.api.enums.DeploymentMode;
+import com.vmturbo.api.serviceinterfaces.IClassicMigrationService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.auth.api.AuthClientConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
@@ -654,6 +655,17 @@ public class ServiceConfig {
             cpuCatalogLifeHours);
     }
 
+    /**
+     * Bean for {@link TopologyDataDefinitionService}.
+     *
+     * @return topology data definition service
+     */
+    @Bean
+    public TopologyDataDefinitionService topologyDataDefinitionService() {
+        return new TopologyDataDefinitionService(communicationConfig.topologyDataDefinitionServiceBlockingStub(),
+                mapperConfig.topologyDataDefinitionMapper());
+    }
+
     @Bean
     public CpuInfoMapper cpuInfoMapper() {
         return new CpuInfoMapper();
@@ -685,6 +697,11 @@ public class ServiceConfig {
     public IWorkflowsService workflowService() {
         return new WorkflowsService(communicationConfig.fetchWorkflowRpcService(),
                 targetService(), mapperConfig.workflowMapper());
+    }
+
+    @Bean
+    public IClassicMigrationService classicMigrationService() {
+        return new ClassicMigrationService(targetService());
     }
 
     @Bean

@@ -182,8 +182,8 @@ public class SchemaUtil {
                 throw e;
             }
         }
-        using(conn).execute("CREATE DATABASE IF NOT EXISTS " + dbName +
-            " DEFAULT CHARACTER SET = UTF8 DEFAULT COLLATE = utf8_unicode_ci;");
+        using(conn).execute("CREATE DATABASE IF NOT EXISTS `" + dbName +
+            "` DEFAULT CHARACTER SET = UTF8 DEFAULT COLLATE = utf8_unicode_ci;");
     }
 
     /*

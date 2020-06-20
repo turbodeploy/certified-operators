@@ -22,8 +22,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
 
 /**
- * {@link TopologyGraphEntity} for use in the repository. The intention is to make it as small
- * as possible while supporting all the searches and {@link com.vmturbo.common.protobuf.search.SearchableProperties}.
+ * {@link TopologyGraphEntity} for use in the repository. The intention is to make it as small as
+ * possible while supporting all the searches and {@link com.vmturbo.common.protobuf.search.SearchableProperties}.
  */
 public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity> {
 
@@ -45,6 +45,11 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     private final List<SupplyChainEntity> consumers = new ArrayList<>(0);
     private boolean deletable = true;
 
+    /**
+     * Representation of an entity in the supply chain.
+     *
+     * @param src broadcast topology on which this supply chain entity is based
+     */
     public SupplyChainEntity(@Nonnull final TopologyEntityDTO src) {
         this.oid = src.getOid();
         this.displayName = src.getDisplayName();
@@ -61,6 +66,7 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
 
     /**
      * Create a new instance for a given {@link TopologyEntityDTO} entity.
+     *
      * @param entity topology entity
      * @return new {@link SupplyChainEntity}
      */
@@ -111,6 +117,7 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
 
     private void clearConsumersAndProviders() {
         providers.clear();
+        consumers.clear();
         outboundAssociatedEntities.clear();
         inboundAssociatedEntities.clear();
         owner = null;
@@ -258,8 +265,8 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     /**
      * Get deletable state of the topology entity. Default is true.
      *
-     * @return true, means the Market can delete this entity.
-     *         false, means Market will not generate Delete Actions.
+     * @return true, means the Market can delete this entity. false, means Market will not generate
+     * Delete Actions.
      */
     @Override
     public boolean getDeletable() {

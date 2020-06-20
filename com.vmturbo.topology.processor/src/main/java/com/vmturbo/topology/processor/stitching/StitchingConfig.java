@@ -14,8 +14,8 @@ import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
-import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.cpucapacity.CpuCapacityConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -133,7 +133,7 @@ public class StitchingConfig {
     @Bean
     public PostStitchingOperationLibrary postStitchingOperationStore() {
         return new PostStitchingOperationLibrary(
-            new SetCommodityMaxQuantityPostStitchingOperationConfig(
+            new CommodityPostStitchingOperationConfig(
                 historyClient(),
                 maxValuesBackgroundLoadFrequencyMinutes,
                 maxValuesBackgroundLoadDelayOnInitFailureMinutes),

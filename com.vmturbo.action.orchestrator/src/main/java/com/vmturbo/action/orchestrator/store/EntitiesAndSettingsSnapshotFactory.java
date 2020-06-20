@@ -399,10 +399,10 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     @Nonnull
     private Map<Long, Long> retrieveResourceGroupsForEntities(@Nonnull Set<Long> entities) {
         final GetGroupsForEntitiesResponse response = groupService.getGroupsForEntities(
-                GetGroupsForEntitiesRequest.newBuilder()
-                        .addAllEntityId(entities)
-                        .addGroupType(GroupType.RESOURCE)
-                        .build());
+            GetGroupsForEntitiesRequest.newBuilder()
+                .addAllEntityId(entities)
+                .addGroupType(GroupType.RESOURCE)
+                .build());
         final Map<Long, Long> resultMap = new HashMap<>();
         for (Entry<Long, Groupings> groupingsEntry : response.getEntityGroupMap().entrySet()) {
             final long entityId = groupingsEntry.getKey();
@@ -410,7 +410,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                 final Long oldGroupId = resultMap.put(entityId, groupId);
                 if (oldGroupId != null) {
                     logger.warn("Found multiple resource groups for entity {}: {} and {}", entityId,
-                            oldGroupId, groupId);
+                        oldGroupId, groupId);
                 }
             }
         }
@@ -419,9 +419,9 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     @Nonnull
     private OwnershipGraph<EntityWithConnections> retrieveOwnershipGraph(@Nonnull final Set<Long> entities,
-                     final long topologyContextId,
-                     @Nullable final Long topologyId,
-                     @Nonnull final TopologyType topologyType) {
+                                                                         final long topologyContextId,
+                                                                         @Nullable final Long topologyId,
+                                                                         @Nonnull final TopologyType topologyType) {
         final OwnershipGraph.Builder<EntityWithConnections> graphBuilder =
             OwnershipGraph.newBuilder(EntityWithConnections::getOid);
 
@@ -533,9 +533,9 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      * @return mapping with oid as key and {@link ActionPartialEntity} as value.
      */
     private Map<Long, ActionPartialEntity> retrieveOidToEntityMap(Set<Long> entities,
-                    long topologyContextId,
-                    @Nullable final Long topologyId,
-                    @Nonnull final TopologyType targetTopologyType) {
+                                                                  long topologyContextId,
+                                                                  @Nullable final Long topologyId,
+                                                                  @Nonnull final TopologyType targetTopologyType) {
         if (entities.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -574,7 +574,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
         try {
             final Builder builder = TopologySelection.newBuilder()
-                    .setTopologyContextId(topologyContextId);
+                .setTopologyContextId(topologyContextId);
             if (topologyId != null) {
                 builder.setTopologyId(topologyId);
             }

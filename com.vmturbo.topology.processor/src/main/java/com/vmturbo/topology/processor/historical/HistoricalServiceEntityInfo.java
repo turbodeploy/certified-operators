@@ -16,6 +16,7 @@ public class HistoricalServiceEntityInfo {
 
     private List<HistoricalCommodityInfo> historicalCommodityBought;
 
+
     public HistoricalServiceEntityInfo() {
         historicalCommoditySold = new ArrayList<>();
         historicalCommodityBought = new ArrayList<>();
@@ -33,6 +34,7 @@ public class HistoricalServiceEntityInfo {
         return historicalCommodityBought;
     }
 
+
     public void setSeOid(long seOid) {
         this.seOid = seOid;
     }
@@ -44,6 +46,7 @@ public class HistoricalServiceEntityInfo {
     public void setHistoricalCommodityBought(List<HistoricalCommodityInfo> historicalCommodityBought) {
         this.historicalCommodityBought = historicalCommodityBought;
     }
+
 
     public boolean addHistoricalCommoditySold(HistoricalCommodityInfo histCommSold) {
         return historicalCommoditySold.add(histCommSold);

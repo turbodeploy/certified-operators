@@ -452,12 +452,14 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/rpc/DiscoveredGroupRpcService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/consistentscaling/ConsistentScalingConfig.java" />
     <suppress checks="TypeName" files="src/main/java/com/vmturbo/topology/processor/migration/*" />
+    <suppress checks="TypeName" files="src/test/java/com/vmturbo/topology/processor/migration/*" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/migration/MigrationsConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/migration/V_01_00_03__Target_Oid_Replace_Ip_With_Address.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/migration/V_01_00_01__Vim_Probe_Storage_Browsing_Migration.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/migration/V_01_00_05__Standalone_AWS_Billing.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/migration/V_01_00_00__Probe_Metadata_Change_Migration.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/migration/V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/migration/V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/migration/MigrationsLibrary.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/rest/RESTConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/rest/TargetOperation.java" />

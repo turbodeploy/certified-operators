@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 
@@ -61,6 +62,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
@@ -363,6 +365,9 @@ public class EntitySettingsApplicatorTest {
 
     private static final Setting.Builder RESIZE_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+
+    private static final Setting.Builder SCALING_POLICY_SETTING_BUILDER = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ScalingPolicy.getSettingName());
 
     private static final TopologyEntityDTO PARENT_OBJECT =
             TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
@@ -1691,6 +1696,38 @@ public class EntitySettingsApplicatorTest {
 
         // Resizeable false for default setting of vStorage increment.
         assertFalse(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+    }
+
+    /**
+     * Testing affect resize scaling policy on application component.
+     */
+    @Test
+    public void testScalingPolicyResizeForAppComponent() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.APPLICATION_COMPONENT, CommodityType.HEAP);
+        SCALING_POLICY_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ScalingPolicyEnum.RESIZE.name()));
+
+        applySettings(TOPOLOGY_INFO, builder, SCALING_POLICY_SETTING_BUILDER.build());
+
+        assertTrue(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+        assertFalse(builder.getAnalysisSettings().getCloneable());
+    }
+
+    /**
+     * Testing affect provision scaling policy on application component.
+     */
+    @Test
+    public void testScalingPolicyProvisionForAppComponent() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.APPLICATION_COMPONENT, CommodityType.HEAP);
+        SCALING_POLICY_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ScalingPolicyEnum.PROVISION.name()));
+
+        applySettings(TOPOLOGY_INFO, builder, SCALING_POLICY_SETTING_BUILDER.build());
+
+        assertFalse(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+        assertTrue(builder.getAnalysisSettings().getCloneable());
     }
 
     /**

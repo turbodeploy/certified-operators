@@ -74,7 +74,8 @@ public class ActionDeletionRpcTest {
                         statReader,
                         liveStatReader,
                         userSessionContext,
-                        acceptedActionsStore);
+                        acceptedActionsStore,
+                        500);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());

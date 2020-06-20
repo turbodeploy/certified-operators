@@ -85,8 +85,8 @@ public class ActionSearchUtilTest {
                 paginationMapper, supplyChainFetcherFactory, groupExpander,
                 serviceProviderExpander, TOPOLOGY_ID);
 
-        Mockito.doReturn(FilteredActionResponse.newBuilder().build()).when(actionsServiceRpc)
-                .getAllActions(any(FilteredActionRequest.class));
+        Mockito.doReturn(Collections.singletonList(FilteredActionResponse.newBuilder().build()))
+                .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));
 
         when(actionSpecMapper.createActionFilter(any(), any(), any()))
                 .thenReturn(ActionQueryFilter.getDefaultInstance());

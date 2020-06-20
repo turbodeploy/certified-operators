@@ -102,6 +102,9 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
 
     protected ActionDTO.ActionType actionType;
 
+    @Nullable
+    protected final String explanation;
+
     protected AbstractActionExecutionContext(@Nonnull final ExecuteActionRequest request,
                                              @Nonnull final ActionDataManager dataManager,
                                              @Nonnull final EntityStore entityStore,
@@ -115,6 +118,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
         this.actionType = Objects.requireNonNull(request.getActionType());
+        this.explanation = request.getExplanation();
     }
 
     @Nonnull
@@ -354,6 +358,11 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
                 .setActionOid(getActionId())
                 .setActionType(getSDKActionType())
                 .addAllActionItem(getActionItems());
+
+        if (explanation != null) {
+            actionExecutionBuilder.setExplanation(explanation);
+        }
+
         // if a WorkflowInfo action execution override is present, translate it to a NonMarketEntity
         // and include it in the ActionExecution to be sent to the target
         getWorkflow().ifPresent(actionExecutionBuilder::setWorkflow);

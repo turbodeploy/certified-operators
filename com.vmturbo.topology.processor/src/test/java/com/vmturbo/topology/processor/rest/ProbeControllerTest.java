@@ -160,6 +160,7 @@ public final class ProbeControllerTest {
         oneAccountFieldProbe = ProbeInfo.newBuilder()
                 .setProbeType("type")
                 .setProbeCategory("cat")
+                .setUiProbeCategory("uiCat")
                 .addAccountDefinition(optionalEntry)
                 .addTargetIdentifierField("name")
                 .addActionPolicy(ActionPolicyDTO.newBuilder()
@@ -174,6 +175,7 @@ public final class ProbeControllerTest {
         twoAccountFieldsProbe = ProbeInfo.newBuilder()
                 .setProbeType("type2")
                 .setProbeCategory("cat2")
+                .setUiProbeCategory("uiCat2")
                 .addAccountDefinition(optionalEntry)
                 .addAccountDefinition(mandatoryEntry)
                 .addAccountDefinition(dependentyEntry)
@@ -452,7 +454,7 @@ public final class ProbeControllerTest {
             @Nonnull List<ActionPolicyDTO> actionPolicies) {
         ProbeInfo.Builder builder = Optional.ofNullable(prototype).map(ProbeInfo::newBuilder)
                 .orElse(ProbeInfo.newBuilder());
-        builder.setProbeType(probeType).setProbeCategory(category);
+        builder.setProbeType(probeType).setProbeCategory(category).setUiProbeCategory("uiProbeCat");
         actionPolicies.forEach(builder::addActionPolicy);
         return builder;
     }

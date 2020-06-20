@@ -48,13 +48,13 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
@@ -367,9 +367,9 @@ public class StatsQueryExecutorTest {
         // Create a list of targets.
         List<ThinTargetInfo> thinTargetInfos = Lists.newArrayList(
             ImmutableThinTargetInfo.builder().oid(1L).displayName("target1").isHidden(false).probeInfo(
-                ImmutableThinProbeInfo.builder().oid(3L).type("probe1").category("hypervisor").build()).build(),
+                ImmutableThinProbeInfo.builder().oid(3L).type("probe1").category("hypervisor").uiCategory("hypervisor").build()).build(),
             ImmutableThinTargetInfo.builder().oid(2L).displayName("target2").isHidden(false).probeInfo(
-                ImmutableThinProbeInfo.builder().oid(4L).type("probe2").category("fabric").build()).build());
+                ImmutableThinProbeInfo.builder().oid(4L).type("probe2").category("fabric").uiCategory("fabric").build()).build());
         when(statsQueryContext.getTargets()).thenReturn(thinTargetInfos);
 
         final MinimalEntity host1 = MinimalEntity.newBuilder()
@@ -473,11 +473,14 @@ public class StatsQueryExecutorTest {
         // Create a list of targets.
         List<ThinTargetInfo> thinTargetInfos = Lists.newArrayList(
                 ImmutableThinTargetInfo.builder().oid(1L).displayName("target1").isHidden(false).probeInfo(
-                        ImmutableThinProbeInfo.builder().oid(3L).type("probe1").category("HYPERCONVERGED").build()).build(),
+                        ImmutableThinProbeInfo.builder().oid(3L).type("probe1").category("HYPERCONVERGED")
+                                .uiCategory("hyper converged").build()).build(),
                 ImmutableThinTargetInfo.builder().oid(2L).displayName("target2").isHidden(false).probeInfo(
-                        ImmutableThinProbeInfo.builder().oid(4L).type("probe2").category("HYPERVISOR").build()).build(),
+                        ImmutableThinProbeInfo.builder().oid(4L).type("probe2").category("HYPERVISOR")
+                                .uiCategory("hypervisor").build()).build(),
                 ImmutableThinTargetInfo.builder().oid(5L).displayName("target3").isHidden(false).probeInfo(
-                ImmutableThinProbeInfo.builder().oid(7L).type("probe3").category("Fabric").build()).build());
+                ImmutableThinProbeInfo.builder().oid(7L).type("probe3").category("Fabric")
+                                .uiCategory("fabric").build()).build());
         when(statsQueryContext.getTargets()).thenReturn(thinTargetInfos);
 
         /*
@@ -632,8 +635,8 @@ public class StatsQueryExecutorTest {
      */
     @Test(expected = LicenseFeaturesRequiredException.class)
     public void getPlanStatsUnlicensed() throws Exception {
-        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(LicenseFeature.PLANNER)))
-                .when(licenseCheckClient).checkFeatureAvailable(LicenseFeature.PLANNER);
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(ProbeLicense.PLANNER)))
+                .when(licenseCheckClient).checkFeatureAvailable(ProbeLicense.PLANNER);
         when(scope.isPlan()).thenReturn(true);
         executor.getAggregateStats(scope, null);
     }

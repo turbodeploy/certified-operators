@@ -71,6 +71,7 @@ public class ActionOrchestratorDiagnosticsTest {
 
     @Before
     public void setup() {
+        IdentityGenerator.initPrefix(0);
         MockitoAnnotations.initMocks(this);
         when(actionStorehouse.getActionStoreFactory()).thenReturn(storeFactory);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(

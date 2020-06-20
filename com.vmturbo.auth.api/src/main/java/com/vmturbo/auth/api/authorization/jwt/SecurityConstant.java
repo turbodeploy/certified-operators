@@ -5,6 +5,7 @@ import static io.grpc.Metadata.ASCII_STRING_MARSHALLER;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
@@ -136,4 +137,11 @@ public class SecurityConstant {
                     new SecurityGroupDTO(ADVISOR.toLowerCase(), DEDICATED_CUSTOMER, ADVISOR),
                     new SecurityGroupDTO(OBSERVER.toLowerCase(), DEDICATED_CUSTOMER, OBSERVER),
                     new SecurityGroupDTO(SITE_ADMIN.toLowerCase(), DEDICATED_CUSTOMER, SITE_ADMIN));
+
+    /**
+     * These are predefined roles in XL.
+     */
+    public static final Set<String> PREDEFINED_ROLE_SET =
+            ImmutableSet.of(ADMINISTRATOR, SITE_ADMIN, AUTOMATOR, DEPLOYER, ADVISOR, OBSERVER,
+                    SHARED_ADVISOR, SHARED_OBSERVER);
 }

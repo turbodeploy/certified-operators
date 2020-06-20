@@ -49,6 +49,7 @@ public class AbstractReservedInstanceCoverageAllocatorTest {
                         .oid(1)
                         .type(cspType.toString())
                         .category("Cloud")
+                        .uiCategory("Cloud")
                         .build())
                 .build();
         when(mockTargetCache.getTargetInfo(anyLong())).thenReturn(Optional.of(targetInfo));

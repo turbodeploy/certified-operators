@@ -74,7 +74,7 @@ public class DerivedTargetParserTest {
     private static final String addrValue2 = "250.250.250.250";
 
     final ProbeInfo probeInfo1 = ProbeInfo.newBuilder()
-            .setProbeCategory(probeCategory).setProbeType(probeType1)
+            .setProbeCategory(probeCategory).setUiProbeCategory(probeCategory).setProbeType(probeType1)
             .addTargetIdentifierField(addressField)
             .addAccountDefinition(AccountDefEntry.newBuilder()
                     .setCustomDefinition(CustomAccountDefEntry.newBuilder()
@@ -91,7 +91,7 @@ public class DerivedTargetParserTest {
             .build();
 
     final ProbeInfo probeInfo2 = ProbeInfo.newBuilder()
-            .setProbeCategory(probeCategory).setProbeType(probeType2)
+            .setProbeCategory(probeCategory).setUiProbeCategory(probeCategory).setProbeType(probeType2)
             .addTargetIdentifierField(userNameField)
             .addAccountDefinition(AccountDefEntry.newBuilder()
                     .setCustomDefinition(CustomAccountDefEntry.newBuilder()

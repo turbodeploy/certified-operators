@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Table;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -56,6 +55,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.ProbeUseCase;
 import com.vmturbo.platform.sdk.common.util.ProbeUseCaseUtil;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
@@ -144,7 +144,7 @@ public class StatsQueryExecutor {
             @Nonnull final StatPeriodApiInputDTO inputDTO)
             throws OperationFailedException, InterruptedException, ConversionException {
         if (scope.isPlan()) { // plan stats require the planner feature
-            licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         }
 
         final StatsQueryScope expandedScope = scopeExpander.expandScope(scope, inputDTO.getStatistics());

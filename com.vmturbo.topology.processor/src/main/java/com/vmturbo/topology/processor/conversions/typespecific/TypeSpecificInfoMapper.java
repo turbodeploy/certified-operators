@@ -22,8 +22,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
  * information for that particular EntityType.
  */
 public abstract class TypeSpecificInfoMapper {
-
-    private static Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private static final Map<String, CloudCostDTO.DeploymentType> DEPLOYMENT_TYPE_MAP =
         ImmutableMap.<String, CloudCostDTO.DeploymentType>builder()
@@ -73,18 +72,24 @@ public abstract class TypeSpecificInfoMapper {
     /**
      * Convert a string representation of the Database Engine to the corresponding
      * {@link DatabaseEngine} enum value. If no corresponding enum value can be found,
-     * then return {@link DatabaseEngine#UNKNOWN}.
+     * then return {@link DatabaseEngine#UNKNOWN}. To check string representation
+     * {@link com.vmturbo.mediation.util.DatabaseEngine} is used.
      *
      * @param dbEngine a string representing the Database Engine
      * @return the {@link DatabaseEngine} enum value corresponding to the given string, or
-     * DatabaseEngine.UNIKNOWN of not found.
+     * DatabaseEngine.UNKNOWN of not found.
      */
     @Nonnull
     protected DatabaseEngine parseDbEngine(@Nonnull final String dbEngine) {
-        final String upperCaseDbEngine = dbEngine.toUpperCase();
-        try {
-            return DatabaseEngine.valueOf(upperCaseDbEngine);
-        } catch (IllegalArgumentException e) {
+        Optional<com.vmturbo.mediation.util.DatabaseEngine> databaseEngine
+                = com.vmturbo.mediation.util.DatabaseEngine.getBy(dbEngine);
+        if (databaseEngine.isPresent()) {
+            try {
+                return DatabaseEngine.valueOf(String.valueOf(databaseEngine.get()).toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return DatabaseEngine.UNKNOWN;
+            }
+        } else {
             return DatabaseEngine.UNKNOWN;
         }
     }

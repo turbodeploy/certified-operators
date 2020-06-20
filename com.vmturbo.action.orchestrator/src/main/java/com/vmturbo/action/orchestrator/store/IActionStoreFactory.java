@@ -2,8 +2,6 @@ package com.vmturbo.action.orchestrator.store;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-
 /**
  * An interface for factories that create action stores.
  */
@@ -17,7 +15,7 @@ public interface IActionStoreFactory {
      * @return A new {@link ActionStore} instance.
      */
     @Nonnull
-    ActionStore newStore(final long topologyContextId);
+    ActionStore newStore(long topologyContextId);
 
     /**
      * Get the name of the type of context this ID belongs to. For example "plan" or "live".
@@ -26,5 +24,5 @@ public interface IActionStoreFactory {
      * @return "plan" or "live" depending on if the ID belongs to a plan or live context.
      */
     @Nonnull
-    String getContextTypeName(final long topologyContextId);
+    String getContextTypeName(long topologyContextId);
 }

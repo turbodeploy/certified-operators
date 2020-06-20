@@ -17,6 +17,7 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
+import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
@@ -32,7 +33,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
     ActionExecutionConfig.class,
     ActionStatsConfig.class,
     UserSessionConfig.class,
-    TopologyProcessorClientConfig.class})
+    TopologyProcessorClientConfig.class,
+    TopologyProcessorConfig.class})
 public class RpcConfig {
 
     @Autowired
@@ -62,6 +64,9 @@ public class RpcConfig {
     @Autowired
     private TopologyProcessorClientConfig topologyProcessorClientConfig;
 
+    @Autowired
+    private TopologyProcessorConfig topologyProcessorConfig;
+
     @Value("${actionPaginationDefaultLimit}")
     private int actionPaginationDefaultLimit;
 
@@ -82,7 +87,8 @@ public class RpcConfig {
             actionStatsConfig.historicalActionStatReader(),
             actionStatsConfig.currentActionStatReader(),
             userSessionConfig.userSessionContext(),
-            actionStoreConfig.acceptedActionsStore());
+            actionStoreConfig.acceptedActionsStore(),
+            actionPaginationMaxLimit);
     }
 
     /**
@@ -108,7 +114,7 @@ public class RpcConfig {
         return new ExternalActionApprovalManager(actionApprovalManager(),
                 actionStoreConfig.actionStorehouse(),
                 topologyProcessorClientConfig.createActionStateReceiver(),
-                actionStoreConfig.realtimeTopologyContextId);
+                topologyProcessorConfig.realtimeTopologyContextId());
     }
 
     @Bean

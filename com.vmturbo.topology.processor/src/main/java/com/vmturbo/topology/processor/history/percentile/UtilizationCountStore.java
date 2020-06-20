@@ -71,7 +71,7 @@ public class UtilizationCountStore {
      * @return percentile score of previously stored points
      * @throws HistoryCalculationException when rank value is invalid
      */
-    public synchronized int getPercentile(int rank) throws HistoryCalculationException {
+    public synchronized int getPercentile(float rank) throws HistoryCalculationException {
         return full.getPercentile(rank);
     }
 

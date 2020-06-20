@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -148,6 +149,8 @@ public class EntitySettingsApplicator {
                         CommodityType.POOL_MEM),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.PoolStorageUtilizationThreshold,
                         CommodityType.POOL_STORAGE),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.DBMemUtilization,
+                        CommodityType.DB_MEM),
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo),
@@ -208,7 +211,12 @@ public class EntitySettingsApplicator {
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
                         CommodityType.ACTIVE_SESSIONS),
                 new VsanStorageApplicator(graphWithSettings),
-                new ResizeVStorageApplicator());
+                new ResizeVStorageApplicator(),
+                new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
+                        CommodityType.HEAP),
+                new ScalingPolicyApplicator(),
+                new ResizeIncrementApplicator(EntitySettingSpecs.DBMemScalingIncrement,
+                        CommodityType.DB_MEM));
     }
 
     /**
@@ -959,23 +967,29 @@ public class EntitySettingsApplicator {
             ImmutableSet.of(
                 EntityType.VIRTUAL_MACHINE_VALUE,
                 EntityType.CONTAINER_VALUE,
-                EntityType.STORAGE_VALUE
+                EntityType.STORAGE_VALUE,
+                EntityType.APPLICATION_COMPONENT_VALUE,
+                EntityType.DATABASE_SERVER_VALUE
             );
 
         private final CommodityType commodityType;
 
         // convert into units that market uses.
         private final ImmutableMap<Integer, Float> conversionFactor =
-            ImmutableMap.of(
+            ImmutableMap.<Integer, Float>builder()
                 //VMEM setting value is in MBs. Market expects it in KBs.
-                CommodityType.VMEM_VALUE, 1024.0f,
+                .put(CommodityType.VMEM_VALUE, 1024.0f)
                 //VMEM_REQUEST setting value is in MBs. Market expects it in KBs.
-                CommodityType.VMEM_REQUEST_VALUE, 1024.0f,
+                .put(CommodityType.VMEM_REQUEST_VALUE, 1024.0f)
                 //VSTORAGE setting value is in GBs. Market expects it in MBs.
-                CommodityType.VSTORAGE_VALUE, 1024.0f,
+                .put(CommodityType.VSTORAGE_VALUE, 1024.0f)
                 //STORAGE_AMOUNT setting value is in GBs. Market expects it in MBs.
-                CommodityType.STORAGE_AMOUNT_VALUE, 1024.0f);
-
+                .put(CommodityType.STORAGE_AMOUNT_VALUE, 1024.0f)
+                //HEAP setting value is in MBs. Market expects it in KBs.
+                .put(CommodityType.HEAP_VALUE, 1024.0f)
+                //DB_MEM setting value is in MBs. Market expects it in KBs.
+                .put(CommodityType.DB_MEM_VALUE, 1024.0f)
+                .build();
 
         private ResizeIncrementApplicator(@Nonnull EntitySettingSpecs setting,
                 @Nonnull final CommodityType commodityType) {
@@ -1154,4 +1168,41 @@ public class EntitySettingsApplicator {
             }
         }
     }
+
+    /**
+     * Applies the "ScalingPolicy" setting to a {@link TopologyEntityDTO.Builder}.
+     */
+    private static class ScalingPolicyApplicator extends SingleSettingApplicator {
+
+        private ScalingPolicyApplicator() {
+            super(EntitySettingSpecs.ScalingPolicy);
+        }
+
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                          @Nonnull final Setting setting) {
+            if (entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE) {
+                final String settingValue = setting.getEnumSettingValue().getValue();
+                boolean resizeScaling = ScalingPolicyEnum.RESIZE.name().equals(settingValue);
+                boolean provisionScaling = ScalingPolicyEnum.PROVISION.name().equals(settingValue);
+
+                if (!resizeScaling && !provisionScaling) {
+                    logger.error("Entity {} has an invalid scaling policy: {}",
+                            entity.getDisplayName(), settingValue);
+                    return;
+                }
+
+                entity.getAnalysisSettingsBuilder().setCloneable(provisionScaling);
+                entity.getAnalysisSettingsBuilder().setSuspendable(provisionScaling);
+                entity.getCommoditySoldListList().forEach(c -> {
+                });
+                entity.getCommoditySoldListBuilderList().forEach(c -> {
+                    c.setIsResizeable(resizeScaling);
+                });
+                logger.trace("Set scaling policy {} for entity {}",
+                        settingValue, entity.getDisplayName());
+            }
+        }
+    }
+
 }

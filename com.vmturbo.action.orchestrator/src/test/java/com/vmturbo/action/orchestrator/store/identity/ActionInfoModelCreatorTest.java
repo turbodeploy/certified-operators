@@ -119,6 +119,38 @@ public class ActionInfoModelCreatorTest {
         modelCreator.apply(ActionInfo.newBuilder().build());
     }
 
+    /**
+     * Tests that infinite values are correctly converted to JSON (without any errors).
+     */
+    @Test
+    public void testInfiniteResizeCommodity() {
+        final ActionInfo infoFin = createResize();
+        final ActionInfo infoInf = ActionInfo.newBuilder(infoFin)
+                .setResize(Resize.newBuilder()
+                        .setNewCapacity(Float.NEGATIVE_INFINITY)
+                        .setOldCapacity(Float.POSITIVE_INFINITY)
+                        .setTarget(createActionEntity(1))
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(1))
+                        .setCommodityAttribute(CommodityAttribute.CAPACITY))
+                .build();
+        final ActionInfo infoNan = ActionInfo.newBuilder(infoFin)
+                .setResize(Resize.newBuilder()
+                        .setNewCapacity(Float.NaN)
+                        .setOldCapacity(5)
+                        .setTarget(createActionEntity(1))
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(1))
+                        .setCommodityAttribute(CommodityAttribute.CAPACITY))
+                .build();
+        final ActionInfoModel modelInf = modelCreator.apply(infoInf);
+        final ActionInfoModel modelFin = modelCreator.apply(infoFin);
+        final ActionInfoModel modelNan = modelCreator.apply(infoNan);
+        Assert.assertNotEquals(modelInf, modelFin);
+        Assert.assertNotEquals(modelNan, modelFin);
+        Assert.assertNotEquals(modelInf, modelNan);
+    }
+
     @Nonnull
     private ActionInfo createMove() {
         return ActionInfo.newBuilder()
@@ -155,7 +187,9 @@ public class ActionInfoModelCreatorTest {
                         .setTarget(createActionEntity(1))
                         .setCommodityType(CommodityType.newBuilder()
                                 .setType(1))
-                        .setCommodityAttribute(CommodityAttribute.CAPACITY))
+                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                        .setOldCapacity(124)
+                        .setNewCapacity(456))
                 .build();
     }
 

@@ -80,7 +80,6 @@ import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -139,6 +138,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
@@ -242,7 +242,7 @@ public class MarketsServiceTest {
                 grpcTestServer.getChannel());
         // the planning feature will be enabled by default in the license
         licenseSummaryReceiver.sendMessage(LicenseSummary.newBuilder()
-                .addFeature(LicenseFeature.PLANNER.getKey())
+                .addFeature(ProbeLicense.PLANNER.getKey())
                 .build());
 
         marketsService = new MarketsService(actionSpecMapper, uuidMapper,

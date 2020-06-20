@@ -268,4 +268,11 @@ public class PlanConfig {
     public SupplyChainServiceGrpc.SupplyChainServiceBlockingStub supplyChainRpcService() {
         return SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
     }
+
+    @Bean
+    public PlanMetricsListener planMetricsListener() {
+        final PlanMetricsListener listener = new PlanMetricsListener();
+        planDao().addStatusListener(listener);
+        return listener;
+    }
 }

@@ -51,6 +51,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
@@ -473,8 +474,8 @@ public class ScheduleStoreTest {
                 .build();
 
         final Setting executionScheduleSetting = Setting.newBuilder()
-                .setSettingSpecName(ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                    EntitySettingSpecs.Move))
+                .setSettingSpecName(ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                    EntitySettingSpecs.Move, ActionSettingType.SCHEDULE))
                 .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                         .addAllOids(Collections.singletonList(schedule.getId()))
                         .build())

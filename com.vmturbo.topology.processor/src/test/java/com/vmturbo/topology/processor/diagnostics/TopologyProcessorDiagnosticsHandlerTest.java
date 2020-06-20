@@ -328,6 +328,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         // A probe with a secret field.
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
             .setProbeCategory("cat")
+            .setUiProbeCategory("uiCat")
             .setProbeType("type")
             .addTargetIdentifierField("name")
             .addAccountDefinition(AccountDefEntry.newBuilder()
@@ -781,6 +782,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TestTopology withProbeInfo() {
             this.probeInfo = ProbeInfo.newBuilder()
                 .setProbeCategory("cat")
+                .setUiProbeCategory("uiCat")
                 .setProbeType(testTopologyName)
                 .addSupplyChainDefinitionSet(TemplateDTO.newBuilder()
                     .setTemplateClass(EntityType.APPLICATION)

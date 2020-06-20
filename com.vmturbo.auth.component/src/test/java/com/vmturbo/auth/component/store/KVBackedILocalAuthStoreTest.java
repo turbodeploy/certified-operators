@@ -109,6 +109,7 @@ public class KVBackedILocalAuthStoreTest {
      * The JSON builder.
      */
     private static final Gson GSON = new GsonBuilder().create();
+    private static final ImmutableList<String> ROLE_NAMES = ImmutableList.of(OBSERVER);
 
     @Rule
     public final ExpectedException exception = ExpectedException.none();
@@ -134,7 +135,7 @@ public class KVBackedILocalAuthStoreTest {
         groupServiceClient = GroupServiceGrpc.newBlockingStub(mockServer.getChannel());
         // always require security context in auth component: "defense-in-depth" principle.
         SecurityContextHolder.getContext()
-                .setAuthentication(getAuthentication("ROLE_OBSERVER", "OBSERVER"));
+                .setAuthentication(getAuthentication("ROLE_ADMINISTRATOR", "ADMINISTRATOR"));
     }
 
     /**
@@ -183,8 +184,7 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null);
 
-        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
@@ -198,7 +198,7 @@ public class KVBackedILocalAuthStoreTest {
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
         Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
-        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ROLE_NAMES, info.roles);
         Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
     }
 
@@ -284,8 +284,7 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = getStore(keyValueStore);
 
-        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
@@ -296,7 +295,7 @@ public class KVBackedILocalAuthStoreTest {
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
         Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
-        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ROLE_NAMES, info.roles);
         Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
 
         Assert.assertNotNull(store.authenticate("user0", "password0"));
@@ -316,8 +315,7 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = getStore(keyValueStore);
 
-        String result = store.add(PROVIDER.LDAP, "user1", "password0",
-                ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
+        String result = store.add(PROVIDER.LDAP, "user1", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + PROVIDER.LDAP.name()
@@ -327,7 +325,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider.UserInfo
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
-        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ROLE_NAMES, info.roles);
         Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
 
         Assert.assertNotNull(store.authorize("user1", "10.10.10.1"));
@@ -338,8 +336,7 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = getStore(keyValueStore);
 
-        String result = store.add(PROVIDER.LDAP, "user1", "password0",
-                ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
+        String result = store.add(PROVIDER.LDAP, "user1", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + PROVIDER.LDAP.name()
@@ -349,7 +346,7 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider.UserInfo
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
-        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ROLE_NAMES, info.roles);
         Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
 
         // user2 is not the valid external user
@@ -398,8 +395,7 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = getStore(keyValueStore);
 
-        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
         // The password is hidden.
         Authentication authentication = getAuthentication("ROLE_NONADMINISTRATOR", "user0");
@@ -422,7 +418,7 @@ public class KVBackedILocalAuthStoreTest {
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
         Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password1"));
-        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ROLE_NAMES, info.roles);
         Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
     }
 
@@ -431,11 +427,10 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, new UserPolicy(LoginPolicy.ALL));
 
-        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
         ResponseEntity<String> result2 = store.setRoles(AuthUserDTO.PROVIDER.LOCAL, "user0",
-            ImmutableList.of("ADMIN2", "USER2"), ImmutableList.of(2L));
+            ImmutableList.of(ADMINISTRATOR), ImmutableList.of(2L));
         Assert.assertEquals(HttpStatus.OK, result2.getStatusCode());
         Assert.assertNotNull(store.authenticate("user0", "password0"));
 
@@ -447,7 +442,7 @@ public class KVBackedILocalAuthStoreTest {
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
         Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
-        Assert.assertEquals(ImmutableList.of("ADMIN2", "USER2"), info.roles);
+        Assert.assertEquals(ImmutableList.of(ADMINISTRATOR), info.roles);
         Assert.assertEquals(ImmutableList.of(2L), info.scopeGroups);
     }
 
@@ -482,12 +477,12 @@ public class KVBackedILocalAuthStoreTest {
                                 .build());
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                ImmutableList.of("SHARED_ADVISOR", "USER"), ImmutableList.of(1L));
+                ImmutableList.of(OBSERVER), ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
 
         // change to invalid group should be rejected with a 400 error
         ResponseEntity<String> result2 = store.setRoles(AuthUserDTO.PROVIDER.LOCAL, "user0",
-                ImmutableList.of("SHARED_ADVISOR", "USER2"), ImmutableList.of(2L));
+                ImmutableList.of("INVALID_ROLE"), ImmutableList.of(2L));
         Assert.assertEquals(HttpStatus.BAD_REQUEST, result2.getStatusCode());
     }
 
@@ -496,8 +491,7 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = getStore(keyValueStore);
 
-        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
         Assert.assertTrue(store.remove("user0").isPresent());
 
@@ -521,8 +515,7 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = getStore(keyValueStore);
 
-        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
@@ -533,11 +526,11 @@ public class KVBackedILocalAuthStoreTest {
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
         Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
-        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ROLE_NAMES, info.roles);
 
         Assert.assertNotNull(store.authenticate("user0", "password0"));
         store.lock(new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user0", null, null, null, null,
-                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L)));
+                ROLE_NAMES, ImmutableList.of(1L)));
 
         exception.expect(AuthenticationException.class);
         store.authenticate("user0", "password0");
@@ -548,8 +541,7 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = getStore(keyValueStore);
 
-        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
-                                   ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
@@ -560,11 +552,10 @@ public class KVBackedILocalAuthStoreTest {
                 info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
 
         Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
-        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ROLE_NAMES, info.roles);
 
         Assert.assertNotNull(store.authenticate("user0", "password0"));
-        store.lock(new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user0", null,
-                                   ImmutableList.of("ADMIN", "USER")));
+        store.lock(new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user0", null, ROLE_NAMES));
         // We use try/catch so that we can test the fact we cat unlock successfully.
         try {
             store.authenticate("user0", "password0");
@@ -572,8 +563,7 @@ public class KVBackedILocalAuthStoreTest {
         } catch (AuthenticationException e) {
         }
 
-        store.unlock(new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user0", null,
-                                     ImmutableList.of("ADMIN", "USER")));
+        store.unlock(new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user0", null, ROLE_NAMES));
         Assert.assertNotNull(store.authenticate("user0", "password0"));
     }
 
@@ -732,8 +722,7 @@ public class KVBackedILocalAuthStoreTest {
 
     private void verifyAuthentication(KeyValueStore keyValueStore, AuthProvider store, PROVIDER provider)
             throws AuthenticationException {
-        String result = store.add(provider, "user1", "password0",
-                ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
+        String result = store.add(provider, "user1", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + provider.name()
@@ -746,7 +735,7 @@ public class KVBackedILocalAuthStoreTest {
         if (provider == PROVIDER.LOCAL) {
             Assert.assertTrue(HashAuthUtils.checkSecureHash(info.passwordHash, "password0"));
         }
-        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        Assert.assertEquals(ROLE_NAMES, info.roles);
         Assert.assertEquals(ImmutableList.of(1L), info.scopeGroups);
 
         Assert.assertNotNull(store.authenticate("user1", "password0", "10.10.10.1"));

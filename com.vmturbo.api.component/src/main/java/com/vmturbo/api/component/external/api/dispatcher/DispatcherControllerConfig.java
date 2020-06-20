@@ -19,6 +19,7 @@ import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
 import com.vmturbo.api.controller.AuthenticationController;
 import com.vmturbo.api.controller.BusinessUnitsController;
+import com.vmturbo.api.controller.ClassicMigrationController;
 import com.vmturbo.api.controller.EntitiesController;
 import com.vmturbo.api.controller.GeneralController;
 import com.vmturbo.api.controller.GroupsController;
@@ -39,6 +40,7 @@ import com.vmturbo.api.controller.SupplyChainsController;
 import com.vmturbo.api.controller.TagsController;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.controller.TemplatesController;
+import com.vmturbo.api.controller.TopologyDefinitionsController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.controller.WorkflowsController;
@@ -177,6 +179,11 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public TopologyDefinitionsController topologyDefinitionsController() {
+        return new TopologyDefinitionsController();
+    }
+
+    @Bean
     public TemplatesController templatesController() {
         return new TemplatesController(serviceConfig.templatesService());
     }
@@ -199,6 +206,15 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public WidgetSetsController widgetSetsController() {
         return new WidgetSetsController();
+    }
+
+    /**
+     * Creates a ClassicMigrationController bean.
+     * @return the ClassicMigrationController
+     */
+    @Bean
+    public ClassicMigrationController classicMigrationController() {
+        return new ClassicMigrationController();
     }
 
     @Bean

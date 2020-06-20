@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -173,6 +174,21 @@ public class StitchingContext {
                 final List<TopologyStitchingEntity> targetEntities = entitiesByTarget.get(targetId);
                 return targetEntities == null ? Stream.empty() : targetEntities.stream();
             });
+    }
+
+    /**
+     * Get a stream of all entities discovered by a set of targets.
+     *
+     * @param targetIds The ids of the targets that discovered the entities to retrieve.
+     * @return a stream of all entities discovered by a set of targets.
+     */
+    @Nonnull
+    public Stream<TopologyStitchingEntity> internalEntities(@Nonnull final Set<Long> targetIds) {
+        return entitiesByEntityTypeAndTarget.values().stream()
+            .flatMap(entitiesByTarget -> entitiesByTarget.entrySet().stream()
+                .flatMap(entry -> targetIds.contains(entry.getKey())
+                    ? entry.getValue().stream()
+                    : Stream.empty()));
     }
 
     /**

@@ -59,6 +59,26 @@ import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToDepth
 import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToPropertyFilter;
 
 public class TopologyFilterFactoryTest {
+
+    private static final String VENDOR_ID1 = "test-service1";
+    private static final String VENDOR_ID2 = "test-service2";
+    private static final long TARGET_ID1 = 123L;
+    private static final long UDT_OID = 543L;
+    private static final TestGraphEntity DISCOVERED_SERVICE =
+            TestGraphEntity.newBuilder(1234L, ApiEntityType.SERVICE)
+                    .addTargetIdentity(TARGET_ID1, VENDOR_ID1)
+                    .build();
+    private static final TestGraphEntity USER_DEFINED_TOPOLOGY_SERVICE =
+            TestGraphEntity.newBuilder(2345L, ApiEntityType.SERVICE)
+                    .addTargetIdentity(UDT_OID, VENDOR_ID2)
+                    .build();
+
+    private static final TestGraphEntity DISCOVERED_SERVICE_BY_TWO_TARGETS =
+            TestGraphEntity.newBuilder(765L, ApiEntityType.SERVICE)
+                    .addTargetIdentity(UDT_OID, VENDOR_ID2)
+                    .addTargetIdentity(TARGET_ID1, VENDOR_ID1)
+                    .build();
+
     private final TopologyFilterFactory<TestGraphEntity> filterFactory = new TopologyFilterFactory<>();
     private final TopologyGraph<TestGraphEntity> graph = mock(TopologyGraph.class);
 
@@ -807,6 +827,48 @@ public class TopologyFilterFactoryTest {
         assertThat(
             stringFilter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
             contains(entity));
+    }
+
+    @Test
+    public void testSearchFilterForUserDefinedEntitiesNotMatch() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                    .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.EXCLUSIVE_DISCOVERING_TARGET)
+                        .setStringFilter(StringFilter.newBuilder()
+                                .addOptions(String.valueOf(UDT_OID))
+                                .setPositiveMatch(false)
+                        ))
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter =
+                (PropertyFilter<TestGraphEntity>)filter;
+
+        assertTrue(propertyFilter.test(DISCOVERED_SERVICE));
+        assertFalse(propertyFilter.test(USER_DEFINED_TOPOLOGY_SERVICE));
+        assertTrue(propertyFilter.test(DISCOVERED_SERVICE_BY_TWO_TARGETS));
+    }
+
+    @Test
+    public void testSearchFilterForUserDefinedEntitiesMatch() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                    .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.EXCLUSIVE_DISCOVERING_TARGET)
+                        .setStringFilter(StringFilter.newBuilder()
+                                .addOptions(String.valueOf(UDT_OID))
+                                .setPositiveMatch(true)
+                        ))
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter =
+                (PropertyFilter<TestGraphEntity>)filter;
+
+        assertTrue(propertyFilter.test(USER_DEFINED_TOPOLOGY_SERVICE));
+        assertFalse(propertyFilter.test(DISCOVERED_SERVICE));
+        assertFalse(propertyFilter.test(DISCOVERED_SERVICE_BY_TWO_TARGETS));
     }
 
     /**

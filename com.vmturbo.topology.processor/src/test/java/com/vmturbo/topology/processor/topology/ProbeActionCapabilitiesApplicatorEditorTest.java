@@ -811,6 +811,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     ) {
         return ProbeInfo.newBuilder()
                 .setProbeCategory("cat")
+                .setUiProbeCategory("cat")
                 .setProbeType(probeType)
                 .addTargetIdentifierField("field")
                 .addActionPolicy(ActionPolicyDTO.newBuilder()
@@ -868,6 +869,7 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
         return ProbeInfo.newBuilder()
                 .setProbeCategory("cat")
                 .setProbeType(probeType)
+                .setUiProbeCategory(probeType)
                 .addTargetIdentifierField("field")
                 .addActionPolicy(ActionPolicyDTO.newBuilder()
                         .addPolicyElement(ActionPolicyElement.newBuilder()

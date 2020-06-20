@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseSummaryResponse
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 /**
  * The LicenseCheckClient provides access to the latest license verification information, including
@@ -142,7 +143,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
      * @return true, if the feature is available. False if not available, or a license summary is
      * not available.
      */
-    public boolean isFeatureAvailable(LicenseFeature feature) {
+    public boolean isFeatureAvailable(ProbeLicense feature) {
         return getLicenseSummary().getFeatureList().contains(feature.getKey());
     }
 
@@ -157,10 +158,10 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
      * @return true, if all of the feature are available. False if any are not available, or a
      * license summary is not available.
      */
-    public boolean areFeaturesAvailable(Collection<LicenseFeature> features) {
+    public boolean areFeaturesAvailable(Collection<ProbeLicense> features) {
         ProtocolStringList licenseFeatures = getLicenseSummary().getFeatureList();
         // return false if any of the requested features are not present in the license summarya
-        for (LicenseFeature feature : features) {
+        for (ProbeLicense feature : features) {
             if (!licenseFeatures.contains(feature.getKey())) {
                 return false;
             }
@@ -169,13 +170,13 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
     }
 
     /**
-     * Utility method that will check if a feature is available using {@link #isFeatureAvailable(LicenseFeature)},
+     * Utility method that will check if a feature is available using {@link #isFeatureAvailable(ProbeLicense)},
      * and throws a {@link LicenseFeaturesRequiredException} if it is not.
      *
      * @param feature the feature to check for
      * @throws LicenseFeaturesRequiredException if any features are not present in the active licenses
      */
-    public void checkFeatureAvailable(LicenseFeature feature)
+    public void checkFeatureAvailable(ProbeLicense feature)
             throws LicenseFeaturesRequiredException {
         if (!isFeatureAvailable(feature)) {
             throw new LicenseFeaturesRequiredException(Collections.singleton(feature));
@@ -190,7 +191,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
      * @param features the set of features to check for
      * @throws LicenseFeaturesRequiredException if any features are not present in the active licenses
      */
-    public void checkFeaturesAvailable(Collection<LicenseFeature> features)
+    public void checkFeaturesAvailable(Collection<ProbeLicense> features)
             throws LicenseFeaturesRequiredException {
         if (!areFeaturesAvailable(features)) {
             throw new LicenseFeaturesRequiredException(features);
@@ -244,7 +245,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
      * @return true if "visibility_only" feature exists in a valid license.
      */
     public boolean isDevFreemium() {
-        return hasValidLicense() && isFeatureAvailable(LicenseFeature.VISIBILITY_ONLY);
+        return hasValidLicense() && isFeatureAvailable(ProbeLicense.VISIBILITY_ONLY);
     }
 
     @Override

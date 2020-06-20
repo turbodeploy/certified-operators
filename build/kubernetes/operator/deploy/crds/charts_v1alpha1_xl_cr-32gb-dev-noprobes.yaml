@@ -35,6 +35,8 @@ spec:
     enabled: false
   appdynamics:
     enabled: false
+  udt:
+    enabled: true # UDT is for internal use only, it must be enabled.
   appinsight:
     enabled: false
   aws:
@@ -350,6 +352,10 @@ spec:
       limits:
         memory: 512Mi
   mediation-wmi:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-udt:
     resources:
       limits:
         memory: 512Mi

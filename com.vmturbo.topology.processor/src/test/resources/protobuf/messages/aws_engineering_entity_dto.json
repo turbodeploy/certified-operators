@@ -1446,7 +1446,7 @@
     }
   },
   {
-    "entityType" : "VIRTUAL_APPLICATION",
+    "entityType" : "SERVICE",
     "id" : "aws::us-west-2::TG-ELB::DD51CB24-266E-3695-A35E-5E1F74465AA6",
     "displayName" : "a70f7916c65b011e88a600642242ca87",
     "commoditiesSold" : [
@@ -1483,7 +1483,7 @@
         "value" : "us-west-2"
       }
     ],
-    "virtualApplicationData" : {
+    "serviceData" : {
       "port" : 80,
       "serviceType" : "Layer 4/7-TCP"
     }
@@ -2611,7 +2611,7 @@
     }
   },
   {
-    "entityType" : "VIRTUAL_APPLICATION",
+    "entityType" : "SERVICE",
     "id" : "aws::us-west-2::TG-ELB::BC206201-4AF1-3CCE-AA97-677321E307A4",
     "displayName" : "adec55666441111e8867f060a8a90398",
     "commoditiesSold" : [
@@ -2671,7 +2671,7 @@
         "value" : "us-west-2"
       }
     ],
-    "virtualApplicationData" : {
+    "serviceData" : {
       "port" : 80,
       "serviceType" : "Layer 4/7-TCP"
     }
@@ -6764,7 +6764,7 @@
     }
   },
   {
-    "entityType" : "VIRTUAL_APPLICATION",
+    "entityType" : "SERVICE",
     "id" : "aws::us-west-2::TG-ELB::D0833448-AEA5-3D9B-8494-0F44A2407737",
     "displayName" : "a6de6230165b011e88a600642242ca87",
     "commoditiesSold" : [
@@ -6804,7 +6804,7 @@
         "value" : "us-west-2"
       }
     ],
-    "virtualApplicationData" : {
+    "serviceData" : {
       "port" : 8088,
       "serviceType" : "Layer 4/7-TCP"
     }

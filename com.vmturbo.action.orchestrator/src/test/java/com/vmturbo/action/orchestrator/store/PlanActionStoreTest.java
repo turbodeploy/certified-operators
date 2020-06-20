@@ -47,7 +47,6 @@ import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -61,6 +60,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
@@ -110,8 +110,8 @@ public class PlanActionStoreTest {
         @Override
         public Action newPlanAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
                                     long actionPlanId, String description,
-                @Nullable final Long associatedAccountId,
-                @Nullable final Long associatedResourceGroupId) {
+                                    @Nullable final Long associatedAccountId,
+                                    @Nullable final Long associatedResourceGroupId) {
             return spy(new Action(recommendation, recommendationTime, actionPlanId,
                     actionModeCalculator, description, associatedAccountId, associatedResourceGroupId, 2244L));
         }
@@ -125,7 +125,7 @@ public class PlanActionStoreTest {
     private final EntitiesAndSettingsSnapshotFactory entitiesSnapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-    ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
+    private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
 
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
@@ -135,12 +135,14 @@ public class PlanActionStoreTest {
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
         actionStore = new PlanActionStore(spyActionFactory, dsl, firstContextId,
-            entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector, licenseCheckClient);
+            null, null,
+            entitiesSnapshotFactory, actionTranslator, realtimeId,
+            actionTargetSelector, licenseCheckClient);
 
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
         when(actionFactory.newPlanAction(any(ActionDTO.Action.class),
-                any(LocalDateTime.class), anyLong(), anyString(), any(), any())).thenAnswer(
+            any(LocalDateTime.class), anyLong(), anyString(), any(), any())).thenAnswer(
             invocation -> {
                 Object[] args = invocation.getArguments();
                 return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2],
@@ -156,8 +158,10 @@ public class PlanActionStoreTest {
     }
 
     public void setEntitiesOIDs() {
+        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong())).thenReturn(snapshot);
         // Hack: if plan source topology is not available, the fall back on realtime.
+        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong(), eq(realtimeId))).thenReturn(snapshot);
         when(entitiesSnapshotFactory.newSnapshot(any(), any(), eq(realtimeId))).thenReturn(snapshot);
         for (long i=1; i<10;i++) {
             createMockEntity(i,EntityType.VIRTUAL_MACHINE.getNumber());
@@ -258,7 +262,7 @@ public class PlanActionStoreTest {
 
         ActionOrchestratorTestUtils.assertActionsEqual(
             actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "", null,
-                    null),
+                null),
             actionStore.getAction(1L).get()
         );
     }
@@ -274,8 +278,8 @@ public class PlanActionStoreTest {
      */
     @Test(expected = LicenseFeaturesRequiredException.class)
     public void testGetActionUnlicensed() {
-        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(LicenseFeature.PLANNER)))
-            .when(licenseCheckClient).checkFeatureAvailable(LicenseFeature.PLANNER);
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(ProbeLicense.PLANNER)))
+            .when(licenseCheckClient).checkFeatureAvailable(ProbeLicense.PLANNER);
         actionStore.getAction(1);
     }
 
@@ -289,7 +293,7 @@ public class PlanActionStoreTest {
         actionList.forEach(action ->
             ActionOrchestratorTestUtils.assertActionsEqual(
                 actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "",
-                        null, null),
+                    null, null),
                 actionsMap.get(action.getId())
             )
         );
@@ -301,8 +305,8 @@ public class PlanActionStoreTest {
      */
     @Test(expected = LicenseFeaturesRequiredException.class)
     public void testGetActionsUnlicensed() {
-        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(LicenseFeature.PLANNER)))
-                .when(licenseCheckClient).checkFeatureAvailable(LicenseFeature.PLANNER);
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(ProbeLicense.PLANNER)))
+                .when(licenseCheckClient).checkFeatureAvailable(ProbeLicense.PLANNER);
         actionStore.getActions();
     }
 
@@ -310,16 +314,16 @@ public class PlanActionStoreTest {
     public void testOverwriteActionsEmptyStore() throws Exception {
         final List<Action> actionList = actionList(3).stream()
             .map(marketAction -> actionFactory.newPlanAction(marketAction, actionRecommendationTime,
-                    firstPlanId, "", null, null))
+                firstPlanId, "", null, null))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, actionList));
         Map<Long, Action> actionsMap = actionStore.getActions();
         actionList.forEach(action ->
-                ActionOrchestratorTestUtils.assertActionsEqual(
-                    action,
-                    actionsMap.get(action.getId())
-                )
+            ActionOrchestratorTestUtils.assertActionsEqual(
+                action,
+                actionsMap.get(action.getId())
+            )
         );
     }
 
@@ -382,9 +386,8 @@ public class PlanActionStoreTest {
     @Test
     public void testStoreLoaderWithNoStores() {
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator,
-                    entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector,
-                    licenseCheckClient).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
+                null, null, actionTargetSelector, licenseCheckClient).loadActionStores();
 
         assertTrue(loadedStores.isEmpty());
     }
@@ -404,16 +407,17 @@ public class PlanActionStoreTest {
 
         // Setup second planActionStore. This has 9 Buy RI Actions
         final ActionPlan buyRIActionPlan2 = buyRIActionPlan(3L, secondContextId, actionList(9));
-        PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId, entitiesSnapshotFactory,
-                actionTranslator, realtimeId, actionTargetSelector, licenseCheckClient);
+        PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId,
+            null, null,
+            entitiesSnapshotFactory, actionTranslator, realtimeId,
+            actionTargetSelector, licenseCheckClient);
         actionStore2.populateRecommendedActions(buyRIActionPlan2);
         expectedActionStores.put(secondContextId, actionStore2);
 
         // Load the stores from DB
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator,
-                    entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector,
-                    licenseCheckClient).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
+            null, null, actionTargetSelector, licenseCheckClient).loadActionStores();
         loadedStores.forEach(store -> actualActionStores.put(store.getTopologyContextId(), store));
 
         // Assert that what we load from DB is the same as what we setup initially
@@ -485,7 +489,7 @@ public class PlanActionStoreTest {
     }
 
     private static ActionPlan buyRIActionPlan(final long planId, final long topologyContextId,
-                                               @Nonnull final Collection<ActionDTO.Action> actions) {
+                                              @Nonnull final Collection<ActionDTO.Action> actions) {
 
         return ActionPlan.newBuilder()
             .setId(planId)

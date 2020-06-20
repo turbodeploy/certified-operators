@@ -3345,7 +3345,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "7DB069CF-D35C-3113-B633-083FC8601D5D"
   displayName: "GuestLoad [jameskwin_rename]"
   commoditiesBought {
@@ -3391,7 +3391,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "D7E1C52B-66CB-37D4-8920-B1FC7E181F38"
   displayName: "GuestLoad [james_config]"
   commoditiesBought {
@@ -3437,7 +3437,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "A72EE66C-EAFC-3FD4-9C73-F6083A0F69ED"
   displayName: "GuestLoad [LinuxTest]"
   commoditiesBought {
@@ -3481,7 +3481,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "F9D416D5-B5E6-3F79-9252-1A9252EC695B"
   displayName: "GuestLoad [arsen-centos-dl390]"
   commoditiesBought {
@@ -3527,7 +3527,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "06635D64-EEBB-3434-8AB5-CAEE3F11AE95"
   displayName: "GuestLoad [SaaS Container 4.0]"
   commoditiesBought {
@@ -3571,7 +3571,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "9FDF38BE-4301-3E5C-B66F-D967F5456580"
   displayName: "GuestLoad [tak_CWOM-2.2.0-OFL-Update]"
   commoditiesBought {
@@ -3617,7 +3617,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "FFC3FBCA-8B74-3D10-A0BC-D4812624570B"
   displayName: "GuestLoad [james-ubuntu]"
   commoditiesBought {
@@ -3661,7 +3661,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "E2FE011F-A449-3998-94CD-8D72DFEB1A37"
   displayName: "GuestLoad [Dev_DONT_TOUCH]"
   commoditiesBought {
@@ -3705,7 +3705,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "C6B95F80-1ECD-3F05-A8F3-626A635F848A"
   displayName: "GuestLoad [JA_CentOS7_HV3_Soak]"
   commoditiesBought {
@@ -3751,7 +3751,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "4FAE40CD-594F-38C4-8F14-1FB1E4C52D42"
   displayName: "GuestLoad [nuVM]"
   commoditiesBought {
@@ -3795,7 +3795,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "9488CA36-C34F-3DB2-A450-368264758916"
   displayName: "GuestLoad [Molsi_OM_Tomcat]"
   commoditiesBought {
@@ -3839,7 +3839,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "D1103DA9-4B79-384F-B8D9-B18F1CF41C1B"
   displayName: "GuestLoad [arsen-centos-dl390-5]"
   commoditiesBought {
@@ -3885,7 +3885,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "FBF50679-1B58-30D6-BA4E-51547D9F5F5A"
   displayName: "GuestLoad [CFE_PT_VMM_Demo]"
   commoditiesBought {
@@ -3929,7 +3929,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "9C52BD1D-2BE9-3465-B6DA-35D71B3D90D4"
   displayName: "GuestLoad [Gilad_OM-38071_SMB_VM2]"
   commoditiesBought {
@@ -3973,7 +3973,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "B855F819-99A0-363C-A307-E155B3297B4C"
   displayName: "GuestLoad [Gilad_Test_VM_1]"
   commoditiesBought {
@@ -4017,7 +4017,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "30C79CC6-632C-31EF-9C93-3A4F638E7E02"
   displayName: "GuestLoad [dim-6.2.3]"
   commoditiesBought {
@@ -4063,7 +4063,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "473B4A73-1383-37EA-A941-CD631666BC8D"
   displayName: "GuestLoad [arsen-centos-dl390-3]"
   commoditiesBought {
@@ -4109,7 +4109,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "0B04BE5E-5F2D-3594-A2A9-8BB90CB7722E"
   displayName: "GuestLoad [Dont_Move_SNM2]"
   commoditiesBought {
@@ -4153,7 +4153,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "3A76C253-DAEE-3954-B5D9-EC2C9D5A22CC"
   displayName: "GuestLoad [AbhatMultipleVHD-DoNotDelete]"
   commoditiesBought {
@@ -4197,7 +4197,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "7C0E12C4-B5E5-3A85-A011-F265FCBC8C52"
   displayName: "GuestLoad [ABhatSingleVHD]"
   commoditiesBought {
@@ -4241,7 +4241,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "B98CE5E3-DB66-3AF2-8061-4EF0A0326942"
   displayName: "GuestLoad [Gilad_VMM_Cloud_Centos_VM_2]"
   commoditiesBought {
@@ -4285,7 +4285,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "AB69677E-51BB-3F2F-90EF-F55F0133E8CC"
   displayName: "GuestLoad [Gilad_VMM_Datastore_move_Test_VM1]"
   commoditiesBought {
@@ -4329,7 +4329,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "2B348867-6242-3282-B2CE-3316ED836218"
   displayName: "GuestLoad [\316\245\316\232\316\221]"
   commoditiesBought {
@@ -4373,7 +4373,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "D842506D-A35A-33D7-A677-976FD547C328"
   displayName: "GuestLoad [olga_nonclustered2]"
   commoditiesBought {
@@ -4417,7 +4417,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "1ABA3F07-AA26-32A9-881C-3EFFEF0AD155"
   displayName: "GuestLoad [cisco-2.2.1]"
   commoditiesBought {
@@ -4463,7 +4463,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "1256DA01-41EB-3630-989F-CE90B56A1155"
   displayName: "GuestLoad [avasinReplicaTestPleaseDoNotDelete]"
   commoditiesBought {
@@ -4507,7 +4507,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "13463CA6-82DB-31E9-8CF8-A1663A297C29"
   displayName: "GuestLoad [Vahid-VM1]"
   commoditiesBought {
@@ -4553,7 +4553,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "22E94F20-E21C-3B45-B5E8-B320B673713A"
   displayName: "GuestLoad [APM_WMI_HyperV2donottouch]"
   commoditiesBought {
@@ -4599,7 +4599,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "85D6E5B5-EEC3-37D4-9C99-32638FD658B3"
   displayName: "GuestLoad [turbonomic-opsmgr-6.2.11]"
   commoditiesBought {
@@ -4638,7 +4638,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "8499FD40-0E55-3907-8D8F-6681995F9874"
   displayName: "GuestLoad [arsen-centos-dl390-4]"
   commoditiesBought {
@@ -4684,7 +4684,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "95CE6E99-0752-35C8-B619-A744E3158AE3"
   displayName: "GuestLoad [ACM-Windows-Server 2016]"
   commoditiesBought {
@@ -4730,7 +4730,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "81EA5235-52EB-3393-83B1-2E6B99151122"
   displayName: "GuestLoad [jameskwin7]"
   commoditiesBought {
@@ -4774,7 +4774,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "21B77BF4-31CC-31CA-B2C8-12ED39A70BBE"
   displayName: "GuestLoad [AdityaWindowsTestVM]"
   commoditiesBought {
@@ -4818,7 +4818,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "C7B992E7-62B0-3EBD-9E0E-01561DA705E5"
   displayName: "GuestLoad [AH-centos-dl390-SNow-Test]"
   commoditiesBought {
@@ -4864,7 +4864,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "44A0C4DE-4F84-3547-8BF9-06818EF46398"
   displayName: "GuestLoad [tak-CWOM2.2.1-tgtCatsfix]"
   commoditiesBought {
@@ -4910,7 +4910,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "104567B5-77D2-37CB-9BEA-BA53B599749C"
   displayName: "GuestLoad [arsen-WMI-win8-dl390]"
   commoditiesBought {
@@ -4956,7 +4956,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "C5075CC1-D6B9-32B5-9A63-70FFD3B7425C"
   displayName: "GuestLoad [arsen-centos-dl390-2]"
   commoditiesBought {
@@ -5002,7 +5002,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "82D26AFC-DC62-3A69-A3F0-46A36839104A"
   displayName: "GuestLoad [MS-SQLServer-3]"
   commoditiesBought {
@@ -5046,7 +5046,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "69C73DEB-1E8F-3DE6-86C9-412BD4B0F5C1"
   displayName: "GuestLoad [Gilad_VMM_Cloud_Centos_VM_1]"
   commoditiesBought {
@@ -5090,7 +5090,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "CECF1125-1022-3541-9EA1-6813D9F23456"
   displayName: "GuestLoad [Dont_move_SNM1]"
   commoditiesBought {
@@ -5134,7 +5134,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "BCEC9B25-E5AA-34E9-B7A3-E52B66E0ACE6"
   displayName: "GuestLoad [arsen-temp-vm-2]"
   commoditiesBought {
@@ -5180,7 +5180,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "63ECDDA6-D098-3FA8-BD9A-80A68A339C13"
   displayName: "GuestLoad [AbhatTest (ROUND)]"
   commoditiesBought {
@@ -5224,7 +5224,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "B247400A-6A98-3264-A99B-1B59D4D07E49"
   displayName: "GuestLoad [arsen-temp-vm]"
   commoditiesBought {
@@ -5270,7 +5270,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "A00522AA-4DB8-3DE9-B2BD-8390A0A32EE8"
   displayName: "GuestLoad [tak-CWOM2.2.0-CSa]"
   commoditiesBought {
@@ -5314,7 +5314,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "3B8E7667-A212-3130-BEA9-0071BB49F222"
   displayName: "GuestLoad [olga_clu]"
   commoditiesBought {
@@ -5360,7 +5360,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "785B0DED-EF68-3F03-8220-F8B0885D75E5"
   displayName: "GuestLoad [JA_CentOS7_HV5_Soak]"
   commoditiesBought {
@@ -5406,7 +5406,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "37F06871-2C26-337B-99FF-3A33CB99AFCD"
   displayName: "GuestLoad [TestVMNoVHD]"
   commoditiesBought {
@@ -5450,7 +5450,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "D137C2A5-8254-3C78-9D2F-4F8582434275"
   displayName: "GuestLoad [netapphdd]"
   commoditiesBought {
@@ -5494,7 +5494,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "D029BF7A-7305-31BC-9616-DFD4826488F1"
   displayName: "GuestLoad [olga_390_renamed]"
   commoditiesBought {
@@ -5540,7 +5540,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "233ACD95-2F71-36B9-832F-343E49F8BE5B"
   displayName: "GuestLoad [JA_CentOS7_HV1_Soak]"
   commoditiesBought {
@@ -5586,7 +5586,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "3780FE78-E6B7-3447-83DD-6467A29379A1"
   displayName: "GuestLoad [ACM-L-Jboss3-DYN]"
   commoditiesBought {
@@ -5630,7 +5630,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "0BE92895-E540-3D73-92EE-CD11DC17FA48"
   displayName: "GuestLoad [Gilad_VMM_Host_move_Test_VM1]"
   commoditiesBought {
@@ -5674,7 +5674,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "B784924C-7970-37AD-A888-90AFBF4A25BE"
   displayName: "GuestLoad [2vhd2storage]"
   commoditiesBought {
@@ -5720,7 +5720,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "49150D7A-73CC-366B-9499-0CBEC9C1962C"
   displayName: "GuestLoad [pb-test-vm]"
   commoditiesBought {
@@ -5764,7 +5764,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "59360AF7-D615-362B-A74B-BB1B414FCD53"
   displayName: "GuestLoad [AbhatTest [SQUARE]]"
   commoditiesBought {
@@ -5808,7 +5808,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "5D561F2A-F446-3970-A07E-7A3F9D82D8B1"
   displayName: "GuestLoad [james-replica]"
   commoditiesBought {
@@ -5852,7 +5852,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "B09B1C8A-EE80-3146-8662-46BF165FC592"
   displayName: "GuestLoad [AbhatTest {CURLY}]"
   commoditiesBought {
@@ -5896,7 +5896,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "2EDA8B93-68B8-3A6B-8ED3-A63C3326409F"
   displayName: "GuestLoad [olga_notclustered]"
   commoditiesBought {
@@ -5940,7 +5940,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "25080898-1B44-3A17-BD04-AA5D06F45BE0"
   displayName: "GuestLoad [arsen-WMI-VM-dl390]"
   commoditiesBought {
@@ -5986,7 +5986,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "A4C80C71-D312-30FE-8931-570AD1A8AE9C"
   displayName: "GuestLoad [turbonomic-opsmgr-6.2.3]"
   commoditiesBought {
@@ -6030,7 +6030,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "B77CA620-6D9B-3B4A-8ECD-917C86C8E561"
   displayName: "GuestLoad [NOVHD]"
   commoditiesBought {
@@ -6074,7 +6074,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "0369ABAD-68F8-3C1F-8F54-577CFEBE6A8F"
   displayName: "GuestLoad [Gilad_VMM_hp-cluster_Centos_VM_1]"
   commoditiesBought {
@@ -6118,7 +6118,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "5B286880-D7D3-3FAF-BD09-0E6F25A43907"
   displayName: "GuestLoad [Prema_HV1]"
   commoditiesBought {
@@ -6164,7 +6164,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "D2B6C6FF-F4CF-35DA-8A28-8D1D697FF284"
   displayName: "GuestLoad [abhat-smb-stress]"
   commoditiesBought {
@@ -6210,7 +6210,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "587BDCD5-5C01-3AFB-AC37-5534A637D176"
   displayName: "GuestLoad [PhoenixA]"
   commoditiesBought {
@@ -6254,7 +6254,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "CAB058AC-8C7D-38D9-AEF1-856EBED94A4A"
   displayName: "GuestLoad [molsi-primary]"
   commoditiesBought {

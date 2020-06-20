@@ -46,7 +46,6 @@ import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
@@ -61,6 +60,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 /**
  * XL implementation of {@link ISupplyChainsService} (for the supply chain APIs).
@@ -150,7 +150,7 @@ public class SupplyChainsService implements ISupplyChainsService {
         Optional<PlanInstance> possiblePlan = getPlanIfRequestIsPlan(uuids);
         if (possiblePlan.isPresent()) {
             // this is a plan. Before we go any further, we need to validate that the planner feature is available.
-            licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
             PlanInstance plan = possiblePlan.get();
             // if we have a user id in the context, we may prevent access to the plan supply chain
             // if the user is either not an admin user or does not own the plan

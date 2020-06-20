@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -26,43 +27,31 @@ public interface ITopologyWriter {
      * Start processing a new topology ingestion.
      *
      * @param topologyInfo   the {@link TopologyInfo} for the topology
-     * @param entityToGroups map linking each entity to the groups to which it belongs
      * @param writerConfig   writer config properties
      * @param timer          a {@link MultiStageTimer} to collect overall timing information
      * @return a consumer to which topology entities will be delivered for processing by this writer
      * @throws IOException                 if there's a problem setting up for processing
      * @throws UnsupportedDialectException if our database endpoint is mis-configured
      * @throws SQLException                if there's a problem establishing database access
-     * @throws InterruptedException if interrupted
      */
-    InterruptibleConsumer<TopologyEntityDTO> startTopology(
-            TopologyInfo topologyInfo, Map<Long, List<Grouping>> entityToGroups,
-            WriterConfig writerConfig, MultiStageTimer timer)
-            throws IOException, UnsupportedDialectException, SQLException, InterruptedException;
+    Consumer<TopologyEntityDTO> startTopology(
+            TopologyInfo topologyInfo, WriterConfig writerConfig, MultiStageTimer timer)
+            throws IOException, UnsupportedDialectException, SQLException;
 
     /**
      * Perform any final processing required after the whole topology has been processed.
      *
-     * @param entityToRelatedEntities map relating each entity to to members of its "enhanced"
-     *                                supply chain, including related groups
+     * @param dataProvider object containing all different aspects of data for entity and group
+     *                     needed for ingestion, like supply chain, actions, severity, etc.
      * @return number of entities processed
      * @throws InterruptedException        if the operation is interrupted
      * @throws UnsupportedDialectException if the db endpoint is mis-configured
      * @throws SQLException                if there's a problem using the db endpoint
      */
-    int finish(Map<Long, Set<Long>> entityToRelatedEntities)
-            throws InterruptedException, UnsupportedDialectException, SQLException;
-
-    /**
-     * A {@link java.util.function.Consumer} that can throw {@link InterruptedException}.
-     *
-     * @param <T> consumed value type
-     */
-    @FunctionalInterface
-    interface InterruptibleConsumer<T> {
-        void accept(T item) throws InterruptedException;
+    default int finish(DataProvider dataProvider)
+            throws InterruptedException, UnsupportedDialectException, SQLException {
+        return 0;
     }
-
 
     /**
      * Return a label for ingestion processing by the given writer, for logging.

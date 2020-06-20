@@ -33,11 +33,12 @@ public class SearchProtoUtilTest {
     public void testSearchAllTypes() {
         ImmutableList<String> expectedTypes = ImmutableList.of(
                 "VirtualMachine", "PhysicalMachine", "Storage", "DiskArray", "DataCenter", "VirtualDataCenter",
-                "BusinessApplication", "ApplicationServer", "Application", "VirtualApplication",
+                "BusinessApplication", "ApplicationServer", "Application", "ApplicationComponent", "VirtualApplication",
                 "Container", "ContainerPod", "VPod", "DPod", "StorageController", "IOModule", "Switch", "Chassis",
                 "Network", "LogicalPool", "Database", "DatabaseServer", "LoadBalancer",
                 "BusinessAccount", "CloudService", "ComputeTier", "StorageTier", "DatabaseTier",
                 "DatabaseServerTier", "AvailabilityZone", "Region", "VirtualVolume", "ProcessorPool",
+                "Service", "BusinessTransaction",
                 "ViewPod", "DesktopPool", "BusinessUser", "ServiceProvider", "HCIPhysicalMachine",
                 "Namespace", "WorkloadController", "ContainerSpec", "VMSpec");
         assertThat(SearchProtoUtil.SEARCH_ALL_TYPES, containsInAnyOrder(expectedTypes.toArray()));

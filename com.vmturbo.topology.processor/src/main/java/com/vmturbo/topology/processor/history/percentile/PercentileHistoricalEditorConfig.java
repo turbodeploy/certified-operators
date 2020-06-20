@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.history.percentile;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -107,12 +108,13 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     /**
      * Get the percentile scaling aggressiveness for a given entity.
      *
+     * @param context the history aggregation context.
      * @param oid entity oid
      * @return aggressiveness in percents, default if not found
      */
-    public int getAggressiveness(@Nonnull HistoryAggregationContext context, long oid) {
-        return getIntSetting(context, oid, TYPE_AGGRESSIVENESS, "aggressiveness",
-                             getDefaultAggressiveness());
+    public float getAggressiveness(@Nonnull HistoryAggregationContext context, long oid) {
+        return getNumberSetting(context, oid, TYPE_AGGRESSIVENESS, "aggressiveness",
+                             getDefaultAggressiveness()).floatValue();
     }
 
     /**
@@ -122,8 +124,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      * @return observation period
      */
     public int getObservationPeriod(@Nonnull HistoryAggregationContext context, long oid) {
-        return getIntSetting(context, oid, TYPE_MAX_OBSERVATION_PERIOD, "observation period",
-                             getDefaultObservationPeriod());
+        return getNumberSetting(context, oid, TYPE_MAX_OBSERVATION_PERIOD, "observation period",
+                             getDefaultObservationPeriod()).intValue();
     }
 
     /**
@@ -133,8 +135,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      * @return observation period
      */
     public int getMinObservationPeriod(@Nonnull HistoryAggregationContext context, long oid) {
-        return getIntSetting(context, oid, TYPE_MIN_OBSERVATION_PERIOD, "min observation period",
-                getDefaultMinObservationPeriod());
+        return getNumberSetting(context, oid, TYPE_MIN_OBSERVATION_PERIOD, "min observation period",
+                getDefaultMinObservationPeriod()).intValue();
     }
 
     /**
@@ -170,16 +172,18 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                 .getNumericSettingValueType().getDefault();
     }
 
-    private int getIntSetting(@Nonnull HistoryAggregationContext context, long oid,
-                              @Nonnull Map<EntityType, EntitySettingSpecs> type2spec,
-                              @Nonnull String description, int defaultValue) {
+    @Nonnull
+    private Number getNumberSetting(@Nonnull HistoryAggregationContext context, long oid,
+                                    @Nonnull Map<EntityType, EntitySettingSpecs> type2spec,
+                                    @Nonnull String description, @Nonnull Number defaultValue) {
         EntitySettingSpecs spec = type2spec.get(context.getEntityType(oid));
         if (spec != null) {
-            return context.getSettingValue(oid, spec, Float.class, Float::intValue,
-                            ss -> ss.getNumericSettingValueType().getDefault());
+            return context.getSettingValue(oid, spec, Number.class, Function.identity(),
+                ss -> ss.getNumericSettingValueType().getDefault());
         }
-        logger.trace("{} Returning default value {} for percentile {} with oid {}",
-                getClass().getSimpleName(), defaultValue, description, oid);
+        logger.trace("{} Returning default value {} for spec with description {} for entity "
+                + "with oid {}",
+            getClass().getSimpleName(), defaultValue, description, oid);
         return defaultValue;
     }
 

@@ -42,6 +42,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -929,7 +931,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, provisionBySupplyRecommendation);
 
-        Assert.assertEquals(description, "Provision Storage storage_source_test");
+        Assert.assertEquals("Provision Storage similar to storage_source_test", description);
     }
 
     /**
@@ -951,6 +953,38 @@ public class ActionDescriptionBuilderTest {
 
         Assert.assertEquals(description,
             "Provision Physical Machine similar to pm_source_test with scaled up Mem due to vm1_test");
+    }
+
+    /**
+     * Test the construction of description for host provision action when vSAN scaling is the reason.
+     * @throws UnsupportedActionException   an exception that can be thrown by {@link ActionDescriptionBuilder}
+     */
+    public void testProvisionHostForVSANDescription() throws UnsupportedActionException {
+        ConnectedEntity vsanConnectedEntity = ConnectedEntity.newBuilder()
+                        .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                        .setConnectedEntityType(EntityType.STORAGE_VALUE)
+                        .setConnectedEntityId(VSAN_STORAGE_ID)
+                        .build();
+        Optional<ActionPartialEntity> optionalHostEntity = Optional.of(ActionPartialEntity.newBuilder()
+                        .setOid(VSAN_PM_ID)
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .setDisplayName(VSAN_PM_DISPLAY_NAME)
+                        .addConnectedEntities(vsanConnectedEntity)
+                        .build());
+
+        when(entitySettingsCache.getEntityFromOid(eq(VSAN_PM_ID)))
+            .thenReturn(optionalHostEntity);
+        when(entitySettingsCache.getEntityFromOid(eq(VSAN_STORAGE_ID)))
+            .thenReturn((createEntity(VSAN_STORAGE_ID, EntityType.STORAGE_VALUE,
+                            VSAN_STORAGE_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                        entitySettingsCache, provisionBySupplyRecommendation);
+        String expected = new StringBuilder("Provision Host similar to ")
+                        .append(VSAN_PM_DISPLAY_NAME)
+                        .append(" to scale Storage ").append(VSAN_STORAGE_DISPLAY_NAME)
+                        .toString();
+        Assert.assertEquals(expected, description);
     }
 
     /**

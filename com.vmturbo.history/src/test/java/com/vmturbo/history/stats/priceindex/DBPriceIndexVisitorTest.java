@@ -149,7 +149,6 @@ public class DBPriceIndexVisitorTest {
         assertThat(cloudMktStats.getUsed(), is(cloudPriceIndex));
         assertThat(cloudMktStats.getRelationType(), is(RelationType.METRICS));
     }
-
     /**
      * Make sure that visits with entity types that don't save price index data create not records.
      *
