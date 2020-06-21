@@ -11,7 +11,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -19,7 +18,6 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -32,32 +30,19 @@ import org.jooq.Select;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.impl.DSL;
-import org.jooq.impl.SQLDataType;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 
-import com.vmturbo.api.dto.searchquery.BooleanConditionApiDTO;
-import com.vmturbo.api.dto.searchquery.ConditionApiDTO;
-import com.vmturbo.api.dto.searchquery.ConditionApiDTO.Operator;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO;
-import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
-import com.vmturbo.api.dto.searchquery.InclusionConditionApiDTO;
-import com.vmturbo.api.dto.searchquery.IntegerConditionApiDTO;
-import com.vmturbo.api.dto.searchquery.NumberConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.RelatedActionFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SelectEntityApiDTO;
-import com.vmturbo.api.dto.searchquery.TextConditionApiDTO;
-import com.vmturbo.api.dto.searchquery.WhereApiDTO;
-import com.vmturbo.api.enums.EntitySeverity;
-import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EntityType;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 import com.vmturbo.common.api.mappers.EnumMapper;
 import com.vmturbo.extractor.schema.tables.SearchEntity;
@@ -256,7 +241,7 @@ public class ApiQueryEngine implements IApiQueryEngine {
                     break;
                 case ENUM:
                     if (fieldApiDto.equals(PrimitiveFieldApiDTO.environmentType())) {
-                        fieldValue =fieldApiDto.enumValue(
+                        fieldValue = fieldApiDto.enumValue(
                                 readEnumRecordAndMap(record, columnAlias, EnvironmentTypeMapper.fromSearchSchemaToApiFunction));
                     } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entitySeverity())) {
                         fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
@@ -299,11 +284,11 @@ public class ApiQueryEngine implements IApiQueryEngine {
                     throw new IllegalArgumentException("Column parsing not implemented:" + columnMetadata.getApiDatatype());
             }
 
-        return Objects.isNull(fieldValue)? Optional.empty() : Optional.of(fieldValue);
+        return Objects.isNull(fieldValue) ? Optional.empty() : Optional.of(fieldValue);
         }
 
-    private <T extends Enum<T>,R extends Enum<R>> R readEnumRecordAndMap(Record record, String columnAlias, Function<T,R> enumMapper) {
-       T enumValue =  (T) record.get(columnAlias);
+    private <T extends Enum<T>, R extends Enum<R>> R readEnumRecordAndMap(Record record, String columnAlias, Function<T, R> enumMapper) {
+       T enumValue =  (T)record.get(columnAlias);
         return enumMapper.apply(enumValue);
     }
 

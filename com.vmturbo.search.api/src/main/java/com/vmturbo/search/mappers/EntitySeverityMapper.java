@@ -35,23 +35,23 @@ public class EntitySeverityMapper {
      * Get the {@link com.vmturbo.api.enums.EntitySeverity} associated with a {@link
      * com.vmturbo.extractor.schema.enums.EntitySeverity}.
      *
-     * @param EntitySeverity The {@link EntitySeverity}.
+     * @param entitySeverity The {@link EntitySeverity}.
      * @return The associated {@link com.vmturbo.api.enums.EntitySeverity}, or null
      */
     @Nonnull
-    public static com.vmturbo.api.enums.EntitySeverity fromSearchSchemaToApi(@Nullable final EntitySeverity EntitySeverity) {
-        return ENTITY_STATE_MAPPINGS.getOrDefault(EntitySeverity, null);
+    public static com.vmturbo.api.enums.EntitySeverity fromSearchSchemaToApi(@Nullable final EntitySeverity entitySeverity) {
+        return ENTITY_STATE_MAPPINGS.getOrDefault(entitySeverity, null);
     }
 
     /**
      * Get the {@link EntitySeverity} associated with a {@link com.vmturbo.api.enums.EntitySeverity}.
      *
-     * @param EntitySeverity The {@link EntitySeverity}.
+     * @param entitySeverity The {@link EntitySeverity}.
      * @return The associated {@link EntitySeverity}, or null.
      */
     @Nonnull
-    public static EntitySeverity fromApiToSearchSchema(@Nullable final com.vmturbo.api.enums.EntitySeverity EntitySeverity) {
-        return ENTITY_STATE_MAPPINGS.inverse().getOrDefault(EntitySeverity, null);
+    public static EntitySeverity fromApiToSearchSchema(@Nullable final com.vmturbo.api.enums.EntitySeverity entitySeverity) {
+        return ENTITY_STATE_MAPPINGS.inverse().getOrDefault(entitySeverity, null);
     }
 
     /**

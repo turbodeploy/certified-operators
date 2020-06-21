@@ -37,8 +37,8 @@ public class SearchEntityMetadataTest {
     @Test
     public void testMetadataFieldsSetCorrectly() {
         for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
-            for (Map.Entry<FieldApiDTO, SearchEntityMetadataMapping> entry :
-                    searchEntityMetadata.getMetadataMappingMap().entrySet()) {
+            for (Map.Entry<FieldApiDTO, SearchEntityMetadataMapping> entry
+                : searchEntityMetadata.getMetadataMappingMap().entrySet()) {
                 MetadataVerifier metadataVerifier =
                         METADATA_VERIFIERS.get(entry.getKey().getFieldType());
                 // verify that MetadataVerifier for this filed type exists

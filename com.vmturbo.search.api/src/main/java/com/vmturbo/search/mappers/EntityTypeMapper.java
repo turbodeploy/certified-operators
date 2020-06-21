@@ -52,21 +52,21 @@ public class EntityTypeMapper {
      * Get the {@link com.vmturbo.api.enums.EntityType} associated with a {@link
      * com.vmturbo.extractor.schema.enums.EntityType}.
      *
-     * @param EntityType The {@link EntityType}.
+     * @param entityType The {@link EntityType}.
      * @return The associated {@link com.vmturbo.api.enums.EntityType}, or null
      */
-    public static com.vmturbo.api.enums.EntityType fromSearchSchemaToApi(@Nullable final EntityType EntityType) {
-        return ENTITY_STATE_MAPPINGS.getOrDefault(EntityType, null);
+    public static com.vmturbo.api.enums.EntityType fromSearchSchemaToApi(@Nullable final EntityType entityType) {
+        return ENTITY_STATE_MAPPINGS.getOrDefault(entityType, null);
     }
 
     /**
      * Get the {@link EntityType} associated with a {@link com.vmturbo.api.enums.EntityType}.
      *
-     * @param EntityType The {@link EntityType}.
+     * @param entityType The {@link EntityType}.
      * @return The associated {@link EntityType}, or null.
      */
-    public static EntityType fromApiToSearchSchema(@Nullable final com.vmturbo.api.enums.EntityType EntityType) {
-        return ENTITY_STATE_MAPPINGS.inverse().getOrDefault(EntityType, null);
+    public static EntityType fromApiToSearchSchema(@Nullable final com.vmturbo.api.enums.EntityType entityType) {
+        return ENTITY_STATE_MAPPINGS.inverse().getOrDefault(entityType, null);
     }
 
 

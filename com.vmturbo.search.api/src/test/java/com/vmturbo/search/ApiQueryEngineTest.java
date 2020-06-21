@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record4;
@@ -36,19 +35,15 @@ import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
-import com.vmturbo.api.dto.searchquery.InclusionConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.MultiTextFieldValueApiDTO;
 import com.vmturbo.api.dto.searchquery.NumberFieldValueApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.RelatedEntityFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SelectEntityApiDTO;
-import com.vmturbo.api.dto.searchquery.TextConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.TextFieldValueApiDTO;
-import com.vmturbo.api.dto.searchquery.WhereApiDTO;
 import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
-import com.vmturbo.extractor.schema.enums.EntitySeverity;
 import com.vmturbo.search.metadata.SearchEntityMetadata;
 import com.vmturbo.search.metadata.SearchEntityMetadataMapping;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -60,6 +55,7 @@ public class ApiQueryEngineTest {
     private DSLContext dSLContextSpy;
     private SearchEntityMetadataMapping oidPrimitive = SearchEntityMetadataMapping.PRIMITIVE_OID;
     private ObjectMapper objectMapper = new ObjectMapper();
+
     /**
      * Set up for test.
      *
@@ -88,7 +84,7 @@ public class ApiQueryEngineTest {
      * Build basic fields absent of what {@link SelectEntityApiDTO} requests.
      */
     @Test
-    public void buildSelectFieldsWithNoExtraFieldsSpecified(){
+    public void buildSelectFieldsWithNoExtraFieldsSpecified() {
         //GIVEN
         final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.VIRTUAL_MACHINE);
         this.apiQueryEngineSpy.setMetaDataMapping(request);

@@ -13,9 +13,9 @@ public interface IApiQueryEngine {
     /**
      * Processes {@link EntityQueryApiDTO} and returns paginated results.
      *
-     * @param entityQueryApiDTO
-     * @return
-     * @throws Exception
+     * @param entityQueryApiDTO the entity search query
+     * @return a paginated list of records
+     * @throws Exception when the query cannot be processed.
      */
     @Nonnull
     SearchQueryPaginationResponse processEntityQuery(EntityQueryApiDTO entityQueryApiDTO) throws Exception;

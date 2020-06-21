@@ -84,10 +84,10 @@ public enum SearchEntityMetadataMapping {
     RELATED_DATA_CENTER("attrs", "related_dc", Collections.singleton(EntityType.DATACENTER),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    NUM_WORKLOADS("attrs", "num_workloads", ImmutableSet.of(EntityType.VIRTUAL_MACHINE,
-            EntityType.APPLICATION, EntityType.DATABASE),
-            RelatedEntitiesProperty.COUNT, Type.MULTI_TEXT),
-    ;
+    NUM_WORKLOADS("attrs", "num_workloads",
+        ImmutableSet.of(EntityType.VIRTUAL_MACHINE, EntityType.APPLICATION, EntityType.DATABASE),
+        RelatedEntitiesProperty.COUNT,
+        Type.MULTI_TEXT);
 
     /** name of the column in db table */
     @Nonnull
@@ -137,10 +137,9 @@ public enum SearchEntityMetadataMapping {
      * available on {@link TopologyEntityDTO}, like: oid, name, entityType, etc.
      *
      * @param columnName db column name
-     * @param topoFieldFunction function of how to get value from TopologyEntityDTO
      * @param apiDatatype data structure descriptor of column data.
      * @param enumClass Enum Class for {@link Type#ENUM} data
-     * @return SearchEntityMetaDataMapping
+     * @param topoFieldFunction function of how to get value from TopologyEntityDTO
      */
     SearchEntityMetadataMapping(@Nonnull String columnName,
                                 @Nonnull Type apiDatatype,
@@ -161,7 +160,6 @@ public enum SearchEntityMetadataMapping {
      * @param topoFieldFunction
      * @param apiDatatype data structure descriptor of column data.
      * @param enumClass Enum Class for {@link Type#ENUM} data
-     * @return SearchEntityMetaDataMapping
      */
     SearchEntityMetadataMapping(@Nonnull String columnName,
                                 @Nonnull String jsonKeyName,
@@ -185,7 +183,6 @@ public enum SearchEntityMetadataMapping {
      * @param commodityAttribute subproperty of commodityType when configured
      * @param commodityUnit Units for relevant {@link CommodityType} data
      * @param apiDatatype data structure descriptor of column data
-     * @return SearchEntityMetaDataMapping
      */
     SearchEntityMetadataMapping(@Nonnull String columnName,
                                 @Nonnull String jsonKeyName,
@@ -210,7 +207,6 @@ public enum SearchEntityMetadataMapping {
      * @param relatedEntityTypes subproperty of commodityType when configured
      * @param relatedEntityProperty Units for relevant {@link CommodityType} data
      * @param apiDatatype api data structure descriptor of column data
-     * @return SearchEntityMetaDataMapping
      */
     SearchEntityMetadataMapping(@Nonnull String columnName,
                                 @Nonnull String jsonKeyName,
@@ -309,6 +305,6 @@ public enum SearchEntityMetadataMapping {
      *          if not set returns null
      */
     public String getUnitsString() {
-        return Objects.isNull(commodityUnit)? null :commodityUnit.toString();
+        return Objects.isNull(commodityUnit) ? null : commodityUnit.toString();
     }
 }
