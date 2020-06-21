@@ -14,6 +14,7 @@ import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
@@ -192,19 +193,27 @@ public class ApiComponent extends BaseVmtComponent {
         }
     }
 
+    @Value("${enableSearchApi:false}")
+    private boolean enableSearchApi;
+
     @Override
     protected void onStartComponent() {
         logger.debug("Api onStartComponent");
-        try {
-            //TODO:  Ask Andy before merge,  he may have initilization through baseVMTComponent
-            //and not require this step anymore
-            sqlDatabaseConfig.initAll();
+        logger.info("Enable Search API: " + enableSearchApi);
+        if (enableSearchApi) {
+            logger.info("Search API enabled, initializing DB connection...");
+            try {
+                //TODO:  Ask Andy before merge,  he may have initilization through baseVMTComponent
+                //and not require this step anymore
+                sqlDatabaseConfig.initAll();
 
-            //TODO:Remove before MERGE
+                //TODO:Remove before MERGE
 //            this.searchDBConfig.apiQueryEngine().processEntityQuery(EntityQueryApiDTO.queryEntity(SelectEntity.selectEntity(EntityType.VIRTUAL_MACHINE).build()));
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to initialize data endpoints", e);
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to initialize data endpoints", e);
+            }
+        } else {
+            logger.info("Search API disabled, will not connect to DB.");
         }
-
     }
 }

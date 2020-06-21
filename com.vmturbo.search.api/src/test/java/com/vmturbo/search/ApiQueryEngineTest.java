@@ -66,7 +66,7 @@ public class ApiQueryEngineTest {
         this.mockReadonlyDbEndpoint = mock(DbEndpoint.class);
         this.dSLContextSpy = spy(DSL.using(SQLDialect.POSTGRES));
         doReturn(this.dSLContextSpy).when(this.mockReadonlyDbEndpoint).dslContext();
-        this.apiQueryEngineSpy = spy(new ApiQueryEngine(mockReadonlyDbEndpoint));
+        this.apiQueryEngineSpy = spy(new ApiQueryEngine(mockReadonlyDbEndpoint, true));
     }
 
     /**

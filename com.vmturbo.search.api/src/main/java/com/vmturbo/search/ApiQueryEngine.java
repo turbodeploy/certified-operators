@@ -70,6 +70,8 @@ public class ApiQueryEngine implements IApiQueryEngine {
 
     private DbEndpoint readonlyDbEndpoint;
 
+    private final boolean enableSearchApi;
+
     private DSLContext readOnlyDSLContext;
 
     private EntityQueryApiDTO entityQueryApiDTO;
@@ -93,8 +95,9 @@ public class ApiQueryEngine implements IApiQueryEngine {
     //Tracks requested columns, used to know which information to read when building response
     private Map<SearchEntityMetadataMapping, FieldApiDTO> requestedColumns = new HashMap<>();
 
-    public ApiQueryEngine(DbEndpoint readonlyDbEndpoint) {
+    public ApiQueryEngine(DbEndpoint readonlyDbEndpoint, boolean enableSearchApi) {
         this.readonlyDbEndpoint = readonlyDbEndpoint;
+        this.enableSearchApi = enableSearchApi;
     }
 
     /**
@@ -104,7 +107,7 @@ public class ApiQueryEngine implements IApiQueryEngine {
      */
     private void dslContextInitilization()
             throws Exception {
-        if (this.readOnlyDSLContext == null) {
+        if (this.readOnlyDSLContext == null && enableSearchApi) {
             this.readOnlyDSLContext = this.readonlyDbEndpoint.dslContext();
         }
     }
@@ -119,6 +122,9 @@ public class ApiQueryEngine implements IApiQueryEngine {
     @Override
     public SearchQueryPaginationResponse processEntityQuery(@Nonnull final EntityQueryApiDTO request)
             throws Exception {
+        if (!enableSearchApi) {
+            throw new UnsupportedOperationException("Search API is not yet enabled!");
+        }
         logger.info("SearchQueryPaginationResponse processEntityQuery");
             setMetaDataMapping(request);
             this.dslContextInitilization();
