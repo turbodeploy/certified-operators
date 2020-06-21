@@ -357,9 +357,6 @@
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
                 <module>../com.vmturbo.extractor.schema</module>
-                <module>../com.vmturbo.search.api</module>
-                <module>../com.vmturbo.common.api</module>
-                <module>../com.vmturbo.search.metadata</module>
             </modules>
         </profile>
 
@@ -885,8 +882,6 @@
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
-                <module>../com.vmturbo.search.api</module>
-                <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
@@ -973,8 +968,6 @@
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
-                <module>../com.vmturbo.search.api</module>
-                <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
@@ -1078,8 +1071,6 @@
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
-                <module>../com.vmturbo.search.api</module>
-                <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
@@ -1870,17 +1861,7 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
-                <artifactId>search-api</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
                 <artifactId>search-metadata</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
-                <artifactId>common-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

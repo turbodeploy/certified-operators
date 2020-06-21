@@ -83,7 +83,6 @@ import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
-import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -1621,7 +1620,8 @@ public class ActionSpecMapper {
             }
 
             if (inputDto.getEnvironmentType() != null) {
-                queryBuilder.setEnvironmentType(EnvironmentTypeMapper.fromApiToXL(inputDto.getEnvironmentType()));
+                queryBuilder.setEnvironmentType(EnvironmentTypeMapper.fromApiToXL(
+                                                    inputDto.getEnvironmentType()));
             }
 
             if (CollectionUtils.isNotEmpty(inputDto.getRelatedEntityTypes())) {
@@ -2135,7 +2135,8 @@ public class ActionSpecMapper {
         serviceEntity.setUuid(String.valueOf(actionEntity.getId()));
         serviceEntity.setClassName(ApiEntityType.fromType(actionEntity.getType()).apiStr());
         if (actionEntity.hasEnvironmentType()) {
-            serviceEntity.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(actionEntity.getEnvironmentType()));
+            serviceEntity.setEnvironmentType(
+                    EnvironmentTypeMapper.fromXLToApi(actionEntity.getEnvironmentType()));
         }
         return serviceEntity;
     }

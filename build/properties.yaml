@@ -50,7 +50,6 @@ defaultProperties:
     extractor:
         dbHost: timescaledb
         dbPort: 5432
-        dbRootUserName: postgres
     action-orchestrator:
         identityGeneratorPrefix: 9
         actionPaginationDefaultLimit: 100
@@ -94,20 +93,6 @@ defaultProperties:
         externalApiFileSystemBase: file:/swagger/
         cpuInfoCacheLifetimeHours: 8
         sessionTimeoutSeconds: 1800
-#        dbHost: xlr01.eng.turbonomic.com
-#        dbPort: 5432
-#        dbDatabaseName: turbodb
-#        dbSchemaName: turbo-do
-#        dbUserName: turbo-do
-#        dbPassword: turbo-do
-        dbHost: 10.10.170.248
-        dbPort: 5432
-        dbDatabaseName: extractor
-        dbSchemaName: extractor
-        dbUserName: extractor
-        dbPassword: vmturbo
-
-
     auth:
         dbSchemaName: auth
         identityGeneratorPrefix: 7

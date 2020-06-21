@@ -14,7 +14,6 @@ import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
@@ -35,8 +34,6 @@ import com.vmturbo.api.internal.controller.ApiDiagnosticsConfig;
 import com.vmturbo.api.internal.controller.DBAdminController;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.config.PropertiesLoader;
-import com.vmturbo.search.SearchDBConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
  * This is the "main()" for the API Component. The API component implements
@@ -53,9 +50,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig2;
     ProbesController.class,
     SwaggerConfig.class,
     ServiceConfig.class,
-    ApiDiagnosticsConfig.class,
-    SearchDBConfig.class,
-    SQLDatabaseConfig2.class
+    ApiDiagnosticsConfig.class
 })
 public class ApiComponent extends BaseVmtComponent {
 
@@ -63,20 +58,6 @@ public class ApiComponent extends BaseVmtComponent {
 
     @Autowired
     private ApiDiagnosticsConfig diagnosticsConfig;
-
-
-    //TODO: Remove before merge
-    /**
-     * Search DB configuration and access points.
-     */
-    @Autowired
-    private SearchDBConfig searchDBConfig;
-
-    /**
-     * Configurations for interacting with database.
-     */
-    @Autowired
-    private SQLDatabaseConfig2 sqlDatabaseConfig;
 
     // env vars
     private static final String ENV_UPLOAD_MAX_FILE_SIZE_KB = "multipartConfigMaxFileSizeKb";
@@ -91,7 +72,6 @@ public class ApiComponent extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
-        logger.debug("ApiComponent main()");
         startContext(ApiComponent::createContext);
     }
 
@@ -190,30 +170,6 @@ public class ApiComponent extends BaseVmtComponent {
             diagnosticsConfig.diagsHandler().dump(diagnosticZip);
         } catch (Exception e) {
             logger.error("Unable to capture diagnostics due to error: ", e);
-        }
-    }
-
-    @Value("${enableSearchApi:false}")
-    private boolean enableSearchApi;
-
-    @Override
-    protected void onStartComponent() {
-        logger.debug("Api onStartComponent");
-        logger.info("Enable Search API: " + enableSearchApi);
-        if (enableSearchApi) {
-            logger.info("Search API enabled, initializing DB connection...");
-            try {
-                //TODO:  Ask Andy before merge,  he may have initilization through baseVMTComponent
-                //and not require this step anymore
-                sqlDatabaseConfig.initAll();
-
-                //TODO:Remove before MERGE
-//            this.searchDBConfig.apiQueryEngine().processEntityQuery(EntityQueryApiDTO.queryEntity(SelectEntity.selectEntity(EntityType.VIRTUAL_MACHINE).build()));
-            } catch (Exception e) {
-                throw new IllegalStateException("Failed to initialize data endpoints", e);
-            }
-        } else {
-            logger.info("Search API disabled, will not connect to DB.");
         }
     }
 }

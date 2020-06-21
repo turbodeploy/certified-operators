@@ -12,7 +12,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.CommodityAttribute;
-import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 import com.vmturbo.api.dto.searchquery.RelatedEntityFieldApiDTO.RelatedEntitiesProperty;
 import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.api.enums.EntitySeverity;
@@ -21,7 +20,6 @@ import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
@@ -32,88 +30,83 @@ public enum SearchEntityMetadataMapping {
     /**
      * Basic fields.
      */
-    PRIMITIVE_OID("oid", Type.INTEGER, null,
+    PRIMITIVE_OID("oid", SearchEntityFieldDataType.INTEGER, null,
             entity -> Optional.of(entity.getOid())),
 
-    PRIMITIVE_ENTITY_TYPE("type", Type.ENUM, EntityType.class,
-            entity -> Optional.of(EntityDTO.EntityType.forNumber(entity.getEntityType()))),
+    PRIMITIVE_ENTITY_TYPE("type", SearchEntityFieldDataType.ENUM, EntityType.class,
+            entity -> Optional.of(entity.getEntityType())),
 
-    PRIMITIVE_NAME("name", Type.TEXT, null,
+    PRIMITIVE_NAME("name", SearchEntityFieldDataType.STRING, null,
             entity -> Optional.of(entity.getDisplayName())),
 
-    PRIMITIVE_STATE("state", Type.ENUM, EntityState.class,
+    PRIMITIVE_STATE("state", SearchEntityFieldDataType.ENUM, EntityState.class,
             entity -> Optional.of(entity.getEntityState())),
 
-    PRIMITIVE_ENVIRONMENT_TYPE("environment", Type.ENUM, EnvironmentType.class,
+    PRIMITIVE_ENVIRONMENT_TYPE("environment", SearchEntityFieldDataType.ENUM, EnvironmentType.class,
             entity -> Optional.of(entity.getEnvironmentType())),
 
-    PRIMITIVE_SEVERITY("severity", Type.ENUM, EntitySeverity.class),
+    PRIMITIVE_SEVERITY("severity", SearchEntityFieldDataType.ENUM, EntitySeverity.class),
 
     /**
      * Related action.
      */
-    RELATED_ACTION("num_actions", Type.INTEGER, null),
+    RELATED_ACTION("num_actions", SearchEntityFieldDataType.INTEGER, null),
 
     /**
      * Entity type specific fields.
      */
-    PRIMITIVE_GUEST_OS_TYPE("attrs", "guest_os_type", Type.ENUM, OSType.class,
+    PRIMITIVE_GUEST_OS_TYPE("attrs", "guest_os_type", SearchEntityFieldDataType.ENUM, OSType.class,
             entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType())),
 
     /**
      * Commodities.
      */
     COMMODITY_VCPU_USED("attrs", "vcpu_used", CommodityType.VCPU, CommodityAttribute.USED,
-            CommodityTypeUnits.VCPU, Type.NUMBER),
+            CommodityTypeUnits.VCPU, SearchEntityFieldDataType.DECIMAL),
 
     COMMODITY_VCPU_UTILIZATION("attrs", "vcpu_utilization", CommodityType.VCPU, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.VCPU, Type.NUMBER),
+            CommodityTypeUnits.VCPU, SearchEntityFieldDataType.DECIMAL),
 
     COMMODITY_CPU_USED("attrs", "cpu_used", CommodityType.CPU, CommodityAttribute.USED,
-            CommodityTypeUnits.CPU, Type.NUMBER),
+            CommodityTypeUnits.CPU, SearchEntityFieldDataType.DECIMAL),
 
     COMMODITY_CPU_UTILIZATION("attrs", "cpu_utilization", CommodityType.CPU, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.CPU, Type.NUMBER),
+            CommodityTypeUnits.CPU, SearchEntityFieldDataType.DECIMAL),
 
     /**
      * Related entities.
      */
     RELATED_HOST("attrs", "related_host", Collections.singleton(EntityType.PHYSICAL_MACHINE),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+            RelatedEntitiesProperty.NAMES, SearchEntityFieldDataType.STRING),
 
     RELATED_DATA_CENTER("attrs", "related_dc", Collections.singleton(EntityType.DATACENTER),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+            RelatedEntitiesProperty.NAMES, SearchEntityFieldDataType.STRING),
 
-    NUM_WORKLOADS("attrs", "num_workloads",
-        ImmutableSet.of(EntityType.VIRTUAL_MACHINE, EntityType.APPLICATION, EntityType.DATABASE),
-        RelatedEntitiesProperty.COUNT,
-        Type.MULTI_TEXT);
+    NUM_WORKLOADS("attrs", "num_workloads", ImmutableSet.of(EntityType.VIRTUAL_MACHINE,
+            EntityType.APPLICATION, EntityType.DATABASE),
+            RelatedEntitiesProperty.COUNT, SearchEntityFieldDataType.INTEGER);
 
-    /** name of the column in db table */
-    @Nonnull
     private final String columnName;
 
     // key of the json obj, if this is a jsonB column
-    @Nullable
     private String jsonKeyName;
 
     // type of the value for this field
-    @Nonnull private Type apiDatatype;
+    private final SearchEntityFieldDataType searchEntityFieldDataType;
 
-    // enum if
-    @Nullable private Class<? extends Enum<?>> enumClass;
+    private Class<? extends Enum<?>> enumClass;
 
-    @Nullable private Function<TopologyEntityDTO, Optional<Object>> topoFieldFunction;
+    private Function<TopologyEntityDTO, Optional<Object>> topoFieldFunction;
 
-    @Nullable private Set<EntityType> relatedEntityTypes;
+    private Set<EntityType> relatedEntityTypes;
 
-    @Nullable private RelatedEntitiesProperty relatedEntityProperty;
+    private RelatedEntitiesProperty relatedEntityProperty;
 
-    @Nullable private CommodityType commodityType;
+    private CommodityType commodityType;
 
-    @Nullable private CommodityAttribute commodityAttribute;
+    private CommodityAttribute commodityAttribute;
 
-    @Nullable private CommodityTypeUnits commodityUnit;
+    private CommodityTypeUnits commodityUnit;
 
 
     /**
@@ -121,14 +114,14 @@ public enum SearchEntityMetadataMapping {
      * not available on {@link TopologyEntityDTO}, such as: severity, related action.
      *
      * @param columnName db column name
-     * @param apiDatatype data type of the field
+     * @param searchEntityFieldDataType data type of the field
      * @param enumClass enum class if data type is enum
      */
     SearchEntityMetadataMapping(@Nonnull String columnName,
-                                @Nonnull Type apiDatatype,
+                                @Nonnull SearchEntityFieldDataType searchEntityFieldDataType,
                                 @Nullable Class<? extends Enum<?>> enumClass) {
         this.columnName = Objects.requireNonNull(columnName);
-        this.apiDatatype = Objects.requireNonNull(apiDatatype);
+        this.searchEntityFieldDataType = Objects.requireNonNull(searchEntityFieldDataType);
         this.enumClass = enumClass;
     }
 
@@ -137,16 +130,16 @@ public enum SearchEntityMetadataMapping {
      * available on {@link TopologyEntityDTO}, like: oid, name, entityType, etc.
      *
      * @param columnName db column name
-     * @param apiDatatype data structure descriptor of column data.
-     * @param enumClass Enum Class for {@link Type#ENUM} data
      * @param topoFieldFunction function of how to get value from TopologyEntityDTO
+     * @param searchEntityFieldDataType data structure descriptor of column data.
+     * @param enumClass Enum Class for {@link SearchEntityFieldDataType#ENUM} data
      */
     SearchEntityMetadataMapping(@Nonnull String columnName,
-                                @Nonnull Type apiDatatype,
+                                @Nonnull SearchEntityFieldDataType searchEntityFieldDataType,
                                 @Nullable Class<? extends Enum<?>> enumClass,
                                 @Nonnull Function<TopologyEntityDTO, Optional<Object>> topoFieldFunction) {
         this.columnName = Objects.requireNonNull(columnName);
-        this.apiDatatype = Objects.requireNonNull(apiDatatype);
+        this.searchEntityFieldDataType = Objects.requireNonNull(searchEntityFieldDataType);
         this.topoFieldFunction = Objects.requireNonNull(topoFieldFunction);
         this.enumClass = enumClass;
     }
@@ -157,18 +150,19 @@ public enum SearchEntityMetadataMapping {
      * {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo}, like: guest_os_type.
      *
      * @param columnName db column name
-     * @param topoFieldFunction
-     * @param apiDatatype data structure descriptor of column data.
-     * @param enumClass Enum Class for {@link Type#ENUM} data
+     * @param jsonKeyName key name inside the jsonb column
+     * @param searchEntityFieldDataType data structure descriptor of column data.
+     * @param enumClass Enum Class for {@link SearchEntityFieldDataType#ENUM} data
+     * @param topoFieldFunction function of how to get value from TopologyEntityDTO
      */
     SearchEntityMetadataMapping(@Nonnull String columnName,
                                 @Nonnull String jsonKeyName,
-                                @Nonnull Type apiDatatype,
+                                @Nonnull SearchEntityFieldDataType searchEntityFieldDataType,
                                 @Nullable Class<? extends Enum<?>> enumClass,
                                 @Nonnull Function<TopologyEntityDTO, Optional<Object>> topoFieldFunction) {
         this.columnName = Objects.requireNonNull(columnName);
         this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
-        this.apiDatatype = Objects.requireNonNull(apiDatatype);
+        this.searchEntityFieldDataType = Objects.requireNonNull(searchEntityFieldDataType);
         this.enumClass = enumClass;
         this.topoFieldFunction = Objects.requireNonNull(topoFieldFunction);
     }
@@ -178,24 +172,24 @@ public enum SearchEntityMetadataMapping {
      * into the jsonb column.
      *
      * @param columnName db column name
-     * @param jsonKeyName db json column key
+     * @param jsonKeyName key name inside the jsonb column
      * @param commodityType commodityType of data
      * @param commodityAttribute subproperty of commodityType when configured
      * @param commodityUnit Units for relevant {@link CommodityType} data
-     * @param apiDatatype data structure descriptor of column data
+     * @param searchEntityFieldDataType data structure descriptor of column data
      */
     SearchEntityMetadataMapping(@Nonnull String columnName,
                                 @Nonnull String jsonKeyName,
                                 @Nonnull CommodityType commodityType,
                                 @Nonnull CommodityAttribute commodityAttribute,
                                 @Nonnull CommodityTypeUnits commodityUnit,
-                                @Nonnull Type apiDatatype) {
+                                @Nonnull SearchEntityFieldDataType searchEntityFieldDataType) {
         this.columnName = Objects.requireNonNull(columnName);
         this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
         this.commodityType = Objects.requireNonNull(commodityType);
         this.commodityAttribute = Objects.requireNonNull(commodityAttribute);
         this.commodityUnit = Objects.requireNonNull(commodityUnit);
-        this.apiDatatype = Objects.requireNonNull(apiDatatype);
+        this.searchEntityFieldDataType = Objects.requireNonNull(searchEntityFieldDataType);
     }
 
     /**
@@ -203,21 +197,21 @@ public enum SearchEntityMetadataMapping {
      * a jsonb table column, which contains key/value pairs.
      *
      * @param columnName db column name
-     * @param jsonKeyName db json column key
-     * @param relatedEntityTypes subproperty of commodityType when configured
-     * @param relatedEntityProperty Units for relevant {@link CommodityType} data
-     * @param apiDatatype api data structure descriptor of column data
+     * @param jsonKeyName key name inside the jsonb column
+     * @param relatedEntityTypes set of related entity types
+     * @param relatedEntityProperty property of related entity
+     * @param searchEntityFieldDataType data type of the field
      */
     SearchEntityMetadataMapping(@Nonnull String columnName,
                                 @Nonnull String jsonKeyName,
                                 @Nonnull Set<EntityType> relatedEntityTypes,
                                 @Nonnull RelatedEntitiesProperty relatedEntityProperty,
-                                @Nonnull Type apiDatatype) {
+                                @Nonnull SearchEntityFieldDataType searchEntityFieldDataType) {
         this.columnName = Objects.requireNonNull(columnName);
         this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
         this.relatedEntityTypes = Objects.requireNonNull(relatedEntityTypes);
         this.relatedEntityProperty = Objects.requireNonNull(relatedEntityProperty);
-        this.apiDatatype = Objects.requireNonNull(apiDatatype);
+        this.searchEntityFieldDataType = Objects.requireNonNull(searchEntityFieldDataType);
     }
 
     //TODO: constructors for RelatedGroupFieldMapping
@@ -227,12 +221,10 @@ public enum SearchEntityMetadataMapping {
      *
      * @return columnName
      */
-    @Nonnull
     public String getColumnName() {
         return columnName;
     }
 
-    @Nullable
     public String getJsonKeyName() {
         return jsonKeyName;
     }
@@ -240,10 +232,10 @@ public enum SearchEntityMetadataMapping {
     /**
      * Data structure descriptor of column data.
      *
-     * @return Type
+     * @return SearchEntityFieldDataType
      */
-    public Type getApiDatatype() {
-        return apiDatatype;
+    public SearchEntityFieldDataType getSearchEntityFieldDataType() {
+        return searchEntityFieldDataType;
     }
 
     public Function<TopologyEntityDTO, Optional<Object>> getTopoFieldFunction() {
@@ -251,7 +243,7 @@ public enum SearchEntityMetadataMapping {
     }
 
     /**
-     * Enum Class for {@link Type#ENUM} data.
+     * Enum Class for {@link SearchEntityFieldDataType#ENUM} data.
      *
      * @return enum Class
      */
@@ -273,7 +265,6 @@ public enum SearchEntityMetadataMapping {
      *
      * @return CommodityAttribute
      */
-    @Nullable
     public CommodityAttribute getCommodityAttribute() {
         return commodityAttribute;
     }
@@ -283,28 +274,15 @@ public enum SearchEntityMetadataMapping {
      *
      * @return CommodityTypeUnits
      */
-    @Nullable
     public CommodityTypeUnits getCommodityUnit() {
         return commodityUnit;
     }
 
-    @Nullable
     public Set<EntityType> getRelatedEntityTypes() {
         return relatedEntityTypes;
     }
 
-    @Nullable
     public RelatedEntitiesProperty getRelatedEntityProperty() {
         return relatedEntityProperty;
-    }
-
-    /**
-     * Units for relevant {@link CommodityType} data.
-     *
-     * @return string representation of {@link SearchEntityMetadataMapping#commodityUnit},
-     *          if not set returns null
-     */
-    public String getUnitsString() {
-        return Objects.isNull(commodityUnit) ? null : commodityUnit.toString();
     }
 }

@@ -14,13 +14,6 @@ import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.ISearchQueryService;
-import com.vmturbo.search.IApiQueryEngine;
-
-/**
- * This object serves the requests to the new search API.
-import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
-import com.vmturbo.api.serviceinterfaces.ISearchQueryService;
-import com.vmturbo.search.IApiQueryEngine;
 
 /**
  * This object serves the requests to the new search API.
@@ -33,13 +26,6 @@ import com.vmturbo.search.IApiQueryEngine;
  * </ul>
  */
 public class SearchQueryService implements ISearchQueryService {
-
-    private IApiQueryEngine apiQueryEngine;
-
-    public SearchQueryService(final IApiQueryEngine apiQueryEngine) {
-        this.apiQueryEngine = apiQueryEngine;
-    }
-
     /**
      * Search entities.  Endpoint: POST /entities/query
      *
@@ -50,7 +36,8 @@ public class SearchQueryService implements ISearchQueryService {
     @Nonnull
     public SearchQueryPaginationResponse<SearchQueryRecordApiDTO> searchEntities(
             @Nonnull EntityQueryApiDTO input) throws Exception {
-        return apiQueryEngine.processEntityQuery(input);
+        // TODO
+        throw ApiUtils.notImplementedInXL();
     }
 
     /**
