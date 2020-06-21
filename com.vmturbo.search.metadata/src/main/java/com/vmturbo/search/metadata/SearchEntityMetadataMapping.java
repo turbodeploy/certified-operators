@@ -36,7 +36,8 @@ public enum SearchEntityMetadataMapping {
             entity -> Optional.of(entity.getOid())),
 
     PRIMITIVE_ENTITY_TYPE("type", Type.ENUM, EntityType.class,
-            entity -> Optional.of(EntityDTO.EntityType.forNumber(entity.getEntityType()))),
+//            entity -> Optional.of(EntityDTO.EntityType.forNumber(entity.getEntityType()))),
+            entity -> Optional.of(entity.getEntityType())),
 
     PRIMITIVE_NAME("name", Type.TEXT, null,
             entity -> Optional.of(entity.getDisplayName())),
