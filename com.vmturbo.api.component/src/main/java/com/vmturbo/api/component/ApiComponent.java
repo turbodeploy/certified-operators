@@ -34,6 +34,8 @@ import com.vmturbo.api.internal.controller.ApiDiagnosticsConfig;
 import com.vmturbo.api.internal.controller.DBAdminController;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.config.PropertiesLoader;
+import com.vmturbo.search.SearchDBConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
  * This is the "main()" for the API Component. The API component implements
@@ -50,7 +52,9 @@ import com.vmturbo.components.common.config.PropertiesLoader;
     ProbesController.class,
     SwaggerConfig.class,
     ServiceConfig.class,
-    ApiDiagnosticsConfig.class
+    ApiDiagnosticsConfig.class,
+    SearchDBConfig.class,
+    SQLDatabaseConfig2.class
 })
 public class ApiComponent extends BaseVmtComponent {
 
@@ -58,6 +62,20 @@ public class ApiComponent extends BaseVmtComponent {
 
     @Autowired
     private ApiDiagnosticsConfig diagnosticsConfig;
+
+
+    //TODO: Remove before merge
+    /**
+     * Search DB configuration and access points.
+     */
+    @Autowired
+    private SearchDBConfig searchDBConfig;
+
+    /**
+     * Configurations for interacting with database.
+     */
+    @Autowired
+    private SQLDatabaseConfig2 sqlDatabaseConfig;
 
     // env vars
     private static final String ENV_UPLOAD_MAX_FILE_SIZE_KB = "multipartConfigMaxFileSizeKb";
@@ -72,6 +90,7 @@ public class ApiComponent extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
+        logger.debug("ApiComponent main()");
         startContext(ApiComponent::createContext);
     }
 
@@ -171,5 +190,21 @@ public class ApiComponent extends BaseVmtComponent {
         } catch (Exception e) {
             logger.error("Unable to capture diagnostics due to error: ", e);
         }
+    }
+
+    @Override
+    protected void onStartComponent() {
+        logger.debug("Api onStartComponent");
+        try {
+            //TODO:  Ask Andy before merge,  he may have initilization through baseVMTComponent
+            //and not require this step anymore
+            sqlDatabaseConfig.initAll();
+
+            //TODO:Remove before MERGE
+//            this.searchDBConfig.apiQueryEngine().processEntityQuery(EntityQueryApiDTO.queryEntity(SelectEntity.selectEntity(EntityType.VIRTUAL_MACHINE).build()));
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to initialize data endpoints", e);
+        }
+
     }
 }

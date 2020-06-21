@@ -31,7 +31,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -45,6 +44,7 @@ import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;

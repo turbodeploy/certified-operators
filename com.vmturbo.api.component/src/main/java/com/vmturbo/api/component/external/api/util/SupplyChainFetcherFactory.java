@@ -34,9 +34,7 @@ import io.grpc.StatusRuntimeException;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -45,6 +43,7 @@ import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;

@@ -11,6 +11,7 @@ import org.junit.Test;
 
 import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
+import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 
 /**
  * Unit tests verify that all fields in SearchEntityMetadataMapping for different field types
@@ -36,8 +37,8 @@ public class SearchEntityMetadataTest {
     @Test
     public void testMetadataFieldsSetCorrectly() {
         for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
-            for (Map.Entry<FieldApiDTO, SearchEntityMetadataMapping> entry
-                    : searchEntityMetadata.getMetadataMappingMap().entrySet()) {
+            for (Map.Entry<FieldApiDTO, SearchEntityMetadataMapping> entry :
+                    searchEntityMetadata.getMetadataMappingMap().entrySet()) {
                 MetadataVerifier metadataVerifier =
                         METADATA_VERIFIERS.get(entry.getKey().getFieldType());
                 // verify that MetadataVerifier for this filed type exists
@@ -56,8 +57,8 @@ public class SearchEntityMetadataTest {
 
         default void commonVerify(SearchEntityMetadataMapping metadata) {
             assertNotNull(metadata.getColumnName());
-            assertNotNull(metadata.getSearchEntityFieldDataType());
-            if (metadata.getSearchEntityFieldDataType() == SearchEntityFieldDataType.ENUM) {
+            assertNotNull(metadata.getApiDatatype());
+            if (metadata.getApiDatatype() == Type.ENUM) {
                 assertNotNull(metadata.getEnumClass());
             } else {
                 assertNull(metadata.getEnumClass());
