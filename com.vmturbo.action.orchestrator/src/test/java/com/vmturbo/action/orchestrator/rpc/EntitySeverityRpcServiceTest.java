@@ -54,7 +54,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
  */
 public class EntitySeverityRpcServiceTest {
     private EntitySeverityServiceBlockingStub severityServiceClient;
-    private final SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
     private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
 
     private EntitySeverityCache severityCache;
@@ -70,7 +69,6 @@ public class EntitySeverityRpcServiceTest {
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(
         entitySeverityRpcService,
-        supplyChainServiceMole,
         repositoryServiceMole);
 
     @Before
@@ -79,7 +77,6 @@ public class EntitySeverityRpcServiceTest {
 
         severityServiceClient = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         severityCache = Mockito.spy(new EntitySeverityCache(
-            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             true));
     }
