@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -217,7 +218,7 @@ public class AnalysisTest {
                 .thenReturn(Collections.singletonList(wastedFileAction));
         when(wastedFilesAnalysis.getStorageAmountReleasedForOid(anyLong())).thenReturn(Optional.empty());
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
-        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(any(), any());
+        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), anyList());
 
         return new Analysis(topoInfo, topologySet,
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,

@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -161,7 +162,7 @@ public class MarketRunnerTest {
             final GroupServiceBlockingStub groupServiceGrpc =
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
             final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
-            doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(any(), any());
+            doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), anyList());
             return new Analysis(topologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,

@@ -6,6 +6,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -173,7 +174,7 @@ public class ScopedTopologyTest {
                 mock(BuyRIImpactAnalysisFactory.class);
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
-        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(any(), any());
+        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), anyList());
         testAnalysis = new Analysis(PLAN_TOPOLOGY_INFO,
             Collections.emptySet(),
             new GroupMemberRetriever(groupServiceClient),
@@ -366,7 +367,7 @@ public class ScopedTopologyTest {
                 when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
                 when(topologyCostCalculatorFactory.newCalculator(any(), any())).thenReturn(topologyCostCalculator);
                 final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
-                doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(any(), any());
+                doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), anyList());
 
                 return new Analysis(topologyInfo, topologyDTOs,
                         new GroupMemberRetriever(groupServiceClient), Clock.systemUTC(),
