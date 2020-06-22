@@ -1,5 +1,17 @@
 package com.vmturbo.market.runner.cost;
 
+import com.vmturbo.common.protobuf.cost.Cost;
+
+import java.util.List;
+
+/**
+ * Defines the interface for interacting with the cost component's migrade workload cloud commitment analysis service.
+ */
 public interface MigratedWorkloadCloudCommitmentAnalysisService {
-    void startAnalysis(String topology);
+    /**
+     * Starts a migrated workload cloud commitment analysis (Buy RI analysis).
+     * @param topologyContextId         The plan topology ID
+     * @param workloadPlacementList     A list of workload placements (VM, compute tier, and region)
+     */
+    void startAnalysis(long topologyContextId, List<Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement> workloadPlacementList);
 }

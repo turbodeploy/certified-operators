@@ -10,6 +10,9 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import com.vmturbo.cost.component.history.HistoricalStatsService;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.MigratedWorkloadCloudCommitmentAlgorithmStrategy;
 import com.vmturbo.cost.component.rpc.MigratedWorkloadCloudCommitmentAnalysisService;
 import io.grpc.BindableService;
 import io.grpc.ServerInterceptor;
@@ -61,7 +64,8 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CostStatsConfig.class,
     CostPlanListenerConfig.class,
     ReservedInstanceSpecConfig.class,
-    CostDiagnonsticsConfig.class})
+    CostDiagnonsticsConfig.class,
+    HistoryServiceConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.
@@ -110,9 +114,24 @@ public class CostComponent extends BaseVmtComponent {
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
+    /**
+     * gRPC service endpoint that handles migrated workload cloud commitment (Buy RI) analysis.
+     * @return  The Spring Bean that implements this functionality.
+     */
     @Bean
     public MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService() {
         return new MigratedWorkloadCloudCommitmentAnalysisService();
+    }
+
+    /**
+     * The migrated workload cloud commitment (Buy RI) algorithm implementation. This bean will be autowired into the
+     * MigratedWorkloadCloudCommitmentAnalysisService and used to analyze a plan topology for recommended cloud
+     * commitment purchases.
+     * @return      The algorithm implementation for this strategy.
+     */
+    @Bean
+    public MigratedWorkloadCloudCommitmentAlgorithmStrategy migratedWorkloadCloudCommitmentAlgorithmStrategy(HistoricalStatsService historicalStatsService) {
+        return new ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(historicalStatsService);
     }
 
     /**

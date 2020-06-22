@@ -1168,8 +1168,34 @@ message DeletePlanReservedInstanceStatsResponse {
 }
 
 message MigratedWorkloadCloudCommitmentAnalysisRequest {
-    // the topology info
-    optional .topology.TopologyInfo topologyInfo = 1;
+    // The ID of the plan topology
+    optional int64 topologyContextId = 1;
+
+    // The migration profile for the RIs to buy, e.g. 3 year all upfront or 1 year partial upfront
+    optional MigrationProfile migration_profile = 2;
+
+    // A list of the placed virtual machines
+    repeated MigratedWorkloadPlacement virtual_machines = 3;
+
+    // The placement definition of a virtual machine: the VM, the compute tier to which it is being placed,
+    // and the region that hosts that compute tier
+    message MigratedWorkloadPlacement {
+        // The virtual machine that is being placed
+        optional .topology.TopologyEntityDTO virtual_machine = 1;
+
+        // The compute tier on which it is being placed
+        optional .topology.TopologyEntityDTO compute_tier = 2;
+
+        // The region hosting the compute tier
+        optional .topology.TopologyEntityDTO region = 3;
+    }
+
+    // The profile for the RIs to buy. TODO: need to flesh this out better
+    message MigrationProfile {
+        optional common_dto.ReservedInstanceType.OfferingClass preferred_offering_class = 1;
+        optional common_dto.ReservedInstanceType.PaymentOption preferred_payment_option = 2;
+        optional int32 preferred_term = 3;
+    }
 }
 
 message MigratedWorkloadCloudCommitmentAnalysisResponse {

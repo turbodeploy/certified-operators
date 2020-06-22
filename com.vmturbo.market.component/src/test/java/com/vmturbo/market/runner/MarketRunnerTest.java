@@ -161,7 +161,7 @@ public class MarketRunnerTest {
             final GroupServiceBlockingStub groupServiceGrpc =
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
             final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
-            doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(any());
+            doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(any(), any());
             return new Analysis(topologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
