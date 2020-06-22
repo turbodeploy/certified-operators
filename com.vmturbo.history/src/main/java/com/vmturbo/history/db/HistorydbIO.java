@@ -751,6 +751,9 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Get the next page of entity IDs given a time frame and pagination parameters.
      *
+     * If not all entities in the scope have the orderBy commodity, the ones that have it will be
+     * returned first (ordered accordingly) and then the rest will follow ordered by uuid.
+     *
      * @param entityScope      The {@link EntityStatsScope} for the stats query.
      * @param timestamp        The timestamp to use to calculate the next page.
      * @param tFrame           The timeframe to use for the timestamp.
@@ -790,12 +793,134 @@ public class HistorydbIO extends BasedbIO {
             return NextPageInfo.EMPTY_INSTANCE;
 
         }
-
-        final SeekPaginationCursor seekPaginationCursor = SeekPaginationCursor.parseCursor(paginationParams.getNextCursor().orElse(""));
         // Now we have the entity type, we can use it together with the time frame to
         // figure out the table to paginate in.
         final Table<?> table = entityType.getTimeFrameTable(tFrame).get();
 
+        final Set<String> requestedIdSet = getRequestedScopeIds(entityScope);
+
+        final SeekPaginationCursor seekPaginationCursor
+                = SeekPaginationCursor.parseCursor(paginationParams.getNextCursor().orElse(""));
+
+        // Given an entity id, a commodity type and a time snapshot, we might have multiple
+        // entries in the db. We want to group them first, by averaging their values and
+        // capacity, this will be stored in the aggregate stats table. Then, since this table
+        // might not contain all uuids in the scope (i.e. in case some entities don't have the
+        // orderBy commodity) we create allUuidsInScope table to ensure that all uuids in
+        // the scope are included in the result. Then, depending on which
+        // can apply our cursor conditions and order the members based on the pagination
+        // parameters.
+        try (Connection conn = transConnection()) {
+            List<String> nextPageIds = new ArrayList<>();
+
+            BigDecimal valueForLastEntityWithOrderByCommodity = new BigDecimal(0);
+
+            // Create a table (subquery) with the entities that have the orderBy commodity
+            final Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats =
+                    createAggregatedStatsTable(conn, table, timestamp,
+                            paginationParams, statsFilter, requestedIdSet);
+            final Field<String> aggregatedUuidField = getStringField(aggregatedStats, UUID);
+            final Field<BigDecimal> aggregateValueField =
+                SeekPaginationCursor.getValueField(paginationParams, aggregatedStats);
+
+            // Create a table (subquery) with the uuids of all the entities in the scope
+            final Table<Record1<String>> allUuidsInScope =
+                    createAllUuidsInScopeTable(conn, table, timestamp, requestedIdSet);
+            final Field<String> scopedUuidField = getStringField(allUuidsInScope, UUID);
+
+            final int totalRecordCount = getTotalRecordsCount(conn, allUuidsInScope, requestedIdSet);
+
+            // Check if the cursor points to an entity that has the orderBy commodity
+            final boolean cursorExistsInAggregatedStatsTable = seekPaginationCursor.lastId.isPresent()
+                    && using(conn).fetchExists(using(conn).selectOne()
+                    .from(aggregatedStats)
+                    .where(aggregatedUuidField.eq(seekPaginationCursor.lastId.get())));
+
+            // if the cursor is not specified (it's the first page) or the cursor exists in
+            // aggregatedStats table, add entities that have the orderBy commodity to the results
+            if (!seekPaginationCursor.lastId.isPresent() || cursorExistsInAggregatedStatsTable) {
+                final Result<Record2<String, BigDecimal>> results =
+                        fetchEntitiesThatHaveTheOrderByCommodity(conn, aggregatedStats,
+                                aggregateValueField, seekPaginationCursor,
+                                paginationParams);
+                // if the results exceed the page size, do an early return
+                if (results.size() > paginationParams.getLimit()) {
+                    // If there are more results, we trim the last result (since that goes beyond
+                    // the page limit).
+                    nextPageIds = results.getValues(scopedUuidField)
+                            .subList(0, paginationParams.getLimit());
+                    final int lastIdx = nextPageIds.size() - 1;
+                    return new NextPageInfo(nextPageIds, table,
+                            SeekPaginationCursor.nextCursor(nextPageIds.get(lastIdx),
+                                    results.getValue(lastIdx, aggregateValueField)),
+                            totalRecordCount);
+                }
+                nextPageIds = results.getValues(scopedUuidField);
+                if (nextPageIds.size() > 0) {
+                    // save the value of the last entity to use it in the edge case where the last
+                    // entities that have the orderBy commodity fill a page but there are more
+                    // entities to be returned. In that case we need this value for the cursor.
+                    valueForLastEntityWithOrderByCommodity =
+                            results.getValue(nextPageIds.size() - 1, aggregateValueField);
+                }
+            }
+
+            // If the number of results with the entities that have the orderBy commodity is less
+            // than the page limit, append to the end the entities that don't have it. If it is
+            // exactly equal to page limit, check to see if there are entities that don't have the
+            // orderBy commodity, in which case we must to add the cursor to the response.
+            final Result<Record1<String>> entitiesWithoutOrderByCommodity =
+                    fetchEntitiesThatDontHaveTheOrderByCommodity(conn, aggregatedStats,
+                            allUuidsInScope, paginationParams.getLimit(), seekPaginationCursor,
+                            cursorExistsInAggregatedStatsTable, nextPageIds.size());
+            nextPageIds.addAll(entitiesWithoutOrderByCommodity.getValues(scopedUuidField));
+            if (nextPageIds.size() > paginationParams.getLimit()) {
+                // If there are more results, we trim the last result (since that goes beyond
+                // the page limit).
+                nextPageIds = nextPageIds.subList(0, paginationParams.getLimit());
+                final int lastIdx = nextPageIds.size() - 1;
+                return new NextPageInfo(nextPageIds, table,
+                        SeekPaginationCursor.nextCursor(nextPageIds.get(lastIdx),
+                                // - cover the edge cage where the entities that have the orderBy
+                                // commodity have filled the current page, but entities that don't
+                                // have it also exist; in that case we need to keep the cursor's
+                                // value.
+                                entitiesWithoutOrderByCommodity.size() == 1
+                                        ? valueForLastEntityWithOrderByCommodity
+                                        : null),
+                        totalRecordCount);
+            }
+            return new NextPageInfo(nextPageIds,
+                    table,
+                    SeekPaginationCursor.empty(),
+                    totalRecordCount);
+        } catch (SQLException e) {
+            throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
+        }
+    }
+
+    /**
+     * Creates a table which holds the uuids of the entities in the table provided, ordered by the
+     * orderBy commodity specified.
+     * *Note*: This may not contain all the uuids of the scope, since some entities might not have
+     * the orderBy commodity for the given timestamp.
+     *
+     * @param conn the connection to the database
+     * @param table the table to query
+     * @param timestamp the timestamp for the query
+     * @param paginationParams the pagination parameters
+     * @param statsFilter the filter specifying which stats to get
+     * @param requestedIdSet a set with the uuids in the scope. Can be empty, (in case of global
+     *                      environment)
+     * @return the created table
+     */
+    private Table<Record3<String, BigDecimal, BigDecimal>> createAggregatedStatsTable(
+            Connection conn,
+            final Table<?> table,
+            final Timestamp timestamp,
+            final EntityStatsPaginationParams paginationParams,
+            @Nonnull final StatsFilter statsFilter,
+            final Set<String> requestedIdSet) {
         final List<Condition> conditions = new ArrayList<>();
         conditions.add(getTimestampField(table, SNAPSHOT_TIME).eq(timestamp));
         conditions.add(getStringField(table, PROPERTY_TYPE).eq(paginationParams.getSortCommodity()));
@@ -808,70 +933,141 @@ public class HistorydbIO extends BasedbIO {
         }
 
         final Field<BigDecimal> avgValue =
-            avg(getDoubleField(table, AVG_VALUE)).as(AVG_VALUE);
+                avg(getDoubleField(table, AVG_VALUE)).as(AVG_VALUE);
         final Field<BigDecimal> avgCapacity =
-            avg(getDoubleField(table, CAPACITY)).as(CAPACITY);
+                avg(getDoubleField(table, CAPACITY)).as(CAPACITY);
         final Field<String> uuid =
-            getStringField(table, UUID);
+                getStringField(table, UUID);
 
-        final Set<String> requestedIdSet = getRequestedScopeIds(entityScope);
         if (!requestedIdSet.isEmpty()) {
             conditions.add(uuid.in(requestedIdSet));
         }
-        // Given an entity id, a commodity type and a time snapshot, we might have multiple
-        // entries in the db. We want to group them first, by averaging their values and
-        // capacity, this will be stored in the aggregate stats table. Then, from this table we
-        // can apply our cursor conditions and order the members based on the pagination
-        // parameters.
-        try (Connection conn = transConnection()) {
-            Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats = using(conn)
+        return using(conn)
                 .select(uuid, avgValue, avgCapacity)
                 .from(table)
                 .where(conditions)
                 .groupBy(uuid).asTable();
-            final Field<String> aggregateUuidField = getStringField(aggregatedStats, UUID);
-            final Field<BigDecimal> aggregateValueField =
-                seekPaginationCursor.getValueField(paginationParams,
-                aggregatedStats);
+    }
 
-            // This call adds the seek pagination parameters to the list of conditions.
-            final List<Condition> cursorConditions = new ArrayList<>();
-            seekPaginationCursor.toCondition(aggregatedStats, paginationParams)
-                .ifPresent(cursorCondition -> cursorConditions.addAll(cursorCondition));
-
-            final Result<Record2<String, BigDecimal>> results = using(conn)
-                .select(aggregateUuidField, aggregateValueField)
-                .from(aggregatedStats)
-                // The pagination is enforced by the conditions (see above).
-                .where(cursorConditions)
-                .orderBy(paginationParams.isAscending() ? aggregateValueField.asc().nullsLast() :
-                        aggregateValueField.desc().nullsLast(),
-                    paginationParams.isAscending() ?
-                        aggregateUuidField.asc() : aggregateUuidField.desc())
-                // Add one to the limit so we can tests to see if there are more results.
-                .limit(paginationParams.getLimit() + 1)
-                .fetch();
-
-            Integer totalRecordCount = getTotalRecordsCount(conn, aggregatedStats);
-            if (results.size() > paginationParams.getLimit()) {
-                // If there are more results, we trim the last result (since that goes beyond
-                // the page limit).
-                final List<String> nextPageIds =
-                    results.getValues(aggregateUuidField).subList(0, paginationParams.getLimit());
-                final int lastIdx = nextPageIds.size() - 1;
-                return new NextPageInfo(nextPageIds, table,
-                        SeekPaginationCursor.nextCursor(nextPageIds.get(lastIdx),
-                                results.getValue(lastIdx, aggregateValueField)),
-                        totalRecordCount);
-            } else {
-                return new NextPageInfo(results.getValues(aggregateUuidField),
-                        table,
-                        SeekPaginationCursor.empty(),
-                        totalRecordCount);
-            }
-        } catch (SQLException e) {
-            throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
+    /**
+     * Creates a table that holds all the uuids of the scope for a given timestamp. We need to know
+     * which entities existed in the scope at the given timestamp (especially when we don't have a
+     * specific scope, i.e. for the global environment) since the aggregatedStats table might not
+     * contain the entire scope, in the case of some entities not having the orderBy commodity.
+     *
+     * @param conn the connection to the database
+     * @param table the table to query
+     * @param timestamp the timestamp for the query
+     * @param requestedIdSet a set with the uuids in the scope. Can be empty, (in case of global
+     *                      environment)
+     * @return the created table
+     */
+    private Table<Record1<String>> createAllUuidsInScopeTable(Connection conn,
+            final Table<?> table,
+            final Timestamp timestamp,
+            final Set<String> requestedIdSet) {
+        final Field<String> uuid = getStringField(table, UUID);
+        final List<Condition> conditionsForAllUuidsInScope = new ArrayList<>();
+        conditionsForAllUuidsInScope.add(getTimestampField(table, SNAPSHOT_TIME).eq(timestamp));
+        if (!requestedIdSet.isEmpty()) {
+            conditionsForAllUuidsInScope.add(uuid.in(requestedIdSet));
         }
+        return using(conn)
+                .selectDistinct(uuid)
+                .from(table)
+                .where(conditionsForAllUuidsInScope)
+                .asTable();
+    }
+
+    /**
+     * Fetches the entities for the next page from the database.
+     * *Note*: This includes only the entities that have the orderBy commodity.
+     *
+     * @param conn the connection to the database
+     * @param aggregatedStats the table containing the entities ordered by the orderBy commodity
+     * @param aggregateValueField the field holding the commodity value
+     * @param seekPaginationCursor the pagination cursor
+     * @param paginationParams the pagination parameters
+     * @return the entities for this page. The number of entities returned will be at most
+     * (page size + 1), where exceeding the page size by 1 indicates that there are more entities
+     * left to be retrieved in subsequent calls.
+     */
+    private Result<Record2<String, BigDecimal>> fetchEntitiesThatHaveTheOrderByCommodity(
+            Connection conn,
+            final Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats,
+            final Field<BigDecimal> aggregateValueField,
+            final SeekPaginationCursor seekPaginationCursor,
+            final EntityStatsPaginationParams paginationParams) {
+        final Field<String> aggregatedUuidField = getStringField(aggregatedStats, UUID);
+        final List<Condition> cursorConditions = new ArrayList<>();
+        // This call adds the seek pagination parameters to the list of conditions.
+        seekPaginationCursor.toCondition(aggregatedStats, paginationParams)
+                .ifPresent(cursorConditions::addAll);
+
+        final boolean ascendingOrder = paginationParams.isAscending();
+        return using(conn).select(aggregatedUuidField, aggregateValueField)
+                        .from(aggregatedStats)
+                        // The pagination is enforced by the conditions (see above).
+                        .where(cursorConditions)
+                        .orderBy(ascendingOrder ? aggregateValueField.asc().nullsLast()
+                                        : aggregateValueField.desc().nullsLast(),
+                                ascendingOrder ? aggregatedUuidField.asc()
+                                        : aggregatedUuidField.desc())
+                        // Add one to the limit so we can tests to see if there are more results.
+                        .limit(paginationParams.getLimit() + 1)
+                        .fetch();
+    }
+
+    /**
+     * Fetches entities that don't have the orderBy commodity from the database, to fill the next
+     * page.
+     *
+     * @param conn the connection to the database
+     * @param aggregatedStats the table containing the entities ordered by the orderBy commodity
+     * @param allUuidsInScope the table holding all the uuids of the scope
+     * @param paginationLimit the page size
+     * @param seekPaginationCursor the pagination cursor
+     * @param cursorExistsInAggregatedStatsTable a flag to indicate if the cursor for this page
+     *                                           points to an entity that has the orderBy commodity.
+     * @param currentResultsCount the number of results so far (in case there are entities with the
+     *                            orderBy commodity already in the results)
+     * @return the entities for this page. In case there are already entities (that have the orderBy
+     * commodity) in the results, we will subtract the current number of entities before calculating
+     * the number of entities to return.  The number of entities returned will be at most
+     * (page size - currentResultsCount + 1), where exceeding the page size by 1 indicates that
+     * there are more entities left to be retrieved in subsequent calls.
+     */
+    private Result<Record1<String>> fetchEntitiesThatDontHaveTheOrderByCommodity(Connection conn,
+            final Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats,
+            final Table<Record1<String>> allUuidsInScope,
+            final int paginationLimit,
+            final SeekPaginationCursor seekPaginationCursor,
+            final boolean cursorExistsInAggregatedStatsTable,
+            final int currentResultsCount
+            ) {
+        final Field<String> aggregatedUuidField = getStringField(aggregatedStats, UUID);
+        final Field<String> scopedUuidField = getStringField(allUuidsInScope, UUID);
+        final List<Condition> conditionsForEntitiesWithoutSortCommodity = new ArrayList<>();
+        conditionsForEntitiesWithoutSortCommodity.add(scopedUuidField.notIn(using(conn)
+                .select(aggregatedUuidField)
+                .from(aggregatedStats)
+        ));
+        // Add pagination conditions.
+        // If the cursor from the previous request points to an entity that has the orderBy
+        // commodity, then do not apply it to the entities that don't have the orderBy commodity
+        // (since they are in a different "table" and we must begin fetching them from the top)
+        if (seekPaginationCursor.lastId.isPresent() && !cursorExistsInAggregatedStatsTable) {
+            conditionsForEntitiesWithoutSortCommodity.add(scopedUuidField.greaterThan(
+                    seekPaginationCursor.lastId.get()));
+        }
+        // do the query to fetch entities to fill the current page
+        return using(conn)
+                .select(scopedUuidField)
+                .from(allUuidsInScope)
+                .where(conditionsForEntitiesWithoutSortCommodity)
+                .orderBy(scopedUuidField.asc())
+                .limit(paginationLimit - currentResultsCount + 1)
+                .fetch();
     }
 
     @Nonnull
@@ -898,15 +1094,23 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     * Will count total records in {@link Table}.
+     * Returns the total record count for this request. If a set of uuids is provided as a scope
+     * then it will return the size of the set (for efficiency), otherwise it will count the total
+     * number of records in the {@link Table} containing all the uuids.
      *
      * @param conn db connection used to run query
-     * @param aggregatedStats {@link Table} used to count total records
-     * @return Total records in {@link Table}
+     * @param table a {@link Table} containing the uuids for this query
+     * @param requestedIdSet the list of requested ids
+     * @return Total number of records
      */
     @VisibleForTesting
-    protected int getTotalRecordsCount(Connection conn, Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats) {
-        return using(conn).fetchCount(aggregatedStats);
+    protected int getTotalRecordsCount(Connection conn,
+            final Table<?> table,
+            final Set<String> requestedIdSet) {
+        if (requestedIdSet.isEmpty()) {
+            return using(conn).fetchCount(table);
+        }
+        return requestedIdSet.size();
     }
 
     /**
@@ -1684,6 +1888,7 @@ public class HistorydbIO extends BasedbIO {
      */
     @VisibleForTesting
     static class SeekPaginationCursor {
+
         private final Optional<String> lastId;
 
         private final Optional<BigDecimal> lastValue;
@@ -1700,6 +1905,14 @@ public class HistorydbIO extends BasedbIO {
             this.lastValue = lastValue;
         }
 
+        public Optional<String> getLastId() {
+            return this.lastId;
+        }
+
+        public Optional<BigDecimal> getLastValue() {
+            return this.lastValue;
+        }
+
         /**
          * Parse a string produced by {@link SeekPaginationCursor#toCursorString()} into a {@link SeekPaginationCursor} object.
          *
@@ -1712,17 +1925,20 @@ public class HistorydbIO extends BasedbIO {
             // The cursor should be: "<lastId>:<lastValue>", where lastId is the ID of the
             // last element in the previous page, and lastValue is the stat value of the sort
             // commodity for that ID.
+            // lastValue may be missing, if that ID does not have a value for the sort commodity
             String[] results = nextCursor.split(":");
-            if (results.length != 2) {
-                return new SeekPaginationCursor(Optional.empty(), Optional.empty());
-            } else {
+            if (results.length == 1 && !results[0].isEmpty()) {
+                return new SeekPaginationCursor(Optional.of(results[0]), Optional.empty());
+            }
+            if (results.length == 2) {
                 try {
                     return new SeekPaginationCursor(Optional.of(results[0]),
-                        Optional.of(new BigDecimal(results[1])));
+                            Optional.of(new BigDecimal(results[1])));
                 } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("Invalid cursor: " + nextCursor);
                 }
             }
+            return new SeekPaginationCursor(Optional.empty(), Optional.empty());
         }
 
         /**
@@ -1740,8 +1956,8 @@ public class HistorydbIO extends BasedbIO {
          * @return The {@link SeekPaginationCursor} object.
          */
         public static SeekPaginationCursor nextCursor(@Nonnull final String lastId,
-                                                      @Nonnull final BigDecimal lastValue) {
-            return new SeekPaginationCursor(Optional.of(lastId), Optional.of(lastValue));
+                                                      final BigDecimal lastValue) {
+            return new SeekPaginationCursor(Optional.of(lastId), Optional.ofNullable(lastValue));
         }
 
         /**
@@ -1751,11 +1967,8 @@ public class HistorydbIO extends BasedbIO {
          * or an empty optional if the cursor is empty.
          */
         public Optional<String> toCursorString() {
-            if (lastId.isPresent() && lastValue.isPresent()) {
-                return Optional.of(lastId.get() + ":" + lastValue.get().toString());
-            } else {
-                return Optional.empty();
-            }
+            return lastId.map(
+                    lastId -> lastId + ":" + lastValue.map(BigDecimal::toString).orElse(""));
         }
 
         /**
@@ -1792,7 +2005,7 @@ public class HistorydbIO extends BasedbIO {
          * we just want the first page of results).
          */
         public Optional<List<Condition>> toCondition(final Table<?> table,
-                                                @Nonnull final EntityStatsPaginationParams paginationParams) {
+                @Nonnull final EntityStatsPaginationParams paginationParams) {
             if (lastId.isPresent() && lastValue.isPresent()) {
                 // See: https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/
                 // In some cases, because of approximations in the utilization (since it's a
@@ -1805,11 +2018,11 @@ public class HistorydbIO extends BasedbIO {
                 conditions.add(row(getStringField(table, UUID)).ne(lastId.get()));
                 if (paginationParams.isAscending()) {
                     conditions.add(row(getValueField(paginationParams, table),
-                        getStringField(table, UUID)).ge(lastValue.get(), lastId.get()));
+                            getStringField(table, UUID)).ge(lastValue.get(), lastId.get()));
                     return Optional.of(conditions);
                 } else {
                     conditions.add(row(getValueField(paginationParams, table),
-                        getStringField(table, UUID)).le(lastValue.get(), lastId.get()));
+                            getStringField(table, UUID)).le(lastValue.get(), lastId.get()));
                     return Optional.of(conditions);
                 }
             } else {
