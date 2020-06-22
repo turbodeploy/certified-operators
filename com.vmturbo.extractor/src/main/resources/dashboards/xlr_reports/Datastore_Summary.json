@@ -12,21 +12,15 @@
       }
     ]
   },
-  "editable": false,
+  "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592516075480,
+  "iteration": 1591190269832,
   "links": [],
   "panels": [
     {
       "columns": [],
       "datasource": "$DB",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
-      },
       "fontSize": "100%",
       "gridPos": {
         "h": 3,
@@ -138,12 +132,6 @@
     {
       "columns": [],
       "datasource": "$DB",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
-      },
       "fontSize": "100%",
       "gridPos": {
         "h": 5,
@@ -282,12 +270,6 @@
     {
       "columns": [],
       "datasource": "$DB",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
-      },
       "fontSize": "100%",
       "gridPos": {
         "h": 10,
@@ -436,7 +418,7 @@
   "templating": {
     "list": [
       {
-        "hide": 2,
+        "hide": 0,
         "includeAll": false,
         "label": null,
         "multi": false,

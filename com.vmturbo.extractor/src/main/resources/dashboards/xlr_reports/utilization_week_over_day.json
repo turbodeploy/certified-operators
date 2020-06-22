@@ -13,10 +13,10 @@
     ]
   },
   "description": "Host Utilization by day comparing week over week in a two week span",
-  "editable": false,
+  "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592855608800,
+  "iteration": 1591191140882,
   "links": [],
   "panels": [
     {
@@ -26,7 +26,6 @@
       "dashes": false,
       "datasource": "$DB",
       "decimals": 2,
-      "description": "Average memory utilization for physical machines ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -56,14 +55,14 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -76,7 +75,7 @@
           "hide": false,
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,avg(m.utilization) AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'MEM'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '7 day',$__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n     GROUP BY 1\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day' THEN date_trunc('day', time + INTERVAL '7 DAY') ELSE date_trunc('day', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Current Week\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day') as \"Previous Week\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Current Week\",\n       offset_avg as \"Previous Week\"\nFROM\n    (SELECT\n      date_trunc('day', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'MEM' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('day', m.time + INTERVAL '7 DAY') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'MEM' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '7 day') AND ($__timeTo()::TIMESTAMP - interval '7 day') AND\n      ($__timeFrom()::TIMESTAMP - interval '7 day',$__timeTo()::TIMESTAMP - interval '7 day') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -102,9 +101,62 @@
       ],
       "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
+      "timeRegions": [
+        {
+          "colorMode": "red",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "from": "",
+          "fromDayOfWeek": 1,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "to": "",
+          "toDayOfWeek": 1
+        },
+        {
+          "colorMode": "red",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 2,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "toDayOfWeek": 2
+        },
+        {
+          "colorMode": "red",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 3,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "toDayOfWeek": 3
+        },
+        {
+          "colorMode": "red",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 4,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "toDayOfWeek": 4
+        },
+        {
+          "colorMode": "red",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 5,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "toDayOfWeek": 5
+        }
+      ],
       "timeShift": null,
-      "title": "Physical Machine Avg Memory Utilization - Week over Week by Day",
+      "title": "Memory Utilization",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -120,7 +172,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:83",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -129,7 +180,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:84",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -150,7 +200,6 @@
       "dashes": false,
       "datasource": "$DB",
       "decimals": 2,
-      "description": "Average CPU utilization by physical machine ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -178,14 +227,14 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -197,7 +246,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,avg(m.utilization) AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'CPU'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '7 day',$__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n     GROUP BY 1\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day' THEN date_trunc('day', time + INTERVAL '7 DAY') ELSE date_trunc('day', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Current Week\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day') as \"Previous Week\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Current Week\",\n       offset_avg as \"Previous Week\"\nFROM\n    (SELECT\n      date_trunc('day', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'CPU' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('day', m.time + INTERVAL '7 DAY') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'CPU' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '7 day') AND ($__timeTo()::TIMESTAMP - interval '7 day') AND\n      ($__timeFrom()::TIMESTAMP - interval '7 day',$__timeTo()::TIMESTAMP - interval '7 day') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -223,9 +272,55 @@
       ],
       "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
+      "timeRegions": [
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 1,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 2,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 3,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 4,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 5,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        }
+      ],
       "timeShift": null,
-      "title": "Physical Machine Avg CPU Utilization - Week over Week by Day",
+      "title": "CPU Utilization",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -241,7 +336,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:167",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -250,7 +344,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:168",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -271,129 +364,6 @@
       "dashes": false,
       "datasource": "$DB",
       "decimals": 2,
-      "description": "Average Ballooning utilization by physical machines  ",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
-      },
-      "fill": 0,
-      "fillGradient": 0,
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 16
-      },
-      "hiddenSeries": false,
-      "id": 10,
-      "legend": {
-        "avg": true,
-        "current": false,
-        "max": false,
-        "min": false,
-        "rightSide": true,
-        "show": true,
-        "total": false,
-        "values": true
-      },
-      "lines": true,
-      "linewidth": 3,
-      "nullPointMode": "null",
-      "options": {
-        "dataLinks": []
-      },
-      "percentage": false,
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
-      "targets": [
-        {
-          "format": "time_series",
-          "group": [],
-          "hide": false,
-          "metricColumn": "none",
-          "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,avg(m.utilization) AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'BALLOONING'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '7 day',$__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n     GROUP BY 1\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day' THEN date_trunc('day', time + INTERVAL '7 DAY') ELSE date_trunc('day', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Current Week\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day') as \"Previous Week\"\n  FROM data\n GROUP BY 1",
-          "refId": "A",
-          "select": [
-            [
-              {
-                "params": [
-                  "current"
-                ],
-                "type": "column"
-              }
-            ]
-          ],
-          "table": "metric",
-          "timeColumn": "\"time\"",
-          "timeColumnType": "timestamp",
-          "where": [
-            {
-              "name": "$__timeFilter",
-              "params": [],
-              "type": "macro"
-            }
-          ]
-        }
-      ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "Physical Machine Avg Ballooning Utilization - Week over Week by Day ",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "$$hashKey": "object:335",
-          "format": "percentunit",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "$$hashKey": "object:336",
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    },
-    {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
-      "datasource": "$DB",
-      "decimals": 2,
-      "description": "Average Swapping utilization by physical machines ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -406,7 +376,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 16
       },
       "hiddenSeries": false,
       "id": 8,
@@ -421,14 +391,14 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -440,7 +410,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,avg(m.utilization) AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'SWAPPING'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '7 day',$__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n     GROUP BY 1\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day' THEN date_trunc('day', time + INTERVAL '7 DAY') ELSE date_trunc('day', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Current Week\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day') as \"Previous Week\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Current Week\",\n       offset_avg as \"Previous Week\"\nFROM\n    (SELECT\n      date_trunc('day', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'SWAPPING' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('day', m.time + INTERVAL '7 DAY') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'SWAPPING' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '7 day') AND ($__timeTo()::TIMESTAMP - interval '7 day') AND\n      ($__timeFrom()::TIMESTAMP - interval '7 day',$__timeTo()::TIMESTAMP - interval '7 day') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -466,9 +436,55 @@
       ],
       "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
+      "timeRegions": [
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 1,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 2,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 3,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 4,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 5,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        }
+      ],
       "timeShift": null,
-      "title": "Physical Machine Avg Swapping Utilization - Week over Week by Day",
+      "title": "Swapping Utilization",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -484,7 +500,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:251",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -493,7 +508,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:252",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -514,7 +528,176 @@
       "dashes": false,
       "datasource": "$DB",
       "decimals": 2,
-      "description": "Average IO Throughput utilization by physical machine ",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "hiddenSeries": false,
+      "id": 10,
+      "legend": {
+        "avg": true,
+        "current": false,
+        "max": false,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 2,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "format": "time_series",
+          "group": [],
+          "hide": false,
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Current Week\",\n       offset_avg as \"Previous Week\"\nFROM\n    (SELECT\n      date_trunc('day', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'BALLOONING' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('day', m.time + INTERVAL '7 DAY') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'BALLOONING' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '7 day') AND ($__timeTo()::TIMESTAMP - interval '7 day') AND\n      ($__timeFrom()::TIMESTAMP - interval '7 day',$__timeTo()::TIMESTAMP - interval '7 day') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "current"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "metric",
+          "timeColumn": "\"time\"",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 1,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "toDayOfWeek": 1
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 2,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "toDayOfWeek": 2
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 3,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "toDayOfWeek": 3
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 4,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "toDayOfWeek": 4
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 5,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "toDayOfWeek": 5
+        }
+      ],
+      "timeShift": null,
+      "title": "Ballooning Utilization",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$DB",
+      "decimals": 2,
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -542,14 +725,14 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -561,7 +744,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,avg(m.utilization) AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'IO_THROUGHPUT'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '7 day',$__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n     GROUP BY 1\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day' THEN date_trunc('day', time + INTERVAL '7 DAY') ELSE date_trunc('day', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Current Week\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day') as \"Previous Week\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Current Week\",\n       offset_avg as \"Previous Week\"\nFROM\n    (SELECT\n      date_trunc('day', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'IO_THROUGHPUT' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('day', m.time + INTERVAL '7 DAY') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'IO_THROUGHPUT' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '7 day') AND ($__timeTo()::TIMESTAMP - interval '7 day') AND\n      ($__timeFrom()::TIMESTAMP - interval '7 day',$__timeTo()::TIMESTAMP - interval '7 day') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -587,9 +770,55 @@
       ],
       "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
+      "timeRegions": [
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 1,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 2,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 3,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 4,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 5,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        }
+      ],
       "timeShift": null,
-      "title": "Physical Machine Avg IO Throughput Utilization - Week over Week by Day",
+      "title": "IO Throughput Utilization",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -605,7 +834,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:419",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -614,7 +842,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:420",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -635,7 +862,6 @@
       "dashes": false,
       "datasource": "$DB",
       "decimals": 2,
-      "description": "Average Net Throughput utilization by physical machines ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -663,14 +889,14 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -682,7 +908,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,avg(m.utilization) AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'NET_THROUGHPUT'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '7 day',$__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n     GROUP BY 1\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day' THEN date_trunc('day', time + INTERVAL '7 DAY') ELSE date_trunc('day', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Current Week\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '7 day' AND $__timeTo()::TIMESTAMPTZ - interval '7 day') as \"Previous Week\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Current Week\",\n       offset_avg as \"Previous Week\"\nFROM\n    (SELECT\n      date_trunc('day', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'NET_THROUGHPUT' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('day', m.time + INTERVAL '7 DAY') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'NET_THROUGHPUT' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '7 day') AND ($__timeTo()::TIMESTAMP - interval '7 day') AND\n      ($__timeFrom()::TIMESTAMP - interval '7 day',$__timeTo()::TIMESTAMP - interval '7 day') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -708,9 +934,55 @@
       ],
       "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
+      "timeRegions": [
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 1,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 2,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 3,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 4,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        },
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "fromDayOfWeek": 5,
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time"
+        }
+      ],
       "timeShift": null,
-      "title": "Physical Machine Avg Net Throughput Utilization - Week over Week by Day",
+      "title": "Net Throughput Utilization",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -726,7 +998,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:503",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -735,7 +1006,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:504",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -757,7 +1027,7 @@
   "templating": {
     "list": [
       {
-        "hide": 2,
+        "hide": 0,
         "includeAll": false,
         "label": null,
         "multi": false,
@@ -778,9 +1048,8 @@
         "label": null,
         "multi": false,
         "name": "Group",
-        "options": [],
         "query": "select name as __text, oid as __value from entity where entity.type = 'GROUP' and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) and $__timeTo() >= first_seen group by name, oid order by 1",
-        "refresh": 2,
+        "refresh": 0,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
@@ -806,6 +1075,6 @@
     ]
   },
   "timezone": "",
-  "title": "Physical Machine Utilization Week Over Week by Day",
+  "title": "Utilization Week Over Week by Day",
   "uid": "utilization_week_over_day"
 }

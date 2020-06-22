@@ -12,11 +12,11 @@
       }
     ]
   },
-  "description": "This report shows average hourly utilization measurements for Hosts compared day-over-day for the two consecutive days selected days. All machines in the selected group are included in the averages.",
-  "editable": false,
+  "description": "Host Utilization per hour comparing the last 48 hours day over day, with 9am-5pm highlighted",
+  "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592855735548,
+  "iteration": 1591190992792,
   "links": [],
   "panels": [
     {
@@ -26,7 +26,6 @@
       "dashes": false,
       "datasource": "$DB",
       "decimals": 2,
-      "description": "Average Memory utilization for physical machines",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -54,14 +53,14 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -73,7 +72,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,avg(m.utilization) AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'MEM'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n     GROUP BY 1\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Today\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Yesterday\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Today\",\n       offset_avg as \"Yesterday\"\nFROM\n    (SELECT\n      date_trunc('hour', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'MEM' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('hour', m.time + INTERVAL '24 HOUR') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'MEM' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '24 HOUR') AND ($__timeTo()::TIMESTAMP - interval '24 HOUR') AND\n      ($__timeFrom()::TIMESTAMP - interval '24 HOUR',$__timeTo()::TIMESTAMP - interval '24 HOUR') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -99,9 +98,20 @@
       ],
       "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
+      "timeRegions": [
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "from": "14:00",
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "to": "22:00"
+        }
+      ],
       "timeShift": null,
-      "title": "Physical Machine Avg Memory Utilization - Day over Day by Hour",
+      "title": "Memory Utilization",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -117,7 +127,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:204",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -126,7 +135,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:205",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -147,7 +155,6 @@
       "dashes": false,
       "datasource": "$DB",
       "decimals": 2,
-      "description": "Average CPU utilization for physical machines ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -175,14 +182,14 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -194,7 +201,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'CPU'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Today\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Yesterday\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Today\",\n       offset_avg as \"Yesterday\"\nFROM\n    (SELECT\n      date_trunc('hour', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'CPU' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('hour', m.time + INTERVAL '24 HOUR') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'CPU' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '24 HOUR') AND ($__timeTo()::TIMESTAMP - interval '24 HOUR') AND\n      ($__timeFrom()::TIMESTAMP - interval '24 HOUR',$__timeTo()::TIMESTAMP - interval '24 HOUR') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -220,9 +227,20 @@
       ],
       "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
+      "timeRegions": [
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "from": "14:00",
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "to": "22:00"
+        }
+      ],
       "timeShift": null,
-      "title": "Physical Machine Avg CPU Utilization - Day over Day by Hour",
+      "title": "CPU Utilization",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -238,7 +256,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:289",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -247,7 +264,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:290",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -268,7 +284,6 @@
       "dashes": false,
       "datasource": "$DB",
       "decimals": 2,
-      "description": "Average Ballooning utilization for physical machines ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -284,7 +299,7 @@
         "y": 17
       },
       "hiddenSeries": false,
-      "id": 8,
+      "id": 6,
       "legend": {
         "avg": true,
         "current": false,
@@ -296,14 +311,14 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -315,7 +330,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'BALLOONING'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Today\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Yesterday\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Today\",\n       offset_avg as \"Yesterday\"\nFROM\n    (SELECT\n      date_trunc('hour', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'SWAPPING' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('hour', m.time + INTERVAL '24 HOUR') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'SWAPPING' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '24 HOUR') AND ($__timeTo()::TIMESTAMP - interval '24 HOUR') AND\n      ($__timeFrom()::TIMESTAMP - interval '24 HOUR',$__timeTo()::TIMESTAMP - interval '24 HOUR') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -341,9 +356,20 @@
       ],
       "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
+      "timeRegions": [
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "from": "14:00",
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "to": "22:00"
+        }
+      ],
       "timeShift": null,
-      "title": "Physical Machine Avg Ballooning Utilization - Day over Day by Hour",
+      "title": "Swapping Utilization",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -359,7 +385,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:374",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -368,7 +393,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:375",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -389,7 +413,6 @@
       "dashes": false,
       "datasource": "$DB",
       "decimals": 2,
-      "description": "Average Swapping utilization for physical machines ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -405,7 +428,7 @@
         "y": 25
       },
       "hiddenSeries": false,
-      "id": 6,
+      "id": 8,
       "legend": {
         "avg": true,
         "current": false,
@@ -417,14 +440,14 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -436,7 +459,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'SWAPPING'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Today\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Yesterday\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Today\",\n       offset_avg as \"Yesterday\"\nFROM\n    (SELECT\n      date_trunc('hour', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'BALLOONING' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('hour', m.time + INTERVAL '24 HOUR') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'BALLOONING' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '24 HOUR') AND ($__timeTo()::TIMESTAMP - interval '24 HOUR') AND\n      ($__timeFrom()::TIMESTAMP - interval '24 HOUR',$__timeTo()::TIMESTAMP - interval '24 HOUR') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -462,9 +485,20 @@
       ],
       "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
+      "timeRegions": [
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "from": "14:00",
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "to": "22:00"
+        }
+      ],
       "timeShift": null,
-      "title": "Physical Machine Avg Swapping Utilization - Day over Day by Hour",
+      "title": "Ballooning Utilization",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -480,7 +514,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:115",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -489,7 +522,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:116",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -510,7 +542,6 @@
       "dashes": false,
       "datasource": "$DB",
       "decimals": 2,
-      "description": "Average IO Throughput utilization for physical machines ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -538,14 +569,14 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -557,7 +588,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'IO_THROUGHPUT'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Today\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Yesterday\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Today\",\n       offset_avg as \"Yesterday\"\nFROM\n    (SELECT\n      date_trunc('hour', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'IO_THROUGHPUT' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('hour', m.time + INTERVAL '24 HOUR') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'IO_THROUGHPUT' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '24 HOUR') AND ($__timeTo()::TIMESTAMP - interval '24 HOUR') AND\n      ($__timeFrom()::TIMESTAMP - interval '24 HOUR',$__timeTo()::TIMESTAMP - interval '24 HOUR') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -583,9 +614,20 @@
       ],
       "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
+      "timeRegions": [
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "from": "14:00",
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "to": "22:00"
+        }
+      ],
       "timeShift": null,
-      "title": "Physical Machine Avg IO Throughput Utilization - Day over Day by Hour",
+      "title": "IO Throughput Utilization",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -601,7 +643,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:542",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -610,7 +651,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:543",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -631,7 +671,6 @@
       "dashes": false,
       "datasource": "$DB",
       "decimals": 2,
-      "description": "Average Net Throughout utilization for physical machines ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -659,14 +698,14 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -678,7 +717,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'NET_THROUGHPUT'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Today\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Yesterday\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "SELECT current_vals.time as \"time\",\n       current_avg as \"Today\",\n       offset_avg as \"Yesterday\"\nFROM\n    (SELECT\n      date_trunc('hour', m.time) as \"time\",\n      avg(m.utilization) AS current_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'NET_THROUGHPUT' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      $__timeFilter(m.\"time\") AND\n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as current_vals\nJOIN\n    (SELECT\n      date_trunc('hour', m.time + INTERVAL '24 HOUR') as \"time\",\n      avg(m.utilization) AS offset_avg\n    FROM entity e\n    JOIN metric m ON m.entity_oid = e.oid AND\n      m.entity_hash = e.hash AND\n      m.type = 'NET_THROUGHPUT' AND\n      e.type = 'PHYSICAL_MACHINE'  AND\n      m.time BETWEEN ($__timeFrom()::TIMESTAMP - interval '24 HOUR') AND ($__timeTo()::TIMESTAMP - interval '24 HOUR') AND\n      ($__timeFrom()::TIMESTAMP - interval '24 HOUR',$__timeTo()::TIMESTAMP - interval '24 HOUR') OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1) as offset_vals\nON offset_vals.time = current_vals.time\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -704,9 +743,20 @@
       ],
       "thresholds": [],
       "timeFrom": null,
-      "timeRegions": [],
+      "timeRegions": [
+        {
+          "colorMode": "background6",
+          "fill": true,
+          "fillColor": "rgba(234, 112, 112, 0.12)",
+          "from": "14:00",
+          "line": false,
+          "lineColor": "rgba(237, 46, 24, 0.60)",
+          "op": "time",
+          "to": "22:00"
+        }
+      ],
       "timeShift": null,
-      "title": "Physical Machine Avg Net Throughput Utilization - Day over Day by Hour",
+      "title": "Net Throughput Utilization",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -722,7 +772,6 @@
       },
       "yaxes": [
         {
-          "$$hashKey": "object:627",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -731,7 +780,6 @@
           "show": true
         },
         {
-          "$$hashKey": "object:628",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -753,7 +801,7 @@
   "templating": {
     "list": [
       {
-        "hide": 2,
+        "hide": 0,
         "includeAll": false,
         "label": null,
         "multi": false,
@@ -767,16 +815,27 @@
       },
       {
         "allValue": "'0'",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": "$DB",
-        "definition": "select name as __text, \n       oid as __value \nfrom entity \nwhere entity.type = 'GROUP' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
+        "definition": "select name as __text, \n       oid as __value \nfrom entity \nwhere entity.type = 'GROUP' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nand $__timeTo() >= first_seen \ngroup by name, oid \norder by 1",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "Group",
-        "options": [],
-        "query": "select name as __text, \n       oid as __value \nfrom entity \nwhere entity.type = 'GROUP' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
-        "refresh": 2,
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          }
+        ],
+        "query": "select name as __text, \n       oid as __value \nfrom entity \nwhere entity.type = 'GROUP' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nand $__timeTo() >= first_seen \ngroup by name, oid \norder by 1",
+        "refresh": 0,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
@@ -802,6 +861,6 @@
     ]
   },
   "timezone": "",
-  "title": "Physical Machine Utilization Day over Day by Hour",
+  "title": "Utilization Day over Day Hourly",
   "uid": "utilization_day_over_hour"
 }

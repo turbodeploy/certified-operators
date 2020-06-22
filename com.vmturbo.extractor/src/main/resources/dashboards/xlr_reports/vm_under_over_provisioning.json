@@ -12,15 +12,13 @@
       }
     ]
   },
-  "editable": false,
-  "gnetId": null,
+  "editable": true,
   "graphTooltip": 0,
-  "iteration": 1592516312715,
   "links": [],
   "panels": [
     {
       "columns": [],
-      "datasource": "$DB",
+      "datasource": null,
       "description": "Active VMs with CPU, Memory or Thin Provisioning utilization peaks that are below their respective lower thresholds are listed as over-provisioned. Values indicating over- provisioning are highlighted.",
       "fieldConfig": {
         "defaults": {
@@ -121,6 +119,7 @@
             ]
           ],
           "timeColumn": "time",
+          "timeColumnType": "timestamp",
           "where": [
             {
               "name": "$__timeFilter",
@@ -138,7 +137,7 @@
     },
     {
       "columns": [],
-      "datasource": "$DB",
+      "datasource": null,
       "description": "Active VMs with CPU, Memory or Thin Provisioning utilization averages that are above their respective upper thresholds are shown as under-provisioned in at least one of these aspects. Values indicating under-provisioning are highlighted.",
       "fieldConfig": {
         "defaults": {
@@ -256,7 +255,7 @@
     },
     {
       "columns": [],
-      "datasource": "$DB",
+      "datasource": null,
       "description": "Group/Cluster information allowing individual VM peaks to be compared with the average of all of the peaks of the VMs in their corresponding cluster.",
       "fieldConfig": {
         "defaults": {
@@ -335,22 +334,7 @@
   "style": "dark",
   "tags": [],
   "templating": {
-    "list": [
-      {
-        "hide": 2,
-        "includeAll": false,
-        "label": null,
-        "multi": false,
-        "name": "DB",
-        "options": [],
-        "query": "postgres",
-        "queryValue": "",
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "type": "datasource"
-      }
-    ]
+    "list": []
   },
   "timepicker": {
     "refresh_intervals": [
