@@ -12,6 +12,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -55,6 +56,11 @@ public class RecommendationIdentityStoreTest {
      */
     @Rule
     public DbCleanupRule dbCleanupRule = dbConfig.cleanupRule();
+    /**
+     * Expected exception rule.
+     */
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     private RecommendationIdentityStore store;
 
@@ -63,7 +69,7 @@ public class RecommendationIdentityStoreTest {
      */
     @Before
     public void init() {
-        store = new RecommendationIdentityStore(dbConfig.getDslContext());
+        store = new RecommendationIdentityStore(dbConfig.getDslContext(), 1000);
     }
 
     /**
@@ -138,6 +144,16 @@ public class RecommendationIdentityStoreTest {
         store.persistModels(Collections.singletonMap(MODEL_1, OID_1));
         Assert.assertEquals(Collections.emptyMap(),
                 store.fetchOids(Collections.singleton(MODEL_2)));
+    }
+
+    /**
+     * Tests wrong value set to constructor's modelsChunkSize parameter.
+     */
+    @Test
+    public void testWrongModelChunkSize() {
+        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expectMessage("modelsChunkSize");
+        new RecommendationIdentityStore(dbConfig.getDslContext(), -1);
     }
 
     @Nonnull
