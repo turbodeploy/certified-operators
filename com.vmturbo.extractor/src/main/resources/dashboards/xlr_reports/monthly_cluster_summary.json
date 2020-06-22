@@ -13,10 +13,10 @@
     ]
   },
   "description": "",
-  "editable": true,
+  "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1591190735260,
+  "iteration": 1592516152623,
   "links": [
     {
       "icon": "info",
@@ -94,7 +94,7 @@
             "rgba(50, 172, 45, 0.97)"
           ],
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
-          "decimals": 2,
+          "decimals": 1,
           "mappingType": 1,
           "pattern": "VMs Per Host",
           "rangeMaps": [
@@ -105,7 +105,7 @@
             }
           ],
           "thresholds": [],
-          "type": "string",
+          "type": "number",
           "unit": "short",
           "valueMaps": [
             {
@@ -172,7 +172,13 @@
     },
     {
       "columns": [],
-      "datasource": null,
+      "datasource": "$DB",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
       "fontSize": "100%",
       "gridPos": {
         "h": 4,
@@ -197,7 +203,7 @@
         },
         {
           "alias": "",
-          "align": "auto",
+          "align": "left",
           "colorMode": null,
           "colors": [
             "rgba(245, 54, 54, 0.9)",
@@ -214,7 +220,7 @@
         },
         {
           "alias": "",
-          "align": "right",
+          "align": "left",
           "colorMode": null,
           "colors": [
             "rgba(245, 54, 54, 0.9)",
@@ -390,7 +396,7 @@
   "templating": {
     "list": [
       {
-        "hide": 0,
+        "hide": 2,
         "includeAll": false,
         "label": null,
         "multi": false,
