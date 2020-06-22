@@ -1,4 +1,4 @@
-package com.vmturbo.api.component.external.api.mapper;
+package com.vmturbo.common.api.mappers;
 
 import java.util.EnumSet;
 import java.util.Optional;
