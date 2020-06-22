@@ -97,7 +97,7 @@ public class PlanRpcServiceUtil {
                         .setTopologyType(TopologyType.PLAN)
                         .setPlanInfo(PlanTopologyInfo.newBuilder()
                                 .setPlanType(scenarioInfo.getType())
-                                .setPlanSubType(getPlanSubType(scenarioInfo)))
+                                .setPlanSubType(getCloudPlanSubType(scenarioInfo)))
                                 .build())
                 .putAllPurchaseProfileByCloudtype(riPurchaseProfileMap);
         final Map<Integer, Set<Long>> scopeObjectByClass = getClassNameToOids(scenarioInfo.getScope()
@@ -226,12 +226,12 @@ public class PlanRpcServiceUtil {
     }
 
     /**
-     * Get plan subtype for this scenario.
+     * Get cloud plan subtype for this scenario.
      *
      * @param scenarioInfo Input scenarioInfo
-     * @return The optimize cloud plan sub type
+     * @return The cloud plan sub type
      */
-    public static String getPlanSubType(@Nonnull final ScenarioInfo scenarioInfo) {
+    public static String getCloudPlanSubType(ScenarioInfo scenarioInfo) {
         if (StringConstants.CLOUD_MIGRATION_PLAN.equals(scenarioInfo.getType())) {
             return isScalingEnabled(scenarioInfo)
                     ? CLOUD_MIGRATION_PLAN__CONSUMPTION : CLOUD_MIGRATION_PLAN__ALLOCATION;

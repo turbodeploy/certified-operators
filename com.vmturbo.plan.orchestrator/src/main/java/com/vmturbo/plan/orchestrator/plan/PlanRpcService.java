@@ -39,7 +39,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
@@ -346,7 +345,7 @@ public class PlanRpcService extends PlanServiceImplBase {
                 builder.setPlanType(scenarioInfo.getType());
             }
             if (PlanRpcServiceUtil.hasPlanSubType(scenarioInfo)) {
-                builder.setPlanSubType(PlanRpcServiceUtil.getPlanSubType(scenarioInfo));
+                builder.setPlanSubType(PlanRpcServiceUtil.getCloudPlanSubType(scenarioInfo));
             }
         }
         builder.setPlanProjectType(planInstance.getProjectType());

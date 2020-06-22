@@ -519,17 +519,8 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
             return existingStatus;
         }
         PlanStatus newStatus = existingStatus;
-        if (isOCP(plan)) {
-            // The optimize cloud plan (OCP)
-            if (isOCPOptimizeAndBuyRI(plan)) {
-                // OCP buy RI and optimize services (OCP type 1).
-                newStatus = getOCPWithBuyRIPlanStatus(plan, true);
-            } else if (isOCPOptimizeServices(plan) || isOCPBuyRIOnly(plan)) {
-                // OCP buy RI only or optimize services (OCP type 2 and 3).
-                newStatus = getOCPWithBuyRIPlanStatus(plan, false);
-            } else {
-                logger.warn("This OCP wasn't OCP type 1, 2 or 3. Plan ID: " + plan.getPlanId());
-            }
+        if (isCloudPlan(plan)) {
+            newStatus = getCloudPlanStatus(plan);
             if (!newStatus.equals(existingStatus)) {
                 updatePlanEndTime(plan, newStatus);
                 logger.debug("The plan status has been changed from {} to {}- plan ID: " +
@@ -537,10 +528,11 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
             }
             return newStatus;
         }
-        // Plans other than OCPs.
-        newStatus = (plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
-                plan.hasProjectedTopologyId()) && plan.hasSourceTopologyId() ?
-                PlanStatus.SUCCEEDED : PlanStatus.WAITING_FOR_RESULT;
+
+        // Plans other than OCPs/MCPs.
+        newStatus = checkCommonNotificationsSuccessful(plan)
+                ? PlanStatus.SUCCEEDED
+                : PlanStatus.WAITING_FOR_RESULT;
         if (!newStatus.equals(existingStatus)) {
             updatePlanEndTime(plan, newStatus);
         }
@@ -564,13 +556,11 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
      * TODO: (OM-51279) Add the timeout logic to this method.
      *
      * @param plan The plan
-     * @param isOCPOptimizeAndBuyRI If the plan is OCP type 1 or not
      * @return The status of the plan
      */
     @Nonnull
     @VisibleForTesting
-    static PlanStatus getOCPWithBuyRIPlanStatus(@Nonnull final PlanInstance.Builder plan,
-                                                final boolean isOCPOptimizeAndBuyRI) {
+    static PlanStatus getCloudPlanStatus(@Nonnull final PlanInstance.Builder plan) {
         final Status planProgressProjectedCostStatus = plan.getPlanProgress()
                         .getProjectedCostStatus();
         final Status planProgressProjectedRiCoverageStatus = plan.getPlanProgress()
@@ -586,30 +576,35 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
 
         final boolean costNotificationsSuccessful = Status.SUCCESS
                         .equals(planProgressProjectedCostStatus) &&
-                                                    Status.SUCCESS.equals(planProgressProjectedRiCoverageStatus);
+                                                    Status.SUCCESS
+                        .equals(planProgressProjectedRiCoverageStatus);
 
         final boolean commonNotificationsSuccessful = checkCommonNotificationsSuccessful(plan);
-
-        if (isOCPBuyRIOnly(plan)) {
-            return commonNotificationsSuccessful ? PlanStatus.SUCCEEDED
-                            : PlanStatus.WAITING_FOR_RESULT;
-        } else if (isOCPOptimizeAndBuyRI) {
+        final boolean commonAndAnalysisAndCostSuccessful = analysisSuccessful
+                && commonNotificationsSuccessful
+                && costNotificationsSuccessful;
+        String planSubType = PlanRpcServiceUtil.getCloudPlanSubType(plan.getScenario()
+                .getScenarioInfo());
+        if (isOCPBuyRIOnly(planSubType)) {
+            return commonNotificationsSuccessful
+                    ? PlanStatus.SUCCEEDED
+                    : PlanStatus.WAITING_FOR_RESULT;
+        } else if (isOCPOptimizeServices(planSubType)) {
+            return commonAndAnalysisAndCostSuccessful
+                    ? PlanStatus.SUCCEEDED
+                    : PlanStatus.WAITING_FOR_RESULT;
+        } else if (isAnalyzeAndBuyRICloudPlan(planSubType)) {
             // We must account for both RI Buy, and Optimize Services action plans- only set
             // PlanStatus == PlanStatus.SUCCEEDED after both action plans have completed
-            final int numActionPlans = 2;
-            return analysisSuccessful &&
-                    commonNotificationsSuccessful &&
-                    costNotificationsSuccessful &&
-                    plan.getActionPlanIdCount() == numActionPlans
+            // TODO: Steve will remove the isMCP check & ternary assignment so numActionPlans == 2 ALWAYS
+            final int numActionPlans = isMCP(planSubType) ? 1 : 2;
+            return commonAndAnalysisAndCostSuccessful
+                    && plan.getActionPlanIdCount() == numActionPlans
                     ? PlanStatus.SUCCEEDED
-                                   : PlanStatus.WAITING_FOR_RESULT;
-        } else if (isOCPOptimizeServices(plan)) {
-            return analysisSuccessful && commonNotificationsSuccessful
-                            && costNotificationsSuccessful ? PlanStatus.SUCCEEDED
-                                            : PlanStatus.WAITING_FOR_RESULT;
+                    : PlanStatus.WAITING_FOR_RESULT;
         } else {
-            // Non-OCP plans are processed in calling method.
-            logger.error("This is not an OCP plan, hence returning FAILED status");
+            // Non-cloud plans are processed in calling method.
+            logger.error("This is not an optimize cloud or cloud migration plan. Returning FAILED status");
             return plan.getStatus();
         }
     }
@@ -621,12 +616,10 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
      * @return whether common notifications -- stats, action plan id list, source and projected topologies have been received.
      */
     private static boolean checkCommonNotificationsSuccessful(@Nonnull final PlanInstance.Builder plan) {
-
-
-        final boolean commonNotificationsSuccessful = plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
-                        plan.hasProjectedTopologyId() && plan.hasSourceTopologyId();
-
-        return commonNotificationsSuccessful;
+        return plan.getStatsAvailable()
+                && !plan.getActionPlanIdList().isEmpty()
+                && plan.hasProjectedTopologyId()
+                && plan.hasSourceTopologyId();
     }
 
     /**
@@ -636,52 +629,61 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
      * @return If the plan is OCP or not
      */
     @VisibleForTesting
-    static boolean isOCP(@Nonnull final Builder plan) {
+    static boolean isCloudPlan(@Nonnull final Builder plan) {
         @Nullable ScenarioInfo scenarioInfo = plan.hasScenario() ? plan.getScenario()
                 .getScenarioInfo() : null;
         if (scenarioInfo == null) {
             return false;
         }
-        return StringConstants.OPTIMIZE_CLOUD_PLAN.equals(scenarioInfo.getType());
+        final String scenarioType = scenarioInfo.getType();
+        return StringConstants.OPTIMIZE_CLOUD_PLAN.equals(scenarioType)
+            || StringConstants.CLOUD_MIGRATION_PLAN.equals(scenarioType);
     }
 
     /**
      * If the plan is optimize services and buy RI or not.
      *
-     * @param plan the OCP plan
+     * @param planSubType The planSubType
      * @return If the plan is optimize services and buy RI or not
      */
     @VisibleForTesting
-    static boolean isOCPOptimizeAndBuyRI(@Nonnull final PlanInstance.Builder plan) {
-        String planSubType = PlanRpcServiceUtil.getPlanSubType(plan.getScenario()
-                .getScenarioInfo());
-        return StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES.equals(planSubType);
+    static boolean isAnalyzeAndBuyRICloudPlan(@Nonnull final String planSubType) {
+        return StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES.equals(planSubType)
+                || isMCP(planSubType);
     }
 
     /**
      * If the plan is OCP optimize services or not.
      *
-     * @param plan The OCP plan
+     * @param planSubType The planSubType
      * @return If the plan is OCP optimize services or not
      */
     @VisibleForTesting
-    static boolean isOCPOptimizeServices(@Nonnull final PlanInstance.Builder plan) {
-        String planSubType = PlanRpcServiceUtil.getPlanSubType(plan.getScenario()
-                .getScenarioInfo());
+    static boolean isOCPOptimizeServices(@Nonnull final String planSubType) {
         return StringConstants.OPTIMIZE_CLOUD_PLAN__OPTIMIZE_SERVICES.equals(planSubType);
     }
 
     /**
      * If the plan is OCP buy RI only or not.
      *
-     * @param plan The OCP plan
+     * @param planSubType The planSubType
      * @return If the plan is OCP buy RI only or not
      */
     @VisibleForTesting
-    static boolean isOCPBuyRIOnly(@Nonnull final PlanInstance.Builder plan) {
-        String planSubType = PlanRpcServiceUtil.getPlanSubType(plan.getScenario()
-                .getScenarioInfo());
+    static boolean isOCPBuyRIOnly(@Nonnull final String planSubType) {
         return StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(planSubType);
     }
 
+    /**
+     * If the plan is of type Cloud Migration.
+     * Both allocation and consumption plans return true.
+     *
+     * @param planSubType The planSubType
+     * @return If the plan is MCP allocation or consumption
+     */
+    @VisibleForTesting
+    static boolean isMCP(@Nonnull final String planSubType) {
+        return StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION.equals(planSubType)
+            || StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION.equals(planSubType);
+    }
 }
