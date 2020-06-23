@@ -14,12 +14,10 @@ import com.vmturbo.extractor.schema.enums.EntityType;
  */
 public class EntityTypeMapper {
 
-    //TODO: Search db Schema EntityType also contains enums for group types
-    //We will have to add another map of searcdb.enums.entityType to api.groupEntityTypes when available
     /**
      * Mappings between {@link EntityType} and {@link com.vmturbo.api.enums.EntityType}.
      */
-    private static final BiMap<EntityType, com.vmturbo.api.enums.EntityType> ENTITY_STATE_MAPPINGS =
+    private static final BiMap<EntityType, com.vmturbo.api.enums.EntityType> ENTITY_TYPE_MAPPINGS =
         new ImmutableBiMap.Builder()
             .put( EntityType.SWITCH, com.vmturbo.api.enums.EntityType.SWITCH)
             .put( EntityType.STORAGE, com.vmturbo.api.enums.EntityType.STORAGE)
@@ -56,7 +54,7 @@ public class EntityTypeMapper {
      * @return The associated {@link com.vmturbo.api.enums.EntityType}, or null
      */
     public static com.vmturbo.api.enums.EntityType fromSearchSchemaToApi(@Nullable final EntityType entityType) {
-        return ENTITY_STATE_MAPPINGS.getOrDefault(entityType, null);
+        return ENTITY_TYPE_MAPPINGS.getOrDefault(entityType, null);
     }
 
     /**
@@ -66,7 +64,7 @@ public class EntityTypeMapper {
      * @return The associated {@link EntityType}, or null.
      */
     public static EntityType fromApiToSearchSchema(@Nullable final com.vmturbo.api.enums.EntityType entityType) {
-        return ENTITY_STATE_MAPPINGS.inverse().getOrDefault(entityType, null);
+        return ENTITY_TYPE_MAPPINGS.inverse().getOrDefault(entityType, null);
     }
 
 

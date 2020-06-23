@@ -3,6 +3,7 @@ package com.vmturbo.search;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 
@@ -19,6 +20,17 @@ public interface IApiQueryEngine {
      * @throws Exception when the query cannot be processed.
      */
     @Nonnull
-    SearchQueryPaginationResponse<SearchQueryRecordApiDTO> processEntityQuery(EntityQueryApiDTO entityQueryApiDTO) throws Exception;
+    SearchQueryPaginationResponse<SearchQueryRecordApiDTO> processEntityQuery(
+        @Nonnull EntityQueryApiDTO entityQueryApiDTO) throws Exception;
+
+    /**
+     * Processes {@link GroupQueryApiDTO} and returns paginated results.
+     *
+     * @param request the group search query
+     * @return a paginated list of records
+     * @throws Exception when the query cannot be processed.
+     */
+    SearchQueryPaginationResponse<SearchQueryRecordApiDTO> processGroupQuery(
+        @Nonnull GroupQueryApiDTO request) throws Exception;
 
 }
