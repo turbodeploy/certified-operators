@@ -8,6 +8,8 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUS
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_USER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.COMPUTE_TIER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATABASE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATABASE_SERVER_TIER;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATABASE_TIER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DESKTOP_POOL;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DISK_ARRAY;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.LOGICAL_POOL;
@@ -17,11 +19,13 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STO
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_CONTROLLER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.WORKLOAD_CONTROLLER;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -46,6 +50,8 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
@@ -133,6 +139,9 @@ public class EntityMetricWriterTest {
                 "virtualizationType");
         checkStripping(VIRTUAL_VOLUME,
                 null, "files");
+        checkExcludedType(WORKLOAD_CONTROLLER);
+        checkExcludedType(DATABASE_TIER);
+        checkExcludedType(DATABASE_SERVER_TIER);
     }
 
     private void checkStripping(
@@ -172,13 +181,34 @@ public class EntityMetricWriterTest {
     }
 
     /**
+     * Make sure that the type-specific-info attributes stripper in {@link EntityMetricWriter} covers
+     * all entity types for which there is a {@link TypeSpecificInfo} type defined in
+     * {@link TopologyEntityDTO}.
+     */
+    @Test
+    public void testAllTypeSpecificInfosTested() {
+        for (final TypeCase type : TypeCase.values()) {
+            if (type != TypeCase.TYPE_NOT_SET) {
+                EntityType entityType = EntityType.valueOf(type.name());
+                final TopologyEntityDTO entity = mkEntity(entityType);
+                assertThat(entity.getTypeSpecificInfo().getTypeCase(), is(type));
+                try {
+                    EntityMetricWriter.stripUnwantedFields(entity.getTypeSpecificInfo());
+                } catch (Exception e) {
+                    fail(String.format("Type-specific-info type %s not supported by field-stripper", type));
+                }
+            }
+        }
+    }
+
+    /**
      * Test that the overall ingester flow in the {@link EntityMetricWriter} proceeds as expected
      * and results in the correct number of records reported as ingested.
      *
      * @throws InterruptedException        if interrupted
-     * @throws SQLException if there's a DB problem
+     * @throws SQLException                if there's a DB problem
      * @throws UnsupportedDialectException if the db endpint is misconfigured
-     * @throws IOException if there's an IO related issue
+     * @throws IOException                 if there's an IO related issue
      */
     @Test
     public void testIngesterFlow() throws InterruptedException, SQLException, UnsupportedDialectException, IOException {

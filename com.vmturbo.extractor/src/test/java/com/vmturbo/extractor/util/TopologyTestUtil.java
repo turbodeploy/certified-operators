@@ -38,6 +38,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CronJob
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CustomControllerInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DaemonSetInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseServerTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DeploymentInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DiskArrayInfo;
@@ -208,6 +210,12 @@ public class TopologyTestUtil {
             case DATABASE:
                 builder.setDatabase(fillDatabase(DatabaseInfo.newBuilder()));
                 break;
+            case DATABASE_SERVER_TIER:
+                builder.setDatabaseServerTier(fillDatabaseServerTier(DatabaseServerTierInfo.newBuilder()));
+                break;
+            case DATABASE_TIER:
+                builder.setDatabaseTier(fillDatabaseTier(DatabaseTierInfo.newBuilder()));
+                break;
             case DESKTOP_POOL:
                 builder.setDesktopPool(fillDesktopPool(DesktopPoolInfo.newBuilder()));
                 break;
@@ -309,6 +317,17 @@ public class TopologyTestUtil {
                 .setEngine(DatabaseEngine.MARIADB)
                 .setLicenseModel(LicenseModel.BRING_YOUR_OWN_LICENSE)
                 .setVersion("10.6.4")
+                .build();
+    }
+
+    private static DatabaseServerTierInfo fillDatabaseServerTier(final DatabaseServerTierInfo.Builder builder) {
+        return builder.setFamily("family")
+                .build();
+    }
+
+    private static DatabaseTierInfo fillDatabaseTier(final DatabaseTierInfo.Builder builder) {
+        return builder.setFamily("family")
+                .setEdition(DatabaseEdition.ENTERPRISE.name())
                 .build();
     }
 
