@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -21,6 +22,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
@@ -251,6 +253,26 @@ public class TestGraphEntity implements TopologyGraphSearchableEntity<TestGraphE
             .mapToDouble(CommoditySoldDTO::getUsed)
             .findFirst()
             .orElse(-1);
+    }
+
+    @Override
+    public boolean isHotAddSupported(int commodityType) {
+        return isHotChangeSupported(commodityType, HotResizeInfo::getHotAddSupported);
+    }
+
+    @Override
+    public boolean isHotRemoveSupported(int commodityType) {
+        return isHotChangeSupported(commodityType, HotResizeInfo::getHotRemoveSupported);
+    }
+
+    private boolean isHotChangeSupported(int commodityType,
+            @Nonnull Function<HotResizeInfo, Boolean> function) {
+        return commsSoldByType.stream()
+                .filter(c -> c.getCommodityType().getType() == commodityType)
+                .filter(CommoditySoldDTO::hasHotResizeInfo)
+                .map(c -> function.apply(c.getHotResizeInfo()))
+                .findAny()
+                .orElse(false);
     }
 
     private void refreshSearchableProps() {
