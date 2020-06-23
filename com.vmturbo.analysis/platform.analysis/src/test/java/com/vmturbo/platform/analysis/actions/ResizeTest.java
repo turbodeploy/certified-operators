@@ -5,6 +5,7 @@ import static org.junit.Assert.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -302,5 +303,36 @@ public class ResizeTest {
                     boolean expect) {
         assertEquals(expect, resize1.equals(resize2));
         assertEquals(expect, resize1.hashCode() == resize2.hashCode());
+    }
+
+    @SuppressWarnings("unused")
+    private static Object[] parametersForTestResize_Combine() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1);
+
+        Resize resize1 = new Resize(e, t1, new CommoditySpecification(100), 200);
+        return new Object[] {e, t1, resize1};
+    }
+
+    @Test
+    @Parameters(method = "parametersForTestResize_Combine")
+    @TestCaseName("Test #{index}: Resize Combine for {0}, {1}, {2}")
+    public final void testResize_Combine(@NonNull Economy economy,
+        @NonNull Trader sellingTrader, @NonNull Resize resize) {
+        sellingTrader.getSettings().setResizeThroughSupplier(true);
+        Trader provider1 = economy.addTrader(1, TraderState.ACTIVE, new Basket(specifications));
+        Trader provider2 = economy.addTrader(1, TraderState.ACTIVE, new Basket(specifications));
+        resize.getResizeTriggerTraders().put(provider1, new HashSet<>(specifications[0].getBaseType()));
+
+        @NonNull Resize resize2 = new Resize(economy, sellingTrader, resize.getResizedCommoditySpec(), resize.getNewCapacity() + 100);
+        resize2.getResizeTriggerTraders().put(provider2, new HashSet<>(specifications[1].getBaseType()));
+
+        Resize combined = (Resize)resize.combine(resize2);
+
+        assertSame(sellingTrader, combined.getSellingTrader());
+        assertTrue(combined.getOldCapacity() == resize.getOldCapacity());
+        assertTrue(combined.getNewCapacity() == resize2.getNewCapacity());
+        assertTrue(combined.getResizeTriggerTraders().size() == 2);
     }
 } // end ResizeTest class
