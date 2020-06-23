@@ -12,10 +12,10 @@
       }
     ]
   },
-  "editable": true,
+  "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1591113371696,
+  "iteration": 1592514128105,
   "links": [],
   "panels": [
     {
@@ -530,7 +530,7 @@
   "templating": {
     "list": [
       {
-        "hide": 0,
+        "hide": 2,
         "includeAll": false,
         "label": null,
         "multi": false,
