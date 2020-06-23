@@ -239,7 +239,7 @@ public abstract class AbstractQuery {
 
         try {
             value = record.get(columnAlias);
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             //TODO:  Specify exception,  test processEntities is cause
             //This will only happen during testing. End to end test we may not include all the
             //primary column data.
@@ -247,6 +247,10 @@ public abstract class AbstractQuery {
             return Optional.empty();
         }
 
+        // Do not try to map a missing field
+        if (value == null) {
+            return Optional.empty();
+        }
 
         switch (columnMetadata.getApiDatatype()) {
             case TEXT:
@@ -427,8 +431,8 @@ public abstract class AbstractQuery {
     @VisibleForTesting
     List<Condition> buildWhereClauses() {
         List<Condition> conditions = new LinkedList<>();
-        conditions.addAll(buildNonEntityTypeConditions());
         conditions.addAll(buildTypeSpecificConditions());
+        conditions.addAll(buildGenericConditions());
         return conditions;
     }
 
@@ -475,7 +479,7 @@ public abstract class AbstractQuery {
 
     protected abstract WhereApiDTO getWhere();
 
-    private List<Condition> buildNonEntityTypeConditions() {
+    private List<Condition> buildGenericConditions() {
         final WhereApiDTO whereEntity = getWhere();
         if (Objects.isNull(whereEntity )) {
             return Collections.EMPTY_LIST;
