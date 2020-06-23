@@ -3,6 +3,7 @@ package com.vmturbo.search;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 
 /**
@@ -18,6 +19,6 @@ public interface IApiQueryEngine {
      * @throws Exception when the query cannot be processed.
      */
     @Nonnull
-    SearchQueryPaginationResponse processEntityQuery(EntityQueryApiDTO entityQueryApiDTO) throws Exception;
+    SearchQueryPaginationResponse<SearchQueryRecordApiDTO> processEntityQuery(EntityQueryApiDTO entityQueryApiDTO) throws Exception;
 
 }
