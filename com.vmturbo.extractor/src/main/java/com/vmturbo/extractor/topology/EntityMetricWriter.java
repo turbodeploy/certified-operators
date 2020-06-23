@@ -72,6 +72,15 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     private static final Long[] EMPTY_SCOPE = new Long[0];
 
+    // configurations for upsert and update operations for entity table
+    private static final ImmutableList<Column<?>> upsertConflicts = ImmutableList.of(
+            ENTITY_OID_AS_OID, ModelDefinitions.ENTITY_HASH_AS_HASH);
+    private static final ImmutableList<Column<?>> upsertUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
+    private static List<Column<?>> updateIncludes = ImmutableList
+            .of(ModelDefinitions.ENTITY_HASH_AS_HASH, ModelDefinitions.LAST_SEEN);
+    private static final List<Column<?>> updateMatches = ImmutableList.of(ModelDefinitions.ENTITY_HASH_AS_HASH);
+    private static final List<Column<?>> updateUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
+
     private static final Printer jsonPrinter = JsonFormat.printer()
             .omittingInsignificantWhitespace()
             .sortingMapKeys()
@@ -171,29 +180,25 @@ public class EntityMetricWriter extends TopologyWriterBase {
     @Override
     public int finish(final DataProvider dataProvider)
             throws UnsupportedDialectException, SQLException {
-        final DSLContext dsl = dbEndpoint.dslContext();
-        final ImmutableList<Column<?>> upsertConflicts = ImmutableList.of(
-                ENTITY_OID_AS_OID, ModelDefinitions.ENTITY_HASH_AS_HASH);
-        final ImmutableList<Column<?>> upsertUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
-        List<Column<?>> updateIncludes = ImmutableList
-                .of(ModelDefinitions.ENTITY_HASH_AS_HASH, ModelDefinitions.LAST_SEEN);
-        final List<Column<?>> updateMatches = ImmutableList.of(ModelDefinitions.ENTITY_HASH_AS_HASH);
-        final List<Column<?>> updateUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
         // capture entity count before we add groups
         int n = entityRecordsMap.size();
-        try (TableWriter entitiesUpserter = ENTITY_TABLE.open(
-                getEntityUpsertSink(dsl, upsertConflicts, upsertUpdates));
+        try (DSLContext dsl = dbEndpoint.dslContext();
+             TableWriter entitiesUpserter = ENTITY_TABLE.open(
+                     getEntityUpsertSink(dsl, upsertConflicts, upsertUpdates));
              TableWriter entitiesUpdater = ENTITY_TABLE.open(getEntityUpdaterSink(
                      dsl, updateIncludes, updateMatches, updateUpdates));
              TableWriter metricInserter = METRIC_TABLE.open(getMetricInserterSink(dsl))) {
-
+            // prepare and write all our entity and metric records
             writeGroupsAsEntities(dataProvider);
             upsertEntityRecords(dataProvider, entitiesUpserter);
             writeMetricRecords(metricInserter);
             snapshotManager.processChanges(entitiesUpdater);
-            entityHashManager.close(snapshotManager);
+            return n;
+        } finally {
+            if (snapshotManager != null) {
+                snapshotManager.close();
+            }
         }
-        return n;
     }
 
     @VisibleForTesting
@@ -219,25 +224,24 @@ public class EntityMetricWriter extends TopologyWriterBase {
         dataProvider.getAllGroups()
                 .filter(grouping -> !GROUP_TYPE_BLACKLIST.contains(grouping.getDefinition().getType()))
                 .forEach(group -> {
-            final GroupDefinition def = group.getDefinition();
-            Record r = new Record(ENTITY_TABLE);
-            r.set(ENTITY_OID_AS_OID, group.getId());
-            r.set(ModelDefinitions.ENTITY_NAME, def.getDisplayName());
-            r.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, def.getType().name());
-            r.set(ModelDefinitions.SCOPED_OIDS, EMPTY_SCOPE);
-            final JsonString attrs;
-            try {
-                attrs = getGroupJson(group);
-                r.set(ModelDefinitions.ATTRS, attrs);
-            } catch (JsonProcessingException e) {
-                logger.error("Failed to record group attributes for group {}", group.getId());
-            }
-            entityRecordsMap.put(group.getId(), r);
-        });
+                    final GroupDefinition def = group.getDefinition();
+                    Record r = new Record(ENTITY_TABLE);
+                    r.set(ENTITY_OID_AS_OID, group.getId());
+                    r.set(ModelDefinitions.ENTITY_NAME, def.getDisplayName());
+                    r.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, def.getType().name());
+                    r.set(ModelDefinitions.SCOPED_OIDS, EMPTY_SCOPE);
+                    final JsonString attrs;
+                    try {
+                        attrs = getGroupJson(group);
+                        r.set(ModelDefinitions.ATTRS, attrs);
+                    } catch (JsonProcessingException e) {
+                        logger.error("Failed to record group attributes for group {}", group.getId());
+                    }
+                    entityRecordsMap.put(group.getId(), r);
+                });
     }
 
     private void upsertEntityRecords(final DataProvider dataProvider, TableWriter tableWriter) {
-        final long topologyTime = topologyInfo.getCreationTime();
         entityRecordsMap.long2ObjectEntrySet().forEach(entry -> {
             long oid = entry.getLongKey();
             Record record = entry.getValue();
@@ -283,7 +287,12 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private JsonString getTypeSpecificInfoJson(TopologyEntityDTO entity) throws
             InvalidProtocolBufferException {
         final TypeSpecificInfo tsi = entity.hasTypeSpecificInfo() ? entity.getTypeSpecificInfo() : null;
-        final MessageOrBuilder trimmed = tsi != null ? stripUnwantedFields(tsi) : null;
+        MessageOrBuilder trimmed = null;
+        try {
+            trimmed = tsi != null ? stripUnwantedFields(tsi) : null;
+        } catch (IllegalArgumentException e) {
+            logger.warn("Entity type {} not handled by type-specific-info stripper", tsi.getTypeCase());
+        }
         final String json = trimmed != null ? jsonPrinter.print(trimmed) : null;
         return json != null ? new JsonString(json) : null;
     }
@@ -349,6 +358,15 @@ public class EntityMetricWriter extends TopologyWriterBase {
             case VIRTUAL_VOLUME:
                 return tsi.getVirtualVolume().toBuilder()
                         .clearFiles();
+            case WORKLOAD_CONTROLLER:
+                // TODO: evaluate whether we need these entities, and if so which attrs to strip
+                return null;
+            case DATABASE_TIER:
+                // TODO: evaluate whether we need these entities, and if so which attrs to strip
+                return null;
+            case DATABASE_SERVER_TIER:
+                // TODO: evaluate whether we need these entities, and if so which attrs to strip
+                return null;
             case TYPE_NOT_SET:
                 return null;
             default:
