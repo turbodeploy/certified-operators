@@ -125,8 +125,8 @@ public class HCIPhysicalMachineEntityConstructorTest {
 
         // Run test
         Collection<TopologyEntityDTO.Builder> result = new HCIPhysicalMachineEntityConstructor(
-                template, topology, Collections.singletonList(host1), true, identityProvider,
-                settingPolicyServiceClient).createTopologyEntitiesFromTemplate();
+                template, topology, identityProvider, settingPolicyServiceClient)
+                        .replaceEntitiesFromTemplate(Collections.singletonList(host1));
 
         Assert.assertEquals(3, result.size());
         List<TopologyEntityDTO.Builder> newHosts = result.stream()

@@ -18,7 +18,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -33,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
 
 /**
  * Generate a list of TopologyEntityDTO from a list of template ids. it will call TemplateService to get
@@ -49,6 +49,8 @@ public class TemplateConverterFactory {
     private final Map<Integer, ITopologyEntityConstructor> templateConverterMap = ImmutableMap.of(
             EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(),
             EntityType.PHYSICAL_MACHINE_VALUE, new PhysicalMachineEntityConstructor(),
+            // TODO OM-59961 Do not handle the HCI Host as a regular host
+            EntityType.HCI_PHYSICAL_MACHINE_VALUE, new PhysicalMachineEntityConstructor(),
             EntityType.STORAGE_VALUE, new StorageEntityConstructor());
 
     // map used for creating reservation entities from template.
@@ -186,7 +188,7 @@ public class TemplateConverterFactory {
 
         for (int i = 0; i < additionCount; i++) {
             result.add(generateTopologyEntityByType(template, topology, null,
-                    isReservation, false, "(Clone " + i + ")"));
+                    isReservation, TemplateActionType.CLONE, "(Clone " + i + ")"));
         }
 
         return result;
@@ -204,15 +206,14 @@ public class TemplateConverterFactory {
         setShopTogether(entitiesToReplace);
 
         if (template.getTemplateInfo().getEntityType() == EntityType.HCI_PHYSICAL_MACHINE_VALUE) {
-            return new HCIPhysicalMachineEntityConstructor(template, topology, entitiesToReplace,
-                    true, identityProvider, settingPolicyService)
-                            .createTopologyEntitiesFromTemplate();
+            return new HCIPhysicalMachineEntityConstructor(template, topology, identityProvider,
+                    settingPolicyService).replaceEntitiesFromTemplate(entitiesToReplace);
         } else {
             List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
             for (TopologyEntity.Builder entity : entitiesToReplace) {
                 result.add(generateTopologyEntityByType(template, topology,
-                        entity.getEntityBuilder(), false, true, null));
+                        entity.getEntityBuilder(), false, TemplateActionType.REPLACE, null));
             }
 
             return result;
@@ -260,21 +261,21 @@ public class TemplateConverterFactory {
     }
 
     @Nonnull
-    private TopologyEntityDTO.Builder generateTopologyEntityByType(
-            @Nonnull final Template template,
-            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, final boolean isReservation,
-            boolean isReplaced, @Nullable String nameSuffix)
+    private TopologyEntityDTO.Builder generateTopologyEntityByType(@Nonnull Template template,
+            @Nonnull Map<Long, TopologyEntity.Builder> topology,
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReservation,
+            @Nonnull TemplateActionType actionType, @Nullable String nameSuffix)
             throws TopologyEntityConstructorException {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
         final Map<Integer, ITopologyEntityConstructor> converterMap = isReservation
                 ? reservationTemplateConvertMap
                 : templateConverterMap;
         if (!converterMap.containsKey(templateEntityType)) {
-            throw new NotImplementedException(templateEntityType + " template is not supported.");
+            throw new TopologyEntityConstructorException(
+                    "Template type " + templateEntityType + "  is not supported.");
         }
 
         return converterMap.get(templateEntityType).createTopologyEntityFromTemplate(template,
-                topology, originalTopologyEntity, isReplaced, identityProvider, nameSuffix);
+                topology, originalTopologyEntity, actionType, identityProvider, nameSuffix);
     }
 }

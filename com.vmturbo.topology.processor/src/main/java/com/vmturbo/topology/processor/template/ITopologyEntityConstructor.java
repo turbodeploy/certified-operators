@@ -9,6 +9,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
 
 /**
  * Create topology entity from a template.
@@ -21,7 +22,7 @@ public interface ITopologyEntityConstructor {
      * @param template template
      * @param topology topology
      * @param originalTopologyEntity original TopologyEntity
-     * @param isReplaced is replaced
+     * @param actionType action type, e.g. REPLACE, or ADD
      * @param identityProvider identity provider
      * @param nameSuffix suffix for the entity name
      * @return topology entity
@@ -31,7 +32,7 @@ public interface ITopologyEntityConstructor {
     @Nonnull
     TopologyEntityDTO.Builder createTopologyEntityFromTemplate(@Nonnull Template template,
             @Nonnull Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
-            @Nonnull IdentityProvider identityProvider, @Nullable String nameSuffix)
-            throws TopologyEntityConstructorException;
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity,
+            @Nonnull TemplateActionType actionType, @Nonnull IdentityProvider identityProvider,
+            @Nullable String nameSuffix) throws TopologyEntityConstructorException;
 }

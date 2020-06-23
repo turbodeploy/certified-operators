@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
 
 public class VirtualMachineEntityConstructorTest {
     private double epsilon = 1e-5;
@@ -32,7 +33,7 @@ public class VirtualMachineEntityConstructorTest {
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, null, false,
+                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, null, TemplateActionType.CLONE,
                         identityProvider, null);
 
         assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());
@@ -75,7 +76,7 @@ public class VirtualMachineEntityConstructorTest {
                         TemplateConverterTestUtil.VM_COMMODITY_BOUGHT_FROM_PROVIDER);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, builder, false,
+                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, builder, TemplateActionType.CLONE,
                         identityProvider, null);
 
         assertEquals(4, topologyEntityDTO.getCommoditySoldListCount());
@@ -121,7 +122,7 @@ public class VirtualMachineEntityConstructorTest {
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
 
         TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor(true)
-                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, null, false,
+                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, null, TemplateActionType.CLONE,
                         identityProvider, null);
         assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(2, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
