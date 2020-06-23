@@ -14,6 +14,7 @@ import java.util.UUID;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
@@ -548,11 +549,13 @@ public class UsersService implements IUsersService {
      * @param adDTO The API format DTO.
      * @return The internal format DTO.
      */
-    private @Nonnull ActiveDirectoryDTO convertADInfoToAuth(
-            final @Nonnull ActiveDirectoryApiDTO adDTO) {
-        ActiveDirectoryDTO dto =
-                new ActiveDirectoryDTO(adDTO.getDomainName(), adDTO.getLoginProviderURI(),
-                                       ensureNonNull(adDTO.getIsSecure()));
+    @Nonnull
+    @VisibleForTesting
+    ActiveDirectoryDTO convertADInfoToAuth(final @Nonnull ActiveDirectoryApiDTO adDTO) {
+        ActiveDirectoryDTO dto = new ActiveDirectoryDTO(
+                StringUtils.isBlank(adDTO.getDomainName()) ? null : adDTO.getDomainName(),
+                StringUtils.isBlank(adDTO.getLoginProviderURI()) ? null
+                        : adDTO.getLoginProviderURI(), ensureNonNull(adDTO.getIsSecure()));
         if (adDTO.getGroups() != null) {
             List<SecurityGroupDTO> groups = new ArrayList<>();
             for (ActiveDirectoryGroupApiDTO grp : adDTO.getGroups()) {

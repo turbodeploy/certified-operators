@@ -873,8 +873,8 @@ public class AuthProvider extends AuthProviderBase {
         synchronized (storeLock_) {
             allUsers = keyValueStore_.getByPrefix(PREFIX);
         }
-        if (isLastLocalAdminUser(info, allUsers) && !CollectionUtils.isEqualCollection(info.roles,
-            roleNames)) {
+        // don't allow change administrator role, if it's the last local admin user
+        if (isLastLocalAdminUser(info, allUsers) && !roleMatched(roleNames, ADMINISTRATOR)) {
             logger_.error("AUDIT::Don't allow modifying role for last local admin user: " +
                 userName);
             return new ResponseEntity<>("Not allowed to modify role for last local " +
