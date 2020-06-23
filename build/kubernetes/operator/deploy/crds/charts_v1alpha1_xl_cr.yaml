@@ -69,3 +69,11 @@ spec:
     enabled: true
   vmm:
     enabled: true
+  wmi:
+    enabled: true
+  snmp:
+    enabled: true
+  mssql:
+    enabled: true
+  newrelic:
+    enabled: true

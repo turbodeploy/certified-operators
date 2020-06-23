@@ -56,6 +56,16 @@ spec:
     enabled: true
   vmm:
     enabled: true
+  wmi:
+    enabled: true
+  snmp:
+    enabled: true
+  mssql:
+    enabled: true
+  newrelic:
+    enabled: true
+  udt:
+    enabled: true
 
   # Resource limits - Core Services
   action-orchestrator:
@@ -303,6 +313,18 @@ spec:
       limits:
         memory: 30Gi
   mediation-xtremio:
+    resources:
+      limits:
+        memory: 30Gi
+  mediation-appinsights:
+    resources:
+      limits:
+        memory: 30Gi
+  mediation-newrelic:
+    resources:
+      limits:
+        memory: 30Gi
+  mediation-udt:
     resources:
       limits:
         memory: 30Gi
