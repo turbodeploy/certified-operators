@@ -49,9 +49,13 @@ public class EnvironmentTypeMapper {
      * @return The associated {@link EnvironmentType},
      *         or {@link EnvironmentType#UNKNOWN_ENV}.
      */
-    @Nonnull
+    @Nullable
     public static EnvironmentType fromApiToXL(@Nullable final com.vmturbo.api.enums.EnvironmentType environmentType) {
+        // if environmentType is null, we don't want to filter based on environment type and return null
+        // to indicate no filtering
+        if (environmentType == null) {
+            return null;
+        }
         return ENVIRONMENT_TYPE_MAPPINGS.inverse().getOrDefault(environmentType, EnvironmentType.UNKNOWN_ENV);
-
     }
 }

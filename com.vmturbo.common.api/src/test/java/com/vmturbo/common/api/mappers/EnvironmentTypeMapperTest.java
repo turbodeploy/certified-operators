@@ -30,6 +30,6 @@ public class EnvironmentTypeMapperTest {
         assertEquals(EnvironmentTypeMapper.fromApiToXL(EnvironmentType.ONPREM), EnvironmentTypeEnum.EnvironmentType.ON_PREM);
         assertEquals(EnvironmentTypeMapper.fromApiToXL(EnvironmentType.HYBRID), EnvironmentTypeEnum.EnvironmentType.HYBRID);
         assertEquals(EnvironmentTypeMapper.fromApiToXL(EnvironmentType.UNKNOWN), EnvironmentTypeEnum.EnvironmentType.UNKNOWN_ENV);
-        assertEquals(EnvironmentTypeMapper.fromApiToXL(null), EnvironmentTypeEnum.EnvironmentType.UNKNOWN_ENV);
+        assertEquals(EnvironmentTypeMapper.fromApiToXL(null), null);
     }
 }
