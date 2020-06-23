@@ -64,17 +64,6 @@ public class SQLDatabaseConfigTest {
     }
 
     /**
-     * Verify if DB credential is provided by user, password reset logic will NOT be invoked after
-     * failing to establish connection and will fail with {@link SecurityException}.
-     */
-    @Test(expected = SecurityException.class)
-    public void testSkipPasswordReset() {
-        System.setProperty("enableSecureDBConnection", "false");
-        TestSQLDataBaseConfigImpl testSQLDataBseConfig = new TestSQLDataBaseConfigImpl();
-        testSQLDataBseConfig.dataSourceConfig("vmtdb", "wronguser", "wrongpass", true);
-    }
-
-    /**
      * Verify DB user without GRANT permission will NOT reset/drop existing component user.
      * Set root password to "vmturbo" before running it.
      * @throws SQLException if DB exception is thrown.

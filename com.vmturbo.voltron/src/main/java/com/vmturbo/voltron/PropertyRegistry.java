@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.core.env.PropertiesPropertySource;
 
-import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.config.ConfigMapPropertiesReader;
 
 /**

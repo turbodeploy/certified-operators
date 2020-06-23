@@ -1,8 +1,8 @@
 package com.vmturbo.mediation.vmware.sdk;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -22,9 +23,8 @@ public class VimSdkConversionProbeTest {
     private VimAccountWithStorageBrowsingFlag vimAccount =
         Mockito.mock(VimAccountWithStorageBrowsingFlag.class);
 
-    private static final String VCENTER_FILE_PATH = VimAccountWithStorageBrowsingFlag.class
-        .getClassLoader().getResource("data/vCenter_vsphere_dc20.eng.vmturbo.com-FULL.txt")
-        .getPath();
+    private static final Path VCENTER_FILE_PATH = ResourcePath.getTestResource(
+            VimSdkConversionProbeTest.class, "data/vCenter_vsphere_dc20.eng.vmturbo.com-FULL.txt");
 
     @Test
     public void testStorageBrowsingDisabled() throws Exception {
@@ -44,7 +44,7 @@ public class VimSdkConversionProbeTest {
      * @throws Exception
      */
     private void testVCenter(boolean isStorageBrowsingEnabled) throws Exception {
-        DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(VCENTER_FILE_PATH);
+        DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(VCENTER_FILE_PATH.toString());
         VimSdkConversionProbe probe = Mockito.spy(new VimSdkConversionProbe());
         Mockito.doReturn(isStorageBrowsingEnabled).when(vimAccount).isStorageBrowsingEnabled();
         Mockito.doReturn(oldResponse).when(probe).getRawDiscoveryResponse(vimAccount);

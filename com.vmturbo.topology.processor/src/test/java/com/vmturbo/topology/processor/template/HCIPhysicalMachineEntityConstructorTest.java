@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -219,7 +220,7 @@ public class HCIPhysicalMachineEntityConstructorTest {
 
     @Nonnull
     private String readResourceFileAsString(@Nonnull String fileName) throws IOException {
-        String path = getClass().getClassLoader().getResource("template/" + fileName).getFile();
-        return Files.asCharSource(new File(path), Charset.defaultCharset()).read();
+        File file = ResourcePath.getTestResource(getClass(), "template/" + fileName).toFile();
+        return Files.asCharSource(file, Charset.defaultCharset()).read();
     }
 }
