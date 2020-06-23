@@ -3,6 +3,7 @@ package com.vmturbo.extractor.topology;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TABLE;
 import static com.vmturbo.extractor.models.ModelDefinitions.METRIC_TABLE;
+import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -82,8 +83,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     private final Long2ObjectMap<List<Record>> metricRecordsMap = new Long2ObjectOpenHashMap<>();
     private EntityHashManager entityHashManager;
-    private Timestamp firstSeenTime;
-    private Timestamp lastSeenTime;
     private SnapshotManager snapshotManager;
 
 
@@ -123,8 +122,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
         } catch (InvalidProtocolBufferException invalidProtocolBufferException) {
             logger.error("Failed to record type-specific info for entity {}", oid);
         }
-        entitiesRecord.set(ModelDefinitions.FIRST_SEEN, firstSeenTime);
-        entitiesRecord.set(ModelDefinitions.LAST_SEEN, lastSeenTime);
         // supply chain will be added during finish processing
         entityRecordsMap.put(oid, entitiesRecord);
         writeMetrics(e, oid);
@@ -144,7 +141,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 final Double sumUsed = cbs.stream().mapToDouble(CommodityBoughtDTO::getUsed).sum();
 
                 Record r = new Record(ModelDefinitions.METRIC_TABLE);
-                r.set(ModelDefinitions.TIME, firstSeenTime);
                 r.set(ModelDefinitions.ENTITY_OID, oid);
                 r.set(ModelDefinitions.COMMODITY_PROVIDER, producer);
                 r.set(ModelDefinitions.COMMODITY_TYPE, type);
@@ -163,7 +159,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
             final double sumCap = css.stream().mapToDouble(CommoditySoldDTO::getCapacity).sum();
 
             Record r = new Record(ModelDefinitions.METRIC_TABLE);
-            r.set(ModelDefinitions.TIME, firstSeenTime);
             r.set(ModelDefinitions.ENTITY_OID, oid);
             r.set(ModelDefinitions.COMMODITY_TYPE, type);
             r.set(ModelDefinitions.COMMODITY_CAPACITY, sumCap);
@@ -230,8 +225,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
             r.set(ModelDefinitions.ENTITY_NAME, def.getDisplayName());
             r.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, def.getType().name());
             r.set(ModelDefinitions.SCOPED_OIDS, EMPTY_SCOPE);
-            r.set(ModelDefinitions.FIRST_SEEN, firstSeenTime);
-            r.set(ModelDefinitions.LAST_SEEN, lastSeenTime);
             final JsonString attrs;
             try {
                 attrs = getGroupJson(group);
@@ -274,11 +267,13 @@ public class EntityMetricWriter extends TopologyWriterBase {
     }
 
     private void writeMetricRecords(TableWriter tableWriter) {
+        final Timestamp time = new Timestamp(topologyInfo.getCreationTime());
         metricRecordsMap.long2ObjectEntrySet().forEach(entry -> {
             long oid = entry.getLongKey();
             Long hash = entityHashManager.getEntityHash(oid);
             entry.getValue().forEach(partialMetricRecord -> {
                 try (Record r = tableWriter.open(partialMetricRecord)) {
+                    r.set(TIME, time);
                     r.set(ModelDefinitions.ENTITY_HASH, hash);
                 }
             });

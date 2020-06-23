@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 # Run this as the root user
 if [[ $(/usr/bin/id -u) -ne 0 ]]

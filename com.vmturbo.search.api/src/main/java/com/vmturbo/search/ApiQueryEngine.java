@@ -16,6 +16,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -32,10 +36,6 @@ import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.api.dto.searchquery.BooleanConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.ConditionApiDTO;
@@ -121,7 +121,7 @@ public class ApiQueryEngine implements IApiQueryEngine {
      */
     private void dslContextInitilization()
             throws Exception {
-        if (this.readOnlyDSLContext == null && enableSearchApi) {
+        if (this.readOnlyDSLContext == null) {
             this.readOnlyDSLContext = this.readonlyDbEndpoint.dslContext();
         }
     }
@@ -233,6 +233,7 @@ public class ApiQueryEngine implements IApiQueryEngine {
      * @param fieldApiDto  fieldDto to couple with value for {@link FieldValueApiDTO}
      * @return FieldValue
      */
+    @VisibleForTesting
     Optional<FieldValueApiDTO> mapRecordToValue(@Nonnull Record record, @Nonnull SearchEntityMetadataMapping columnMetadata, @Nonnull FieldApiDTO fieldApiDto) {
         final String columnAlias = getColumnAlias(columnMetadata.getColumnName(), columnMetadata.getJsonKeyName());
 
@@ -280,15 +281,14 @@ public class ApiQueryEngine implements IApiQueryEngine {
                     }
                     break;
                 case NUMBER:
-                    fieldValue = fieldApiDto.value(Double.valueOf((String)value));
+                    fieldValue = fieldApiDto.value(Double.valueOf((String)value), columnMetadata.getUnitsString());
                     break;
                 case INTEGER:
                     if (fieldApiDto.equals(RelatedActionFieldApiDTO.actionCount())) {
                         fieldValue = fieldApiDto.value((Integer)value);
                     } else {
-                        fieldValue = fieldApiDto.value(Integer.valueOf((String)value));
+                        fieldValue = fieldApiDto.value(Integer.valueOf((String)value), columnMetadata.getUnitsString());
                     }
-
                     break;
                 case BOOLEAN:
                     fieldValue = fieldApiDto.value(Boolean.valueOf((String)value));
@@ -460,10 +460,10 @@ public class ApiQueryEngine implements IApiQueryEngine {
 
         if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityType())) {
             throw new IllegalArgumentException("EntityType condition should only exist on Select Query");
-        } else if(fieldApiDto.equals(PrimitiveFieldApiDTO.entitySeverity())) {
+        } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entitySeverity())) {
             apiEnumMapper = new EnumMapper(EntitySeverity.class);
             enumMappingFunction = EntitySeverityMapper.fromApiToSearchSchemaFunction;
-        } else if(fieldApiDto.equals(PrimitiveFieldApiDTO.entityState())) {
+        } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityState())) {
             apiEnumMapper = new EnumMapper(EntityState.class);
             enumMappingFunction = EntityStateMapper.fromApiToSearchSchemaFunction;
         } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.environmentType())) {
@@ -490,13 +490,13 @@ public class ApiQueryEngine implements IApiQueryEngine {
 
             if (condition instanceof TextConditionApiDTO) {
                 conditions.add(parseCondition((TextConditionApiDTO) condition, field));
-            } else if(condition instanceof InclusionConditionApiDTO) {
+            } else if (condition instanceof InclusionConditionApiDTO) {
                 conditions.add(parseCondition((InclusionConditionApiDTO) condition, field));
-            } else if(condition instanceof NumberConditionApiDTO) {
+            } else if (condition instanceof NumberConditionApiDTO) {
                 conditions.add(parseCondition((NumberConditionApiDTO)condition, field));
-            } else if(condition instanceof IntegerConditionApiDTO) {
+            } else if (condition instanceof IntegerConditionApiDTO) {
                 conditions.add(parseCondition((IntegerConditionApiDTO)condition, field));
-            } else if(condition instanceof BooleanConditionApiDTO) {
+            } else if (condition instanceof BooleanConditionApiDTO) {
                 conditions.add(parseCondition((BooleanConditionApiDTO) condition, field));
             }
         }
@@ -508,6 +508,7 @@ public class ApiQueryEngine implements IApiQueryEngine {
      * Builds {@link Condition} from {@link TextConditionApiDTO}.
      *
      * @param entityCondition to build from
+     * @field field to which condition is constructed upon                       
      * @return constructed {@link Condition}
      */
     private Condition parseCondition(@Nonnull TextConditionApiDTO entityCondition, @Nonnull Field field) {
@@ -522,6 +523,7 @@ public class ApiQueryEngine implements IApiQueryEngine {
      * Builds {@link Condition} from {@link InclusionConditionApiDTO}.
      *
      * @param entityCondition to build from
+     * @field field to which condition is constructed upon
      * @return constructed {@link Condition}
      */
     private Condition parseCondition(@Nonnull InclusionConditionApiDTO entityCondition, @Nonnull Field field) {
@@ -535,6 +537,7 @@ public class ApiQueryEngine implements IApiQueryEngine {
      * Builds {@link Condition} from {@link NumberConditionApiDTO}.
      *
      * @param entityCondition to build from
+     * @field field to which condition is constructed upon
      * @return constructed {@link Condition}
      */
     @Nonnull
@@ -548,6 +551,7 @@ public class ApiQueryEngine implements IApiQueryEngine {
      * Builds {@link Condition} from {@link IntegerConditionApiDTO}.
      *
      * @param entityCondition to build from
+     * @field field to which condition is constructed upon
      * @return constructed {@link Condition}
      */
     @NonNull
@@ -561,6 +565,7 @@ public class ApiQueryEngine implements IApiQueryEngine {
      * Builds {@link Condition} from {@link BooleanConditionApiDTO}.
      *
      * @param entityCondition to build from
+     * @field field to which condition is constructed upon
      * @return constructed {@link Condition}
      */
     private Condition parseCondition(@Nonnull BooleanConditionApiDTO entityCondition, @Nonnull Field field) {

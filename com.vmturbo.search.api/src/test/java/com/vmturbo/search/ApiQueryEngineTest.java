@@ -1,6 +1,7 @@
 package com.vmturbo.search;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -16,9 +17,13 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.Record;
 import org.jooq.Record4;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
@@ -28,24 +33,25 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 import com.vmturbo.api.dto.searchquery.InclusionConditionApiDTO;
+import com.vmturbo.api.dto.searchquery.IntegerConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.MultiTextFieldValueApiDTO;
+import com.vmturbo.api.dto.searchquery.NumberConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.NumberFieldValueApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
+import com.vmturbo.api.dto.searchquery.RelatedActionFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.RelatedEntityFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SelectEntityApiDTO;
 import com.vmturbo.api.dto.searchquery.TextConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.TextFieldValueApiDTO;
 import com.vmturbo.api.dto.searchquery.WhereApiDTO;
+import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 import com.vmturbo.extractor.schema.enums.EntitySeverity;
@@ -424,7 +430,7 @@ public class ApiQueryEngineTest {
     }
 
     /**
-     * Expect correct translation of {@link WhereApiDTO} clause for {@link InclusionConditionApiDTO} of non enum value.
+     * Expect correct translation of {@link WhereApiDTO} clause for {@link InclusionConditionApiDTO} of enum value.
      */
     @Test
     public void buildWhereClauseInclusionCondition() {
@@ -434,10 +440,9 @@ public class ApiQueryEngineTest {
                 .in(states);
 
         final EntityType type = EntityType.VIRTUAL_MACHINE;
-        final FieldApiDTO relatedEntityField = getAnyEntityKeyField(type, RelatedEntityFieldApiDTO.class, null);
         final WhereApiDTO where = WhereApiDTO.where().and(enumCondition).build();
         final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(type)
-                .fields(relatedEntityField)
+                .fields(PrimitiveFieldApiDTO.entityState())
                 .build();
 
         EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity, where);
@@ -455,7 +460,82 @@ public class ApiQueryEngineTest {
         assertTrue(condition.toString().equals(expectedCondition1));
     }
 
+    /**
+     * Expect correct translation of {@link WhereApiDTO} clause for {@link NumberConditionApiDTO}.
+     */
+    @Test
+    public void buildWhereClauseNumberCondition() {
+        //GIVEN
+        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final FieldApiDTO commodityField = CommodityFieldApiDTO.used(CommodityType.VCPU);
+        Double doubleValue = 98.89;
+        NumberConditionApiDTO numberConditionApiDTO = commodityField.eq(doubleValue);
+        final WhereApiDTO where = WhereApiDTO.where().and(numberConditionApiDTO).build();
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(type)
+                .fields(commodityField)
+                .build();
 
+        EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity, where);
+        this.apiQueryEngineSpy.setMetaDataMapping(request);
+
+        //WHEN
+        List<Condition> conditions = this.apiQueryEngineSpy.buildWhereClauses();
+
+        //THEN
+        assertTrue(conditions.size() == 2);
+        Condition condition = conditions.get(1);
+        String expectedCondition1 = "cast(attrs->>'vcpu_used' as decimal) = 98.89";
+        assertTrue(condition.toString().equals(expectedCondition1));
+    }
+
+    /**
+     * Expect correct translation of {@link WhereApiDTO} clause for {@link IntegerConditionApiDTO}.
+     */
+    @Test
+    public void buildWhereClauseIntegerCondition() {
+        //GIVEN
+        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final FieldApiDTO commodityField = RelatedActionFieldApiDTO.actionCount();
+        Long longValue = 98L;
+        IntegerConditionApiDTO integerConditionApiDTO = commodityField.eq(longValue);
+        final WhereApiDTO where = WhereApiDTO.where().and(integerConditionApiDTO).build();
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(type)
+                .fields(commodityField)
+                .build();
+
+        EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity, where);
+        this.apiQueryEngineSpy.setMetaDataMapping(request);
+
+        //WHEN
+        List<Condition> conditions = this.apiQueryEngineSpy.buildWhereClauses();
+
+        //THEN
+        assertTrue(conditions.size() == 2);
+        Condition condition = conditions.get(1);
+        String expectedCondition1 = "cast(\"extractor\".\"search_entity\".\"num_actions\" as bigint) = 98";
+        assertTrue(condition.toString().equals(expectedCondition1));
+    }
+
+    /**
+     * Expect units to be returned for {@link CommodityFieldApiDTO}.
+     */
+    @Test
+    public void mapRecordToValueReturningUnits() {
+        //GIVEN
+        SearchEntityMetadataMapping columnMetadata = SearchEntityMetadataMapping.COMMODITY_CPU_UTILIZATION;
+        FieldApiDTO fieldApiDto = CommodityFieldApiDTO.utilization(CommodityType.VCPU);
+        this.apiQueryEngineSpy.entityMetadata = mock(Map.class);
+        doReturn(columnMetadata).when(this.apiQueryEngineSpy.entityMetadata).get(any());
+        final Field commodityField = this.apiQueryEngineSpy.buildAndTrackSelectFieldFromEntityType(fieldApiDto);
+        Record record = dSLContextSpy.newRecord(commodityField).values("45");
+
+        //WHEN
+        NumberFieldValueApiDTO value = (NumberFieldValueApiDTO) this.apiQueryEngineSpy.mapRecordToValue(record, columnMetadata, fieldApiDto).get();
+
+        //THEN
+        assertNotNull(value.getUnits());
+        assertTrue(value.getUnits().equals(columnMetadata.getUnitsString()));
+    }
 
 }
 

@@ -8,6 +8,7 @@ import "common/Pagination.proto";
 import "CommonDTO.proto";
 import "topology/TopologyDTO.proto";
 import "stats/Stats.proto";
+import "cca/CloudCommitmentAnalysis.proto";
 
 // Top down Cloud account expense discovered by the billing probe, associated with a specific account
 message AccountExpenses {
@@ -1387,4 +1388,21 @@ service RIBuyContextFetchService {
     // Deletes the data corresponding to context topology id from action_context table.
     rpc DeleteRIBuyContextData(DeleteRIBuyContextDataRequest)
         returns (DeleteRIBuyContextDataResponse);
+}
+
+
+message StartCloudCommitmentAnalysisRequest {
+    optional cca.CloudCommitmentAnalysisConfig analysis_config = 1;
+}
+
+message StartCloudCommitmentAnalysisResponse {
+    optional cca.CloudCommitmentAnalysisInfo cloud_commitment_analysis_info = 1;
+}
+
+service CloudCommitmentAnalysisService {
+
+    // Start an analysis, based on the configuration provided in the request. The response will
+    // return a unique identifier for the analysis, in order to check the status.
+    rpc StartCloudCommitmentAnalysis(StartCloudCommitmentAnalysisRequest)
+    returns (StartCloudCommitmentAnalysisResponse);
 }

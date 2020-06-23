@@ -49,8 +49,8 @@ livenessProbe:
 # schedulerName: "default-scheduler"
 
 image:
-  repository: grafana/grafana
-  tag: 7.0.0
+  repository: grafana/grafana-enterprise
+  tag: 7.0.3-ubuntu
   pullPolicy: IfNotPresent
 
   ## Optionally specify an array of imagePullSecrets.
