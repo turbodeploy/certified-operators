@@ -21,6 +21,7 @@ import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
@@ -56,17 +57,38 @@ public enum SearchEntityMetadataMapping {
     /**
      * Entity type specific fields.
      */
+    PRIMITIVE_ATTACHMENT_STATE("attrs", "attachment_state", Type.ENUM, AttachmentState.class,
+            entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualVolume().getAttachmentState())),
+
+    PRIMITIVE_CONNECTED_NETWORKS("attrs", "connected_networks", Type.MULTI_TEXT, null,
+            entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getConnectedNetworksList())),
+
+    PRIMITIVE_CPU_MODEL("attrs", "cpu_model", Type.TEXT, null,
+            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getCpuModel())),
+
     PRIMITIVE_GUEST_OS_TYPE("attrs", "guest_os_type", Type.ENUM, OSType.class,
             entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType())),
+
+    PRIMITIVE_MODEL("attrs", "model", Type.TEXT, null,
+            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getModel())),
+
+    PRIMITIVE_PM_NUM_CPUS("attrs", "num_cpus", Type.NUMBER, null,
+            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getNumCpus())),
+
+    PRIMITIVE_TIMEZONE("attrs", "timezone", Type.TEXT, null,
+            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getTimezone())),
+
+    PRIMITIVE_VM_NUM_CPUS("attrs", "num_cpus", Type.NUMBER, null,
+            entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus())),
 
     /**
      * Commodities.
      */
-    COMMODITY_VCPU_USED("attrs", "vcpu_used", CommodityType.VCPU, CommodityAttribute.USED,
-            CommodityTypeUnits.VCPU, Type.NUMBER),
+    COMMODITY_BALLOONING_PERCENTILE("attrs", "ballooning_percentile", CommodityType.BALLOONING, CommodityAttribute.PERCENTILE,
+            CommodityTypeUnits.BALLOONING, Type.NUMBER),
 
-    COMMODITY_VCPU_UTILIZATION("attrs", "vcpu_utilization", CommodityType.VCPU, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.VCPU, Type.NUMBER),
+    COMMODITY_BALLOONING_UTILIZATION("attrs", "ballooning_utilization", CommodityType.BALLOONING, CommodityAttribute.UTILIZATION,
+            CommodityTypeUnits.BALLOONING, Type.NUMBER),
 
     COMMODITY_CPU_USED("attrs", "cpu_used", CommodityType.CPU, CommodityAttribute.USED,
             CommodityTypeUnits.CPU, Type.NUMBER),
@@ -74,19 +96,96 @@ public enum SearchEntityMetadataMapping {
     COMMODITY_CPU_UTILIZATION("attrs", "cpu_utilization", CommodityType.CPU, CommodityAttribute.UTILIZATION,
             CommodityTypeUnits.CPU, Type.NUMBER),
 
+    COMMODITY_IO_THROUGHPUT_USED("attrs", "io_throughput_used", CommodityType.IO_THROUGHPUT, CommodityAttribute.USED,
+            CommodityTypeUnits.IO_THROUGHPUT, Type.NUMBER),
+
+    COMMODITY_IO_THROUGHPUT_UTILIZATION("attrs", "io_throughput_utilization", CommodityType.IO_THROUGHPUT, CommodityAttribute.UTILIZATION,
+            CommodityTypeUnits.NET_THROUGHPUT, Type.NUMBER),
+
+    COMMODITY_NET_THROUGHPUT_USED("attrs", "net_throughput_used", CommodityType.NET_THROUGHPUT, CommodityAttribute.USED,
+            CommodityTypeUnits.IO_THROUGHPUT, Type.NUMBER),
+
+    COMMODITY_NET_THROUGHPUT_UTILIZATION("attrs", "net_throughput_utilization", CommodityType.NET_THROUGHPUT, CommodityAttribute.UTILIZATION,
+            CommodityTypeUnits.NET_THROUGHPUT, Type.NUMBER),
+
+    COMMODITY_MEM_CAPACITY("attrs", "mem_capacity", CommodityType.MEM, CommodityAttribute.CAPACITY,
+            CommodityTypeUnits.MEM, Type.NUMBER),
+
+    COMMODITY_MEM_USED("attrs", "mem_used", CommodityType.MEM, CommodityAttribute.USED,
+            CommodityTypeUnits.MEM, Type.NUMBER),
+
+    COMMODITY_MEM_UTILIZATION("attrs", "mem_utilization", CommodityType.MEM, CommodityAttribute.UTILIZATION,
+            CommodityTypeUnits.MEM, Type.NUMBER),
+
+    COMMODITY_STORAGE_AMOUNT_CAPACITY("attrs", "storage_amount_capacity", CommodityType.STORAGE_AMOUNT, CommodityAttribute.CAPACITY,
+            CommodityTypeUnits.STORAGE_AMOUNT, Type.NUMBER),
+
+    COMMODITY_SWAPPING_PERCENTILE("attrs", "swapping_percentile", CommodityType.SWAPPING, CommodityAttribute.PERCENTILE,
+            CommodityTypeUnits.SWAPPING, Type.NUMBER),
+
+    COMMODITY_SWAPPING_UTILIZATION("attrs", "swapping_utilization", CommodityType.SWAPPING, CommodityAttribute.UTILIZATION,
+            CommodityTypeUnits.SWAPPING, Type.NUMBER),
+
+    COMMODITY_VCPU_USED("attrs", "vcpu_used", CommodityType.VCPU, CommodityAttribute.USED,
+            CommodityTypeUnits.VCPU, Type.NUMBER),
+
+    COMMODITY_VCPU_UTILIZATION("attrs", "vcpu_utilization", CommodityType.VCPU, CommodityAttribute.UTILIZATION,
+            CommodityTypeUnits.VCPU, Type.NUMBER),
+
+    COMMODITY_VMEM_CAPACITY("attrs", "vmem_capacity", CommodityType.VMEM, CommodityAttribute.CAPACITY,
+            CommodityTypeUnits.VMEM, Type.NUMBER),
+
+    COMMODITY_VMEM_USED("attrs", "vmem_used", CommodityType.VMEM, CommodityAttribute.USED,
+            CommodityTypeUnits.VMEM, Type.NUMBER),
+
+    COMMODITY_VMEM_UTILIZATION("attrs", "vmem_utilization", CommodityType.VMEM, CommodityAttribute.UTILIZATION,
+            CommodityTypeUnits.VMEM, Type.NUMBER),
+
+    COMMODITY_VSTORAGE_USED("attrs", "vstorage_used", CommodityType.VSTORAGE, CommodityAttribute.USED,
+            CommodityTypeUnits.VSTORAGE, Type.NUMBER),
+
+    COMMODITY_VSTORAGE_UTILIZATION("attrs", "vstorage_utilization", CommodityType.VSTORAGE, CommodityAttribute.UTILIZATION,
+            CommodityTypeUnits.VSTORAGE, Type.NUMBER),
+
     /**
      * Related entities.
      */
+    RELATED_ACCOUNT("attrs", "related_account", Collections.singleton(EntityType.BUSINESS_ACCOUNT),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    RELATED_APPLICATION("attrs", "related_application", Collections.singleton(EntityType.APPLICATION),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    RELATED_DISKARRAY("attrs", "related_diskarray", Collections.singleton(EntityType.DISKARRAY),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
     RELATED_HOST("attrs", "related_host", Collections.singleton(EntityType.PHYSICAL_MACHINE),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
     RELATED_DATA_CENTER("attrs", "related_dc", Collections.singleton(EntityType.DATACENTER),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
+    RELATED_REGION("attrs", "related_region", Collections.singleton(EntityType.REGION),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    RELATED_STORAGE("attrs", "related_storage", Collections.singleton(EntityType.STORAGE),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    RELATED_STORAGE_TIER("attrs", "related_storage_tier", Collections.singleton(EntityType.STORAGE_TIER),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    RELATED_SWITCH("attrs", "related_switch", Collections.singleton(EntityType.SWITCH),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    RELATED_VM("attrs", "related_vm", Collections.singleton(EntityType.VIRTUAL_MACHINE),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    NUM_VMS("attrs", "num_vms", Collections.singleton(EntityType.VIRTUAL_MACHINE),
+            RelatedEntitiesProperty.COUNT, Type.NUMBER),
+
     NUM_WORKLOADS("attrs", "num_workloads",
-        ImmutableSet.of(EntityType.VIRTUAL_MACHINE, EntityType.APPLICATION, EntityType.DATABASE),
-        RelatedEntitiesProperty.COUNT,
-        Type.MULTI_TEXT);
+            ImmutableSet.of(EntityType.VIRTUAL_MACHINE, EntityType.APPLICATION, EntityType.DATABASE),
+            RelatedEntitiesProperty.COUNT, Type.NUMBER);
 
     /** name of the column in db table */
     @Nonnull
