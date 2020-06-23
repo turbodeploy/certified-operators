@@ -472,6 +472,11 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                             .collect(Collectors.toSet())));
         }
 
+        if (!filter.computeTierOids().isEmpty()) {
+            conditions.add(Tables.ENTITY_COMPUTE_TIER_ALLOCATION.ALLOCATED_COMPUTE_TIER_OID.in(
+                    filter.computeTierOids()));
+        }
+
         return conditions;
     }
 

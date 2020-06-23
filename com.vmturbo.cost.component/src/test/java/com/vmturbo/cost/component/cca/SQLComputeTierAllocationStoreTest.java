@@ -294,6 +294,27 @@ public class SQLComputeTierAllocationStoreTest {
 
     }
 
+    @Test
+    public void testComputeTierFilter() {
+
+        final EntityComputeTierAllocationFilter filter = ImmutableEntityComputeTierAllocationFilter.builder()
+                .addComputeTierOids(12)
+                .build();
+
+        final Set<EntityComputeTierAllocation> allocations = computeTierAllocationStore
+                .streamAllocations(filter)
+                .collect(Collectors.toSet());
+
+        // Datapoints A and C should be returned
+        assertThat(allocations, hasSize(2));
+
+        final EntityComputeTierAllocation allocationB = datapointToAllocation(baselineDatapointB, baselineCreationTime);
+        final EntityComputeTierAllocation allocationC = datapointToAllocation(baselineDatapointC, baselineCreationTime);
+
+        assertThat(allocations, containsInAnyOrder(allocationB, allocationC));
+
+    }
+
 
     private EntityComputeTierAllocation datapointToAllocation(
             @Nonnull ComputeTierAllocationDatapoint allocationDatapoint,
