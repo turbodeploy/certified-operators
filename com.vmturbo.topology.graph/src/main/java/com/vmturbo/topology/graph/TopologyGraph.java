@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Stack;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -15,6 +16,7 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -246,6 +248,29 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
     @Nonnull
     public Stream<E> getConsumers(@Nonnull final E entity) {
         return entity.getConsumers().stream();
+    }
+
+    /**
+     * Get all the consumers recursively of entityOid.
+     * Its implemented as a DFS traversal of the graph starting from entity oid.
+     * For ex., If there is a Data center, which has a PM on it, which then has a VM on it.
+     * If we pass in the DC's oid, we will get the PM and the VM as results.
+     * @param entityOid the entity oid
+     * @return all the consumers up the chain of the entity.
+     */
+    @Nonnull
+    public Stream<E> getAllConsumersRecursively(long entityOid) {
+        Map<Long, E> allConsumers = Maps.newHashMap();
+        Stack<E> traversalStack = new Stack<>();
+        getConsumers(entityOid).forEach(consumer -> traversalStack.push(consumer));
+        while (!traversalStack.isEmpty()) {
+            E consumer = traversalStack.pop();
+            if (!allConsumers.containsKey(consumer.getOid())) {
+                allConsumers.put(consumer.getOid(), consumer);
+                getConsumers(consumer).forEach(c -> traversalStack.push(c));
+            }
+        }
+        return allConsumers.values().stream();
     }
 
     /**
