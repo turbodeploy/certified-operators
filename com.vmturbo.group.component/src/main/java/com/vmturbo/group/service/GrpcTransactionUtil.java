@@ -50,7 +50,7 @@ public class GrpcTransactionUtil {
         } catch (StoreOperationException e) {
             logger.error("Failed to perform operation", e);
             responseObserver.onError(
-                    e.getStatus().withDescription(e.getLocalizedMessage()).asException());
+                    e.getStatus().withDescription(e.getTruncatedMessage()).asException());
         } catch (InterruptedException e) {
             logger.error("Thread interrupted while executing operation", e);
             responseObserver.onError(
