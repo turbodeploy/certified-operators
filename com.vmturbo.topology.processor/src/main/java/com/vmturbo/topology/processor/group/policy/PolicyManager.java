@@ -212,8 +212,12 @@ public class PolicyManager {
             policiesToApply.addAll(getMigrationPolicies(graph, topologyInfo, changes,
                     sourceEntityOids));
 
-            getServerPolicies(changes, livePolicies, groupsById, reservationResults)
-                .forEach(policiesToApply::add);
+            // If we are doing migration, on-prem policies should be excluded.
+            // TODO Uncomment the if condition after integrating with Joby's patch (OM-59350)
+            //if (context.getPolicyGroups().isEmpty()) {
+                getServerPolicies(changes, livePolicies, groupsById, reservationResults)
+                        .forEach(policiesToApply::add);
+            //}
 
             getPlanOnlyPolicies(planOnlyPolicies, groupsById)
                 .forEach(policiesToApply::add);

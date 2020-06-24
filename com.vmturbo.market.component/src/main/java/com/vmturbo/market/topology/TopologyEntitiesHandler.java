@@ -23,6 +23,7 @@ import org.javatuples.Triplet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.UpdateFunction;
@@ -233,8 +234,11 @@ public class TopologyEntitiesHandler {
         // Set replay actions.
         final @NonNull ReplayActions seedActions = isRealtime ? analysis.getReplayActions()
                                                               : new ReplayActions();
+
+        // Set isResize to false for migration to cloud use case. Set isResize to true otherwise.
+        boolean isResize = !TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
         // trigger suspension throttling in XL
-        actions = ede.generateActions(economy, true, true, true, true,
+        actions = ede.generateActions(economy, true, true, true, isResize,
                 true, seedActions, marketId, isRealtime,
                 isRealtime ? analysisConfig.getSuspensionsThrottlingConfig() : SuspensionsThrottlingConfig.DEFAULT);
         final long stop = System.nanoTime();

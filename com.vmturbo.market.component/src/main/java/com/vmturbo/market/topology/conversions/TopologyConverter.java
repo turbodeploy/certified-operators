@@ -2410,8 +2410,7 @@ public class TopologyConverter {
                 && provider.getEntityType() == EntityType.STORAGE_VALUE)
                         ? (float)(totalStorageAmountBought(buyer) / Units.KIBI)
                         : 0.0f;
-        Set<CommodityDTOs.CommodityBoughtTO> values = filterUnknownLicense(commBoughtGrouping.getCommodityBoughtList()
-            .stream(), buyer)
+        Set<CommodityDTOs.CommodityBoughtTO> values = filterUnknownLicense(commBoughtGrouping.getCommodityBoughtList(), buyer)
             .filter(CommodityBoughtDTO::getActive)
             .map(topoCommBought -> convertCommodityBought(buyer, topoCommBought, providerOid,
                     shopTogether, providers, scalingGroupUsage))
@@ -3243,19 +3242,19 @@ public class TopologyConverter {
      * should not shop for one and we should scope it to the cost tuple having no value for license
      * when getting a quote from a TP.
      *
-     * @param stream Stream of CommodityBoughtDTO's.
+     * @param commodityBoughtDTOList List of CommodityBoughtDTO's.
      * @param entityDTO The entity DTO.
      *
      * @return Stream with the filtered license commodities
      */
-    public Stream<CommodityBoughtDTO> filterUnknownLicense(Stream<CommodityBoughtDTO> stream, TopologyEntityDTO entityDTO) {
+    public Stream<CommodityBoughtDTO> filterUnknownLicense(List<CommodityBoughtDTO> commodityBoughtDTOList, TopologyEntityDTO entityDTO) {
         if (EnvironmentType.CLOUD == entityDTO.getEnvironmentType() && entityDTO.getTypeSpecificInfo().hasVirtualMachine()) {
-            final VirtualMachineInfo info = entityDTO.getTypeSpecificInfo().getVirtualMachine();
-            if (info.hasGuestOsInfo()  && info.getGuestOsInfo().hasGuestOsType() && info
-                    .getGuestOsInfo().getGuestOsType() == OSType.UNKNOWN_OS) {
-                return stream.filter(s -> s.getCommodityType().getType() != CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE);
+            if (commodityBoughtDTOList.stream()
+                    .filter(s -> s.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                    .anyMatch(s -> OSType.UNKNOWN_OS.name().equals(s.getCommodityType().getKey()))) {
+                return commodityBoughtDTOList.stream().filter(s -> s.getCommodityType().getType() != CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE);
             }
         }
-        return stream;
+        return commodityBoughtDTOList.stream();
     }
 }
