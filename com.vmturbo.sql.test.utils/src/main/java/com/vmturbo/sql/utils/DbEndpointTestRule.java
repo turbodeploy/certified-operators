@@ -4,12 +4,12 @@ import static com.vmturbo.sql.utils.DbEndpointResolver.COMPONENT_TYPE_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.DB_HOST_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.DB_NAME_SUFFIX_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.DB_PORT_PROPERTY;
-import static com.vmturbo.sql.utils.DbEndpointResolver.DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.taggedPropertyName;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -98,9 +98,6 @@ public class DbEndpointTestRule implements TestRule {
             String componentName, Map<String, String> propertySettings, DbEndpoint... endpoints) {
         this.propertySettings = new HashMap<>(propertySettings);
         this.propertySettings.put(COMPONENT_TYPE_PROPERTY, componentName);
-        // put in a safe retry schedule for tests (the normal default will wait for ever)
-        // this retries every 3 seconds for up to 30 seconds
-        this.propertySettings.put(DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY, "0,3,3,3,3,3,3,3,3,3,3");
         this.endpoints = Arrays.asList(endpoints);
         final String provisioningSuffix = "_" + System.currentTimeMillis();
         for (DbEndpoint endpoint : this.endpoints) {
@@ -133,17 +130,12 @@ public class DbEndpointTestRule implements TestRule {
     }
 
     protected void before(final Description description) throws
-            Throwable {
+            UnsupportedDialectException, SQLException {
         logger.info("Setting up temporary DB and/or truncating data for test " + description.getMethodName());
         DbEndpointCompleter.setResolver(propertySettings::get, mockPasswordUtil(), false);
         for (DbEndpoint endpoint : endpoints) {
             if (!endpoint.isReady()) {
-                try {
-                    DbEndpointCompleter.completePendingEndpoint(endpoint);
-                } catch (Exception e) {
-                    logger.warn("Endpoint {} initialization failed; entering retry loop", endpoint, e);
-                }
-                endpoint.awaitCompletion();
+                DbEndpointCompleter.completePendingEndpoint(endpoint);
             }
             if (endpoint.getConfig().getDbAccess().isWriteAccess()) {
                 endpoint.getAdapter().truncateAllTables();
@@ -151,13 +143,11 @@ public class DbEndpointTestRule implements TestRule {
         }
     }
 
-    private void afterClass() throws Throwable {
+    private void afterClass() {
         logger.info("Finished tests, dropping temporary databases");
         for (final DbEndpoint endpoint : endpoints) {
-            if (endpoint.isReady()) {
-                endpoint.getAdapter().dropDatabase();
-                endpoint.getAdapter().dropUser();
-            }
+            endpoint.getAdapter().dropDatabase();
+            endpoint.getAdapter().dropUser();
         }
         // don't allow this rule's configurations to leak into other test classes involving
         // the same endpoints

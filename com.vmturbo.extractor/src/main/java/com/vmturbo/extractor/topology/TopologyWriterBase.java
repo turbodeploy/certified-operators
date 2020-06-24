@@ -52,7 +52,7 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
 
     @Override
     public int finish(final DataProvider entityToRelated)
-            throws UnsupportedDialectException, SQLException, InterruptedException {
+            throws UnsupportedDialectException, SQLException {
         return 0;
     }
 }

@@ -1,6 +1,5 @@
 package com.vmturbo.components.api;
 
-import java.util.Iterator;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -12,7 +11,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
-import com.google.common.collect.Iterators;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -53,7 +51,7 @@ public class RetriableOperation<T> {
 
     private Predicate<Exception> exceptionPredicate = (e) -> false;
 
-    private Iterator<Long> backoffIterator = Iterators.cycle(DEFAULT_BACKOFF_MS);
+    private BackoffStrategy backoffStrategy = (curTry) -> curTry * DEFAULT_BACKOFF_MS;
 
     private RetriableOperation(@Nonnull final Operation<T> operation) {
         this.operation = operation;
@@ -62,44 +60,25 @@ public class RetriableOperation<T> {
     /**
      * Run the operation.
      *
-     * <p>The max number of retries is determined by the configured backoff strategy/iterator and
-     * the time limit provided in this method:</p>
-     *
-     * <ul>
-     *     <li>If the time limit value is Long.MAX_VALUE, it is treated as infinite, and the time unit
-     *     is ignored. The retries continue until the configured backoff iterator runs out, and they
-     *     never stop if that doesn't happen</li>
-     *
-     *     <li>For any other time limit value, retries will continue until until either the backoff
-     *     iterator runs out or the total time exceeds the given limit.</li>
-     * </ul>
-     *
-     * <p>At least one try is always attempted.</p>
-     *
-     * <p>You can configure retries via {@link #backoffStrategy(BackoffStrategy)}, or
-     * {@link #backoffStrategy(Iterator)}, or stick with the default, which backs off by 10s on
-     * every failed attempt.</p>
-     *
-     * @param timeout  The timeout, or null to retry indefinitely until the backoff iterator
-     *                 finishes.
+     * @param timeout The timeout. The amount of tries before hitting the timeout will be determined
+     *                by the backoff strategy. You can configure it via
+     *                {@link RetriableOperation#backoffStrategy(BackoffStrategy)}, or use the default,
+     *                which backs off by 10s on every failed attempt.
      * @param timeUnit The time units for the timeout.
      * @return The first successful result of the operation.
-     * @throws InterruptedException              If the thread was interrupted while sleeping
-     *                                           between tries.
+     * @throws InterruptedException If the thread was interrupted while sleeping between tries.
      * @throws RetriableOperationFailedException If the operation failed with an exception that
-     *                                           didn't pass the predicate provided in {@link
-     *                                           RetriableOperation#retryOnException(Predicate)}.
-     * @throws TimeoutException                  If there is no successful result after the
-     *                                           specified timeout.
+     * didn't pass the predicate provided in {@link RetriableOperation#retryOnException(Predicate)}.
+     * @throws TimeoutException If there is no successful result after the specified timeout.
      */
     @Nonnull
     public T run(final long timeout,
-            final TimeUnit timeUnit)
+                 final TimeUnit timeUnit)
             throws InterruptedException, RetriableOperationFailedException, TimeoutException {
         Preconditions.checkArgument(timeout > 0);
         OperationResult<T> latestResult = null;
         final Stopwatch stopwatch = Stopwatch.createStarted();
-        while (true) {
+        for (int curTry = 1; ; curTry++) {
             try {
                 T curTryOutput = operation.call();
                 latestResult = new OperationResult<>(curTryOutput, null);
@@ -107,19 +86,16 @@ public class RetriableOperation<T> {
                 latestResult = new OperationResult<>(null, e);
             }
 
-            if (backoffIterator.hasNext() && shouldRetry(latestResult)) {
-                // note that shouldTry returns false if the iterator is depleted
-                final long nextDelayMs = backoffIterator.next();
-                // treat MAX_VALUE as inifinite (wait til backoff iterator is finished)
-                final long timeRemaining = timeout == Long.MAX_VALUE ? Long.MAX_VALUE
-                        : timeUnit.toMillis(timeout) - stopwatch.elapsed(TimeUnit.MILLISECONDS);
+            if (shouldRetry(latestResult)) {
+                final long nextDelayMs = backoffStrategy.getNextDelayMs(curTry);
+                final long timeRemaining = timeUnit.toMillis(timeout) - stopwatch.elapsed(TimeUnit.MILLISECONDS);
                 final long timeToSleep = Math.min(timeRemaining, nextDelayMs);
                 if (timeRemaining <= 0) {
                     break;
                 } else if (timeToSleep > 0) {
                     logger.debug("Retriable operation at {} sleeping for {} ms after failed attempt.",
-                            StackTrace.getCallerOutsideClass(),
-                            timeToSleep);
+                        StackTrace.getCallerOutsideClass(),
+                        timeToSleep);
                     Thread.sleep(timeToSleep);
                 }
             } else {
@@ -128,32 +104,33 @@ public class RetriableOperation<T> {
         }
 
         if (shouldRetry(latestResult)) {
-            throw new TimeoutException(String.format("Retriable operation at %s timed out after %s %s",
-                    StackTrace.getCallerOutsideClass(), stopwatch.elapsed(timeUnit), timeUnit));
+            throw new TimeoutException("Retriable operation at " +
+                StackTrace.getCallerOutsideClass() + " timed out after " +
+                stopwatch.elapsed(timeUnit) + " " + timeUnit);
         } else if (latestResult.getException().isPresent()) {
             throw new RetriableOperationFailedException(latestResult.getException().get());
         } else if (latestResult.getOutput().isPresent()) {
             return latestResult.getOutput().get();
         } else {
-            throw new IllegalStateException("Unexpected - neither exception nor "
-                    + "output set in latest result.");
+            throw new IllegalStateException("Unexpected - neither exception nor " +
+                "output set in latest result.");
         }
     }
 
     private boolean shouldRetry(@Nonnull final OperationResult<T> opResult) {
         return opResult.getOutput()
-                .map(outputPredicate::test)
-                .orElseGet(() -> opResult.getException()
-                        .map(exceptionPredicate::test)
-                        .orElse(false));
+            .map(outputPredicate::test)
+            .orElseGet(() -> opResult.getException()
+                .map(exceptionPredicate::test)
+                .orElse(false));
     }
 
     /**
-     * Configure the operation to retry on exception if the provided exception predicate returns
-     * true. By default any exception will cause the operation to halt.
+     * Configure the operation to retry on exception if the provided exception predicate returns true.
+     * By default any exception will cause the operation to halt.
      *
-     * @param exceptionPredicate Predicate for an exception that may be thrown by the callable
-     *                           passed to {@link RetriableOperation#newOperation(Operation)}.
+     * @param exceptionPredicate Predicate for an exception that may be thrown by the callable passed
+     *                           to {@link RetriableOperation#newOperation(Operation)}.
      * @return The {@link RetriableOperation}, for method chaining.
      */
     @Nonnull
@@ -170,17 +147,17 @@ public class RetriableOperation<T> {
     @Nonnull
     public RetriableOperation<T> retryOnUnavailable() {
         this.exceptionPredicate = this.exceptionPredicate.or(e ->
-                (e instanceof StatusRuntimeException)
-                        && ((StatusRuntimeException)e).getStatus().getCode() == Code.UNAVAILABLE);
+                (e instanceof StatusRuntimeException) &&
+                    ((StatusRuntimeException)e).getStatus().getCode() == Code.UNAVAILABLE);
         return this;
     }
 
     /**
-     * Configure the operation to retry if the provided result predicate returns true. By default
-     * any output will cause the operation to halt.
+     * Configure the operation to retry if the provided result predicate returns true.
+     * By default any output will cause the operation to halt.
      *
-     * @param outputPredicate Predicate for the output of the callable passed to {@link
-     *                        RetriableOperation#newOperation(Operation)}.
+     * @param outputPredicate Predicate for the output of the callable passed
+     *                        to {@link RetriableOperation#newOperation(Operation)}.
      * @return The {@link RetriableOperation}, for method chaining.
      */
     @Nonnull
@@ -190,44 +167,15 @@ public class RetriableOperation<T> {
     }
 
     /**
-     * Provide a custom {@link BackoffStrategy} to determine intervals between retries. The default
-     * strategy increases the delay by a constant factor (10s) every time.
+     * Provide a custom {@link BackoffStrategy} to determine intervals between retries.
+     * The default strategy increases the delay by a constant factor (10s) every time.
      *
      * @param backoffStrategy The {@link BackoffStrategy} to use.
      * @return The {@link RetriableOperation}, for method chaining.
      */
     @Nonnull
     public RetriableOperation<T> backoffStrategy(@Nonnull final BackoffStrategy backoffStrategy) {
-        // translate BackoffStrategy to an Iterator<Long>
-        this.backoffIterator = new Iterator<Long>() {
-            int curTry = 1;
-
-            @Override
-            public boolean hasNext() {
-                // a BackoffStrategy is not permitted to capable of running out of values
-                return true;
-            }
-
-            @Override
-            public Long next() {
-                return backoffStrategy.getNextDelayMs(curTry++);
-            }
-        };
-        return this;
-    }
-
-    /**
-     * Provide an {@link Iterator} to yield backoff periods for successive retries.
-     *
-     * <p>The iterator need never terminate, but if it does, the retry attempts will cease when
-     * it does.</p>
-     *
-     * @param backoffIterator iterator delivering backoff periods (long msec)
-     * @return this {@link RetriableOperation instance}
-     */
-    @Nonnull
-    public RetriableOperation<T> backoffStrategy(@Nonnull final Iterator<Long> backoffIterator) {
-        this.backoffIterator = backoffIterator;
+        this.backoffStrategy = backoffStrategy;
         return this;
     }
 
@@ -235,7 +183,7 @@ public class RetriableOperation<T> {
      * Factory method to create a new operation.
      *
      * @param operation The {@link Callable} containing the operation to try.
-     * @param <T>       The output of the provided {@link Operation}.
+     * @param <T> The output of the provided {@link Operation}.
      * @return The {@link RetriableOperation}.
      */
     @Nonnull
@@ -244,8 +192,8 @@ public class RetriableOperation<T> {
     }
 
     /**
-     * The operation to call in a retrying manner. Used instead of a {@link Callable} to avoid
-     * generic {@link Exception} handling.
+     * The operation to call in a retrying manner.
+     * Used instead of a {@link Callable} to avoid generic {@link Exception} handling.
      *
      * @param <T> The output of the operation.
      */
@@ -253,11 +201,11 @@ public class RetriableOperation<T> {
     public interface Operation<T> {
 
         /**
-         * Call the operation.
+         *  Call the operation.
          *
          * @return The output of the operation.
          * @throws RetriableOperationFailedException If there is an exception when executing the
-         *                                           operation.
+         *         operation.
          */
         T call() throws RetriableOperationFailedException;
     }
@@ -271,9 +219,7 @@ public class RetriableOperation<T> {
 
         /**
          * Get the ms to wait before trying the operation again.
-         *
-         * @param curTry The number of the current try (i.e. the one that just failed). Starts at
-         *               1.
+         * @param curTry The number of the current try (i.e. the one that just failed). Starts at 1.
          * @return The ms to wait before the next try.
          */
         long getNextDelayMs(int curTry);
@@ -406,9 +352,9 @@ public class RetriableOperation<T> {
     }
 
     /**
-     * Operation throws when a {@link RetriableOperation} fails due to a fatal exception thrown by
-     * the internal callable. To control which exceptions count as fatal use {@link
-     * RetriableOperation#retryOnException(Predicate)}.
+     * Operation throws when a {@link RetriableOperation} fails due to a fatal exception thrown
+     * by the internal callable. To control which exceptions count as fatal use
+     * {@link RetriableOperation#retryOnException(Predicate)}.
      */
     public static class RetriableOperationFailedException extends Exception {
 
@@ -424,8 +370,8 @@ public class RetriableOperation<T> {
     }
 
     /**
-     * Internal utility to help represent the output of calling the retriable operation - either an
-     * exception or a result.
+     * Internal utility to help represent the output of calling the retriable operation -
+     * either an exception or a result.
      *
      * @param <T> The type returned by the operation.
      */

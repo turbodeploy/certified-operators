@@ -45,7 +45,7 @@ public abstract class DbAdapter {
 
     void init() throws UnsupportedDialectException, SQLException {
         if (!componentCredentialsWork()) {
-            logger.debug("Setting up user {} for database {} / schema {}",
+            logger.info("Setting up user {} for database {} / schema {}",
                     config.getDbUserName(), config.getDbDatabaseName(), config.getDbSchemaName());
             setupComponentCredentials();
         }
@@ -106,7 +106,7 @@ public abstract class DbAdapter {
     protected abstract void createSchema() throws SQLException, UnsupportedDialectException;
 
     protected void execute(Connection conn, String sql) throws SQLException {
-        logger.debug("Executing SQL: {}", sql);
+        logger.info("Executing SQL: {}", sql);
         conn.createStatement().execute(sql);
     }
 
@@ -225,7 +225,7 @@ public abstract class DbAdapter {
         try (Connection conn = getRootConnection(null)) {
             dropDatabaseIfExists(conn);
         } catch (UnsupportedDialectException | SQLException e) {
-            logger.error("Failed to drop database {}", config.getDbDatabaseName(), e);
+            logger.error("Failed to dop database {}", config.getDbDatabaseName(), e);
         }
     }
 
