@@ -179,7 +179,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     @Override
     public int finish(final DataProvider dataProvider)
-            throws UnsupportedDialectException, SQLException {
+            throws UnsupportedDialectException, SQLException, InterruptedException {
         // capture entity count before we add groups
         int n = entityRecordsMap.size();
         try (DSLContext dsl = dbEndpoint.dslContext();

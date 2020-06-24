@@ -88,9 +88,10 @@ public class EntityMetricWriterTest {
      *
      * @throws UnsupportedDialectException if our db endpoint is misconfigured
      * @throws SQLException                if there's a DB issue
+     * @throws InterruptedException        if interrupted
      */
     @Before
-    public void before() throws UnsupportedDialectException, SQLException {
+    public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
         DslRecordSink entitiesUpserterSink = mock(DslUpsertRecordSink.class);
         this.entitiesUpsertCapture = captureSink(entitiesUpserterSink, false);
