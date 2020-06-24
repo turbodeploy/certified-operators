@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -78,6 +79,9 @@ import com.vmturbo.topology.processor.util.GroupTestUtils;
 
 @ThreadSafe
 public class DiscoveredGroupUploaderTest {
+    private static final String VM_ASG_POLICY_NAME = "CSP:VMs_Accelerated Networking Enabled_EA - Development:1";
+    private static final String CONTAINER_ASG_POLICY_NAME = "CSP:Deployment::btc/kubeturbo-btc-Kubernetes-btc AWS[Container]:1";
+    private static final String VM_TEMPLATE_EXCLUSION_POLICY_NAME = "EXP:VMs_Accelerated Networking Enabled_EA - Development:1";
 
     private DiscoveredGroupUploader recorderSpy;
 
@@ -428,6 +432,11 @@ public class DiscoveredGroupUploaderTest {
         // Check for consistent scaling policies
         Assert.assertEquals(2, countPoliciesWithSetting(policies,
                 EntitySettingSpecs.EnableConsistentResizing));
+
+        Set<String> policyNames = policies.stream().map(DiscoveredSettingPolicyInfo::getName)
+            .collect(Collectors.toSet());
+        Assert.assertThat(policyNames, containsInAnyOrder(VM_ASG_POLICY_NAME,
+            CONTAINER_ASG_POLICY_NAME, VM_TEMPLATE_EXCLUSION_POLICY_NAME));
     }
 
     /**
