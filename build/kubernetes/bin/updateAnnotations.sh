@@ -17,7 +17,7 @@ done
 
 echo "----------"
 echo svc
-for i in $(kubectl get svc | awk '{print $1}' | egrep -v NAME)
+for i in $(kubectl get svc | awk '{print $1}' | egrep -v NAME | egrep -v "glusterfs-dynamic")
 do
   echo $i
   KIND=svc
@@ -43,6 +43,7 @@ done
 
 echo "----------"
 echo endpoint
+echo db
 KIND=ep
 NAME=db
 RELEASE=${XL_RELEASE}

@@ -104,3 +104,9 @@ sleep 120
 # Apply the ip change to the instance
 sed -i "s/${oldIP}/${newIP}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
 /usr/local/bin/kubectl apply -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+
+# Update other files, jic
+sed -i "s/${oldIP}/${newIP}/g"/opt/kubespray/inventory/turbocluster/hosts.yml
+sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
+sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
+sed -i "s/${oldIP}/${newIP}/g" /opt/local/etc/turbo.conf
