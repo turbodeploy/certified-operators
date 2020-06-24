@@ -141,6 +141,8 @@ public class EntitySettingsApplicator {
                         CommodityType.STORAGE_LATENCY),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.HeapUtilization,
                         CommodityType.HEAP),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.RemainingGcCapacityUtilization,
+                        CommodityType.REMAINING_GC_CAPACITY),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.VCPURequestUtilization,
                         CommodityType.VCPU_REQUEST),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.PoolCpuUtilizationThreshold,

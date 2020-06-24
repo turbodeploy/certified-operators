@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
 import io.grpc.Server;
@@ -104,8 +105,21 @@ public class SettingsMapperIntegrationTest {
         enumSettingsNames.addAll(ActionSettingSpecs.getSettingSpecs().stream()
             .map(SettingSpec::getName)
             .collect(Collectors.toSet()));
-        Assert.assertEquals(enumSettingsNames, visibleSettings);
+
+        // remainingGcCapacityUtilization is purposely an invisible setting
+        enumSettingsNames.remove("remainingGcCapacityUtilization");
+
+        Assert.assertEquals(testError(enumSettingsNames, visibleSettings), enumSettingsNames, visibleSettings);
 
         server.shutdownNow();
+    }
+
+    private String testError(Set<String> s1, Set<String> s2) {
+        Set<String> missing = Sets.newHashSet(s1);
+        missing.removeAll(s2);
+        Set<String> extra = Sets.newHashSet(s2);
+        extra.removeAll(s1);
+        return String.format("Missing: %s Extra: %s", missing, extra);
+
     }
 }

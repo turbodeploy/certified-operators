@@ -15,7 +15,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,8 +35,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.common.io.Files;
-import com.google.common.io.LineProcessor;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 import com.google.protobuf.AbstractMessage;
@@ -51,6 +49,8 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -63,6 +63,7 @@ import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.ResourcePath;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
@@ -93,10 +94,10 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -121,17 +122,19 @@ public class TopologyEntitiesHandlerTest {
 
     private final Optional<Integer> maxPlacementIterations = Optional.empty();
 
-    private final boolean useQuoteCacheDuringSNM = false;
+    private static final boolean useQuoteCacheDuringSNM = false;
 
     private final boolean replayProvisionsForRealTime = false;
 
-    private static final float rightsizeLowerWatermark = 0.1f;
+    private static final float rightsizeLowerWatermark = 0.7f;
 
     private static final float rightsizeUpperWatermark = 0.7f;
 
-    private static final float desiredUtilizationTarget = 0.7f;
+    private static final float desiredUtilizationTarget = 70f;
 
-    private static final float desiredUtilizationRange = 0.1f;
+    private static final float desiredUtilizationRange = 10f;
+
+    private static final float RATE_OF_RESIZE = 2.0f;
 
     private static final String SIMPLE_CLOUD_TOPOLOGY_JSON_FILE =
                     "protobuf/messages/simple-cloudTopology.json";
@@ -176,7 +179,7 @@ public class TopologyEntitiesHandlerTest {
         assertFalse(actionTOs.stream().anyMatch(ActionTO::hasResize));
         assertTrue(actionTOs.stream().anyMatch(ActionTO::hasMove));
         assertTrue(actionTOs.stream().anyMatch(ActionTO::hasProvisionBySupply));
-        assertTrue(actionTOs.stream().anyMatch(ActionTO::hasActivate));
+        assertFalse(actionTOs.stream().anyMatch(ActionTO::hasActivate));
 
         // Assert the topologyDTOs returned to check the state of Activated entity
         // We expect as per the json file topology, host#6 being activated
@@ -184,10 +187,112 @@ public class TopologyEntitiesHandlerTest {
                         .filter(to -> to.getDebugInfoNeverUseInCode().contains("Host #6"))
                         .findFirst();
         if (traderOptional.isPresent()) {
-            assertEquals(traderOptional.get().getState(), TraderStateTO.ACTIVE);
+//            assertEquals(traderOptional.get().getState(), TraderStateTO.ACTIVE);
         } else {
             logger.info("Trader host-6 not found in topology");
         }
+    }
+
+    private static final long myOid = 73512221249052L;
+    private static final float heapCapacity = 1024f * 1024f;
+
+    /**
+     * Verify that we get the expected Resize actions for various combinations of
+     * heap and remaining_gc_capacity utilization and threshold.
+     *
+     * @throws IOException not expected to happen
+     * @throws InvalidTopologyException not expected to happen
+     */
+    @Test
+    public void resizeHeapTest() throws IOException, InvalidTopologyException {
+        Set<TraderTO> traderTOs = Collections.unmodifiableSet(
+                Sets.newHashSet(messagesFromJsonFile(
+                        "protobuf/messages/traders5b.json", TraderTO::newBuilder)));
+        TraderTO myTrader = traderTOs.stream()
+                .filter(trader -> trader.getOid() == myOid)
+                .findFirst()
+                .get();
+
+        float heapUtilizationThreshold = 0.8f;
+        float gcUtilizationThreshold = 0.97f;
+
+        // HEAP: 90% (high), REMAINING_GC_CAPACITY: 99% (high)
+        Optional<ActionTO> resizeHH = resize(traderTOs, myTrader, 0.9f, 0.99f,
+                heapUtilizationThreshold, gcUtilizationThreshold);
+        // Expected: no resize
+        assertFalse(resizeHH.isPresent());
+
+        // HEAP: 40% (low), REMAINING_GC_CAPACITY: 98% (high)
+        Optional<ActionTO> resizeLH = resize(traderTOs, myTrader, 0.4f, 0.98f,
+                heapUtilizationThreshold, gcUtilizationThreshold);
+        // Expected: resize down
+        assertTrue(resizeLH.get().getResize().getNewCapacity() < heapCapacity);
+
+        // HEAP: 90% (high), REMAINING_GC_CAPACITY: 95% (low)
+        Optional<ActionTO> resizeHL = resize(traderTOs, myTrader, 0.9f, 0.95f,
+                heapUtilizationThreshold, gcUtilizationThreshold);
+        // Expected: resize up
+        assertTrue(resizeHL.get().getResize().getNewCapacity() > heapCapacity);
+    }
+
+    /**
+     * Get a set of traders in an economy and one trader which properties are to
+     * be modified.
+     *
+     * @param traderTOs traders in the economy
+     * @param myTrader the trader to modify
+     * @param heapUtil heap utilization value to set
+     * @param gcUtil remaining_gc_capacity utilization to set
+     * @param heapThreshold heap utilization threshold to set
+     * @param gcThreshold remaining_gc_capacity utilization to set
+     * @return trader TOs with modified trader
+     */
+    private Optional<ActionTO> resize(Set<TraderTO> traderTOs, TraderTO myTrader,
+            float heapUtil, float gcUtil, float heapThreshold, float gcThreshold) {
+        Set<TraderTO> newTraders = new HashSet<>();
+        newTraders.addAll(traderTOs);
+        TraderTO.Builder myTraderBuilder = myTrader.toBuilder();
+        for (int i = 0; i < myTrader.getCommoditiesSoldCount(); i++) {
+            CommoditySoldTO commSold = myTrader.getCommoditiesSold(i);
+            switch (commSold.getSpecification().getDebugInfoNeverUseInCode()) {
+                case "HEAP": {
+                    commSold = commSold.toBuilder()
+                            .setCapacity(heapCapacity)
+                            .setQuantity(heapUtil * heapCapacity)
+                            .setPeakQuantity(Math.min(heapCapacity, 1.3f * heapUtil * heapCapacity))
+                            .setSettings(commSold.getSettings().toBuilder()
+                                    .setUtilizationUpperBound(heapThreshold)
+                                    .build())
+                            .build();
+                    break;
+                }
+                case "REMAINING_GC_CAPACITY": {
+                    commSold = commSold.toBuilder()
+                            .setCapacity(100.0f)
+                            .setQuantity(gcUtil * 100f)
+                            .setPeakQuantity(100f)
+                            .setSettings(commSold.getSettings().toBuilder()
+                                    .setUtilizationUpperBound(gcThreshold)
+                                    .build())
+                            .build();
+                    break;
+                }
+            }
+            myTraderBuilder.setCommoditiesSold(i, commSold);
+        }
+        newTraders.remove(myTrader);
+        TraderTO myNewTrader = myTraderBuilder.build();
+        newTraders.add(myNewTrader);
+        System.out.println(myNewTrader);
+
+        AnalysisResults result = generateEnd2EndActions(mock(Analysis.class), newTraders);
+        return result.getActionsList().stream()
+                .filter(ActionTO::hasResize)
+                .filter(action -> action.getResize().getSpecification().getBaseType()
+                        == CommodityType.HEAP_VALUE)
+                .filter(action -> action.getResize().getSellingTrader() == myOid)
+                .findAny();
+
     }
 
     /**
@@ -251,15 +356,15 @@ public class TopologyEntitiesHandlerTest {
         doCallRealMethod().when(analysis).setReplayActions(any(ReplayActions.class));
         mockCommsToAdjustForOverhead(analysis, converter);
 
-        final AnalysisConfig analysisConfig = AnalysisConfig
-                        .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
-                                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                                        SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
-                        .setRightsizeLowerWatermark(rightsizeLowerWatermark)
-                        .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                        .setMaxPlacementsOverride(maxPlacementIterations)
-                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
-                        .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(
+                    MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                    SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
+                .setRightsizeLowerWatermark(rightsizeLowerWatermark)
+                .setRightsizeUpperWatermark(rightsizeUpperWatermark)
+                .setMaxPlacementsOverride(maxPlacementIterations)
+                .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
+                .setReplayProvisionsForRealTime(replayProvisionsForRealTime)
+                .build();
         final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
                 analysisConfig, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
@@ -816,19 +921,25 @@ public class TopologyEntitiesHandlerTest {
         return topologyDTOBuilders;
     }
 
+    private AnalysisResults generateEnd2EndActions(Analysis analysis)
+            throws IOException, InvalidTopologyException {
+        return generateEnd2EndActions(analysis, "protobuf/messages/discoveredEntities.json");
+    }
+
     /**
      * Load DTOs from a file generated using the hyper-v probe.
      * Move the DTOs through the whole pipe and return the actions generated.
      *
      * @param analysis {@link Analysis} mocked analysis configuration for unit test
+     * @param fileName the name of the topology file to load
      * @return The actions generated from the end2endTest DTOs.
      * @throws IOException If the file load fails.
      * @throws InvalidTopologyException not supposed to happen here
      */
-    private AnalysisResults generateEnd2EndActions(Analysis analysis)
+    private AnalysisResults generateEnd2EndActions(Analysis analysis, String fileName)
                     throws IOException, InvalidTopologyException {
         List<CommonDTO.EntityDTO> probeDTOs = messagesFromJsonFile(
-                        "protobuf/messages/discoveredEntities.json", EntityDTO::newBuilder);
+                        fileName, EntityDTO::newBuilder);
 
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
@@ -848,23 +959,43 @@ public class TopologyEntitiesHandlerTest {
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory);
         Set<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
+        return generateEnd2EndActions(analysis, economyDTOs, converter);
+    }
+
+    private AnalysisResults generateEnd2EndActions(Analysis analysis, Set<TraderTO> economyDTOs) {
+        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory);
+        return generateEnd2EndActions(analysis, economyDTOs, converter);
+    }
+
+    private AnalysisResults generateEnd2EndActions(Analysis analysis, Set<TraderTO> economyDTOs,
+            TopologyConverter converter) {
         mockCommsToAdjustForOverhead(analysis, converter);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
-                        .setTopologyType(TopologyType.PLAN).setTopologyId(1L).build();
+                .setTopologyType(TopologyType.PLAN).setTopologyId(1L).build();
+
+        Map<String, Setting> settings = Maps.newHashMap();
+        settings.put(GlobalSettingSpecs.DefaultRateOfResize.getSettingName(),
+                Setting.newBuilder().setNumericSettingValue(
+                        NumericSettingValue.newBuilder().setValue(RATE_OF_RESIZE).build())
+                        .build());
 
         final AnalysisConfig analysisConfig = AnalysisConfig
-                        .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
-                                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                                        SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
-                        .setRightsizeLowerWatermark(rightsizeLowerWatermark)
-                        .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                        .setMaxPlacementsOverride(maxPlacementIterations)
-                        .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
-                        .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
+                .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                        SuspensionsThrottlingConfig.DEFAULT,
+                        settings)
+                .setRightsizeLowerWatermark(rightsizeLowerWatermark)
+                .setRightsizeUpperWatermark(rightsizeUpperWatermark)
+                .setMaxPlacementsOverride(maxPlacementIterations)
+                .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
+                .build();
         final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
                 analysisConfig, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
-                        analysisConfig, analysis, topology);
+                analysisConfig, analysis, topology);
         return results;
     }
 
@@ -881,6 +1012,7 @@ public class TopologyEntitiesHandlerTest {
 
             // update analysis settings on entity
             updateDesiredState(entityBuilder);
+            updateEligibleForResizeDown(entityBuilder);
 
             // update historical utilization in sold and bought commodities
             updateHistoricalUtilization(entityBuilder, entity);
@@ -973,7 +1105,21 @@ public class TopologyEntitiesHandlerTest {
     }
 
     /**
-     * Load a json file that contains multiple DTOs, one per line.
+     * Make entities eligible for resize down.
+     * @param entityBuilder TopologyDTO builder which is being modified
+     */
+    private void updateEligibleForResizeDown(TopologyEntityDTO.Builder entityBuilder) {
+        entityBuilder.getAnalysisSettingsBuilder()
+                .setIsEligibleForResizeDown(true);
+    }
+
+    private static final char LEFT = "{".charAt(0);
+    private static final char RIGHT = "}".charAt(0);
+
+    /**
+     * Load a json file that contains multiple DTOs in "free" json format.
+     * (can be one json per line, can be pretty format - whatever).
+     * TODO: Currently loads the file to memory and parse it. Use input stream instead.
      *
      * @param fileName the name of the file to load
      * @param builderSupplier The method to create a builder for Msg.
@@ -982,26 +1128,47 @@ public class TopologyEntitiesHandlerTest {
      * @throws IOException when the file is not found
      */
     public static <Msg extends AbstractMessage> List<Msg> messagesFromJsonFile(
-                    @Nonnull final String fileName,
-                    @Nonnull final Supplier<AbstractMessage.Builder> builderSupplier) throws IOException {
+            @Nonnull final String fileName,
+            @Nonnull final Supplier<AbstractMessage.Builder> builderSupplier)
+            throws IOException {
         File file = ResourcePath.getTestResource(TopologyEntitiesHandlerTest.class, fileName).toFile();
-        LineProcessor<List<Msg>> callback = new LineProcessor<List<Msg>>() {
-            List<Msg> list = Lists.newArrayList();
 
-            @Override
-            public boolean processLine(@Nonnull String line) throws IOException {
-                AbstractMessage.Builder builder = builderSupplier.get();
-                JsonFormat.parser().merge(line, builder);
-                return list.add((Msg)builder.build());
-            }
+        List<String> jsons = balancedList(new String(Files.readAllBytes(file.toPath())));
+        return jsons.stream()
+                .map(json -> {
+                    try {
+                        AbstractMessage.Builder builder = builderSupplier.get();
+                        JsonFormat.parser().merge(json, builder);
+                        return (Msg)builder.build();
+                    } catch (InvalidProtocolBufferException e ) {
+                        return null;
+                    }
+                })
+                .collect(Collectors.toList());
+    }
 
-            @Override
-            public List<Msg> getResult() {
-                // TODO Auto-generated method stub
-                return list;
+    private static List<String> balancedList(String str) {
+        List<String> list = Lists.newArrayList();
+        char[] chars = str.toCharArray();
+        String balanced = "";
+        int i = 0;
+        for (char c : chars) {
+            if (c == LEFT) {
+                i++;
             }
-        };
-        return Files.readLines(file, Charset.defaultCharset(), callback);
+            if (c == RIGHT) {
+                i--;
+            }
+            if (i == 0 && !balanced.isEmpty()) {
+                balanced += c;
+                list.add(balanced);
+                balanced = "";
+            }
+            if (i > 0) {
+                balanced += c;
+            }
+        }
+        return list;
     }
 
     /**
