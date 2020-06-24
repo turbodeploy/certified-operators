@@ -14,6 +14,7 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
+import com.vmturbo.api.enums.GroupType;
 
 /**
  * Unit tests verify that all fields in SearchEntityMetadataMapping for different field types
@@ -64,6 +65,16 @@ public class SearchGroupMetadataTest {
             assertEquals("oid", metadataMappingMap.get(PrimitiveFieldApiDTO.oid()).getColumnName());
             assertEquals("name", metadataMappingMap.get(PrimitiveFieldApiDTO.name()).getColumnName());
             assertEquals("type", metadataMappingMap.get(PrimitiveFieldApiDTO.groupType()).getColumnName());
+        }
+    }
+
+    /**
+     * Enum names must match {@link GroupType} names
+     */
+    @Test
+    public void testMetadataEnumMatchesEntityTypeEnumName() {
+        for (SearchGroupMetadata searchGroupMetadata : SearchGroupMetadata.values()) {
+            assertEquals(searchGroupMetadata.name(), searchGroupMetadata.getGroupType().name());
         }
     }
 

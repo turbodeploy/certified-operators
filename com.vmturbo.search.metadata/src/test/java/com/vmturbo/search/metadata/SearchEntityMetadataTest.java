@@ -14,6 +14,7 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
+import com.vmturbo.api.enums.EntityType;
 
 /**
  * Unit tests verify that all fields in SearchEntityMetadataMapping for different field types
@@ -64,6 +65,16 @@ public class SearchEntityMetadataTest {
             assertEquals("oid", metadataMappingMap.get(PrimitiveFieldApiDTO.oid()).getColumnName());
             assertEquals("name", metadataMappingMap.get(PrimitiveFieldApiDTO.name()).getColumnName());
             assertEquals("type", metadataMappingMap.get(PrimitiveFieldApiDTO.entityType()).getColumnName());
+        }
+    }
+
+    /**
+     * Enum names must match {@link EntityType} names
+     */
+    @Test
+    public void testMetadataEnumMatchesEntityTypeEnumName() {
+        for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
+            assertEquals(searchEntityMetadata.name(), searchEntityMetadata.getEntityType().name());
         }
     }
 
