@@ -55,13 +55,13 @@ import com.vmturbo.extractor.util.ExtractorTestUtil;
 import com.vmturbo.extractor.util.TopologyTestUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.search.metadata.SearchEntityMetadataMapping;
+import com.vmturbo.search.metadata.SearchMetadataMapping;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Test that {@link SearchEntityWriter} writes entities and groups to search_entity table with
- * correct fields as defined in {@link SearchEntityMetadataMapping}.
+ * correct fields as defined in {@link SearchMetadataMapping}.
  */
 public class SearchEntityWriterTest {
 
@@ -150,18 +150,18 @@ public class SearchEntityWriterTest {
             // verify entity specific fields
             if (oid == vm.getOid()) {
                 // commodity
-                assertThat(attrs.get(SearchEntityMetadataMapping.COMMODITY_VCPU_USED.getJsonKeyName()), is(300.0));
-                assertThat(attrs.get(SearchEntityMetadataMapping.COMMODITY_VCPU_UTILIZATION.getJsonKeyName()), is(0.3));
-                assertThat(attrs.get(SearchEntityMetadataMapping.PRIMITIVE_GUEST_OS_TYPE.getJsonKeyName()), is("LINUX"));
+                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_VCPU_USED.getJsonKeyName()), is(300.0));
+                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_VCPU_UTILIZATION.getJsonKeyName()), is(0.3));
+                assertThat(attrs.get(SearchMetadataMapping.PRIMITIVE_GUEST_OS_TYPE.getJsonKeyName()), is("LINUX"));
                 // related entity
-                assertThat(attrs.get(SearchEntityMetadataMapping.RELATED_DATA_CENTER.getJsonKeyName()),
+                assertThat(attrs.get(SearchMetadataMapping.RELATED_DATA_CENTER.getJsonKeyName()),
                         is(Collections.singletonList(dc.getDisplayName())));
             } else if (oid == pm.getOid()) {
                 // commodity
-                assertThat(attrs.get(SearchEntityMetadataMapping.COMMODITY_CPU_USED.getJsonKeyName()), is(4000.0));
-                assertThat(attrs.get(SearchEntityMetadataMapping.COMMODITY_CPU_UTILIZATION.getJsonKeyName()), is(0.2));
+                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_USED.getJsonKeyName()), is(4000.0));
+                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_UTILIZATION.getJsonKeyName()), is(0.2));
                 // related entity
-                assertThat(attrs.get(SearchEntityMetadataMapping.RELATED_DATA_CENTER.getJsonKeyName()),
+                assertThat(attrs.get(SearchMetadataMapping.RELATED_DATA_CENTER.getJsonKeyName()),
                         is(Collections.singletonList(dc.getDisplayName())));
             }
         }
@@ -181,7 +181,7 @@ public class SearchEntityWriterTest {
         assertThat(record.get(ENTITY_OID_AS_OID), is(g1.getId()));
         assertThat(record.get(ENTITY_NAME), is(g1.getDefinition().getDisplayName()));
         assertThat(record.get(ENTITY_TYPE_ENUM), is(
-                EnumUtils.protoGroupTypeToDbType(g1.getDefinition().getType())));
+                EnumUtils.groupTypeFromProtoToDb(g1.getDefinition().getType())));
         assertThat(record.get(NUM_ACTIONS), is(ACTION_COUNT_MAP.get(g1.getId())));
     }
 
@@ -189,11 +189,11 @@ public class SearchEntityWriterTest {
         assertThat(record.get(ENTITY_OID_AS_OID), is(entity.getOid()));
         assertThat(record.get(ENTITY_NAME), is(entity.getDisplayName()));
         assertThat(record.get(ENTITY_TYPE_ENUM), is(
-                EnumUtils.protoIntEntityTypeToDbType(entity.getEntityType())));
+                EnumUtils.entityTypeFromProtoIntToDb(entity.getEntityType())));
         assertThat(record.get(ENVIRONMENT_TYPE_ENUM), is(
-                EnumUtils.protoEnvironmentTypeToDbType(entity.getEnvironmentType())));
+                EnumUtils.environmentTypeFromProtoToDb(entity.getEnvironmentType())));
         assertThat(record.get(ENTITY_STATE_ENUM), is(
-                EnumUtils.protoEntityStateToDbState(entity.getEntityState())));
+                EnumUtils.entityStateFromProtoToDb(entity.getEntityState())));
         // action
         assertThat(record.get(NUM_ACTIONS), is(ACTION_COUNT_MAP.get(entity.getOid())));
     }

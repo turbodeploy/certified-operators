@@ -64,7 +64,7 @@ import com.vmturbo.search.mappers.EntityStateMapper;
 import com.vmturbo.search.mappers.EntityTypeMapper;
 import com.vmturbo.search.mappers.EnvironmentTypeMapper;
 import com.vmturbo.search.metadata.SearchEntityMetadata;
-import com.vmturbo.search.metadata.SearchEntityMetadataMapping;
+import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
  * A representation of a single API query, mapped to a SQL query.
@@ -80,7 +80,7 @@ public abstract class AbstractQuery {
      * Mapping of common dtos to database columns.
      *
      * <p>TODO: Seems like this mapping should ideally be part of the search metadata.
-     * Meaning, it should be included in {@link SearchEntityMetadataMapping}.</p>
+     * Meaning, it should be included in {@link SearchMetadataMapping}.</p>
      */
     private static Map<FieldApiDTO, Field> primaryTableColumns =
         new HashMap<FieldApiDTO, Field>() {{
@@ -114,18 +114,18 @@ public abstract class AbstractQuery {
      * A mapping of FieldApiDTO -> metadata mapping describing that field.
      */
     @VisibleForTesting
-    Map<FieldApiDTO, SearchEntityMetadataMapping> metadataMapping;
+    Map<FieldApiDTO, SearchMetadataMapping> metadataMapping;
 
     /**
      * Tracks requested columns, used to know which information to read when building response.
      */
-    private Map<SearchEntityMetadataMapping, FieldApiDTO> requestedColumns = new HashMap<>();
+    private Map<SearchMetadataMapping, FieldApiDTO> requestedColumns = new HashMap<>();
 
     protected AbstractQuery(final DSLContext readOnlyDSLContext) {
         this.readOnlyDSLContext = readOnlyDSLContext;
     }
 
-    private Map<FieldApiDTO, SearchEntityMetadataMapping> getMetadataMapping() {
+    private Map<FieldApiDTO, SearchMetadataMapping> getMetadataMapping() {
         if (metadataMapping == null) {
             metadataMapping = lookupMetadataMapping();
         }
@@ -145,7 +145,7 @@ public abstract class AbstractQuery {
      * @return a mapping of FieldApiDTO -> metadata mapping describing that field
      */
     @VisibleForTesting
-    Map<FieldApiDTO, SearchEntityMetadataMapping> lookupMetadataMapping() {
+    Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping() {
         String metadataMappingKey = getMetadataKey();
         return SEARCH_ENTITY_METADATA_ENUM_MAPPER.valueOf(metadataMappingKey)
             .map(SearchEntityMetadata::getMetadataMappingMap)
@@ -226,7 +226,7 @@ public abstract class AbstractQuery {
      * @return FieldValue
      */
     @VisibleForTesting
-    Optional<FieldValueApiDTO> mapRecordToValue(@Nonnull Record record, @Nonnull SearchEntityMetadataMapping columnMetadata, @Nonnull FieldApiDTO fieldApiDto) {
+    Optional<FieldValueApiDTO> mapRecordToValue(@Nonnull Record record, @Nonnull SearchMetadataMapping columnMetadata, @Nonnull FieldApiDTO fieldApiDto) {
         final String columnAlias = getColumnAlias(columnMetadata.getColumnName(), columnMetadata.getJsonKeyName());
 
         //OID field is added at base-level of response dto, rather than a value in list
@@ -364,13 +364,13 @@ public abstract class AbstractQuery {
      */
     @VisibleForTesting
     Field buildAndTrackSelectFieldFromEntityType(FieldApiDTO apiField) {
-        SearchEntityMetadataMapping columnMetadata = getMetadataMapping().get(apiField);
+        SearchMetadataMapping columnMetadata = getMetadataMapping().get(apiField);
         requestedColumns.put(columnMetadata, apiField);
         return buildFieldForEntityField(apiField, true);
     }
 
     /**
-     * Builds a {@link Field} object from {@link SearchEntityMetadataMapping}.
+     * Builds a {@link Field} object from {@link SearchMetadataMapping}.
      *
      * @param apiField {@link FieldApiDTO} to parse into select query {@link Field}
      * @return Field
@@ -381,7 +381,7 @@ public abstract class AbstractQuery {
     }
 
     /**
-     * Builds a {@link Field} object from {@link SearchEntityMetadataMapping}.
+     * Builds a {@link Field} object from {@link SearchMetadataMapping}.
      *
      * @param apiField {@link FieldApiDTO} to parse into select query {@link Field}
      * @param aliasColumn if field name should contain an alias
@@ -389,7 +389,7 @@ public abstract class AbstractQuery {
      */
     @VisibleForTesting
     Field buildFieldForEntityField(@Nonnull FieldApiDTO apiField, @Nonnull boolean aliasColumn) {
-        final SearchEntityMetadataMapping mapping = getMetadataMapping().get(apiField);
+        final SearchMetadataMapping mapping = getMetadataMapping().get(apiField);
         final String columnName = mapping.getColumnName();
         final String jsonKey = mapping.getJsonKeyName();
         final String columnAlias = getColumnAlias(columnName, jsonKey);
@@ -445,7 +445,7 @@ public abstract class AbstractQuery {
      *         If Field is not {@link Type#ENUM} original values returned
      */
     List<String> parseTextAndInclusionConditions(FieldApiDTO fieldApiDto, List<String> values ) {
-        SearchEntityMetadataMapping mapping = getMetadataMapping().get(fieldApiDto);
+        SearchMetadataMapping mapping = getMetadataMapping().get(fieldApiDto);
 
         if (!mapping.getApiDatatype().equals(Type.ENUM)) {
             return values;

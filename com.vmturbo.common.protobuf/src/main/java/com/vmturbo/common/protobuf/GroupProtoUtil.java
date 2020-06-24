@@ -5,10 +5,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -19,6 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinitionOrBuilder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -433,5 +436,35 @@ public class GroupProtoUtil {
                         SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.OID,
                                 options))
                 .build();
+    }
+
+    /**
+     * Get direct member types of the given group.
+     *
+     * @param groupDefinition definition of the group
+     * @return list of {@link MemberType}
+     */
+    public static Stream<MemberType> getDirectMemberTypes(@Nonnull GroupDefinition groupDefinition) {
+        switch (groupDefinition.getSelectionCriteriaCase()) {
+            case STATIC_GROUP_MEMBERS:
+                return groupDefinition.getStaticGroupMembers().getMembersByTypeList()
+                        .stream()
+                        .map(StaticMembersByType::getType)
+                        .filter(Objects::nonNull);
+            case ENTITY_FILTERS:
+                return groupDefinition.getEntityFilters().getEntityFilterList().stream()
+                        .map(filter -> MemberType.newBuilder()
+                                .setEntity(filter.getEntityType())
+                                .build())
+                        .distinct();
+            case GROUP_FILTERS:
+                return groupDefinition.getGroupFilters().getGroupFilterList().stream()
+                        .map(filter -> MemberType.newBuilder()
+                                .setGroup(filter.getGroupType())
+                                .build())
+                        .distinct();
+            default:
+                return Stream.empty();
+        }
     }
 }
