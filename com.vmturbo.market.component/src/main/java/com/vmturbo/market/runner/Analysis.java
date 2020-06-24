@@ -431,7 +431,7 @@ public class Analysis {
                 processResultTime = RESULT_PROCESSING.startTimer();
                 if (!stopAnalysis) {
                     final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
-                            topologyInfo, config, this);
+                            topologyInfo, this);
                     if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
                         // whenever market receives entities from realtime broadcast, we update
                         // cachedEconomy and also pass the commodity type to specification map associated
