@@ -112,7 +112,7 @@ public class SearchEntityWriterTest {
      * @throws SQLException                if there's a problem
      */
     @Before
-    public void before() throws UnsupportedDialectException, SQLException {
+    public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
         DslRecordSink entitiesReplacerSink = mock(DslReplaceRecordSink.class);
         this.entitiesReplacerCapture = captureSink(entitiesReplacerSink, false);
@@ -127,7 +127,7 @@ public class SearchEntityWriterTest {
     }
 
     @Test
-    public void testInsertEntities() throws SQLException, UnsupportedDialectException, IOException {
+    public void testInsertEntities() throws SQLException, UnsupportedDialectException, IOException, InterruptedException {
         final Consumer<TopologyEntityDTO> entityConsumer = writer.startTopology(
                 info, ExtractorTestUtil.config, timer);
         ALL_ENTITIES.forEach(entityConsumer);
@@ -168,7 +168,7 @@ public class SearchEntityWriterTest {
     }
 
     @Test
-    public void testInsertGroups() throws SQLException, UnsupportedDialectException {
+    public void testInsertGroups() throws SQLException, UnsupportedDialectException, InterruptedException {
         doReturn(Stream.of(g1)).when(dataProvider).getAllGroups();
 
         int n = writer.finish(dataProvider);

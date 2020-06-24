@@ -3,8 +3,6 @@ package com.vmturbo.extractor.schema;
 import java.sql.SQLException;
 import java.util.Collections;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 import org.junit.Assert;
 import org.junit.ClassRule;
@@ -21,7 +19,6 @@ import com.vmturbo.sql.utils.DbEndpointTestRule;
  * Test that DbEndpoints can be activated and provide proper DB access.
  */
 public class ExtractorDbConfigTest extends ApplicationObjectSupport {
-    private static final Logger logger = LogManager.getLogger();
     private static final ExtractorDbConfig extractorDbConfig = new ExtractorDbConfig();
     private static final DbEndpoint ingesterEndpoint = extractorDbConfig.ingesterEndpoint();
     private static final DbEndpoint queryEndpoint = extractorDbConfig.queryEndpoint();
@@ -39,9 +36,11 @@ public class ExtractorDbConfigTest extends ApplicationObjectSupport {
      *
      * @throws UnsupportedDialectException if the endpoint is mis-configured
      * @throws SQLException                if any DB operation fails
+     * @throws InterruptedException        if interrupted
      */
     @Test
-    public void testIngesterCanReadAndWrite() throws UnsupportedDialectException, SQLException {
+    public void testIngesterCanReadAndWrite()
+            throws UnsupportedDialectException, SQLException, InterruptedException {
         checkCanReadTables(ingesterEndpoint);
         checkCanWriteTables(ingesterEndpoint);
     }
@@ -51,42 +50,47 @@ public class ExtractorDbConfigTest extends ApplicationObjectSupport {
      *
      * @throws UnsupportedDialectException if the endpoint is mis-configured
      * @throws SQLException                if any DB operation fails
+     * @throws InterruptedException        if interrupted
      */
     @Test
-    public void testQueryCanReadNotWrite() throws UnsupportedDialectException, SQLException {
+    public void testQueryCanReadNotWrite()
+            throws UnsupportedDialectException, SQLException, InterruptedException {
         checkCanReadTables(queryEndpoint);
         checkCannotWriteTables(queryEndpoint);
     }
 
-    private void checkCanReadTables(DbEndpoint endpoint) throws UnsupportedDialectException, SQLException {
+    private void checkCanReadTables(DbEndpoint endpoint)
+            throws UnsupportedDialectException, SQLException, InterruptedException {
         Assert.assertEquals(0L, endpoint.dslContext().fetchValue("SELECT count(*) FROM entity"));
         Assert.assertEquals(0L, endpoint.dslContext().fetchValue("SELECT count(*) FROM metric"));
     }
 
-    private void checkCanWriteTables(DbEndpoint endpoint) throws UnsupportedDialectException {
+    private void checkCanWriteTables(DbEndpoint endpoint)
+            throws UnsupportedDialectException, SQLException, InterruptedException {
         Assert.assertTrue(canWriteEntity(endpoint));
         Assert.assertTrue(canWriteMetric(endpoint));
     }
 
-    private void checkCannotWriteTables(DbEndpoint endpoint) throws UnsupportedDialectException {
+    private void checkCannotWriteTables(DbEndpoint endpoint)
+            throws UnsupportedDialectException, InterruptedException {
         Assert.assertFalse(canWriteEntity(endpoint));
         Assert.assertFalse(canWriteMetric(endpoint));
     }
 
-    private boolean canWriteEntity(DbEndpoint endpoint) throws UnsupportedDialectException {
+    private boolean canWriteEntity(DbEndpoint endpoint)
+            throws UnsupportedDialectException, InterruptedException {
         try {
             endpoint.dslContext().execute("INSERT INTO entity "
                     + "VALUES (0, 0, 'VM', 'Vm1', null, null, null, '{}', now(), now())");
             return 1L == (long)endpoint.dslContext().fetchValue("SELECT count(*) FROM entity");
 
         } catch (DataAccessException | SQLException | BadSqlGrammarException e) {
-            // TODO can we kill off the jooq listener that translates jooq exceptions into
-            // spring exceptions (like BadSqlGrammarException) above that NOBODY is expecting?
             return false;
         }
     }
 
-    private boolean canWriteMetric(final DbEndpoint endpoint) throws UnsupportedDialectException {
+    private boolean canWriteMetric(final DbEndpoint endpoint)
+            throws UnsupportedDialectException, InterruptedException {
         try {
             endpoint.dslContext().execute("INSERT INTO metric "
                     + "VALUES (now(), 0, 0, 'type', null, null, null, null, 0)");

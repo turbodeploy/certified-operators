@@ -73,7 +73,11 @@ public class ApiQueryEngine implements IApiQueryEngine {
      */
     private QueryFactory getQueryFactory() throws UnsupportedDialectException, SQLException {
         if (this.queryFactory == null) {
-            this.queryFactory = new QueryFactory(readonlyDbEndpoint.dslContext());
+            try {
+                this.queryFactory = new QueryFactory(readonlyDbEndpoint.dslContext());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
         return queryFactory;
     }

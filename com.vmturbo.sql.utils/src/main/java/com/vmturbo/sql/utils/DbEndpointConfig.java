@@ -34,6 +34,7 @@ public class DbEndpointConfig {
     private Boolean dbEndpointEnabled;
     private DbEndpoint template;
     private String dbNameSuffix;
+    private int[] dbRetryBackoffTimesSec;
 
     public String getTag() {
         return tag;
@@ -185,5 +186,13 @@ public class DbEndpointConfig {
 
     public void setDbNameSuffix(final String dbNameSuffix) {
         this.dbNameSuffix = dbNameSuffix;
+    }
+
+    public int[] getDbRetryBackoffTimesSec() {
+        return dbRetryBackoffTimesSec;
+    }
+
+    public void setDbRetryBackoffTimesSec(final int[] dbRetryBackoffTimesSec) {
+        this.dbRetryBackoffTimesSec = dbRetryBackoffTimesSec;
     }
 }
