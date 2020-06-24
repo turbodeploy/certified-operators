@@ -1,6 +1,6 @@
 /*
  * Here we update procedures: 'cluster_stats_rollup' to support table with long names: 40 chars.
- */
+*/
 DROP procedure if exists cluster_stats_rollup;
 
 DELIMITER //
@@ -21,25 +21,25 @@ create procedure cluster_stats_rollup(
 )
 BEGIN
     -- columns to be set in the INSERT phase of the upsert
-	SET @insert_columns=CONCAT_WS('#', '',
-	    'recorded_on', 'internal_name', 'property_type', 'property_subtype', 'value', 'samples',
-	    '');
-	-- values for those columns
-	SET @insert_values=CONCAT_WS('#', '',
+    SET @insert_columns=CONCAT_WS('#', '',
+        'recorded_on', 'internal_name', 'property_type', 'property_subtype', 'value', 'samples',
+        '');
+    -- values for those columns
+    SET @insert_values=CONCAT_WS('#', '',
         -- `recorded_on` in rollup table is always the provided rollup time
-	    CONCAT("'", rollup_time, "'"),
-	    'internal_name', 'property_type', 'property_subtype', 'value',
-	    -- if source table has no `samples` column, use literal 1
-	    IF(source_has_samples, 'samples', '1'),
-	    '');
+        CONCAT("'", rollup_time, "'"),
+        'internal_name', 'property_type', 'property_subtype', 'value',
+        -- if source table has no `samples` column, use literal 1
+        IF(source_has_samples, 'samples', '1'),
+        '');
     -- columns to be updated in UPDATE phase, whenever it happens
     SET @update_columns = CONCAT_WS('#', '', 'value', 'samples',
         '');
     -- values for update columns
     SET @update_values = CONCAT_WS('#', '',
-       rollup_avg('value', 'samples', rollup_table),
-       rollup_incr('samples', rollup_table),
-       '');
+        rollup_avg('value', 'samples', rollup_table),
+        rollup_incr('samples', rollup_table),
+        '');
 
     CALL generic_rollup(source_table, rollup_table, snapshot_time, rollup_time, 'recorded_on',
         @insert_columns, @insert_values, @update_columns, @update_values, NULL, record_count);

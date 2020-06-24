@@ -241,11 +241,12 @@ public class IntersightLicenseCountUpdater {
         // the IWO back end model is updated to mark this field as read-write instead of read-only.
         JSON json = intersightLicenseClient.getApiClient().getJSON();
         // The flow will be: LicenseLicenseInfo -> json -> json w/license count -> LicenseLicenseInfo w/license count
-        String originalJson = json.serialize(licenseToUpdate);
+        String originalJson = json.getMapper().writeValueAsString(licenseToUpdate);
         JSONObject editableJson = new JSONObject(originalJson);
         editableJson.put("LicenseCount", workloadCountInfo.workloadCount);
         String editedJson = editableJson.toString();
-        LicenseLicenseInfo editedLicenseInfo = json.deserialize(editedJson, LicenseLicenseInfo.class);
+        LicenseLicenseInfo editedLicenseInfo = json.getMapper().readValue(editedJson,
+                LicenseLicenseInfo.class);
 
         LicenseLicenseInfo responseInfo = intersightLicenseClient.updateLicenseLicenseInfo(licenseToUpdate.getMoid(), editedLicenseInfo);
         logger.info("Response license: moid {} license count {}}", responseInfo.getMoid(), responseInfo.getLicenseCount());

@@ -8,15 +8,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.grpc.stub.StreamObserver;
+
 import java.util.List;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
-import io.grpc.stub.StreamObserver;
-
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -30,6 +29,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
@@ -85,6 +85,10 @@ public class RIAndExpenseUploadRpcServiceTest {
     @Captor
     private ArgumentCaptor<List<EntityRICoverageUpload>> entityRICoverageListCaptor;
 
+    @Captor
+    private ArgumentCaptor<List<AccountRICoverageUpload>> accountRICoverageListCaptor;
+
+
 
     /**
      * Set up before a test.
@@ -121,12 +125,25 @@ public class RIAndExpenseUploadRpcServiceTest {
                 .addCoverage(Coverage.newBuilder()
                         .setProbeReservedInstanceId(probeReservedInstanceId))
                 .build();
+        final AccountRICoverageUpload accountCoverage = AccountRICoverageUpload.newBuilder()
+                .setAccountId(10L)
+                .addCoverage(Coverage.newBuilder()
+                        .setProbeReservedInstanceId(probeReservedInstanceId))
+                .build();
+        final ReservedInstanceBought undiscoveredRIBought = ReservedInstanceBought.newBuilder()
+                .setId(1L)
+                .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
+                        .setReservedInstanceSpec(2L)
+                        .setProbeReservedInstanceId(probeReservedInstanceId))
+                .build();
 
         final UploadRIDataRequest uploadRIDataRequest = UploadRIDataRequest.newBuilder()
                 .setTopologyContextId(topologyId)
                 .addReservedInstanceSpecs(reservedInstanceSpec)
                 .addReservedInstanceBought(reservedInstanceBought)
+                .addReservedInstanceBought(undiscoveredRIBought)
                 .addReservedInstanceCoverage(entityRICoverageUpload)
+                .addAccountLevelReservedInstanceCoverage(accountCoverage)
                 .build();
         final StreamObserver<UploadRIDataResponse> mockResponseObserver = mock(StreamObserver.class);
 
@@ -150,6 +167,8 @@ public class RIAndExpenseUploadRpcServiceTest {
                 any(), reservedInstanceBoughtInfoListCaptor.capture());
         verify(reservedInstanceCoverageUpdate).storeEntityRICoverageOnlyIntoCache(
                 eq(topologyId), entityRICoverageListCaptor.capture());
+        verify(reservedInstanceCoverageUpdate).cacheAccountRICoverageData(
+                eq(topologyId), accountRICoverageListCaptor.capture());
 
         // assertions
         final List<ReservedInstanceSpec> actualReservedInstanceSpecs =
@@ -157,7 +176,7 @@ public class RIAndExpenseUploadRpcServiceTest {
         assertThat(actualReservedInstanceSpecs.size(), equalTo(1));
         final List<ReservedInstanceBoughtInfo> actualReservedInstanceBoughtInfoList =
                 reservedInstanceBoughtInfoListCaptor.getValue();
-        assertThat(actualReservedInstanceBoughtInfoList.size(), equalTo(1));
+        assertThat(actualReservedInstanceBoughtInfoList.size(), equalTo(2));
         final ReservedInstanceBoughtInfo actualRIBoughtInfo =
                 actualReservedInstanceBoughtInfoList.get(0);
         // verify the spec ID was updated based on the request spec ID -> local OID mapping
@@ -165,6 +184,7 @@ public class RIAndExpenseUploadRpcServiceTest {
         final List<EntityRICoverageUpload> actualEntityRICoverageList =
                 entityRICoverageListCaptor.getValue();
         assertThat(actualEntityRICoverageList.size(), equalTo(1));
+
         // verify the Coverage::reservedInstanceId is updated based on the ID assigned
         // in the ReservedInstanceBoughtStore
         final EntityRICoverageUpload actualEntityRICoverage =
@@ -173,5 +193,15 @@ public class RIAndExpenseUploadRpcServiceTest {
         final Coverage actualCoverage = actualEntityRICoverage.getCoverage(0);
         // should match ID of storedReservedInstanceBought
         assertThat(actualCoverage.getReservedInstanceId(), equalTo(3L));
+
+        // verify account coverage
+        final List<AccountRICoverageUpload> actualaAccountRICoverageList =
+                accountRICoverageListCaptor.getValue();
+        assertThat(actualaAccountRICoverageList.size(), equalTo(1));
+        final AccountRICoverageUpload actualAccountCoverage = actualaAccountRICoverageList.get(0);
+        assertThat(actualAccountCoverage.getCoverageCount(), equalTo(1));
+        final Coverage actualActCoverage = actualAccountCoverage.getCoverage(0);
+        // should match ID of storedReservedInstanceBought
+        assertThat(actualActCoverage.getReservedInstanceId(), equalTo(3L));
     }
 }

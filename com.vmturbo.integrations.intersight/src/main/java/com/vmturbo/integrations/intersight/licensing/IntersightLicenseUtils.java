@@ -9,6 +9,7 @@ import com.cisco.intersight.client.JSON;
 import com.cisco.intersight.client.model.LicenseLicenseInfo;
 import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseStateEnum;
 import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseTypeEnum;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
@@ -107,15 +108,18 @@ public class IntersightLicenseUtils {
      * @param type desired license type
      * @param state desired license state
      * @return desired LicenseDTO
+     * @throws JsonProcessingException if the deserializer encounters a problem processing the json
      */
-    public static LicenseLicenseInfo createIwoLicense(JSON json, String moid, LicenseTypeEnum type, LicenseStateEnum state) {
+    public static LicenseLicenseInfo createIwoLicense(JSON json, String moid, LicenseTypeEnum type, LicenseStateEnum state)
+            throws JsonProcessingException {
         JSONObject licenseJson = new JSONObject();
         licenseJson.put("Moid", moid);
         licenseJson.put("LicenseType", type.name());
         licenseJson.put("LicenseState", state.name());
         licenseJson.put("ObjectType", "license.LicenseInfo");
         logger.info("new license json: "+ licenseJson.toString());
-        LicenseLicenseInfo newIwoLicenseInfo = json.deserialize(licenseJson.toString(), LicenseLicenseInfo.class);
+        LicenseLicenseInfo newIwoLicenseInfo = json.getMapper().readValue(licenseJson.toString(),
+                LicenseLicenseInfo.class);
         return newIwoLicenseInfo;
     }
 

@@ -29,16 +29,17 @@ public enum SearchEntityMetadata {
     /**
      * Mappings for different entity types.
      */
-    VIRTUAL_MACHINE(EntityType.VIRTUAL_MACHINE, getVirtualMachineMetadata()),
-    PHYSICAL_MACHINE(EntityType.PHYSICAL_MACHINE, getPhysicalMachineMetadata()),
     APPLICATION(EntityType.APPLICATION, getApplicationMetadata()),
-    VIRTUAL_VOLUME(EntityType.VIRTUAL_VOLUME, getVirtualVolumeMetadata()),
-    STORAGE(EntityType.STORAGE, getStorageMetadata()),
-    DISK_ARRAY(EntityType.DISKARRAY, getDiskArrayMetadata()),
-    DATA_CENTER(EntityType.DATACENTER, getDataCenterMetadata()),
-    CONTAINER_POD(EntityType.CONTAINER_POD, getContainerPodMetadata()),
     BUSINESS_ACCOUNT(EntityType.BUSINESS_ACCOUNT, getBusinessAccountMetadata()),
-    REGION(EntityType.REGION, getRegionMetadata());
+    CONTAINER_POD(EntityType.CONTAINER_POD, getContainerPodMetadata()),
+    DATA_CENTER(EntityType.DATACENTER, getDataCenterMetadata()),
+    DB_SERVER(EntityType.DATABASE_SERVER, getDBServerMetaData()),
+    DISK_ARRAY(EntityType.DISKARRAY, getDiskArrayMetadata()),
+    PHYSICAL_MACHINE(EntityType.PHYSICAL_MACHINE, getPhysicalMachineMetadata()),
+    REGION(EntityType.REGION, getRegionMetadata()),
+    STORAGE(EntityType.STORAGE, getStorageMetadata()),
+    VIRTUAL_MACHINE(EntityType.VIRTUAL_MACHINE, getVirtualMachineMetadata()),
+    VIRTUAL_VOLUME(EntityType.VIRTUAL_VOLUME, getVirtualVolumeMetadata());
 
     private final EntityType entityType;
 
@@ -128,32 +129,66 @@ public enum SearchEntityMetadata {
                 .putAll(Constants.ENTITY_COMMON_FIELDS)
                 // type specific fields
                 .put(PrimitiveFieldApiDTO.primitive("guestOsType"), SearchEntityMetadataMapping.PRIMITIVE_GUEST_OS_TYPE)
+                .put(PrimitiveFieldApiDTO.primitive("numCpus"), SearchEntityMetadataMapping.PRIMITIVE_VM_NUM_CPUS)
                 // commodities
+                .put(CommodityFieldApiDTO.capacity(CommodityType.VMEM), SearchEntityMetadataMapping.COMMODITY_VMEM_CAPACITY)
                 .put(CommodityFieldApiDTO.used(CommodityType.VCPU), SearchEntityMetadataMapping.COMMODITY_VCPU_USED)
                 .put(CommodityFieldApiDTO.utilization(CommodityType.VCPU), SearchEntityMetadataMapping.COMMODITY_VCPU_UTILIZATION)
+                .put(CommodityFieldApiDTO.used(CommodityType.VMEM), SearchEntityMetadataMapping.COMMODITY_VMEM_USED)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.VMEM), SearchEntityMetadataMapping.COMMODITY_VMEM_UTILIZATION)
+                .put(CommodityFieldApiDTO.used(CommodityType.VSTORAGE), SearchEntityMetadataMapping.COMMODITY_VSTORAGE_USED)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.VSTORAGE), SearchEntityMetadataMapping.COMMODITY_VSTORAGE_UTILIZATION)
                 // related entities
-                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.PHYSICAL_MACHINE), SearchEntityMetadataMapping.RELATED_HOST)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.APPLICATION), SearchEntityMetadataMapping.RELATED_APPLICATION)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.BUSINESS_ACCOUNT), SearchEntityMetadataMapping.RELATED_ACCOUNT)
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.DATACENTER), SearchEntityMetadataMapping.RELATED_DATA_CENTER)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.DISKARRAY), SearchEntityMetadataMapping.RELATED_DISKARRAY)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.PHYSICAL_MACHINE), SearchEntityMetadataMapping.RELATED_HOST)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.REGION), SearchEntityMetadataMapping.RELATED_REGION)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.STORAGE), SearchEntityMetadataMapping.RELATED_STORAGE)
                 .build();
     }
 
     /**
-     * Returns all relevant column mappings for Virtual Machine.
+     * Returns all relevant column mappings for Physical Machine.
      *
-     * @return Virtual Machine mappings
+     * @return Physical Machine mappings
      */
     private static Map<FieldApiDTO, SearchEntityMetadataMapping> getPhysicalMachineMetadata() {
         return ImmutableMap.<FieldApiDTO, SearchEntityMetadataMapping>builder()
                 // common fields
                 .putAll(Constants.ENTITY_COMMON_FIELDS)
+                // type specific fields
+                .put(PrimitiveFieldApiDTO.primitive("connectedNetworks"), SearchEntityMetadataMapping.PRIMITIVE_CONNECTED_NETWORKS)
+                .put(PrimitiveFieldApiDTO.primitive("cpuModel"), SearchEntityMetadataMapping.PRIMITIVE_CPU_MODEL)
+                .put(PrimitiveFieldApiDTO.primitive("model"), SearchEntityMetadataMapping.PRIMITIVE_MODEL)
+                .put(PrimitiveFieldApiDTO.primitive("timezone"), SearchEntityMetadataMapping.PRIMITIVE_TIMEZONE)
                 // commodities
+                .put(CommodityFieldApiDTO.percentile(CommodityType.BALLOONING), SearchEntityMetadataMapping.COMMODITY_BALLOONING_PERCENTILE)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.BALLOONING), SearchEntityMetadataMapping.COMMODITY_BALLOONING_UTILIZATION)
                 .put(CommodityFieldApiDTO.used(CommodityType.CPU), SearchEntityMetadataMapping.COMMODITY_CPU_USED)
                 .put(CommodityFieldApiDTO.utilization(CommodityType.CPU), SearchEntityMetadataMapping.COMMODITY_CPU_UTILIZATION)
+                .put(CommodityFieldApiDTO.used(CommodityType.IO_THROUGHPUT), SearchEntityMetadataMapping.COMMODITY_IO_THROUGHPUT_USED)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.IO_THROUGHPUT), SearchEntityMetadataMapping.COMMODITY_IO_THROUGHPUT_UTILIZATION)
+                .put(CommodityFieldApiDTO.capacity(CommodityType.MEM), SearchEntityMetadataMapping.COMMODITY_MEM_CAPACITY)
+                .put(CommodityFieldApiDTO.used(CommodityType.MEM), SearchEntityMetadataMapping.COMMODITY_MEM_USED)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.MEM), SearchEntityMetadataMapping.COMMODITY_MEM_UTILIZATION)
+                .put(CommodityFieldApiDTO.used(CommodityType.NET_THROUGHPUT), SearchEntityMetadataMapping.COMMODITY_NET_THROUGHPUT_USED)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.NET_THROUGHPUT), SearchEntityMetadataMapping.COMMODITY_NET_THROUGHPUT_UTILIZATION)
+                .put(CommodityFieldApiDTO.percentile(CommodityType.SWAPPING), SearchEntityMetadataMapping.COMMODITY_SWAPPING_PERCENTILE)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.SWAPPING), SearchEntityMetadataMapping.COMMODITY_SWAPPING_UTILIZATION)
                 // related entities
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.DATACENTER), SearchEntityMetadataMapping.RELATED_DATA_CENTER)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.SWITCH), SearchEntityMetadataMapping.RELATED_SWITCH)
+                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE), SearchEntityMetadataMapping.NUM_VMS)
                 .build();
     }
 
+    /**
+     * Returns all relevant column mappings for Application.
+     *
+     * @return Application mappings
+     */
     private static Map<FieldApiDTO, SearchEntityMetadataMapping> getApplicationMetadata() {
         return ImmutableMap.<FieldApiDTO, SearchEntityMetadataMapping>builder()
                 // common fields
@@ -164,16 +199,33 @@ public enum SearchEntityMetadata {
                 .build();
     }
 
+    /**
+     * Returns all relevant column mappings for Virtual Volume.
+     *
+     * @return Virtual Volume column mappings
+     */
     private static Map<FieldApiDTO, SearchEntityMetadataMapping> getVirtualVolumeMetadata() {
         return ImmutableMap.<FieldApiDTO, SearchEntityMetadataMapping>builder()
                 // common fields
                 .putAll(Constants.ENTITY_COMMON_FIELDS)
-                // todo: type specific fields
-                // todo: commodities
-                // todo: related entities
+                // type specific fields
+                .put(PrimitiveFieldApiDTO.primitive("attachmentState"), SearchEntityMetadataMapping.PRIMITIVE_ATTACHMENT_STATE)
+                // commodities
+                .put(CommodityFieldApiDTO.capacity(CommodityType.STORAGE_AMOUNT), SearchEntityMetadataMapping.COMMODITY_STORAGE_AMOUNT_CAPACITY)
+                // related entities
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.BUSINESS_ACCOUNT), SearchEntityMetadataMapping.RELATED_ACCOUNT)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.REGION), SearchEntityMetadataMapping.RELATED_REGION)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.STORAGE), SearchEntityMetadataMapping.RELATED_STORAGE)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.STORAGE_TIER), SearchEntityMetadataMapping.RELATED_STORAGE_TIER)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.VIRTUAL_MACHINE), SearchEntityMetadataMapping.RELATED_VM)
                 .build();
     }
 
+    /**
+     * Returns all relevant column mappings for Storage.
+     *
+     * @return Storage column mappings
+     */
     private static Map<FieldApiDTO, SearchEntityMetadataMapping> getStorageMetadata() {
         return ImmutableMap.<FieldApiDTO, SearchEntityMetadataMapping>builder()
                 // common fields
@@ -184,6 +236,11 @@ public enum SearchEntityMetadata {
                 .build();
     }
 
+    /**
+     * Returns all relevant column mappings for Disk Array.
+     *
+     * @return Disk Array column mappings
+     */
     private static Map<FieldApiDTO, SearchEntityMetadataMapping> getDiskArrayMetadata() {
         return ImmutableMap.<FieldApiDTO, SearchEntityMetadataMapping>builder()
                 // common fields
@@ -194,6 +251,11 @@ public enum SearchEntityMetadata {
                 .build();
     }
 
+    /**
+     * Returns all relevant column mappings for Data Center.
+     *
+     * @return Data Center column mappings
+     */
     private static Map<FieldApiDTO, SearchEntityMetadataMapping> getDataCenterMetadata() {
         return ImmutableMap.<FieldApiDTO, SearchEntityMetadataMapping>builder()
                 // common fields
@@ -204,6 +266,11 @@ public enum SearchEntityMetadata {
                 .build();
     }
 
+    /**
+     * Returns all relevant column mappings for Container Pod.
+     *
+     * @return Container Pod column mappings
+     */
     private static Map<FieldApiDTO, SearchEntityMetadataMapping> getContainerPodMetadata() {
         return ImmutableMap.<FieldApiDTO, SearchEntityMetadataMapping>builder()
                 // common fields
@@ -214,6 +281,11 @@ public enum SearchEntityMetadata {
                 .build();
     }
 
+    /**
+     * Returns all relevant column mappings for Account.
+     *
+     * @return Account column mappings
+     */
     private static Map<FieldApiDTO, SearchEntityMetadataMapping> getBusinessAccountMetadata() {
         return ImmutableMap.<FieldApiDTO, SearchEntityMetadataMapping>builder()
                 // common fields
@@ -224,6 +296,11 @@ public enum SearchEntityMetadata {
                 .build();
     }
 
+    /**
+     * Returns all relevant column mappings for Region.
+     *
+     * @return Region column mappings
+     */
     private static Map<FieldApiDTO, SearchEntityMetadataMapping> getRegionMetadata() {
         return ImmutableMap.<FieldApiDTO, SearchEntityMetadataMapping>builder()
                 // common fields
@@ -231,6 +308,27 @@ public enum SearchEntityMetadata {
                 // todo: type specific fields
                 // todo: commodities
                 // todo: related entities
+                .build();
+    }
+
+    /**
+     * Returns all relevant column mappings for DB Server.
+     *
+     * @return DB Server mappings
+     */
+    private static Map<FieldApiDTO, SearchEntityMetadataMapping> getDBServerMetaData() {
+        return ImmutableMap.<FieldApiDTO, SearchEntityMetadataMapping>builder()
+                // common fields
+                .putAll(Constants.ENTITY_COMMON_FIELDS)
+                // commodities
+                .put(CommodityFieldApiDTO.used(CommodityType.VCPU), SearchEntityMetadataMapping.COMMODITY_VCPU_USED)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.VCPU), SearchEntityMetadataMapping.COMMODITY_VCPU_UTILIZATION)
+                .put(CommodityFieldApiDTO.used(CommodityType.VMEM), SearchEntityMetadataMapping.COMMODITY_VMEM_USED)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.VMEM), SearchEntityMetadataMapping.COMMODITY_VMEM_UTILIZATION)
+                .put(CommodityFieldApiDTO.used(CommodityType.VSTORAGE), SearchEntityMetadataMapping.COMMODITY_VSTORAGE_USED)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.VSTORAGE), SearchEntityMetadataMapping.COMMODITY_VSTORAGE_UTILIZATION)
+                // related entities
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.BUSINESS_ACCOUNT), SearchEntityMetadataMapping.RELATED_ACCOUNT)
                 .build();
     }
 

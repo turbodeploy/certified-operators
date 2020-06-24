@@ -21,6 +21,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
@@ -32,6 +33,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
+import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysis;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -81,6 +83,13 @@ public class ReservedInstanceCoverageUpdate {
 
     private final CostNotificationSender costNotificationSender;
 
+    /**
+     * This saves the reserved instance mappings for all RIs used by all accounts.
+     */
+    private final Cache<Long, List<AccountRICoverageUpload>> riCoverageAccountCache;
+
+    private final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore;
+
 
     public ReservedInstanceCoverageUpdate(
             @Nonnull final DSLContext dsl,
@@ -90,7 +99,8 @@ public class ReservedInstanceCoverageUpdate {
             @Nonnull final ReservedInstanceCoverageValidatorFactory reservedInstanceCoverageValidatorFactory,
             @Nonnull final SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory,
             @Nonnull final CostNotificationSender costNotificationSender,
-            final long riCoverageCacheExpireMinutes) {
+            final long riCoverageCacheExpireMinutes,
+            @Nonnull final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore) {
         this.dsl = Objects.requireNonNull(dsl);
         this.entityReservedInstanceMappingStore = Objects.requireNonNull(entityReservedInstanceMappingStore);
         this.reservedInstanceUtilizationStore = Objects.requireNonNull(reservedInstanceUtilizationStore);
@@ -103,6 +113,12 @@ public class ReservedInstanceCoverageUpdate {
         this.riCoverageEntityCache = CacheBuilder.newBuilder()
                 .expireAfterAccess(riCoverageCacheExpireMinutes, TimeUnit.MINUTES)
                 .build();
+        // The passed expiry interval is configured as
+        // riCoverageCacheExpireMinutes set to default of 120 mts.
+        this.riCoverageAccountCache = CacheBuilder.newBuilder()
+                .expireAfterAccess(riCoverageCacheExpireMinutes, TimeUnit.MINUTES)
+                .build();
+        this.businessAccountPriceTableKeyStore = businessAccountPriceTableKeyStore;
     }
 
     /**
@@ -116,6 +132,22 @@ public class ReservedInstanceCoverageUpdate {
             @Nonnull final List<EntityRICoverageUpload> entityRICoverageList) {
         riCoverageEntityCache.put(topologyId, entityRICoverageList);
     }
+
+    /**
+     * Store a list {@link EntityRICoverageUpload} into {@link Cache}. This will
+     * cache the reserved instance mappings.
+     *
+     * @param topologyId the id of topology.
+     * @param accountRICoverageList a list {@link EntityRICoverageUpload}.
+     */
+    public void cacheAccountRICoverageData(
+            @Nonnull final long topologyId,
+            @Nonnull final List<AccountRICoverageUpload> accountRICoverageList) {
+        // Store the account RI coverage mappings for all accounts.
+        riCoverageAccountCache.put(topologyId, accountRICoverageList);
+        logger.debug("Cache updated for {}. Contents: {} ", topologyId, accountRICoverageList);
+    }
+
 
     /**
      * Input a real time topology map, if there are matched {@link EntityRICoverageUpload}
@@ -383,4 +415,14 @@ public class ReservedInstanceCoverageUpdate {
             logger.error("Error in sending source entity RI coverage notification", e);
         }
     }
+
+    /**
+     * Getter to return the cached accountCoverage for undiscovered accounts.
+     * @return the cached accountCoverage for undiscovered accounts.
+     */
+    @Nonnull
+    public Cache<Long, List<AccountRICoverageUpload>> getRiCoverageAccountCache() {
+        return riCoverageAccountCache;
+    }
+
 }

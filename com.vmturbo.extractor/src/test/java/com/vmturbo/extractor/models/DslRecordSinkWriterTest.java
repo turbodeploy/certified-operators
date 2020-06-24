@@ -80,9 +80,10 @@ public class DslRecordSinkWriterTest {
      *
      * @throws UnsupportedDialectException if the endpoint is mis-configured
      * @throws SQLException                if there's a problem
+     * @throws InterruptedException        if interrupted
      */
     @Before
-    public void before() throws UnsupportedDialectException, SQLException {
+    public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
         this.dsl = endpoint.dslContext();
         final ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor();
         this.metricSink = new DslRecordSink(dsl, METRIC_TABLE, config, pool);

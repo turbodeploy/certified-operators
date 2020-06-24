@@ -34,10 +34,14 @@ public class IntersightLicenseClientTest {
     private static final String turboLabClientSecret = "acc47d826d7721ccf85b319f0c6f66e4";
     private static final String cicdCloudIntersight = "cicdtest.starshipcloud.com";
     private static final int port = 443;
-    private static final String CICD_CLOUD_CLIENT_ID = "b98b4668a6311a1849384b90efc6ab341cf800395d123dbd9f5e22a7d03e924c";
-    private static final String CICD_CLOUD_CLIENT_SECRET = "2fee1ab9957086015883d4aa7733b92f";
+    private static final String CICD_CLOUD_CLIENT_ID = "0844282dbb9385ad692acffc6e2fe2fc8d321a80649f0eca564899eafcccfd02-5ecd67187564612d33eafca2";
+    private static final String CICD_CLOUD_CLIENT_SECRET = "edbe8ea8afc0b4e8e21a761179a5fbe5";
 
-    private IntersightConnection connection = new IntersightConnection(turboLabIntersight, port, turboLabClientId, turboLabClientSecret);
+    // Toggle the following between the cicdtest and the turbo lab instance
+    private static final boolean useCicdtestConnection = true;
+    private IntersightConnection connection = useCicdtestConnection ? new IntersightConnection(
+            cicdCloudIntersight, port, CICD_CLOUD_CLIENT_ID, CICD_CLOUD_CLIENT_SECRET)
+            : new IntersightConnection(turboLabIntersight, port, turboLabClientId, turboLabClientSecret);
 
     private IntersightLicenseClient intersightLicenseClient = new IntersightLicenseClient(connection, null);
 

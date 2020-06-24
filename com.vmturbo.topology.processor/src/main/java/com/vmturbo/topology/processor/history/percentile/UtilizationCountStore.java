@@ -87,14 +87,15 @@ public class UtilizationCountStore {
      */
     public synchronized boolean isMinHistoryDataAvailable(@Nonnull HistoryAggregationContext context,
                                              @Nonnull PercentileHistoricalEditorConfig config) {
-        /*
-         Latest is taken because its database representation updated every discovery,
-         i.e. its database representation will contain information about
-         correct last point timestamp. On the other hand if we would use full it database
-         representation would have timestamp for the last point before maintenance.
-         */
-        return latest.isMinHistoryDataAvailable(config.getClock().millis(), fieldReference.toString(),
-                        config.getMinObservationPeriod(context, fieldReference.getEntityOid()));
+
+        return latest.isMinHistoryDataAvailable(config.getClock().millis(),
+                                                fieldReference.toString(),
+                                                config.getMinObservationPeriod(context,
+                                                                               fieldReference.getEntityOid()))
+               || full.isMinHistoryDataAvailable(config.getClock().millis(),
+                                                 fieldReference.toString(),
+                                                 config.getMinObservationPeriod(context,
+                                                                                fieldReference.getEntityOid()));
     }
 
     /**

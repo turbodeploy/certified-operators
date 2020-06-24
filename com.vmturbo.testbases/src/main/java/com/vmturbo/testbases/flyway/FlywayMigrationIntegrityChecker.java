@@ -381,7 +381,7 @@ public class FlywayMigrationIntegrityChecker {
      */
     private List<String> getBaseMigrationFiles(String root) throws IOException {
         List<String> migrationFiles = new ArrayList<>();
-        try (TreeWalk walk = TreeWalk.forPath(repo, root, baseCommit.getTree())) {
+        try (TreeWalk walk = TreeWalk.forPath(repo, platformAgnosticPath(root), baseCommit.getTree())) {
             if (walk != null) {
                 walk.enterSubtree();
                 while (walk.next()) {
@@ -394,6 +394,18 @@ public class FlywayMigrationIntegrityChecker {
             }
         }
         return migrationFiles;
+    }
+
+    /**
+     * JGit doesn't like paths with backslashes. This method replaces backslashes (on Windows)
+     * with forward slashes, and should be used for any path strings given to JGit methods/objects.
+     *
+     * @param path The path, potentially with backslashes (on Windows).
+     * @return The path, with backslashes replaced by forward slashes.
+     */
+    @Nonnull
+    public static String platformAgnosticPath(String path) {
+        return path.replaceAll("\\\\", "/");
     }
 
     /**

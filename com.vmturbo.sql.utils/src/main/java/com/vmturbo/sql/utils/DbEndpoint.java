@@ -2,12 +2,16 @@ package com.vmturbo.sql.utils;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.UnaryOperator;
 
+import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
 import org.apache.logging.log4j.LogManager;
@@ -27,6 +31,9 @@ import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.components.api.RetriableOperation;
+import com.vmturbo.components.api.RetriableOperation.Operation;
+import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 
 /**
  * This class manages access to a database, including initializing the database on first use,
@@ -111,8 +118,10 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
  */
 public class DbEndpoint {
     private final DbEndpointConfig config;
-    private final CompletableFuture<Void> future;
+    private CompletableFuture<Void> future;
     private DbAdapter adapter;
+    private boolean retriesCompleted = false;
+    private Throwable failureCause;
 
     /**
      * Create a new {@link DbEndpoint primary database endpoint}, without a tag.
@@ -162,6 +171,7 @@ public class DbEndpoint {
     }
 
     private void markComplete(Throwable e) {
+        this.failureCause = e;
         future.completeExceptionally(e);
     }
 
@@ -174,8 +184,9 @@ public class DbEndpoint {
      * @return dsl context
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      * @throws SQLException                if there's a problem gaining access
+     * @throws InterruptedException        if interrupted
      */
-    public DSLContext dslContext() throws UnsupportedDialectException, SQLException {
+    public DSLContext dslContext() throws UnsupportedDialectException, SQLException, InterruptedException {
         if (config.getDbEndpointEnabled()) {
             awaitCompletion();
             return DSL.using(getConfiguration());
@@ -190,8 +201,9 @@ public class DbEndpoint {
      * @return dataSource data source
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      * @throws SQLException                if there's a problem gaining access
+     * @throws InterruptedException        if interrupted
      */
-    public DataSource datasource() throws UnsupportedDialectException, SQLException {
+    public DataSource datasource() throws UnsupportedDialectException, SQLException, InterruptedException {
         if (config.getDbEndpointEnabled()) {
             awaitCompletion();
             return adapter.getDataSource();
@@ -242,8 +254,9 @@ public class DbEndpoint {
      * Get the adapter for this endpoint.
      *
      * @return {@link DbAdapter}
+     * @throws InterruptedException if interrupted
      */
-    public DbAdapter getAdapter() {
+    public DbAdapter getAdapter() throws InterruptedException {
         awaitCompletion();
         return adapter;
     }
@@ -252,17 +265,132 @@ public class DbEndpoint {
         return future.isDone() && !future.isCompletedExceptionally() && !future.isCancelled();
     }
 
-    private void awaitCompletion() {
-        if (!future.isDone()) {
-            try {
-                future.get();
-            } catch (InterruptedException | ExecutionException e) {
-                final String label = config.getTag() == null
-                        ? "Primary database endpoint"
-                        : "Database endpoint tagged " + config.getTag();
-                throw new IllegalStateException(label + " failed initialization", e);
+    /**
+     * Wait for the endpint to become ready for use.
+     *
+     * <p>This is invoked other public methods of this class that would provide access to the
+     * database, e.g. by returnning a connection to the database.</p>
+     *
+     * <p>The operation of this method is controlled by the retry schedule configured via the
+     * {@link DbEndpointResolver#DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY} property:</p>
+     *
+     * <ul>
+     *     <li>
+     *         If the property is an an empty array, this method will silently wait indefinitely for
+     *         the endpoint to be successfully initialized or to fail initialization.
+     *     </li>
+     *     <li>
+     *         Otherwise, the indicated retry schedule will be undertaken. On each iteration,
+     *         the initialization procedure will be invoked anew, and after waiting the scheduled
+     *         nubmer of seconds, the disposition of the endpoint will be checked. If the endpoint
+     *         is ever found to be successfully initialized, the schedule terminates and this method
+     *         returns. If the schedule completes without that happening, this method throws
+     *         {@link IllegalStateException} to indicate ultimate failure.
+     *     </li>
+     * </ul>
+     *
+     * <p>Note that if the final backoff period in a non-empty schedule is -1, the prior period
+     * will be repeated indefinitely, and this method will not return until the endpoint is
+     * successfully initialized.</p>
+     *
+     * <p>TODO: Try to determine cases where the reason is unrepairable, and don't perform
+     * additional retries.</p>
+     *
+     * @throws InterruptedException if interrupted
+     */
+    public synchronized void awaitCompletion() throws InterruptedException {
+        try {
+            if (isReady()) {
+                if (!retriesCompleted) {
+                    logger.info("{} was successfully initialized", this);
+                }
+                return;
+            } else if (retriesCompleted) {
+                throw new IllegalStateException(String.format(
+                        "DB endpoint %s failed initialization including attempted retries", this),
+                        failureCause);
             }
+            Iterator<Long> backoffIterator = getBackoffIterator();
+            // true output means retry
+            final Operation<Boolean> op = () -> {
+                if (future.isDone()) {
+                    try {
+                        future.get();
+                        // endpoint is ready to go... no more retries
+                        return false;
+                    } catch (ExecutionException e) {
+                        // prior attempt failed... try again with a fresh future
+                        this.future = new CompletableFuture<>();
+                        DbEndpointCompleter.completeEndpoint(this);
+                        // we'll get the last of these handed back to us if we ultimately give up
+                        throw new RetriableOperationFailedException(e);
+                    } catch (InterruptedException e) {
+                        // this will cause us to break out of the retry loop
+                        throw new RetriableOperationFailedException(e);
+                    }
+                } else {
+                    // still waiting for completion
+                    return true;
+                }
+            };
+            RetriableOperation.newOperation(op)
+                    .backoffStrategy(backoffIterator)
+                    .retryOnOutput(Boolean::booleanValue)
+                    // we retry after anything but a wrapped InterruptedException
+                    .retryOnException(e ->
+                            !(e instanceof RetriableOperationFailedException
+                                    && e.getCause() instanceof InterruptedException))
+                    .run(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
+            // exited non-exceptionally means we succeeded
+            logger.info("{} completed initialization successfully", this);
+        } catch (RetriableOperationFailedException wrapped) {
+            Throwable e = wrapped.getCause();
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new IllegalStateException(String.format("Endpoint %s failed initialization", this), e);
+        } catch (TimeoutException timeoutException) {
+            throw new IllegalStateException(
+                    String.format("Endpoint %s still not initialized after retries", this));
+        } finally {
+            // don't go through this whole thing more than once per endpoint
+            this.retriesCompleted = true;
         }
+    }
+
+    /**
+     * Create an iterator that will yield the full sequence of backoff times between endpoint
+     * completion retries.
+     *
+     * <p>If the last entry in the configured retry schedule
+     * ({@link DbEndpointResolver#DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY}) ends with -1, then the prior
+     * entry is repeated forever, else the list represents the complete, finite schedule.</p>
+     *
+     * @return iterator that will successive backoff intervals as milliseconds
+     */
+    @Nonnull
+    private Iterator<Long> getBackoffIterator() {
+        final DbEndpoint endpoint = this;
+        return new Iterator<Long>() {
+            final int[] backoffs = config.getDbRetryBackoffTimesSec();
+            int i = 0;
+
+            @Override
+            public boolean hasNext() {
+                return i < backoffs.length;
+            }
+
+            @Override
+            public Long next() {
+                // don't advance beyond penultimate entry if we're repeating
+                if (i == backoffs.length - 1 && backoffs[i] == -1) {
+                    i = i - 1;
+                }
+                logger.info("Retrying initialization of {} in {} seconds; retry # {}",
+                        endpoint, backoffs[i], i + 1);
+                return TimeUnit.SECONDS.toMillis(backoffs[i++]);
+            }
+        };
     }
 
     /**
@@ -277,6 +405,19 @@ public class DbEndpoint {
      */
     static void resetAll() {
         DbEndpointCompleter.resetAll();
+    }
+
+    @Override
+    public String toString() {
+        String tagLabel = config.getTag() != null ? "tag " + config.getTag() : "untagged";
+        String url;
+        try {
+            url = adapter.getUrl(config);
+        } catch (UnsupportedDialectException e) {
+            url = "[invalid dialect]";
+        }
+        return String.format("DbEndpoint[%s; url=%s; user=%s]",
+                tagLabel, url, config.getDbUserName());
     }
 
     /**
@@ -338,21 +479,19 @@ public class DbEndpoint {
             }
         }
 
-        private static void completeEndpoint(DbEndpoint endpoint) {
+        static void completeEndpoint(DbEndpoint endpoint) {
             if (endpoint.isReady()) {
                 return;
             }
             final DbEndpointConfig config = endpoint.getConfig();
-            logger.info("Completing endpoint with tag {}", config.getTag());
+            logger.debug("Completing {}", endpoint);
             try {
                 resolveConfig(config);
                 final DbAdapter adapter = DbAdapter.of(config);
                 adapter.init();
                 endpoint.markComplete(adapter);
             } catch (Exception e) {
-                String label = config.getTag() == null ? "untagged DbEndpoint"
-                        : String.format("DbEndpoint tagged '%s'", config.getTag());
-                logger.error("Failed to create {}", label, e);
+                logger.debug("Failed to create {}", endpoint, e);
                 endpoint.markComplete(e);
             }
         }

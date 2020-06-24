@@ -29,7 +29,7 @@ spec:
     enabled: true
   udt:
     enabled: true
-  appinsight:
+  appinsights:
     enabled: false
   aws:
     enabled: true
@@ -56,6 +56,14 @@ spec:
   vmax:
     enabled: true
   vmm:
+    enabled: true
+  wmi:
+    enabled: true
+  snmp:
+    enabled: true
+  mssql:
+    enabled: true
+  newrelic:
     enabled: true
 
   # Resource limits - Core Services

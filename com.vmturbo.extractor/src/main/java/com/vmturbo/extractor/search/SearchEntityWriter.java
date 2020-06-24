@@ -136,7 +136,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
      */
     @Override
     public int finish(final DataProvider dataProvider)
-            throws UnsupportedDialectException, SQLException {
+            throws UnsupportedDialectException, SQLException, InterruptedException {
         final AtomicInteger counter = new AtomicInteger();
         try (TableWriter entitiesReplacer = SEARCH_ENTITY_TABLE.open(
                 getEntityReplacerSink(dbEndpoint.dslContext()))) {

@@ -17,6 +17,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
@@ -37,8 +38,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 
-import org.apache.commons.collections4.MultiValuedMap;
-import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -72,6 +71,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -603,7 +603,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService);
         when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
         when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
-        handler.restore(this.getClass().getClassLoader().getResource("diags/compressed/diags0.zip").openStream());
+        handler.restore(new FileInputStream(ResourcePath.getTestResource(getClass(), "diags/compressed/diags0.zip").toFile()));
         List<Target> targets = simpleTargetStore.getAll();
         assertFalse(targets.isEmpty());
         for (Target target : simpleTargetStore.getAll()) {

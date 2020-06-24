@@ -67,6 +67,16 @@ spec:
     enabled: true
   vmm:
     enabled: true
+  wmi:
+    enabled: true
+  snmp:
+    enabled: true
+  mssql:
+    enabled: true
+  newrelic:
+    enabled: true
+  udt:
+    enabled: true
 
   # Resource limits - Core Services
   action-orchestrator:
@@ -136,11 +146,11 @@ spec:
   mediation-appdynamics:
     resources:
       limits:
-        memory: 4Gi
+        memory: 6Gi
   mediation-appinsights:
     resources:
       limits:
-        memory: 2Gi
+        memory: 1Gi
   mediation-aws:
     resources:
       limits:
@@ -168,7 +178,7 @@ spec:
   mediation-dynatrace:
     resources:
       limits:
-        memory: 2Gi
+        memory: 4Gi
   mediation-ucs:
     resources:
       limits:
@@ -189,3 +199,23 @@ spec:
     resources:
       limits:
         memory: 2Gi
+  mediation-wmi:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-snmp:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-mssql:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-newrelic:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-udt:
+    resources:
+      limits:
+        memory: 1Gi

@@ -171,7 +171,10 @@ public class IntersightTargetSyncService implements Runnable {
         }
     }
 
-    private void syncAssetTargets(final Map<String, ProbeInfo> probesByType, final Set<TargetInfo> staleTargets, final Map<Long, List<TargetInfo>> targetsByProbeId, final ApiClient apiClient, final AssetTargetList assetTargetList) throws CommunicationException, InterruptedException {
+    private void syncAssetTargets(final Map<String, ProbeInfo> probesByType,
+            final Set<TargetInfo> staleTargets,
+            final Map<Long, List<TargetInfo>> targetsByProbeId, final ApiClient apiClient,
+            final AssetTargetList assetTargetList) throws InterruptedException {
         if (assetTargetList != null && assetTargetList.getResults() != null) {
             final IntersightTargetUpdater targetUpdater = new IntersightTargetUpdater(apiClient,
                     topologyProcessor, noUpdateOnChangePeriodSeconds);
@@ -197,7 +200,7 @@ public class IntersightTargetSyncService implements Runnable {
                         staleTargets.remove(targetInfo);
                     }
                     targetUpdater.update(assetTarget, targetInfo);
-                } catch (TopologyProcessorException | ApiException | RuntimeException e) {
+                } catch (TopologyProcessorException | ApiException | CommunicationException | RuntimeException e) {
                     logger.error("Error adding or updating status for target {} of probe type {} due to: {}",
                             assetTarget.getMoid(), probeType, e);
                 }
@@ -407,12 +410,18 @@ public class IntersightTargetSyncService implements Runnable {
                 return SDKProbeType.VPLEX;
             case MICROSOFTSQLSERVER:
                 return SDKProbeType.MSSQL;
-            case MICROSOFTAZURE:
-                return SDKProbeType.AZURE;
+            case MICROSOFTAZUREENTERPRISEAGREEMENT:
+                return SDKProbeType.AZURE_EA;
+            case MICROSOFTAZURESERVICEPRINCIPAL:
+                return SDKProbeType.AZURE_SERVICE_PRINCIPAL;
             case MICROSOFTHYPERV:
                 return SDKProbeType.HYPERV;
             case DYNATRACE:
                 return SDKProbeType.DYNATRACE;
+            case AMAZONWEBSERVICE:
+                return SDKProbeType.AWS;
+            case AMAZONWEBSERVICEBILLING:
+                return SDKProbeType.AWS_BILLING;
             default:
                 logger.warn("Unsupported Intersight target type {} in asset.Target {}",
                         assetTarget.getTargetType(), assetTarget.getMoid());

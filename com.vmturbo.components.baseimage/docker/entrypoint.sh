@@ -107,7 +107,8 @@ if [[ -z ${JAVA_OPTS} ]]; then
                   -Djavax.xml.ws.spi.Provider=com.sun.xml.ws.spi.ProviderImpl
                   -Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl
                   -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true
-                  -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0"
+                  -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0
+                  -Djava.security.properties=/etc/crypto-policies/back-ends/java.config"
      fi
   fi
   JAVA_OPTS=$JAVA_BASE_OPTS

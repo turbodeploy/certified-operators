@@ -15,8 +15,6 @@ import io.opentracing.contrib.concurrent.TracedExecutorService;
 import io.opentracing.contrib.grpc.OpenTracingContextKey;
 import io.opentracing.util.GlobalTracer;
 
-import com.vmturbo.components.api.SetOnce;
-
 /**
  * Contains shared utilities for interacting with the tracing framework.
  */

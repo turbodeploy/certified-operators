@@ -47,11 +47,11 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
-            @Nonnull IdentityProvider identityProvider, @Nullable String nameSuffix)
-            throws TopologyEntityConstructorException {
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity,
+            @Nonnull TemplateActionType actionType, @Nonnull IdentityProvider identityProvider,
+            @Nullable String nameSuffix) throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
-                template, originalTopologyEntity, isReplaced, identityProvider,
+                template, originalTopologyEntity, actionType, identityProvider,
                 EntityType.STORAGE_VALUE, nameSuffix);
 
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints;

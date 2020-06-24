@@ -902,6 +902,16 @@ public enum EntitySettingSpecs {
             numeric(20f, 100f, 80f), true),
 
     /**
+     * RemainingGcCapacity utilization threshold.
+     * This is not exposed to the user and has a fixed value. If we ever want to expose
+     * it then add it to settingManagers.json.
+     */
+    RemainingGcCapacityUtilization("remainingGcCapacityUtilization", "Remaining GC Capacity Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.APPLICATION_COMPONENT),
+            numeric(90f, 99f, 97f), true),
+
+    /**
      * DBMem utilization threshold.
      */
     DBMemUtilization("dbmemUtilization", "DBMem Utilization",

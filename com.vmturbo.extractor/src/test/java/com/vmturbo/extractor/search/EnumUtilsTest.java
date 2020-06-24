@@ -11,9 +11,9 @@ import org.junit.rules.ExpectedException;
 import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.search.metadata.EntityTypeMapper;
+import com.vmturbo.search.metadata.SearchEntityMetadata;
 
 /**
  * Test EnumUtils. todo: move to metadata package?
@@ -32,8 +32,11 @@ public class EnumUtilsTest {
 
     @Test
     public void testProtoIntEntityTypeToDbType() {
-        for (EntityDTO.EntityType entityType : EntityTypeMapper.SUPPORTED_ENTITY_TYPE_MAPPING.values()) {
-            assertThat(EnumUtils.protoIntEntityTypeToDbType(entityType.getNumber()), is(notNullValue()));
+        // verify that all entity types which we have metadata for are defined in the db entity types enum
+        for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
+            int protoEntityType = EntityTypeMapper.fromApiEntityTypeToProto(
+                    searchEntityMetadata.getEntityType()).getNumber();
+            assertThat(EnumUtils.protoIntEntityTypeToDbType(protoEntityType), is(notNullValue()));
         }
     }
 

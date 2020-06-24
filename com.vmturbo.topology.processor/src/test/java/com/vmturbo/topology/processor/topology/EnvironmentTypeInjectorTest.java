@@ -50,12 +50,15 @@ public class EnvironmentTypeInjectorTest {
     private static final long VC_TARGET_ID = 2L;
     private static final long K8S_TARGET_ID = 3L;
     private static final long WMI_TARGET_ID = 4L;
-    private static final long ENTITY_OID = 7L;
+    private static final long APPDYNAMICS_TARGET_ID = 5L;
+    private static final long APP_COMPONENT_OID = 6L;
+    private static final long VM_OID = 7L;
     private static final long CONTAINER_OID = 8L;
     private static final long WORKLOAD_CONTROLLER_OID = 9L;
     private static final long NAMESPACE_OID = 10L;
     private static final long CONTAINER_SPEC_OID = 11L;
     private static final long CONTAINER_POD_OID = 12L;
+    private static final long SERVICE_OID = 13L;
 
     private TargetStore targetStore = mock(TargetStore.class);
 
@@ -70,6 +73,7 @@ public class EnvironmentTypeInjectorTest {
         //The only static part is the probe category, and we should use the category as criteria
         addFakeTarget(K8S_TARGET_ID, SDKProbeType.VCD, ProbeCategory.CLOUD_NATIVE);
         addFakeTarget(WMI_TARGET_ID, SDKProbeType.WMI, ProbeCategory.GUEST_OS_PROCESSES);
+        addFakeTarget(APPDYNAMICS_TARGET_ID, SDKProbeType.APPDYNAMICS, ProbeCategory.APPLICATIONS_AND_DATABASES);
     }
 
     @Test
@@ -82,8 +86,8 @@ public class EnvironmentTypeInjectorTest {
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
 
-        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
-        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertTrue(graph.getEntity(VM_OID).isPresent());
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         assertThat(injectionSummary.getUnknownCount(), is(0));
@@ -98,8 +102,8 @@ public class EnvironmentTypeInjectorTest {
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
-        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
-        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertTrue(graph.getEntity(VM_OID).isPresent());
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         assertThat(injectionSummary.getUnknownCount(), is(0));
@@ -112,22 +116,23 @@ public class EnvironmentTypeInjectorTest {
         TopologyEntity.Builder vm1 = TopologyEntity
             .newBuilder(TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOid(ENTITY_OID)
+                .setOid(VM_OID)
                 .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
                     .newBuilder().putDiscoveredTargetData(AWS_TARGET_ID,
                         PerTargetEntityInformation.getDefaultInstance()))));
-        TopologyEntity.Builder container1 = TopologyEntity.newBuilder(k8sEntity(vm1.getOid())
-            .setEntityType(EntityType.CONTAINER_VALUE)
-            .setOid(CONTAINER_OID));
+        TopologyEntity.Builder container1 = TopologyEntity.newBuilder(
+                newEntityBuilder(K8S_TARGET_ID, vm1.getOid())
+                        .setEntityType(EntityType.CONTAINER_VALUE)
+                        .setOid(CONTAINER_OID));
         topologyEntitiesMap.put(vm1.getOid(), vm1);
         topologyEntitiesMap.put(container1.getOid(), container1);
         TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
-        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
+        assertTrue(graph.getEntity(VM_OID).isPresent());
         assertTrue(graph.getEntity(CONTAINER_OID).isPresent());
 
-        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(graph.getEntity(CONTAINER_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
@@ -141,22 +146,23 @@ public class EnvironmentTypeInjectorTest {
         TopologyEntity.Builder vm1 = TopologyEntity
             .newBuilder(TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOid(ENTITY_OID)
+                .setOid(VM_OID)
                 .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
                     .newBuilder().putDiscoveredTargetData(VC_TARGET_ID,
                         PerTargetEntityInformation.getDefaultInstance()))));
-        TopologyEntity.Builder container1 = TopologyEntity.newBuilder(k8sEntity(vm1.getOid())
-            .setEntityType(EntityType.CONTAINER_VALUE)
-            .setOid(CONTAINER_OID));
+        TopologyEntity.Builder container1 = TopologyEntity.newBuilder(
+                newEntityBuilder(K8S_TARGET_ID, vm1.getOid())
+                        .setEntityType(EntityType.CONTAINER_VALUE)
+                        .setOid(CONTAINER_OID));
         topologyEntitiesMap.put(vm1.getOid(), vm1);
         topologyEntitiesMap.put(container1.getOid(), container1);
         TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
-        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
+        assertTrue(graph.getEntity(VM_OID).isPresent());
         assertTrue(graph.getEntity(CONTAINER_OID).isPresent());
 
-        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
         assertThat(graph.getEntity(CONTAINER_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
@@ -176,19 +182,21 @@ public class EnvironmentTypeInjectorTest {
         TopologyEntity.Builder vm1 = TopologyEntity
             .newBuilder(TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOid(ENTITY_OID)
+                .setOid(VM_OID)
                 .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
                     .newBuilder().putDiscoveredTargetData(AWS_TARGET_ID,
                         PerTargetEntityInformation.getDefaultInstance()))));
-        TopologyEntity.Builder namespace = TopologyEntity.newBuilder(k8sEntity()
+        TopologyEntity.Builder namespace = TopologyEntity.newBuilder(newEntityBuilder(K8S_TARGET_ID)
             .setEntityType(EntityType.NAMESPACE_VALUE)
             .setOid(NAMESPACE_OID));
-        TopologyEntity.Builder workloadController = TopologyEntity.newBuilder(k8sEntity(namespace.getOid())
-            .setEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE)
-            .setOid(WORKLOAD_CONTROLLER_OID));
-        TopologyEntity.Builder pod1 = TopologyEntity.newBuilder(k8sEntity(vm1.getOid(), workloadController.getOid())
-            .setEntityType(EntityType.CONTAINER_POD_VALUE)
-            .setOid(CONTAINER_POD_OID));
+        TopologyEntity.Builder workloadController = TopologyEntity.newBuilder(
+                newEntityBuilder(K8S_TARGET_ID, namespace.getOid())
+                        .setEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE)
+                        .setOid(WORKLOAD_CONTROLLER_OID));
+        TopologyEntity.Builder pod1 = TopologyEntity.newBuilder(
+                newEntityBuilder(K8S_TARGET_ID, vm1.getOid(), workloadController.getOid())
+                        .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                        .setOid(CONTAINER_POD_OID));
 
         topologyEntitiesMap.put(vm1.getOid(), vm1);
         topologyEntitiesMap.put(pod1.getOid(), pod1);
@@ -197,12 +205,12 @@ public class EnvironmentTypeInjectorTest {
         TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
-        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
+        assertTrue(graph.getEntity(VM_OID).isPresent());
         assertTrue(graph.getEntity(CONTAINER_POD_OID).isPresent());
         assertTrue(graph.getEntity(WORKLOAD_CONTROLLER_OID).isPresent());
         assertTrue(graph.getEntity(NAMESPACE_OID).isPresent());
 
-        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(graph.getEntity(CONTAINER_POD_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(graph.getEntity(WORKLOAD_CONTROLLER_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(graph.getEntity(NAMESPACE_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
@@ -225,23 +233,27 @@ public class EnvironmentTypeInjectorTest {
         TopologyEntity.Builder vm1 = TopologyEntity
             .newBuilder(TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOid(ENTITY_OID)
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
-                    .newBuilder().putDiscoveredTargetData(AWS_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance()))));
-        TopologyEntity.Builder containerSpec = TopologyEntity.newBuilder(k8sEntity()
+                .setOid(VM_OID)
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                        .putDiscoveredTargetData(AWS_TARGET_ID,
+                                PerTargetEntityInformation.getDefaultInstance())
+                        .putDiscoveredTargetData(K8S_TARGET_ID,
+                                PerTargetEntityInformation.getDefaultInstance()))));
+        TopologyEntity.Builder containerSpec = TopologyEntity.newBuilder(newEntityBuilder(K8S_TARGET_ID)
             .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
             .setOid(CONTAINER_SPEC_OID));
-        TopologyEntity.Builder pod = TopologyEntity.newBuilder(k8sEntity(vm1.getOid())
-            .setEntityType(EntityType.CONTAINER_POD_VALUE)
-            .setOid(CONTAINER_POD_OID));
-        TopologyEntity.Builder container = TopologyEntity.newBuilder(k8sEntity(pod.getOid())
-            .setEntityType(EntityType.CONTAINER_VALUE)
-            .setOid(CONTAINER_OID)
-            .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
-                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
-                .setConnectedEntityId(containerSpec.getOid())
-                .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)));
+        TopologyEntity.Builder pod = TopologyEntity.newBuilder(
+                newEntityBuilder(K8S_TARGET_ID, vm1.getOid())
+                        .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                        .setOid(CONTAINER_POD_OID));
+        TopologyEntity.Builder container = TopologyEntity.newBuilder(
+                newEntityBuilder(K8S_TARGET_ID, pod.getOid())
+                        .setEntityType(EntityType.CONTAINER_VALUE)
+                        .setOid(CONTAINER_OID)
+                        .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                                .setConnectedEntityId(containerSpec.getOid())
+                                .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)));
 
         topologyEntitiesMap.put(vm1.getOid(), vm1);
         topologyEntitiesMap.put(container.getOid(), container);
@@ -250,12 +262,12 @@ public class EnvironmentTypeInjectorTest {
         TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
-        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
+        assertTrue(graph.getEntity(VM_OID).isPresent());
         assertTrue(graph.getEntity(CONTAINER_OID).isPresent());
         assertTrue(graph.getEntity(CONTAINER_POD_OID).isPresent());
         assertTrue(graph.getEntity(CONTAINER_SPEC_OID).isPresent());
 
-        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(graph.getEntity(CONTAINER_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(graph.getEntity(CONTAINER_POD_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(graph.getEntity(CONTAINER_SPEC_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
@@ -266,6 +278,73 @@ public class EnvironmentTypeInjectorTest {
     }
 
     /**
+     * Environment type for stitched APM entities with CLOUD should be CLOUD.
+     */
+    @Test
+    public void testAPMStitched() {
+        Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
+        TopologyEntity.Builder vm = TopologyEntity
+                .newBuilder(TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setOid(VM_OID)
+                        .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                .putDiscoveredTargetData(AWS_TARGET_ID,
+                                        PerTargetEntityInformation.getDefaultInstance()))));
+        TopologyEntity.Builder appComponent = TopologyEntity.newBuilder(
+                newEntityBuilder(APPDYNAMICS_TARGET_ID, vm.getOid())
+                        .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+                        .setOid(APP_COMPONENT_OID));
+
+        topologyEntitiesMap.put(vm.getOid(), vm);
+        topologyEntitiesMap.put(appComponent.getOid(), appComponent);
+
+        TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
+        final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
+
+        assertTrue(graph.getEntity(VM_OID).isPresent());
+        assertTrue(graph.getEntity(APP_COMPONENT_OID).isPresent());
+
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertThat(graph.getEntity(APP_COMPONENT_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+
+        assertThat(injectionSummary.getConflictingTypeCount(), is(0));
+        assertThat(injectionSummary.getUnknownCount(), is(0));
+        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.CLOUD, 2)));
+    }
+
+    /**
+     * Environment type for unstitched APM entities should be HYBRID.
+     */
+    @Test
+    public void testAPMUnstitched() {
+        Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
+        TopologyEntity.Builder appComponent = TopologyEntity.newBuilder(
+                newEntityBuilder(APPDYNAMICS_TARGET_ID)
+                        .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+                        .setOid(APP_COMPONENT_OID));
+        TopologyEntity.Builder service = TopologyEntity.newBuilder(
+                newEntityBuilder(APPDYNAMICS_TARGET_ID, appComponent.getOid())
+                        .setEntityType(EntityType.SERVICE_VALUE)
+                        .setOid(SERVICE_OID));
+
+        topologyEntitiesMap.put(appComponent.getOid(), appComponent);
+        topologyEntitiesMap.put(service.getOid(), service);
+
+        TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
+        final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
+
+        assertTrue(graph.getEntity(APP_COMPONENT_OID).isPresent());
+        assertTrue(graph.getEntity(SERVICE_OID).isPresent());
+
+        assertThat(graph.getEntity(APP_COMPONENT_OID).get().getEnvironmentType(), is(EnvironmentType.HYBRID));
+        assertThat(graph.getEntity(SERVICE_OID).get().getEnvironmentType(), is(EnvironmentType.HYBRID));
+
+        assertThat(injectionSummary.getConflictingTypeCount(), is(0));
+        assertThat(injectionSummary.getUnknownCount(), is(0));
+        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.HYBRID, 2)));
+    }
+
+    /**
      * Setup two entities that consume from each other in a cycle.
      * Ensure that we do not end up in an infinite recursion to compute the environment type.
      * Instead, the cycle should be detected and we just return the default environment type.
@@ -273,12 +352,13 @@ public class EnvironmentTypeInjectorTest {
     @Test
     public void testCycleIsAborted() {
         Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
-        TopologyEntity.Builder pod = TopologyEntity.newBuilder(k8sEntity(CONTAINER_OID)
+        TopologyEntity.Builder pod = TopologyEntity.newBuilder(newEntityBuilder(K8S_TARGET_ID, CONTAINER_OID)
             .setEntityType(EntityType.CONTAINER_POD_VALUE)
             .setOid(CONTAINER_POD_OID));
-        TopologyEntity.Builder container = TopologyEntity.newBuilder(k8sEntity(CONTAINER_POD_OID)
-            .setEntityType(EntityType.CONTAINER_VALUE)
-            .setOid(CONTAINER_OID));
+        TopologyEntity.Builder container = TopologyEntity.newBuilder(
+                newEntityBuilder(K8S_TARGET_ID, CONTAINER_POD_OID)
+                        .setEntityType(EntityType.CONTAINER_VALUE)
+                        .setOid(CONTAINER_OID));
 
         topologyEntitiesMap.put(container.getOid(), container);
         topologyEntitiesMap.put(pod.getOid(), pod);
@@ -288,12 +368,12 @@ public class EnvironmentTypeInjectorTest {
         assertTrue(graph.getEntity(CONTAINER_OID).isPresent());
         assertTrue(graph.getEntity(CONTAINER_POD_OID).isPresent());
 
-        assertThat(graph.getEntity(CONTAINER_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
-        assertThat(graph.getEntity(CONTAINER_POD_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertThat(graph.getEntity(CONTAINER_OID).get().getEnvironmentType(), is(EnvironmentType.HYBRID));
+        assertThat(graph.getEntity(CONTAINER_POD_OID).get().getEnvironmentType(), is(EnvironmentType.HYBRID));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         assertThat(injectionSummary.getUnknownCount(), is(0));
-        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.ON_PREM, 2)));
+        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.HYBRID, 2)));
     }
 
     @Test
@@ -304,8 +384,8 @@ public class EnvironmentTypeInjectorTest {
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
-        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
-        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertTrue(graph.getEntity(VM_OID).isPresent());
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         assertThat(injectionSummary.getUnknownCount(), is(0));
@@ -320,8 +400,8 @@ public class EnvironmentTypeInjectorTest {
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
-        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
-        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertTrue(graph.getEntity(VM_OID).isPresent());
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         assertThat(injectionSummary.getUnknownCount(), is(0));
@@ -334,8 +414,8 @@ public class EnvironmentTypeInjectorTest {
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
-        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
-        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.UNKNOWN_ENV));
+        assertTrue(graph.getEntity(VM_OID).isPresent());
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.UNKNOWN_ENV));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         // One unknown count.
@@ -355,8 +435,8 @@ public class EnvironmentTypeInjectorTest {
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
-        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
-        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertTrue(graph.getEntity(VM_OID).isPresent());
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         // One unknown count.
@@ -377,9 +457,9 @@ public class EnvironmentTypeInjectorTest {
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
-        assertTrue(graph.getEntity(ENTITY_OID).isPresent());
+        assertTrue(graph.getEntity(VM_OID).isPresent());
         // The original environment type.
-        assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(1));
         // One unknown count.
@@ -388,25 +468,25 @@ public class EnvironmentTypeInjectorTest {
     }
 
     @Nonnull
-    private static TopologyEntityDTO.Builder k8sEntity(long... providerIds) {
+    private static TopologyEntityDTO.Builder newEntityBuilder(long targetId, long... providerIds) {
         return TopologyEntityDTO.newBuilder()
             .addAllCommoditiesBoughtFromProviders(Arrays.stream(providerIds)
                     .mapToObj(id -> TopologyEntityDTO.CommoditiesBoughtFromProvider
                         .newBuilder().setProviderId(id).build())
                     .collect(Collectors.toList()))
             .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
-                .newBuilder().putDiscoveredTargetData(K8S_TARGET_ID,
+                .newBuilder().putDiscoveredTargetData(targetId,
                     PerTargetEntityInformation.getDefaultInstance())));
     }
 
     @Nonnull
     private TopologyGraph<TopologyEntity> oneEntityGraph(final Consumer<TopologyEntityDTO.Builder> entityCustomizer) {
         final TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder()
-            .setOid(ENTITY_OID)
+            .setOid(VM_OID)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
         entityCustomizer.accept(entityBuilder);
         final TopologyEntity.Builder entity = TopologyEntity.newBuilder(entityBuilder);
-        return TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(ENTITY_OID, entity));
+        return TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(VM_OID, entity));
     }
 
     private void addFakeTarget(final long targetId, final SDKProbeType probeType, final ProbeCategory probeCategory) {

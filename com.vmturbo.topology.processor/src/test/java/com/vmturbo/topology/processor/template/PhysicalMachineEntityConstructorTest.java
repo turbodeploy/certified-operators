@@ -37,6 +37,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
 
 public class PhysicalMachineEntityConstructorTest {
     private double epsilon = 1e-5;
@@ -137,7 +138,7 @@ public class PhysicalMachineEntityConstructorTest {
 
         final TopologyEntityDTO.Builder topologyEntityDTO =
                 new PhysicalMachineEntityConstructor().createTopologyEntityFromTemplate(PM_TEMPLATE,
-                        topology, null, false, identityProvider, null);
+                        topology, null, TemplateActionType.CLONE, identityProvider, null);
         assertEquals(15, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(1, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(200.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
@@ -194,7 +195,7 @@ public class PhysicalMachineEntityConstructorTest {
                 .addAllCommoditiesBoughtFromProviders(pmCommodityBoughtFromProvider);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new PhysicalMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(PM_TEMPLATE, topology, builder, false,
+                .createTopologyEntityFromTemplate(PM_TEMPLATE, topology, builder, TemplateActionType.CLONE,
                         identityProvider, null);
         assertEquals(19, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(4,
