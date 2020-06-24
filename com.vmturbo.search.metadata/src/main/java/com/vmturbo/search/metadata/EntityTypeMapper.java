@@ -41,6 +41,7 @@ public class EntityTypeMapper {
                     .put(com.vmturbo.api.enums.EntityType.SERVICE, EntityDTO.EntityType.SERVICE)
                     .put(com.vmturbo.api.enums.EntityType.STORAGE, EntityDTO.EntityType.STORAGE)
                     .put(com.vmturbo.api.enums.EntityType.STORAGECONTROLLER, EntityDTO.EntityType.STORAGE_CONTROLLER)
+                    .put(com.vmturbo.api.enums.EntityType.STORAGE_TIER, EntityDTO.EntityType.STORAGE_TIER)
                     .put(com.vmturbo.api.enums.EntityType.SWITCH, EntityDTO.EntityType.SWITCH)
                     .put(com.vmturbo.api.enums.EntityType.VIRTUAL_MACHINE, EntityDTO.EntityType.VIRTUAL_MACHINE)
                     .put(com.vmturbo.api.enums.EntityType.VIEW_POD, EntityDTO.EntityType.VIEW_POD)
