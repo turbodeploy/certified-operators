@@ -1565,9 +1565,7 @@ public class TopologyConverter {
         float[] histUsed = histUsedValue.orElseGet(() -> new float[] {});
         float[] histPeak = histPeakValue.orElseGet(() -> new float[] {});
 
-
-        // Entities migrating to cloud also should consider on-prem history
-        if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD || isCloudMigration) {
+        if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD) {
             final float[][] onPremResizedCapacity = getOnPremResizedCapacity(histUsed, histPeak,
                     commBought, providerOid, topologyDTO);
             return new float[][]{onPremResizedCapacity[0], onPremResizedCapacity[1]};
@@ -1627,6 +1625,17 @@ public class TopologyConverter {
     private float[][] drivingSoldCommodityBasedCapacity(final List<CommoditySoldDTO> drivingCommmoditySoldList,
                                                         final TopologyEntityDTO topologyDTO) {
         final CommoditySoldDTO commoditySoldDTO = drivingCommmoditySoldList.get(0);
+
+        // Cloud migration lift and shift plan (a.k.a. allocation plan) uses the capacity
+        // value of the commodity of drivingCommSold.
+        // The optimization plan (a.k.a consumption plan) will consider commodity usage and target
+        // utilization when determining the resize quantity.
+        if (isCloudMigration && !isCloudResizeEnabled && commoditySoldDTO.hasCapacity()) {
+            float drivingCommSoldCapacity = (float)commoditySoldDTO.getCapacity();
+            return new float[][]{new float[]{drivingCommSoldCapacity},
+                    new float[]{drivingCommSoldCapacity}};
+        }
+
         float histUsage = (float)commoditySoldDTO.getUsed();
         if (commoditySoldDTO.hasHistoricalUsed()) {
             if (commoditySoldDTO.getHistoricalUsed().hasPercentile() &&
