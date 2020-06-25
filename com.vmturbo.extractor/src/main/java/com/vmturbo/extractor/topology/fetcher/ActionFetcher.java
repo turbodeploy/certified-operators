@@ -86,7 +86,7 @@ public class ActionFetcher extends DataFetcher<Long2IntMap> {
                 actionCountByEntityOrGroup.put(entry.getLongKey(), entry.getValue().size()));
 
         // add action count for groups
-        groupData.getGroupToEntityIds().long2ObjectEntrySet().forEach(entry -> {
+        groupData.getGroupToLeafEntityIds().long2ObjectEntrySet().forEach(entry -> {
             long count = entry.getValue().stream()
                     .map(entityId -> actionsByEntityId.getOrDefault((long)entityId, Collections.emptySet()))
                     .flatMap(Collection::stream)

@@ -11,15 +11,15 @@ import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
 import com.vmturbo.extractor.topology.DataProvider;
 
 /**
- * Add related action data (only action count for now) for entity.
+ * Add related action data (only action count for now) for group.
  */
-public class RelatedActionsPatcher implements EntityRecordPatcher<DataProvider> {
+public class GroupRelatedActionsPatcher implements EntityRecordPatcher<DataProvider> {
 
     private static final Logger logger = LogManager.getLogger();
 
     @Override
     public void patch(PartialRecordInfo recordInfo, DataProvider dataProvider) {
-        SearchMetadataUtils.getMetadata(recordInfo.entityType, FieldType.RELATED_ACTION)
+        SearchMetadataUtils.getMetadata(recordInfo.groupType, FieldType.RELATED_ACTION)
                 .forEach(metadata -> {
             // currently we only support action count, so there is supposed to be only ONE metadata
             switch (metadata) {

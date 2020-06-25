@@ -53,14 +53,14 @@ import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 import com.vmturbo.extractor.schema.enums.EntitySeverity;
 import com.vmturbo.search.metadata.SearchEntityMetadata;
-import com.vmturbo.search.metadata.SearchEntityMetadataMapping;
+import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
  * Tests for EntityQuery.
  */
 public class EntityQueryTest {
 
-    private static final SearchEntityMetadataMapping oidPrimitive = SearchEntityMetadataMapping.PRIMITIVE_OID;
+    private static final SearchMetadataMapping oidPrimitive = SearchMetadataMapping.PRIMITIVE_OID;
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -108,7 +108,7 @@ public class EntityQueryTest {
         final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.VIRTUAL_MACHINE);
         EntityQuery query = entityQuery(request);
 
-        Map<FieldApiDTO, SearchEntityMetadataMapping> mappings = SearchEntityMetadata.VIRTUAL_MACHINE.getMetadataMappingMap();
+        Map<FieldApiDTO, SearchMetadataMapping> mappings = SearchEntityMetadata.VIRTUAL_MACHINE.getMetadataMappingMap();
         //WHEN
         Set<String> fields = query.buildSelectFields()
             .stream()
@@ -229,7 +229,7 @@ public class EntityQueryTest {
             .stream()
             .filter(entry -> {
                 final FieldApiDTO key = entry.getKey();
-                final SearchEntityMetadataMapping value = entry.getValue();
+                final SearchMetadataMapping value = entry.getValue();
                 final boolean sameType = Objects.isNull(apiDatatype) ? true : value.getApiDatatype().equals(apiDatatype);
                 final boolean sameKey = !key.equals(this.oidPrimitive)
                     && key.getClass().equals(expectedKeyClass);

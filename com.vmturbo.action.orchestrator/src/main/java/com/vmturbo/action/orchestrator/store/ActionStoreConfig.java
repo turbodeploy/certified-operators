@@ -124,6 +124,9 @@ public class ActionStoreConfig {
     @Value("${minsFrequencyOfCleaningAcceptedActionsStore:60}")
     private long minsFrequencyOfCleaningAcceptedActionsStore;
 
+    @Value("${actionIdentityModelRequestChunkSize:1000}")
+    private int actionIdentityModelRequestChunkSize;
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator());
@@ -165,7 +168,8 @@ public class ActionStoreConfig {
      */
     @Bean
     public RecommendationIdentityStore recommendationIdentityStore() {
-        return new RecommendationIdentityStore(databaseConfig.dsl());
+        return new RecommendationIdentityStore(databaseConfig.dsl(),
+                actionIdentityModelRequestChunkSize);
     }
 
     /**

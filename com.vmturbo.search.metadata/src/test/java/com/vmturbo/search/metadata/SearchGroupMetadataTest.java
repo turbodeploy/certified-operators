@@ -14,24 +14,23 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
-import com.vmturbo.api.enums.EntityType;
+import com.vmturbo.api.enums.GroupType;
 
 /**
  * Unit tests verify that all fields in SearchEntityMetadataMapping for different field types
  * are set as expected. This is needed to ensure correct data ingestion and search query.
  */
-public class SearchEntityMetadataTest {
+public class SearchGroupMetadataTest {
 
     /**
      * Verifiers for different field types.
      */
     private static final Map<FieldType, MetadataVerifier> METADATA_VERIFIERS =
             new ImmutableMap.Builder<FieldType, MetadataVerifier>()
-                    .put(FieldType.COMMODITY, new CommodityMetadataVerifier())
                     .put(FieldType.PRIMITIVE, new PrimitiveMetadataVerifier())
+                    .put(FieldType.AGGREGATE_COMMODITY, new CommodityMetadataVerifier())
                     .put(FieldType.RELATED_ACTION, new RelatedActionMetadataVerifier())
-                    .put(FieldType.RELATED_ENTITY, new RelatedEntityMetadataVerifier())
-                    .put(FieldType.RELATED_GROUP, new RelatedGroupMetadataVerifier())
+                    .put(FieldType.MEMBER, new MemberMetadataVerifier())
                     .build();
 
     /**
@@ -39,9 +38,9 @@ public class SearchEntityMetadataTest {
      */
     @Test
     public void testMetadataFieldsSetCorrectly() {
-        for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
+        for (SearchGroupMetadata searchEntityMetadata : SearchGroupMetadata.values()) {
             for (Map.Entry<FieldApiDTO, SearchMetadataMapping> entry
-                : searchEntityMetadata.getMetadataMappingMap().entrySet()) {
+                    : searchEntityMetadata.getMetadataMappingMap().entrySet()) {
                 MetadataVerifier metadataVerifier =
                         METADATA_VERIFIERS.get(entry.getKey().getFieldType());
                 // verify that MetadataVerifier for this filed type exists
@@ -59,22 +58,23 @@ public class SearchEntityMetadataTest {
      */
     @Test
     public void testMetadataFieldsContainMandatoryFields() {
-        for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
+        for (SearchGroupMetadata searchGroupMetadata : SearchGroupMetadata.values()) {
             Map<FieldApiDTO, SearchMetadataMapping> metadataMappingMap =
-                    searchEntityMetadata.getMetadataMappingMap();
+                    searchGroupMetadata.getMetadataMappingMap();
+            //todo: use jooq to find all nonnull table columns dynamically and check
             assertEquals("oid", metadataMappingMap.get(PrimitiveFieldApiDTO.oid()).getColumnName());
             assertEquals("name", metadataMappingMap.get(PrimitiveFieldApiDTO.name()).getColumnName());
-            assertEquals("type", metadataMappingMap.get(PrimitiveFieldApiDTO.entityType()).getColumnName());
+            assertEquals("type", metadataMappingMap.get(PrimitiveFieldApiDTO.groupType()).getColumnName());
         }
     }
 
     /**
-     * Enum names must match {@link EntityType} names
+     * Enum names must match {@link GroupType} names
      */
     @Test
     public void testMetadataEnumMatchesEntityTypeEnumName() {
-        for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
-            assertEquals(searchEntityMetadata.name(), searchEntityMetadata.getEntityType().name());
+        for (SearchGroupMetadata searchGroupMetadata : SearchGroupMetadata.values()) {
+            assertEquals(searchGroupMetadata.name(), searchGroupMetadata.getGroupType().name());
         }
     }
 
@@ -99,8 +99,10 @@ public class SearchEntityMetadataTest {
         public void verify(SearchMetadataMapping metadata) {
             commonVerify(metadata);
             assertNotNull(metadata.getJsonKeyName());
+            assertNotNull(metadata.getMemberType());
             assertNotNull(metadata.getCommodityType());
             assertNotNull(metadata.getCommodityAttribute());
+            assertNotNull(metadata.getCommodityAggregation());
             assertNotNull(metadata.getCommodityUnit());
         }
     }
@@ -110,9 +112,9 @@ public class SearchEntityMetadataTest {
         public void verify(SearchMetadataMapping metadata) {
             commonVerify(metadata);
             if (metadata == SearchMetadataMapping.PRIMITIVE_SEVERITY) {
-                assertNull(metadata.getTopoFieldFunction());
+                assertNull(metadata.getGroupFieldFunction());
             } else {
-                assertNotNull(metadata.getTopoFieldFunction());
+                assertNotNull(metadata.getGroupFieldFunction());
             }
         }
     }
@@ -125,24 +127,12 @@ public class SearchEntityMetadataTest {
         }
     }
 
-    public static class RelatedEntityMetadataVerifier implements MetadataVerifier {
+    public static class MemberMetadataVerifier implements MetadataVerifier {
         @Override
         public void verify(SearchMetadataMapping metadata) {
             commonVerify(metadata);
             assertNotNull(metadata.getJsonKeyName());
-            assertNotNull(metadata.getRelatedEntityTypes());
-            assertNotNull(metadata.getRelatedEntityProperty());
-        }
-    }
-
-    public static class RelatedGroupMetadataVerifier implements MetadataVerifier {
-        @Override
-        public void verify(SearchMetadataMapping metadata) {
-            commonVerify(metadata);
-            assertNotNull(metadata.getJsonKeyName());
-            assertNotNull(metadata.getRelatedGroupType());
-            assertNotNull(metadata.getMemberType());
-            assertNotNull(metadata.getRelatedGroupProperty());
+            assertNull(metadata.getGroupFieldFunction());
         }
     }
 }

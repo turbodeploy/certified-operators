@@ -1,11 +1,6 @@
 package com.vmturbo.extractor.search;
 
 import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_NAME;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_SEVERITY_ENUM;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
-import static com.vmturbo.extractor.models.ModelDefinitions.NUM_ACTIONS;
 import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_TABLE;
 import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_MODEL;
 
@@ -17,13 +12,11 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,9 +25,7 @@ import org.jooq.DSLContext;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectList;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
@@ -46,7 +37,7 @@ import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.TopologyWriterBase;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.search.metadata.SearchEntityMetadata;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -77,8 +68,30 @@ public class SearchEntityWriter extends TopologyWriterBase {
             ImmutableList.of(
                     new PrimitiveFieldsNotOnTEDPatcher(),
                     new RelatedActionsPatcher(),
-                    new RelatedEntitiesPatcher()
+                    new RelatedEntitiesPatcher(),
+                    new RelatedGroupsPatcher()
                     // todo: add cost and more
+            );
+
+    /**
+     * List of patchers for group fields which are available on {@link Grouping}, like name,
+     * origin, member types, etc.
+     */
+    private static final List<EntityRecordPatcher<Grouping>> GROUP_PATCHERS_FOR_FIELDS_ON_GROUPING =
+            ImmutableList.of(
+                    new GroupPrimitiveFieldsOnGroupingPatcher()
+            );
+
+    /**
+     * List of patchers for group fields which are NOT available on {@link Grouping}, like action
+     * count, severity, commodities, etc.
+     */
+    private static final List<EntityRecordPatcher<DataProvider>> GROUP_PATCHERS_FOR_FIELDS_NOT_ON_GROUPING =
+            ImmutableList.of(
+                    new GroupRelatedActionsPatcher(),
+                    new GroupPrimitiveFieldsNotOnGroupingPatcher(),
+                    new GroupMemberFieldPatcher(),
+                    new GroupAggregatedCommoditiesPatcher()
             );
 
     /**
@@ -105,7 +118,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
 
     @Override
     protected void writeEntity(final TopologyEntityDTO entity) {
-        if (!SearchEntityMetadata.hasMetadata(entity.getEntityType())) {
+        if (!SearchMetadataUtils.hasMetadata(entity.getEntityType())) {
             // this is legitimate, since not all entities are ingested
             logger.trace("Skipping entity {} of type {} due to lack of metadata definition",
                     entity.getOid(), EntityType.forNumber(entity.getEntityType()));
@@ -138,8 +151,8 @@ public class SearchEntityWriter extends TopologyWriterBase {
     public int finish(final DataProvider dataProvider)
             throws UnsupportedDialectException, SQLException, InterruptedException {
         final AtomicInteger counter = new AtomicInteger();
-        try (TableWriter entitiesReplacer = SEARCH_ENTITY_TABLE.open(
-                getEntityReplacerSink(dbEndpoint.dslContext()))) {
+        try (DSLContext dsl = dbEndpoint.dslContext();
+             TableWriter entitiesReplacer = SEARCH_ENTITY_TABLE.open(getEntityReplacerSink(dsl))) {
             // write entities
             partialRecordInfos.forEach(recordInfo -> {
                 // add all other info which are not available on TopologyEntityDTO (TED)
@@ -159,17 +172,30 @@ public class SearchEntityWriter extends TopologyWriterBase {
 
             // write groups
             dataProvider.getAllGroups().forEach(group -> {
-                final GroupDefinition def = group.getDefinition();
-                Record groupRecord = new Record(SEARCH_ENTITY_TABLE);
-                groupRecord.set(ENTITY_OID_AS_OID, group.getId());
-                groupRecord.set(ENTITY_NAME, def.getDisplayName());
-                groupRecord.set(ENTITY_TYPE_ENUM, EnumUtils.protoGroupTypeToDbType(def.getType()));
-                groupRecord.set(NUM_ACTIONS, dataProvider.getActionCount(group.getId()));
-                groupRecord.set(ENTITY_SEVERITY_ENUM, dataProvider.getSeverity(group.getId()));
-                try {
-                    groupRecord.set(ATTRS, getGroupAttrs(group));
-                } catch (JsonProcessingException e) {
-                    logger.error("Failed to record group attributes for group {}", group.getId());
+                if (!SearchMetadataUtils.hasMetadata(group.getDefinition().getType())) {
+                    // do not ingest if no metadata defined for the group
+                    logger.trace("Skipping group {} of type {} due to lack of metadata definition",
+                            group.getId(), group.getDefinition().getType());
+                    return;
+                }
+
+                final Record groupRecord = new Record(SEARCH_ENTITY_TABLE);
+                final Map<String, Object> attrs = new HashMap<>();
+                final PartialRecordInfo partialRecordInfo = new PartialRecordInfo(
+                        group.getId(), group.getDefinition().getType(), groupRecord, attrs);
+                // patch primitive fields whose values come from Grouping
+                GROUP_PATCHERS_FOR_FIELDS_ON_GROUPING.forEach(patcher ->
+                        patcher.patch(partialRecordInfo, group));
+                // patch other fields whose values come from other sources
+                GROUP_PATCHERS_FOR_FIELDS_NOT_ON_GROUPING.forEach(patcher ->
+                        patcher.patch(partialRecordInfo, dataProvider));
+                // set attrs to record if not empty
+                if (!attrs.isEmpty()) {
+                    try {
+                        groupRecord.set(ATTRS, new JsonString(mapper.writeValueAsString(attrs)));
+                    } catch (JsonProcessingException e) {
+                        logger.error("Failed to record group attributes for group {}", group.getId());
+                    }
                 }
                 // insert into db
                 entitiesReplacer.accept(groupRecord);
@@ -184,34 +210,24 @@ public class SearchEntityWriter extends TopologyWriterBase {
         return new DslReplaceRecordSink(dsl, SEARCH_ENTITY_TABLE, config, pool, "replace");
     }
 
-    // todo: add more info for groups to jsonb, based on group metadata
-    private JsonString getGroupAttrs(Grouping group) throws JsonProcessingException {
-        final List<String> expectedTypes = group.getExpectedTypesList().stream()
-                .map(MemberType::getEntity)
-                .map(EntityType::forNumber)
-                .map(Enum::name)
-                .collect(Collectors.toList());
-
-        Map<String, Object> obj = ImmutableMap.of("expectedTypes", expectedTypes);
-        return new JsonString(mapper.writeValueAsString(obj));
-    }
-
     /**
-     * Wrapper class containing the partial entity record, incomplete jsonb column attributes and
-     * other entity information needed for ingestion.
+     * Wrapper class containing the partial entity (or group) record, incomplete jsonb column
+     * attributes and other entity (or group) information needed for ingestion.
      */
     protected static class PartialRecordInfo {
-        /** oid of the entity for this record. */
+        /** oid of the entity (or group) for this record. */
         final long oid;
-        /** type of the entity for this record. */
+        /** type of the entity for this record if this is an entity record. */
         final int entityType;
-        /** the partial record for an entity to be sent to database. */
+        /** type of the group for this record if this is a group record. */
+        final GroupType groupType;
+        /** the partial record for an entity (or group) to be sent to database. */
         final Record record;
         /** attrs for the jsonb column in this record. */
         final Map<String, Object> attrs;
 
         /**
-         * Constructor for creating a wrapper object for record.
+         * Constructor for creating a wrapper object for entity record.
          *
          * @param oid id of the entity this record is referring to
          * @param entityType type of the entity for this record
@@ -223,6 +239,23 @@ public class SearchEntityWriter extends TopologyWriterBase {
             this.entityType = entityType;
             this.record = record;
             this.attrs = attrs;
+            this.groupType = null;
+        }
+
+        /**
+         * Constructor for creating a wrapper object for group record.
+         *
+         * @param oid id of the group this record is referring to
+         * @param groupType type of the group for this record
+         * @param record the partial record for an group to be sent to database
+         * @param attrs attrs for the jsonb column in this record
+         */
+        PartialRecordInfo(long oid, GroupType groupType, Record record, Map<String, Object> attrs) {
+            this.oid = oid;
+            this.groupType = groupType;
+            this.record = record;
+            this.attrs = attrs;
+            this.entityType = -1;
         }
     }
 

@@ -10,34 +10,31 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.extractor.models.Column;
-import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
-import com.vmturbo.extractor.schema.enums.EnvironmentType;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
 import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
- * Add basic fields which are available on TopologyEntityDTO, like name, state, type specific info, etc.
+ * Add basic fields which are available on {@link Grouping}, like name, group type, origin, etc.
  */
-public class PrimitiveFieldsOnTEDPatcher implements EntityRecordPatcher<TopologyEntityDTO> {
+public class GroupPrimitiveFieldsOnGroupingPatcher implements EntityRecordPatcher<Grouping> {
 
     private static final Logger logger = LogManager.getLogger();
 
     @Override
-    public void patch(PartialRecordInfo recordInfo, TopologyEntityDTO entity) {
-        // find metadata for primitive fields on TopologyEntityDTO (there is topo function defined)
+    public void patch(PartialRecordInfo recordInfo, Grouping group) {
+        // find metadata for primitive fields on Grouping (there is group field function defined)
         final List<SearchMetadataMapping> metadataList =
-                SearchMetadataUtils.getMetadata(entity.getEntityType(), FieldType.PRIMITIVE).stream()
-                        .filter(m -> m.getTopoFieldFunction() != null)
+                SearchMetadataUtils.getMetadata(group.getDefinition().getType(), FieldType.PRIMITIVE).stream()
+                        .filter(m -> m.getGroupFieldFunction() != null)
                         .collect(Collectors.toList());
 
         metadataList.forEach(metadata -> {
-            Optional<Object> fieldValue = metadata.getTopoFieldFunction().apply(entity);
+            Optional<Object> fieldValue = metadata.getGroupFieldFunction().apply(group);
             if (metadata.getJsonKeyName() != null) {
                 // jsonb column, add to json map
                 fieldValue.ifPresent(value -> recordInfo.attrs.put(metadata.getJsonKeyName(), value));
@@ -53,21 +50,12 @@ public class PrimitiveFieldsOnTEDPatcher implements EntityRecordPatcher<Topology
                     final Object value = fieldValue.get();
                     switch (column.getColType()) {
                         case ENTITY_TYPE:
+                            // convert to database enum
                             recordInfo.record.set((Column<EntityType>)column,
-                                    EnumUtils.entityTypeFromProtoIntToDb((int)value));
-                            break;
-                        case ENTITY_STATE:
-                            recordInfo.record.set((Column<EntityState>)column,
-                                    EnumUtils.entityStateFromProtoToDb(
-                                            (TopologyDTO.EntityState)value));
-                            break;
-                        case ENVIRONMENT_TYPE:
-                            recordInfo.record.set((Column<EnvironmentType>)column,
-                                    EnumUtils.environmentTypeFromProtoToDb(
-                                            (EnvironmentTypeEnum.EnvironmentType)value));
+                                    EnumUtils.groupTypeFromProtoToDb((GroupDTO.GroupType)value));
                             break;
                         default:
-                            // for other fields like oid, name.
+                            // for other fields like oid, name, origin.
                             recordInfo.record.set((Column<Object>)column, value);
                     }
                 }

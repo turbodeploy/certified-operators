@@ -1207,7 +1207,7 @@ public class Stages {
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             try {
-                entityValidator.validateTopologyEntities(input.getTopologyGraph().entities(), isPlan);
+                entityValidator.validateTopologyEntities(input.getTopologyGraph(), isPlan);
                 return Status.success();
             } catch (EntitiesValidationException e) {
                 throw new PipelineStageException(e);

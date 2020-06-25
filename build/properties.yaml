@@ -47,6 +47,8 @@ defaultProperties:
         # string, with individual settings separated by "&". No initial "&" or "?" should appear
         mariadbDriverProperties: useServerPrepStmts=true
         mysqlDriverProperties:
+        # OM-58310: Improve handling partially discovered cloud environment feature flag.
+        riSupportInPartialCloudEnvironment: false
     extractor:
         dbHost: timescaledb
         dbPort: 5432
@@ -94,20 +96,15 @@ defaultProperties:
         externalApiFileSystemBase: file:/swagger/
         cpuInfoCacheLifetimeHours: 8
         sessionTimeoutSeconds: 1800
-#        dbHost: xlr01.eng.turbonomic.com
-#        dbPort: 5432
-#        dbDatabaseName: turbodb
-#        dbSchemaName: turbo-do
-#        dbUserName: turbo-do
-#        dbPassword: turbo-do
         dbHost: 10.10.170.248
         dbPort: 5432
         dbDatabaseName: extractor
         dbSchemaName: extractor
         dbUserName: extractor
         dbPassword: vmturbo
-
-
+        enableSearchApi: true
+        postgresMigrationLocations: " " #Prevents migration problem on startup with identical
+        #migration versions from extractor-schema and history
     auth:
         dbSchemaName: auth
         identityGeneratorPrefix: 7

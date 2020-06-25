@@ -141,12 +141,13 @@ public class TopologyEntitiesListener implements EntitiesListener {
             }
             long entityCount = 0L;
             try {
+                final DataProvider dataProvider = new DataProvider();
                 while (entityIterator.hasNext()) {
                     timer.start("Chunk Retrieval");
                     final Collection<DataSegment> chunk = entityIterator.nextChunk();
                     timer.stop();
                     entityCount += chunk.size();
-                    addChunkToGraph(chunk);
+                    scrapeChunk(chunk, dataProvider);
                     for (Pair<Consumer<TopologyEntityDTO>, ITopologyWriter> consumer : entityConsumers) {
                         timer.start(getIngestionPhaseLabel(consumer.getRight()));
                         for (final DataSegment dataSegment : chunk) {
@@ -157,9 +158,9 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     }
                 }
 
-                // fetch all data from other components
-                final DataProvider dataProvider = new DataProvider(timer, graphBuilder.build(),
-                        groupService, actionService, topologyContextId);
+                // fetch all data from other components for use in finish stage
+                dataProvider.fetchData(timer, graphBuilder.build(), groupService, actionService,
+                        topologyContextId);
 
                 for (final ITopologyWriter writer : writers) {
                     timer.start(getFinishPhaseLabel(writer));
@@ -180,12 +181,17 @@ public class TopologyEntitiesListener implements EntitiesListener {
             return entityCount;
         }
 
-        private void addChunkToGraph(final Collection<DataSegment> chunk) {
-            chunk.stream()
-                    .filter(DataSegment::hasEntity)
-                    .map(DataSegment::getEntity)
-                    .map(SupplyChainEntity::newBuilder)
-                    .forEach(graphBuilder::addEntity);
+        private void scrapeChunk(final Collection<DataSegment> chunk,
+                                 final DataProvider dataProvider) {
+            for (DataSegment dataSegment : chunk) {
+                if (dataSegment.hasEntity()) {
+                    TopologyEntityDTO topologyEntityDTO = dataSegment.getEntity();
+                    // add entity to graph
+                    graphBuilder.addEntity(SupplyChainEntity.newBuilder(topologyEntityDTO));
+                    // cache interested commodities for use later
+                    dataProvider.scrapeCommodities(topologyEntityDTO);
+                }
+            }
         }
     }
 }
