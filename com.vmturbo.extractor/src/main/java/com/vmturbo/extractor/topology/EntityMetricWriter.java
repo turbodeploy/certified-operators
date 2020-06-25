@@ -92,8 +92,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     private final Long2ObjectMap<List<Record>> metricRecordsMap = new Long2ObjectOpenHashMap<>();
     private EntityHashManager entityHashManager;
-    private SnapshotManager snapshotManager;
-
 
     /**
      * Create a new writer instance.
@@ -113,12 +111,13 @@ public class EntityMetricWriter extends TopologyWriterBase {
             final WriterConfig config, final MultiStageTimer timer)
             throws IOException, UnsupportedDialectException, SQLException {
         super.startTopology(topologyInfo, config, timer);
-        this.snapshotManager = entityHashManager.open(topologyInfo.getCreationTime());
+        this.rand = ne Random();
         return this::writeEntity;
     }
 
     @Override
     protected void writeEntity(final TopologyEntityDTO e) {
+        if ()
         final long oid = e.getOid();
         Record entitiesRecord = new Record(ENTITY_TABLE);
         entitiesRecord.set(ENTITY_OID_AS_OID, oid);
@@ -187,17 +186,14 @@ public class EntityMetricWriter extends TopologyWriterBase {
                      getEntityUpsertSink(dsl, upsertConflicts, upsertUpdates));
              TableWriter entitiesUpdater = ENTITY_TABLE.open(getEntityUpdaterSink(
                      dsl, updateIncludes, updateMatches, updateUpdates));
-             TableWriter metricInserter = METRIC_TABLE.open(getMetricInserterSink(dsl))) {
+             TableWriter metricInserter = METRIC_TABLE.open(getMetricInserterSink(dsl));
+             SnapshotManager snapshotManager = entityHashManager.open(topologyInfo.getCreationTime())) {
             // prepare and write all our entity and metric records
             writeGroupsAsEntities(dataProvider);
-            upsertEntityRecords(dataProvider, entitiesUpserter);
+            upsertEntityRecords(dataProvider, entitiesUpserter, snapshotManager);
             writeMetricRecords(metricInserter);
             snapshotManager.processChanges(entitiesUpdater);
             return n;
-        } finally {
-            if (snapshotManager != null) {
-                snapshotManager.close();
-            }
         }
     }
 
@@ -241,7 +237,8 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 });
     }
 
-    private void upsertEntityRecords(final DataProvider dataProvider, TableWriter tableWriter) {
+    private void upsertEntityRecords(final DataProvider dataProvider, final TableWriter tableWriter,
+            final SnapshotManager snapshotManager) {
         entityRecordsMap.long2ObjectEntrySet().forEach(entry -> {
             long oid = entry.getLongKey();
             Record record = entry.getValue();
