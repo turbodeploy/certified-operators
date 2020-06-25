@@ -106,7 +106,7 @@ import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
-import com.vmturbo.topology.processor.topology.RequestCommodityThresholdsInjector;
+import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
@@ -1574,22 +1574,22 @@ public class Stages {
      * These thresholds control the behavior of resize analysis for these commodities in the market.
      */
     public static class RequestCommodityThresholdsStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
-        private final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector;
+        private final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector;
 
         /**
          * Create a new {@link RequestCommodityThresholdsStage}.
-         * @param requestCommodityThresholdsInjector The {@link RequestCommodityThresholdsInjector} to
+         * @param requestAndLimitCommodityThresholdsInjector The {@link RequestAndLimitCommodityThresholdsInjector} to
          *                                           be run in this stage.
          */
         public RequestCommodityThresholdsStage(
-            @Nonnull final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector) {
-            this.requestCommodityThresholdsInjector = Objects.requireNonNull(requestCommodityThresholdsInjector);
+            @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector) {
+            this.requestAndLimitCommodityThresholdsInjector = Objects.requireNonNull(requestAndLimitCommodityThresholdsInjector);
         }
 
         @Override
         @Nonnull
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
-            requestCommodityThresholdsInjector.injectThresholds(graph);
+            requestAndLimitCommodityThresholdsInjector.injectThresholds(graph);
             return Status.success();
         }
     }

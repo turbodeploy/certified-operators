@@ -344,8 +344,8 @@ public class TopologyConfig {
     }
 
     @Bean
-    public RequestCommodityThresholdsInjector requestCommodityThresholdsInjector() {
-        return new RequestCommodityThresholdsInjector();
+    public RequestAndLimitCommodityThresholdsInjector requestCommodityThresholdsInjector() {
+        return new RequestAndLimitCommodityThresholdsInjector();
     }
 
     @Bean

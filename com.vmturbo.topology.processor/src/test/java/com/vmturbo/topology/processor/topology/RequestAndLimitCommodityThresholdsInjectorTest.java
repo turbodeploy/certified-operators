@@ -14,14 +14,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.topology.RequestCommodityThresholdsInjector.InjectionStats;
+import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector.InjectionStats;
 
 /**
  * RequestCommodityThresholdsInjectorTest.
  */
-public class RequestCommodityThresholdsInjectorTest {
+public class RequestAndLimitCommodityThresholdsInjectorTest {
 
-    private final RequestCommodityThresholdsInjector injector = new RequestCommodityThresholdsInjector();
+    private final RequestAndLimitCommodityThresholdsInjector injector = new RequestAndLimitCommodityThresholdsInjector();
 
     /**
      * testInjectThresholdsEmpty.
@@ -32,7 +32,7 @@ public class RequestCommodityThresholdsInjectorTest {
         final InjectionStats stats = injector.injectThresholds(graph);
 
         assertEquals(0, stats.getEntitiesModified());
-        assertEquals(0, stats.getCommoditiesModified());
+        assertEquals(0, stats.getRequestCommoditiesModified());
     }
 
     /**
@@ -46,7 +46,7 @@ public class RequestCommodityThresholdsInjectorTest {
         final InjectionStats stats = injector.injectThresholds(graph);
 
         assertEquals(0, stats.getEntitiesModified());
-        assertEquals(0, stats.getCommoditiesModified());
+        assertEquals(0, stats.getRequestCommoditiesModified());
     }
 
     /**
@@ -60,7 +60,7 @@ public class RequestCommodityThresholdsInjectorTest {
         final InjectionStats stats = injector.injectThresholds(graph);
 
         assertEquals(0, stats.getEntitiesModified());
-        assertEquals(0, stats.getCommoditiesModified());
+        assertEquals(0, stats.getRequestCommoditiesModified());
     }
 
     /**
@@ -76,7 +76,7 @@ public class RequestCommodityThresholdsInjectorTest {
         final InjectionStats stats = injector.injectThresholds(graph);
 
         assertEquals(0, stats.getEntitiesModified());
-        assertEquals(0, stats.getCommoditiesModified());
+        assertEquals(0, stats.getRequestCommoditiesModified());
         assertFalse(vcpu.hasThresholds());
     }
 
@@ -94,7 +94,7 @@ public class RequestCommodityThresholdsInjectorTest {
         final InjectionStats stats = injector.injectThresholds(graph);
 
         assertEquals(1, stats.getEntitiesModified());
-        assertEquals(1, stats.getCommoditiesModified());
+        assertEquals(1, stats.getRequestCommoditiesModified());
         assertTrue(vcpuRequest.hasThresholds());
         assertEquals(50.0, vcpuRequest.getThresholds().getMax(), 0);
     }
@@ -113,7 +113,7 @@ public class RequestCommodityThresholdsInjectorTest {
         final InjectionStats stats = injector.injectThresholds(graph);
 
         assertEquals(1, stats.getEntitiesModified());
-        assertEquals(1, stats.getCommoditiesModified());
+        assertEquals(1, stats.getRequestCommoditiesModified());
         assertTrue(vmemRequest.hasThresholds());
         assertEquals(50.0, vmemRequest.getThresholds().getMax(), 0);
     }
@@ -140,7 +140,7 @@ public class RequestCommodityThresholdsInjectorTest {
         final InjectionStats stats = injector.injectThresholds(graph);
 
         assertEquals(2, stats.getEntitiesModified());
-        assertEquals(3, stats.getCommoditiesModified());
+        assertEquals(3, stats.getRequestCommoditiesModified());
 
         assertTrue(vmemRequest1.hasThresholds());
         assertEquals(vmemRequest1.getCapacity(), vmemRequest1.getThresholds().getMax(), 0);
@@ -152,12 +152,101 @@ public class RequestCommodityThresholdsInjectorTest {
         assertFalse(vcpu.hasThresholds());
     }
 
+    /**
+     * testInjectVMemLimitThresholds.
+     */
+    @Test
+    public void testInjectVMemLimitThresholds() {
+        final TopologyEntity.Builder container = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container", EntityType.CONTAINER);
+        addCommoditySold(container, CommodityType.VMEM_REQUEST_VALUE, 50.0);
+        final CommoditySoldDTO.Builder vmemLimit =
+            addCommoditySold(container, CommodityType.VMEM_VALUE, 150.0);
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container);
+        final InjectionStats stats = injector.injectThresholds(graph);
+
+        assertEquals(1, stats.getEntitiesModified());
+        assertEquals(1, stats.getRequestCommoditiesModified());
+        assertEquals(1, stats.getLimitCommoditiesModified());
+        assertTrue(vmemLimit.hasThresholds());
+        assertEquals(50.0, vmemLimit.getThresholds().getMin(), 0);
+    }
+
+    /**
+     * testInjectVcpuLimitThresholds.
+     */
+    @Test
+    public void testInjectVcpuLimitThresholds() {
+        final TopologyEntity.Builder container = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container", EntityType.CONTAINER);
+        addCommoditySold(container, CommodityType.VCPU_REQUEST_VALUE, 50.0);
+        final CommoditySoldDTO.Builder vcpuLimit =
+            addCommoditySold(container, CommodityType.VCPU_VALUE, 150.0);
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container);
+        final InjectionStats stats = injector.injectThresholds(graph);
+
+        assertEquals(1, stats.getEntitiesModified());
+        assertEquals(1, stats.getRequestCommoditiesModified());
+        assertEquals(1, stats.getLimitCommoditiesModified());
+        assertTrue(vcpuLimit.hasThresholds());
+        assertEquals(50.0, vcpuLimit.getThresholds().getMin(), 0);
+    }
+
+    /**
+     * testInjectVcpuLimitWithoutRequest.
+     */
+    @Test
+    public void testInjectVcpuLimitWithoutRequest() {
+        final TopologyEntity.Builder container = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container", EntityType.CONTAINER);
+        final CommoditySoldDTO.Builder vcpuLimit =
+            addCommoditySold(container, CommodityType.VCPU_VALUE, 150.0);
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container);
+        final InjectionStats stats = injector.injectThresholds(graph);
+
+        assertEquals(0, stats.getEntitiesModified());
+        assertEquals(0, stats.getRequestCommoditiesModified());
+        assertEquals(0, stats.getLimitCommoditiesModified());
+        assertFalse(vcpuLimit.hasThresholds());
+    }
+
+    /**
+     * testLimitNotResizable.
+     */
+    @Test
+    public void testLimitNotResizable() {
+        final TopologyEntity.Builder container = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container", EntityType.CONTAINER);
+        addCommoditySold(container, CommodityType.VCPU_REQUEST_VALUE, 50.0);
+        final CommoditySoldDTO.Builder vcpuLimit =
+            addCommoditySold(container, CommodityType.VCPU_VALUE, 150.0, false);
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container);
+        final InjectionStats stats = injector.injectThresholds(graph);
+
+        assertEquals(1, stats.getEntitiesModified());
+        assertEquals(1, stats.getRequestCommoditiesModified());
+        assertEquals(0, stats.getLimitCommoditiesModified());
+        assertFalse(vcpuLimit.hasThresholds());
+    }
+
     private static CommoditySoldDTO.Builder addCommoditySold(@Nonnull final TopologyEntity.Builder entity,
                                                              final int commodityType,
                                                              final double capacity) {
+        return addCommoditySold(entity, commodityType, capacity, true);
+    }
+
+    private static CommoditySoldDTO.Builder addCommoditySold(@Nonnull final TopologyEntity.Builder entity,
+                                                             final int commodityType,
+                                                             final double capacity,
+                                                             final boolean resizable) {
         final CommoditySoldDTO.Builder commSold = CommoditySoldDTO.newBuilder()
             .setCommodityType(commType(commodityType))
-            .setCapacity(capacity);
+            .setCapacity(capacity)
+            .setIsResizeable(resizable);
         entity.getEntityBuilder().addCommoditySoldList(commSold);
 
         // Return the new builder that was added to the list

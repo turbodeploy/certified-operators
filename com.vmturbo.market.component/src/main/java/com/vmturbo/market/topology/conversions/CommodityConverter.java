@@ -227,12 +227,18 @@ public class CommodityConverter {
         // Set thresholds for the commodity sold (min/Max of VCPU/VMem for on-prem VMs).
         if (topologyCommSold.hasThresholds()) {
             final Thresholds threshold = topologyCommSold.getThresholds();
-            final float maxThreshold = Double.valueOf(threshold.getMax()).floatValue() * scalingFactor;
-            final float minThreshold = Double.valueOf(threshold.getMin()).floatValue() * scalingFactor;
-            economyCommSoldSettings.setCapacityUpperBound(maxThreshold);
-            economyCommSoldSettings.setCapacityLowerBound(minThreshold);
+            if (threshold.hasMax()) {
+                final float maxThreshold = Double.valueOf(threshold.getMax()).floatValue() * scalingFactor;
+                economyCommSoldSettings.setCapacityUpperBound(maxThreshold);
+            }
+            if (threshold.hasMin()) {
+                final float minThreshold = Double.valueOf(threshold.getMin()).floatValue() * scalingFactor;
+                economyCommSoldSettings.setCapacityLowerBound(minThreshold);
+            }
+
             logger.debug("Thresholds for {} of entity {} is Max: {} min: {}",
-                    comName, dto.getDisplayName(), maxThreshold, minThreshold);
+                comName, dto.getDisplayName(), economyCommSoldSettings.getCapacityUpperBound(),
+                economyCommSoldSettings.getCapacityLowerBound());
         }
 
         // Set resold flag
