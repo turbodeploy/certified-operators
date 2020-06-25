@@ -59,8 +59,7 @@ public class QueryInfoFactory {
 
     private boolean isGlobalTempGroupOfARMEntityTypes(@Nonnull final SingleQuery query) {
         if (query.hasQuery() && query.getQuery().hasScopeFilter()
-                && query.getQuery().getScopeFilter().hasGlobal()
-                && !query.getQuery().getScopeFilter().getGlobal().getEntityTypeList().isEmpty()) {
+                && query.getQuery().getScopeFilter().hasGlobal()) {
             return query.getQuery().getScopeFilter().getGlobal().getEntityTypeList().stream()
                     .allMatch(involvedEntitiesExpander::isARMEntityType);
         }

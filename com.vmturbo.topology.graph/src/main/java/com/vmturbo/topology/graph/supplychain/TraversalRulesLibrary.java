@@ -119,14 +119,10 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
 
             // if going "up" treat VDCs as aggregators (i.e., include in the traversal
             // but do not keep traversing from them)
-            // we also add STORAGEs here because in the VSAN case, we want to show the Storages
-            // consuming from a host but not the VMs consuming from the Storages
             if (traversalMode == TraversalMode.PRODUCES || traversalMode == TraversalMode.START) {
                 return Stream.concat(super.getFilteredConsumers(entity, traversalMode)
                                             .filter(e -> e.getEntityType()
-                                                        == EntityType.VIRTUAL_DATACENTER_VALUE
-                                                    || e.getEntityType()
-                                                        == EntityType.STORAGE_VALUE),
+                                                        == EntityType.VIRTUAL_DATACENTER_VALUE),
                                      dcsAndTrueAggregators);
             } else {
                 return dcsAndTrueAggregators;
@@ -149,11 +145,8 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         protected Stream<E> getFilteredConsumers(@Nonnull E entity,
                                                  @Nonnull TraversalMode traversalMode) {
             // ignore VDCs, because they are treated as aggregators
-            // ignore Storage consumers because these only occur in VSAN and get treated as
-            // aggregators
             return super.getFilteredConsumers(entity, traversalMode)
-                        .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE)
-                        .filter(e -> e.getEntityType() != EntityType.STORAGE_VALUE);
+                        .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE);
         }
     }
 

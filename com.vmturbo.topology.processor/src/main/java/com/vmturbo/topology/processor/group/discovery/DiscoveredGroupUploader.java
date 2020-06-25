@@ -46,7 +46,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -185,10 +184,10 @@ public class DiscoveredGroupUploader {
             policy.setEntityType(group.getEntityType().getNumber());
             policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
             String targetName = getTargetDisplayName(targetId);
-            String displayName = String.format("%s - %s - Consistent Scaling Policy (account %d)",
+            String name = String.format("%s - %s - Consistent Scaling Policy (account %d)",
                                         targetName, group.getDisplayName(), targetId);
-            policy.setDisplayName(displayName);
-            policy.setName(createPolicyName(group, targetId, "CSP"));
+            policy.setDisplayName(name);
+            policy.setName(name);
             policy.addSettings(setting);
             discoveredPolicyInfos.add(policy.build());
         }
@@ -228,32 +227,13 @@ public class DiscoveredGroupUploader {
             String name = String.format("%s - %s - %s (account %d)", targetName,
                     group.getDisplayName(), "Cloud Compute Tier Exclusion Policy", targetId);
             policy.setDisplayName(name);
-            policy.setName(createPolicyName(group, targetId, "EXP"));
+            policy.setName(name);
             policy.addSettings(setting);
 
             result.add(policy.build());
         }
 
         return result;
-    }
-
-    /**
-     * Create a policy name based on group name and discovering target oid. It will make the name
-     * stays under 255 character.
-     *
-     * @param group the group which has the policy.
-     * @param targetId the id for target discovering the group.
-     * @param prefix the prefix distinguishing different type of policies.
-     * @return the name created for policy.
-     */
-    private String createPolicyName(GroupDTO group, long targetId, String prefix) {
-        // It is expected that the group name is unique in the scope of that target.
-        // Therefore, the concatenation of group name and target id should be unqiue.
-        final String name = String.join(":", prefix, group.hasGroupName()
-            ? group.getGroupName() : group.getConstraintInfo().getConstraintId(),
-            String.valueOf(targetId));
-        // The name of policy should not be longer than character limit. Fix if that is the case
-        return SDKUtil.fixUuid(name, 255, 200);
     }
 
     @Nonnull

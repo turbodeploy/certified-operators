@@ -69,8 +69,6 @@ then
 fi
 
 # set up password for default user postgres
-sudo -u postgres psql -c "ALTER ROLE postgres WITH PASSWORD 'vmturbo'"
-# enable 'turbo' user to access psql on localhost of the appliance
-sudo -u postgres psql -c "CREATE ROLE turbo WITH SUPERUSER CREATEDB CREATEROLE LOGIN REPLICATION BYPASSRLS PASSWORD 'vmturbo'"
+sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'vmturbo'"
 
 log_msg "Successfully configured TimescaleDB."

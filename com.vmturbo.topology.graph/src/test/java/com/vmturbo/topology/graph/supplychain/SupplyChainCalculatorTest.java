@@ -4,7 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -442,7 +441,6 @@ public class SupplyChainCalculatorTest {
          *  |
          *  PM2
          *  Scoping on VM should not include PM2 in the scope
-         *  Scoping on PM2 should not include VM but should include ST
          */
         final TopologyGraph<TestGraphEntity> graph =
                 TestGraphEntity.newGraph(TestGraphEntity.newBuilder(PM_ID, ApiEntityType.PHYSICAL_MACHINE),
@@ -458,14 +456,6 @@ public class SupplyChainCalculatorTest {
 
         assertEquals(Collections.singleton(PM_ID), getAllNodeIds(pmNode));
         assertEquals(Collections.singleton(ST_ID), getAllNodeIds(stNode));
-
-        final Map<Integer, SupplyChainNode> supplychainFromPm2 = getSupplyChain(graph, PM_ID2);
-        final SupplyChainNode stNode2 = supplychainFromPm2.get(ApiEntityType.STORAGE.typeNumber());
-        final SupplyChainNode pmNode2 = supplychainFromPm2.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
-
-        assertEquals(Collections.singleton(PM_ID2), getAllNodeIds(pmNode2));
-        assertEquals(Collections.singleton(ST_ID), getAllNodeIds(stNode2));
-        assertFalse(supplychainFromPm2.containsKey(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
     }
     @Test
     public void testVMSpecSeed() {
