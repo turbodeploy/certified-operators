@@ -662,7 +662,17 @@ message AvailabilityZoneFilter {
 message AccountFilter {
     // A list of account ids need to filter by.
     repeated int64 account_id = 1;
+    // describes the semantics of the passed account Ids.
+    optional AccountFilterType account_filter_type = 2 [default = PURCHASED_BY];
+
+    enum  AccountFilterType {
+        PURCHASED_BY = 0;
+        USED_BY = 1;
+        USED_AND_PURCHASED_BY = 2;
+    }
 }
+
+
 
 message RiFilter {
     // A list of RI IDs to filter by, for e.g., RIs to be included in plans.
@@ -690,6 +700,7 @@ message GetReservedInstanceBoughtByFilterRequest {
     optional RegionFilter region_filter = 1;
     optional AvailabilityZoneFilter zone_filter = 2;
     optional AccountFilter account_filter = 3;
+    optional bool include_undiscovered = 4 [default = true];
 }
 
 // A response contains a list reserved instance bought.
