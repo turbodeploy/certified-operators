@@ -16,8 +16,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import org.junit.Assert;
+import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -56,6 +59,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResi
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -829,6 +833,110 @@ public class ActionModeCalculatorTest {
                                                         .setType(desktopPoolValue))))).build();
     }
 
+    /**
+     * Test: Memory Resize for application component for different commodities.
+     */
+    @Test
+    public void testSpecsApplicableToActionForAppComponents() {
+        long vmId = 122L;
+        long targetId = 7L;
+        final Map<String, Setting> settingsForEntity = Collections.emptyMap();
+        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
+
+        // Heap Up for Application Components
+        final ActionDTO.Action heapUpAction = actionBuilder.setInfo(
+                ActionInfo.newBuilder()
+                        .setResize(Resize.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(targetId)
+                                        .setType(EntityType.APPLICATION_COMPONENT_VALUE)
+                                        .build())
+                                .setCommodityAttribute(CommodityAttribute.RESERVED)
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.HEAP_VALUE)
+                                        .build())
+                                .setOldCapacity(10.f)
+                                .setNewCapacity(20.f)
+                                .build())
+                        .build()
+        ).build();
+        List<EntitySettingSpecs> entitySpecs = actionModeCalculator.specsApplicableToAction(heapUpAction, settingsForEntity).collect(Collectors.toList());
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.ResizeUpHeap, entitySpecs.get(0));
+
+        // Heap Up for Application Components
+        final ActionDTO.Action heapDownAction = actionBuilder.setInfo(
+                ActionInfo.newBuilder()
+                        .setResize(Resize.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(targetId)
+                                        .setType(EntityType.APPLICATION_COMPONENT_VALUE)
+                                        .build())
+                                .setCommodityAttribute(CommodityAttribute.RESERVED)
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.HEAP_VALUE)
+                                        .build())
+                                .setOldCapacity(20.f)
+                                .setNewCapacity(10.f)
+                                .build())
+                        .build()
+        ).build();
+        entitySpecs = actionModeCalculator.specsApplicableToAction(heapDownAction, settingsForEntity).collect(Collectors.toList());
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.ResizeDownHeap, entitySpecs.get(0));
+    }
+
+    /**
+     * Test: Memory Resize for database server for different commodities.
+     */
+    @Test
+    public void testSpecsApplicableToActionForDBServers() {
+        long targetId = 7L;
+        final Map<String, Setting> settingsForEntity = Collections.emptyMap();
+
+        final ActionDTO.Action resizeUpDbMemAction = actionBuilder.setInfo(
+                ActionInfo.newBuilder()
+                        .setResize(Resize.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(targetId)
+                                        .setType(EntityType.DATABASE_SERVER_VALUE)
+                                        .build())
+                                .setCommodityAttribute(CommodityAttribute.RESERVED)
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.DB_MEM_VALUE)
+                                        .build())
+                                .setOldCapacity(10.f)
+                                .setNewCapacity(20.f)
+                                .build())
+                        .build()
+        ).build();
+        final ActionDTO.Action resizeDownDbMemAction = actionBuilder.setInfo(
+                ActionInfo.newBuilder()
+                        .setResize(Resize.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(targetId)
+                                        .setType(EntityType.DATABASE_SERVER_VALUE)
+                                        .build())
+                                .setCommodityAttribute(CommodityAttribute.RESERVED)
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.DB_MEM_VALUE)
+                                        .build())
+                                .setOldCapacity(20.f)
+                                .setNewCapacity(10.f)
+                                .build())
+                        .build()
+        ).build();
+
+        // Resize DBMem Up/Down for Database Server
+        List<EntitySettingSpecs> entitySpecs = actionModeCalculator.specsApplicableToAction(resizeUpDbMemAction, settingsForEntity).collect(Collectors.toList());
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.ResizeUpDBMem, entitySpecs.get(0));
+
+        entitySpecs = actionModeCalculator.specsApplicableToAction(resizeDownDbMemAction, settingsForEntity).collect(Collectors.toList());
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.ResizeDownDBMem, entitySpecs.get(0));
+    }
+
     private Action getResizeDownAction(long vmId) {
         ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
             .setId(10289)
@@ -1521,14 +1629,14 @@ public class ActionModeCalculatorTest {
     @Nonnull
     private Map<String, Setting> createScheduleSettings(List<Long> scheduleIds) {
         final Setting vCpuUpInBetweenThresholds = Setting.newBuilder()
-            .setSettingSpecName(ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds))
+            .setSettingSpecName(ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds, ActionSettingType.SCHEDULE))
             .setSortedSetOfOidSettingValue(SettingProto.SortedSetOfOidSettingValue.newBuilder()
                 .addAllOids(scheduleIds).build())
             .build();
         return ImmutableMap.of(
-            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds),
+            ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds, ActionSettingType.SCHEDULE),
                 vCpuUpInBetweenThresholds);
     }
 

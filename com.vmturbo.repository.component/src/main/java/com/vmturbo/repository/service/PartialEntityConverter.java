@@ -20,7 +20,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecif
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
 /**
@@ -91,6 +96,7 @@ public class PartialEntityConverter {
                 });
                 actionEntityBldr.setTypeSpecificInfo(repoGraphEntity.getTypeSpecificInfo());
                 actionEntityBldr.addAllConnectedEntities(repoGraphEntity.getBroadcastConnections());
+                addHostToVSANStorageConnection(repoGraphEntity, actionEntityBldr);
                 partialEntityBldr.setAction(actionEntityBldr);
                 break;
             case API:
@@ -125,6 +131,34 @@ public class PartialEntityConverter {
                 throw new IllegalArgumentException("Invalid partial entity type: " + type);
         }
         return partialEntityBldr.build();
+    }
+
+    /**
+     * If a vSAN storage consumes commodities from this entity then add a {@link ConnectedEntity}
+     * to the list of its connections. One host can be part of only one vSAN storage.
+     * @param repoGraphEntity   the entity for which we want to know whether it sells commodities to a vSAN storage
+     * @param actionEntityBldr  the action partial entity builder to which we need to put info about the connected vSAN storage
+     */
+    private void addHostToVSANStorageConnection(@Nonnull final RepoGraphEntity repoGraphEntity,
+                    @Nonnull final ActionPartialEntity.Builder actionEntityBldr)  {
+        if (repoGraphEntity.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE)   {
+            //we care only about hosts here
+            return;
+        }
+        for (RepoGraphEntity consumer : repoGraphEntity.getConsumers())    {
+            TypeSpecificInfo typeInfo = consumer.getTypeSpecificInfo();
+            if (consumer.getEntityType() == EntityType.STORAGE_VALUE
+                    && typeInfo.hasStorage()
+                    && typeInfo.getStorage().getStorageType() == StorageType.VSAN)   {
+                ConnectedEntity vsanConnectedEntity = ConnectedEntity.newBuilder()
+                                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                                .setConnectedEntityType(consumer.getEntityType())
+                                .setConnectedEntityId(consumer.getOid())
+                                .build();
+                actionEntityBldr.addConnectedEntities(vsanConnectedEntity);
+                return;
+            }
+        }
     }
 
     private RelatedEntity.Builder relatedEntity(@Nonnull final RepoGraphEntity repoGraphEntity) {

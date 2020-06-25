@@ -1,6 +1,7 @@
 package com.vmturbo.group.setting;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -37,7 +38,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.setting.EntitySettingStore.ContextSettingSnapshotCache;
 import com.vmturbo.group.setting.EntitySettingStore.ContextSettingSnapshotCacheFactory;
 import com.vmturbo.group.setting.EntitySettingStore.EntitySettingSnapshot;
@@ -540,6 +543,47 @@ public class EntitySettingStoreTest {
                         .build());
         assertTrue(results.containsKey(entityId));
         assertTrue(results.get(entityId).isEmpty());
+    }
+
+    @Test
+    public void testGetEntitySettingWithUnionTierBreaker() {
+        final Setting setting = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ExcludedTemplates.getSettingName())
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder().addOids(10L).build())
+            .build();
+        final long defaultPolicyId = 1L;
+        final SettingPolicy defaultSettingPolicy = SettingPolicy.newBuilder()
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .addSettings(setting))
+            .build();
+
+        final SettingToPolicyId userSetting =
+            SettingToPolicyId.newBuilder()
+                .setSetting(Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.ExcludedTemplates.getSettingName())
+                    .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder().addOids(11L)))
+                .addSettingPolicyId(1111L)
+                .build();
+
+        final EntitySettings id1Settings = EntitySettings.newBuilder()
+            .setEntityOid(1L)
+            .addUserSettings(userSetting)
+            .setDefaultSettingPolicyId(defaultPolicyId)
+            .build();
+
+        final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
+            Stream.of(id1Settings), Collections.singletonMap(defaultPolicyId, defaultSettingPolicy));
+        final Map<Long, Collection<SettingToPolicyId>> results =
+            snapshot.getFilteredSettings(EntitySettingFilter.newBuilder()
+                .addEntities(id1Settings.getEntityOid())
+                .addSettingName(userSetting.getSetting().getSettingSpecName())
+                .build());
+
+        assertTrue(results.containsKey(id1Settings.getEntityOid()));
+
+        assertThat(results.get(id1Settings.getEntityOid()).size(), is(2));
+        assertThat(getSettings(results.get(id1Settings.getEntityOid())),
+            containsInAnyOrder(setting, userSetting.getSetting()));
     }
 
     @Test

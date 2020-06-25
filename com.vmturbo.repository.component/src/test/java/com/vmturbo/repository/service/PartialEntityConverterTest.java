@@ -3,6 +3,8 @@ package com.vmturbo.repository.service;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -29,7 +31,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
@@ -105,6 +111,28 @@ public class PartialEntityConverterTest {
 
     private RepoGraphEntity graphEntity;
 
+    private static final TopologyEntityDTO VSAN = TopologyEntityDTO.newBuilder()
+        .setEntityType(ApiEntityType.STORAGE.typeNumber())
+        .setDisplayName("vsan_storage")
+        .setOid(77L)
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setStorage(
+            StorageInfo.newBuilder().setStorageType(StorageType.VSAN)))
+        .build();
+
+    private static final TopologyEntityDTO HOST_FOR_VSAN = TopologyEntityDTO.newBuilder()
+        .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+        .setDisplayName("host_for_vsan")
+        .setOid(887L)
+        .setEnvironmentType(EnvironmentType.ON_PREM)
+        .setOrigin(Origin.newBuilder()
+            .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                .putDiscoveredTargetData(TARGET_ID, PerTargetEntityInformation.getDefaultInstance())))
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setPhysicalMachine(PhysicalMachineInfo.newBuilder().setNumCpus(2)))
+        .build();
+
+    private RepoGraphEntity hostForVSANEntity;
+
     @Before
     public void setup() {
         RepoGraphEntity.Builder providerBldr = RepoGraphEntity.newBuilder(PROVIDER);
@@ -117,6 +145,10 @@ public class PartialEntityConverterTest {
         graphBldr.addOwnedEntity(ownsBldr);
 
         graphEntity = graphBldr.build();
+
+        RepoGraphEntity.Builder hostForVSANBldr = RepoGraphEntity.newBuilder(HOST_FOR_VSAN);
+        hostForVSANBldr.addConsumer(RepoGraphEntity.newBuilder(VSAN));
+        hostForVSANEntity = hostForVSANBldr.build();
     }
 
     @Test
@@ -272,4 +304,20 @@ public class PartialEntityConverterTest {
         assertThat(fullEntity, is(ENTITY));
     }
 
+    /**
+     * Test conversion of a host with a vSAN among its consumers.
+     */
+    @Test
+    public void testHostForVSANToAction()   {
+        final ActionPartialEntity actionEntity = converter.createPartialEntity(
+                        hostForVSANEntity, Type.ACTION).getAction();
+        assertEquals(hostForVSANEntity.getOid(), actionEntity.getOid());
+        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, actionEntity.getEntityType());
+        assertEquals(1, actionEntity.getConnectedEntitiesCount());
+
+        ConnectedEntity connected = actionEntity.getConnectedEntitiesList().get(0);
+        assertTrue(connected.hasConnectedEntityId() && connected.hasConnectedEntityType());
+        assertEquals(VSAN.getOid(), connected.getConnectedEntityId());
+        assertEquals(EntityType.STORAGE_VALUE, connected.getConnectedEntityType());
+    }
 }

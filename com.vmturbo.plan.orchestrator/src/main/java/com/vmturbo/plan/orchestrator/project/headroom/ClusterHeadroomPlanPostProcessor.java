@@ -152,8 +152,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * List of entities relevant for headroom calculation.
      */
     private static final Set<Integer> HEADROOM_ENTITY_TYPE =
-                    ImmutableSet.of(EntityType.STORAGE_VALUE, EntityType.PHYSICAL_MACHINE_VALUE,
-                                  EntityType.VIRTUAL_MACHINE_VALUE);
+        ImmutableSet.of(EntityType.STORAGE_VALUE, EntityType.PHYSICAL_MACHINE_VALUE,
+            EntityType.VIRTUAL_MACHINE_VALUE);
 
     private static final int DAYS_PER_MONTH = 30;
 
@@ -161,7 +161,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * String representation of headroom entities.
      */
     private static final Set<String> HEADROOM_ENTITY_TYPES = ImmutableSet.of(StringConstants.VIRTUAL_MACHINE,
-                    StringConstants.PHYSICAL_MACHINE, StringConstants.STORAGE);
+        StringConstants.PHYSICAL_MACHINE, StringConstants.STORAGE);
 
     /**
      * Set default VM growth as 0. Use it in cases when growth can't be
@@ -189,19 +189,19 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                                             @Nonnull TemplatesDao templatesDao) {
         this.planId = planId;
         this.statsHistoryService =
-                StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
+            StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
         this.supplyChainRpcService =
-                SupplyChainServiceGrpc.newBlockingStub(Objects.requireNonNull(repositoryChannel));
+            SupplyChainServiceGrpc.newBlockingStub(Objects.requireNonNull(repositoryChannel));
         this.groupRpcService =
-                GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
+            GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
         this.planDao = Objects.requireNonNull(planDao);
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.clusters = new ArrayList<>(clusterIds.size());
         groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder()
-                                        .addAllId(clusterIds))
-                        .build())
+            .setGroupFilter(GroupFilter.newBuilder()
+                .addAllId(clusterIds))
+            .build())
             .forEachRemaining(this.clusters::add);
     }
 
@@ -219,7 +219,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         String displayName = clusters.size() == 1 ?
             clusters.get(0).getDefinition().getDisplayName() : "All";
         if (plan.getStatus() == PlanStatus.SUCCEEDED || plan.getStatus() == PlanStatus.FAILED
-                || plan.getStatus() == PlanStatus.STOPPED) {
+            || plan.getStatus() == PlanStatus.STOPPED) {
             if (plan.getStatus() == PlanStatus.FAILED) {
                 logger.error("Cluster headroom plan for cluster {} failed! Error: {}",
                     displayName, plan.getStatusMessage());
@@ -298,7 +298,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @return a mapping from cluster id to entity type to {@link HeadroomEntity}
      */
     private Map<Long, Map<Integer, List<HeadroomEntity>>> groupHeadroomEntities(
-            @Nonnull final Map<Long, HeadroomEntity> oidToEntities) {
+        @Nonnull final Map<Long, HeadroomEntity> oidToEntities) {
         final Map<Long, Map<Integer, List<HeadroomEntity>>> entitiesByClusterAndType =
             new HashMap<>(clusters.size());
 
@@ -403,11 +403,11 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             while (snapshotIterator.hasNext()) {
                 final StatSnapshot currentSnapshot = snapshotIterator.next();
                 if (currentSnapshot.getSnapshotDate() <
-                        earliestSnapshot.map(StatSnapshot::getSnapshotDate).orElse(Long.MAX_VALUE)) {
+                    earliestSnapshot.map(StatSnapshot::getSnapshotDate).orElse(Long.MAX_VALUE)) {
                     earliestSnapshot = Optional.of(currentSnapshot);
                 }
                 if (currentSnapshot.getSnapshotDate() >
-                        latestSnapshot.map(StatSnapshot::getSnapshotDate).orElse(Long.MIN_VALUE)) {
+                    latestSnapshot.map(StatSnapshot::getSnapshotDate).orElse(Long.MIN_VALUE)) {
                     latestSnapshot = Optional.of(currentSnapshot);
                 }
             }
@@ -440,7 +440,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
             if (earliestVMCount.get() > latestVMCount.get()) {
                 logger.info("Negative VM growth for cluster {} : latest VM count is {}" +
-                    " and earliest VM count is {}. Setting 0 growth.",
+                        " and earliest VM count is {}. Setting 0 growth.",
                     clusterId, earliestVMCount.get(), latestVMCount.get());
                 dailyVMGrowthPerCluster.put(clusterId, DEFAULT_VM_GROWTH);
                 continue;
@@ -631,7 +631,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 }
 
                 headroomAvailable = availableAmount > 0 ?
-                                Math.floor(availableAmount / templateCommodityUsed) : 0;
+                    Math.floor(availableAmount / templateCommodityUsed) : 0;
                 if (headroomAvailable < headroomAvailableForCurrentEntity) {
                     headroomAvailableForCurrentEntity = headroomAvailable;
                     minAvailableCommodity = commType;
@@ -672,10 +672,10 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             }
         }
         return CommodityHeadroom.newBuilder()
-                    .setHeadroom(totalHeadroomAvailable)
-                    .setCapacity(totalHeadroomCapacity)
-                    .setDaysToExhaustion(getDaysToExhaustion(vmDailyGrowth, totalHeadroomAvailable))
-                    .build();
+            .setHeadroom(totalHeadroomAvailable)
+            .setCapacity(totalHeadroomCapacity)
+            .setDaysToExhaustion(getDaysToExhaustion(vmDailyGrowth, totalHeadroomAvailable))
+            .build();
     }
 
     /**
@@ -693,7 +693,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         }
         //if headroom is infinite OR VM Growth is 0  - exhaustion time is infinite
         if (headroomAvailable == Long.MAX_VALUE || vmDailyGrowth == DEFAULT_VM_GROWTH
-                || vmDailyGrowth == 0) {
+            || vmDailyGrowth == 0) {
             return MORE_THAN_A_YEAR;
         }
         return (long)Math.floor(headroomAvailable / vmDailyGrowth);
@@ -707,7 +707,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @return A Map which key is template field name and value is template field value.
      */
     private Map<String, String> getFieldNameValueMap(
-            @Nonnull final Template template) {
+        @Nonnull final Template template) {
         return template.getTemplateInfo().getResourcesList().stream()
             .flatMap(resources -> resources.getFieldsList().stream())
             .collect(Collectors.toMap(TemplateField::getName, TemplateField::getValue));
@@ -736,11 +736,11 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param monthlyVMGrowth the number of monthly added VMs
      */
     private void createStatsRecords(final long clusterId, final long numVms,
-                            final long numHosts, final long numStorages,
-                            CommodityHeadroom cpuHeadroomInfo,
-                            CommodityHeadroom memHeadroomInfo,
-                            CommodityHeadroom storageHeadroomInfo,
-                            final long monthlyVMGrowth) {
+                                    final long numHosts, final long numStorages,
+                                    CommodityHeadroom cpuHeadroomInfo,
+                                    CommodityHeadroom memHeadroomInfo,
+                                    CommodityHeadroom storageHeadroomInfo,
+                                    final long monthlyVMGrowth) {
         long minHeadroom = Stream.of(cpuHeadroomInfo.getHeadroom(), memHeadroomInfo.getHeadroom(), storageHeadroomInfo.getHeadroom())
             .min(Comparator.comparing(Long::valueOf))
             // Ideally this should never happen but if it does we are logging it before writing to db.
@@ -778,7 +778,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     public void handleProjectedTopology(final long projectedTopologyId,
                                         @Nonnull final TopologyInfo sourceTopologyInfo,
                                         @Nonnull final RemoteIterator<ProjectedTopologyEntity> iterator)
-            throws InterruptedException, TimeoutException, CommunicationException {
+        throws InterruptedException, TimeoutException, CommunicationException {
         final Map<Long, HeadroomEntity> entities = new HashMap<>();
         while (iterator.hasNext()) {
             iterator.nextChunk().stream()

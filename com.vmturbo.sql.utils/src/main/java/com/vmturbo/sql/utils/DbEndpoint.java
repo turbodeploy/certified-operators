@@ -2,14 +2,18 @@ package com.vmturbo.sql.utils;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.UnaryOperator;
 
+import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.api.callback.FlywayCallback;
@@ -27,6 +31,9 @@ import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.components.api.RetriableOperation;
+import com.vmturbo.components.api.RetriableOperation.Operation;
+import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 
 /**
  * This class manages access to a database, including initializing the database on first use,
@@ -93,11 +100,16 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
  *     Defaults to no callbacks.
  *     </dd>
  *     <dt>dbDestructiveProvisioningEnabled</dt>
- *     <dd>True if provisioning of this endpoint (creationg of databases, schemas, etc.) may make
+ *     <dd>True if provisioning of this endpoint (creation of databases, schemas, etc.) may make
  *     use of destructive operations, like dropping an existing user prior to recreating it, in order
  *     to clean up presumed issues with the current object. Defaults to false.</dd>
  *     <dt>dbEndpointEnabled</dt>
  *     <dd>Whether this endpoint should be initialized at all. Defaults to true.</dd>
+ *     <dt>provisioningSuffix</dt>
+ *     <dd>A string appended to names of database objects created during provisioning, including
+ *     database names, schema names, user names, etc. This can be set during tests, for example,
+ *     to cause the endpoint to create, provision, and provide access to a temporary database,
+ *     rather the database normally accessed by that endpoint.</dd>
  * </dl>
  *
  * <p>Endpoints are constructed using a builder pattern where values for selected properties can be
@@ -105,72 +117,63 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
  * or built-in defaults.</p>
  */
 public class DbEndpoint {
-
-    static final List<Pair<DbEndpointConfig, CompletableFuture<DbEndpoint>>> pendingEndpoints
-            = new ArrayList<>();
-
-    static UnaryOperator<String> resolver;
-    private static DBPasswordUtil dbPasswordUtil;
-
     private final DbEndpointConfig config;
-    private final DbAdapter adapter;
+    private CompletableFuture<Void> future;
+    private DbAdapter adapter;
+    private boolean retriesCompleted = false;
+    private Throwable failureCause;
 
-    static Future<DbEndpoint> register(DbEndpointConfig config) {
-        final CompletableFuture<DbEndpoint> future = new CompletableFuture<>();
-        if (resolver == null) {
-            pendingEndpoints.add(Pair.of(config, future));
-        } else {
-            synchronized (pendingEndpoints) {
-                completeEndpoint(config, future);
-            }
-        }
-        return future;
+    /**
+     * Create a new {@link DbEndpoint primary database endpoint}, without a tag.
+     *
+     * <p>Properties for this endpoint should be configured with out tag prefixes. A component
+     * may compare at most one primary endpoint.</p>
+     *
+     * @param dialect the SQL dialect (i.e. DB server type - MySQL, Postgres, etc.) for this
+     *                endpoint
+     * @return an endpoint that can provide access to the database
+     */
+    public static DbEndpointBuilder primaryDbEndpoint(SQLDialect dialect) {
+        return secondaryDbEndpoint(null, dialect);
     }
 
-    static void setResolver(UnaryOperator<String> resolver, DBPasswordUtil dbPasswordUtil) {
-        synchronized (pendingEndpoints) {
-            DbEndpoint.resolver = resolver;
-            DbEndpoint.dbPasswordUtil = dbPasswordUtil;
-            completePendingEndpoints();
-        }
+    /**
+     * Create a new {@link DbEndpoint secondary database endpoint} with a given tag.
+     *
+     * <p>Properties for this endpoint should be configured with property names that include the
+     * given tag as a prefix, e.g. "xxx_dbPort" to configure the port number for an endpoint with
+     * "xxx" as the tag.</p>,
+     *
+     * <p>A component may define any number of secondary endpoints (all with distinct tags), in
+     * addition to a single primary endpoint, if the latter is required.</p>
+     *
+     * @param tag     the tag for this endpoint
+     * @param dialect the SQL dialect (i.e. DB server type - MySQL, Postgres, etc.) for this
+     *                endpoint
+     * @return an endpoint that can provide access to the database
+     */
+    public static DbEndpointBuilder secondaryDbEndpoint(String tag, SQLDialect dialect) {
+        return new DbEndpointBuilder(tag, dialect);
     }
 
-    private static void completePendingEndpoints() {
-        for (Pair<DbEndpointConfig, CompletableFuture<DbEndpoint>> pair : pendingEndpoints) {
-            completeEndpoint(pair.getLeft(), pair.getRight());
-        }
-    }
-
-    private static void completeEndpoint(DbEndpointConfig config,
-            CompletableFuture<DbEndpoint> future) {
-        logger.info("Completing endpoint with tag {}", config.getTag());
-        try {
-            resolveConfig(config);
-            final DbAdapter adapter = DbAdapter.of(config);
-            adapter.init();
-            future.complete(new DbEndpoint(config, adapter));
-        } catch (UnsupportedDialectException | SQLException | InterruptedException e) {
-            String label = config.getTag() == null ? "untagged DbEndpoint"
-                    : String.format("DbEndpoint tagged '%s'", config.getTag());
-            logger.error("Failed to create {}", label, e);
-            future.completeExceptionally(e);
-        }
-    }
-
-    private static void resolveConfig(DbEndpointConfig config)
-            throws UnsupportedDialectException {
-        new DbEndpointResolver(config, resolver, dbPasswordUtil).resolve();
-    }
-
-    private DbEndpoint(DbEndpointConfig config, DbAdapter adapter) {
+    private DbEndpoint(DbEndpointConfig config) {
         this.config = config;
-        this.adapter = adapter;
+        this.future = new CompletableFuture<>();
     }
 
     public DbEndpointConfig getConfig() {
         return config;
     }
 
+    private void markComplete(DbAdapter adapter) {
+        this.adapter = adapter;
+        this.future.complete(null);
+    }
+
+    private void markComplete(Throwable e) {
+        this.failureCause = e;
+        future.completeExceptionally(e);
+    }
 
     // TODO add some debug logging
     private static final Logger logger = LogManager.getLogger();
@@ -185,6 +188,7 @@ public class DbEndpoint {
      */
     public DSLContext dslContext() throws UnsupportedDialectException, SQLException, InterruptedException {
         if (config.getDbEndpointEnabled()) {
+            awaitCompletion();
             return DSL.using(getConfiguration());
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
@@ -201,6 +205,7 @@ public class DbEndpoint {
      */
     public DataSource datasource() throws UnsupportedDialectException, SQLException, InterruptedException {
         if (config.getDbEndpointEnabled()) {
+            awaitCompletion();
             return adapter.getDataSource();
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
@@ -213,9 +218,8 @@ public class DbEndpoint {
      * @return the configuration object
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      * @throws SQLException                if there's a problem creating the configuration
-     * @throws InterruptedException        if interrupted
      */
-    private Configuration getConfiguration() throws UnsupportedDialectException, SQLException, InterruptedException {
+    private Configuration getConfiguration() throws UnsupportedDialectException, SQLException {
         DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
         jooqConfiguration.set(connectionProvider());
         jooqConfiguration.set(new Settings()
@@ -237,10 +241,9 @@ public class DbEndpoint {
      * @return the connection provider
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      * @throws SQLException                if there's a problem gaining access
-     * @throws InterruptedException        if interrupted
      */
     private DataSourceConnectionProvider connectionProvider()
-            throws UnsupportedDialectException, SQLException, InterruptedException {
+            throws UnsupportedDialectException, SQLException {
         return new DataSourceConnectionProvider(
                 new TransactionAwareDataSourceProxy(
                         new LazyConnectionDataSourceProxy(
@@ -251,9 +254,260 @@ public class DbEndpoint {
      * Get the adapter for this endpoint.
      *
      * @return {@link DbAdapter}
+     * @throws InterruptedException if interrupted
      */
-    public DbAdapter getAdapter() {
+    public DbAdapter getAdapter() throws InterruptedException {
+        awaitCompletion();
         return adapter;
+    }
+
+    public boolean isReady() {
+        return future.isDone() && !future.isCompletedExceptionally() && !future.isCancelled();
+    }
+
+    /**
+     * Wait for the endpint to become ready for use.
+     *
+     * <p>This is invoked other public methods of this class that would provide access to the
+     * database, e.g. by returnning a connection to the database.</p>
+     *
+     * <p>The operation of this method is controlled by the retry schedule configured via the
+     * {@link DbEndpointResolver#DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY} property:</p>
+     *
+     * <ul>
+     *     <li>
+     *         If the property is an an empty array, this method will silently wait indefinitely for
+     *         the endpoint to be successfully initialized or to fail initialization.
+     *     </li>
+     *     <li>
+     *         Otherwise, the indicated retry schedule will be undertaken. On each iteration,
+     *         the initialization procedure will be invoked anew, and after waiting the scheduled
+     *         nubmer of seconds, the disposition of the endpoint will be checked. If the endpoint
+     *         is ever found to be successfully initialized, the schedule terminates and this method
+     *         returns. If the schedule completes without that happening, this method throws
+     *         {@link IllegalStateException} to indicate ultimate failure.
+     *     </li>
+     * </ul>
+     *
+     * <p>Note that if the final backoff period in a non-empty schedule is -1, the prior period
+     * will be repeated indefinitely, and this method will not return until the endpoint is
+     * successfully initialized.</p>
+     *
+     * <p>TODO: Try to determine cases where the reason is unrepairable, and don't perform
+     * additional retries.</p>
+     *
+     * @throws InterruptedException if interrupted
+     */
+    public synchronized void awaitCompletion() throws InterruptedException {
+        try {
+            if (isReady()) {
+                if (!retriesCompleted) {
+                    logger.info("{} was successfully initialized", this);
+                }
+                return;
+            } else if (retriesCompleted) {
+                throw new IllegalStateException(String.format(
+                        "DB endpoint %s failed initialization including attempted retries", this),
+                        failureCause);
+            }
+            Iterator<Long> backoffIterator = getBackoffIterator();
+            // true output means retry
+            final Operation<Boolean> op = () -> {
+                if (future.isDone()) {
+                    try {
+                        future.get();
+                        // endpoint is ready to go... no more retries
+                        return false;
+                    } catch (ExecutionException e) {
+                        // prior attempt failed... try again with a fresh future
+                        this.future = new CompletableFuture<>();
+                        DbEndpointCompleter.completeEndpoint(this);
+                        // we'll get the last of these handed back to us if we ultimately give up
+                        throw new RetriableOperationFailedException(e);
+                    } catch (InterruptedException e) {
+                        // this will cause us to break out of the retry loop
+                        throw new RetriableOperationFailedException(e);
+                    }
+                } else {
+                    // still waiting for completion
+                    return true;
+                }
+            };
+            RetriableOperation.newOperation(op)
+                    .backoffStrategy(backoffIterator)
+                    .retryOnOutput(Boolean::booleanValue)
+                    // we retry after anything but a wrapped InterruptedException
+                    .retryOnException(e ->
+                            !(e instanceof RetriableOperationFailedException
+                                    && e.getCause() instanceof InterruptedException))
+                    .run(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
+            // exited non-exceptionally means we succeeded
+            logger.info("{} completed initialization successfully", this);
+        } catch (RetriableOperationFailedException wrapped) {
+            Throwable e = wrapped.getCause();
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new IllegalStateException(String.format("Endpoint %s failed initialization", this), e);
+        } catch (TimeoutException timeoutException) {
+            throw new IllegalStateException(
+                    String.format("Endpoint %s still not initialized after retries", this));
+        } finally {
+            // don't go through this whole thing more than once per endpoint
+            this.retriesCompleted = true;
+        }
+    }
+
+    /**
+     * Create an iterator that will yield the full sequence of backoff times between endpoint
+     * completion retries.
+     *
+     * <p>If the last entry in the configured retry schedule
+     * ({@link DbEndpointResolver#DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY}) ends with -1, then the prior
+     * entry is repeated forever, else the list represents the complete, finite schedule.</p>
+     *
+     * @return iterator that will successive backoff intervals as milliseconds
+     */
+    @Nonnull
+    private Iterator<Long> getBackoffIterator() {
+        final DbEndpoint endpoint = this;
+        return new Iterator<Long>() {
+            final int[] backoffs = config.getDbRetryBackoffTimesSec();
+            int i = 0;
+
+            @Override
+            public boolean hasNext() {
+                return i < backoffs.length;
+            }
+
+            @Override
+            public Long next() {
+                // don't advance beyond penultimate entry if we're repeating
+                if (i == backoffs.length - 1 && backoffs[i] == -1) {
+                    i = i - 1;
+                }
+                logger.info("Retrying initialization of {} in {} seconds; retry # {}",
+                        endpoint, backoffs[i], i + 1);
+                return TimeUnit.SECONDS.toMillis(backoffs[i++]);
+            }
+        };
+    }
+
+    /**
+     * Reset the internal endpoint registry to its initial state, as if no endpoints have been
+     * created since startup.
+     *
+     * <p>This never happens during normal operations, where endpoints never undo their
+     * provisioning and typically remain available (in the Spring context) until the component
+     * termiantes. In tests, where isolation between test classes is important, we use this method
+     * to reset all endpoint configuration when DbEndpointRule processes the end of a test class in
+     * which it appears.</p>
+     */
+    static void resetAll() {
+        DbEndpointCompleter.resetAll();
+    }
+
+    @Override
+    public String toString() {
+        String tagLabel = config.getTag() != null ? "tag " + config.getTag() : "untagged";
+        String url;
+        try {
+            url = adapter.getUrl(config);
+        } catch (UnsupportedDialectException e) {
+            url = "[invalid dialect]";
+        }
+        return String.format("DbEndpoint[%s; url=%s; user=%s]",
+                tagLabel, url, config.getDbUserName());
+    }
+
+    /**
+     * Class to manage the initialization of endpoint, resulting in completion of the {@link
+     * Future}s created during endpoint registration.
+     */
+    public static class DbEndpointCompleter {
+        private DbEndpointCompleter() {
+        }
+
+        static final List<DbEndpoint> pendingEndpoints = new ArrayList<>();
+        static UnaryOperator<String> resolver;
+        private static DBPasswordUtil dbPasswordUtil;
+
+        static DbEndpoint register(DbEndpointConfig config) {
+            final DbEndpoint endpoint = new DbEndpoint(config);
+            synchronized (pendingEndpoints) {
+                if (resolver == null) {
+                    pendingEndpoints.add(endpoint);
+                } else {
+                    completeEndpoint(endpoint);
+                }
+            }
+            return endpoint;
+        }
+
+        static void setResolver(UnaryOperator<String> resolver, DBPasswordUtil dbPasswordUtil,
+                boolean completePending) {
+            synchronized (pendingEndpoints) {
+                DbEndpointCompleter.resolver = resolver;
+                DbEndpointCompleter.dbPasswordUtil = dbPasswordUtil;
+                if (completePending) {
+                    completePendingEndpoints();
+                }
+            }
+        }
+
+        private static void completePendingEndpoints() {
+            for (DbEndpoint endpoint : pendingEndpoints) {
+                completeEndpoint(endpoint);
+            }
+        }
+
+        static void completePendingEndpoint(DbEndpoint endpoint) {
+            if (endpoint.future.isDone()) {
+                return;
+            }
+            synchronized (pendingEndpoints) {
+                if (endpoint.getConfig().getTemplate() != null) {
+                    completePendingEndpoint(endpoint.getConfig().getTemplate());
+                }
+                final List<DbEndpoint> endpointsToRemove = new ArrayList<>();
+                pendingEndpoints.stream()
+                        .filter(endpoint::equals)
+                        .peek(endpointsToRemove::add)
+                        .findFirst()
+                        .ifPresent(DbEndpointCompleter::completeEndpoint);
+                pendingEndpoints.removeAll(endpointsToRemove);
+            }
+        }
+
+        static void completeEndpoint(DbEndpoint endpoint) {
+            if (endpoint.isReady()) {
+                return;
+            }
+            final DbEndpointConfig config = endpoint.getConfig();
+            logger.debug("Completing {}", endpoint);
+            try {
+                resolveConfig(config);
+                final DbAdapter adapter = DbAdapter.of(config);
+                adapter.init();
+                endpoint.markComplete(adapter);
+            } catch (Exception e) {
+                logger.debug("Failed to create {}", endpoint, e);
+                endpoint.markComplete(e);
+            }
+        }
+
+        private static void resolveConfig(DbEndpointConfig config)
+                throws UnsupportedDialectException {
+            new DbEndpointResolver(config, resolver, dbPasswordUtil).resolve();
+        }
+
+        private static void resetAll() {
+            synchronized (pendingEndpoints) {
+                pendingEndpoints.clear();
+                resolver = null;
+                dbPasswordUtil = null;
+            }
+        }
     }
 
     /**
@@ -295,13 +549,23 @@ public class DbEndpoint {
     public enum DbEndpointAccess {
 
         /** Full access to the configured schema. */
-        ALL,
+        ALL(true),
         /** Ability to read and write to all objects in the database, but not to create new objects. */
-        READ_WRITE_DATA,
+        READ_WRITE_DATA(true),
         /**
          * Ability to read all objects in the database, but not to alter any data or create new
          * objects.
          */
-        READ_ONLY
+        READ_ONLY(false);
+
+        private final boolean writeAccess;
+
+        DbEndpointAccess(boolean writeAccess) {
+            this.writeAccess = writeAccess;
+        }
+
+        public boolean isWriteAccess() {
+            return writeAccess;
+        }
     }
 }

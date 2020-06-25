@@ -120,7 +120,7 @@ public class MarketActionListenerTest {
     }
 
     @Test
-    public void testDropLiveMarketActionPlanIfMoreRecentAvailable() {
+    public void testDropLiveMarketActionPlanIfMoreRecentAvailable() throws Exception {
         ActionOrchestratorNotificationSender notificationSender =
             mock(ActionOrchestratorNotificationSender.class);
         ActionPlan actionPlan = ActionPlan.newBuilder()
@@ -151,7 +151,7 @@ public class MarketActionListenerTest {
     }
 
     @Test
-    public void testPlanAnalysisNotIgnored() {
+    public void testPlanAnalysisNotIgnored() throws Exception {
         ActionOrchestratorNotificationSender notificationSender =
             mock(ActionOrchestratorNotificationSender.class);
         // P plan.
@@ -186,7 +186,7 @@ public class MarketActionListenerTest {
     }
 
     @Test
-    public void testPlanAnalysisSummaryNoAffectLiveActionPlan() {
+    public void testPlanAnalysisSummaryNoAffectLiveActionPlan() throws Exception {
         ActionOrchestratorNotificationSender notificationSender =
             mock(ActionOrchestratorNotificationSender.class);
         // Realtime plan.

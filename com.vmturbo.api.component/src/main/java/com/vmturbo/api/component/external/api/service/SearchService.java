@@ -49,7 +49,6 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
-import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
@@ -82,6 +81,7 @@ import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.ISearchService;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
@@ -441,6 +441,7 @@ public class SearchService implements ISearchService {
                 .filter(se -> CollectionUtils.isEmpty(probeTypes) ||
                         probeTypes.contains(se.getDiscoveredBy().getType()))
                 .collect(Collectors.toList());
+
         return paginationRequest.allResultsResponse(result);
     }
 
@@ -848,7 +849,9 @@ public class SearchService implements ISearchService {
         final Set<Long> candidates;
         // if query request doesn't contains any filter criteria, it can directly use expanded ids
         // as results. Otherwise, it needs to query repository to get matched entity oids.
-        if (inputDTO.getCriteriaList().isEmpty() && StringUtils.isEmpty(nameQuery) && !expandedIds.isEmpty()) {
+        if ( (inputDTO.getCriteriaList() == null || inputDTO.getCriteriaList().isEmpty())
+                && StringUtils.isEmpty(nameQuery)
+                && !expandedIds.isEmpty()) {
             candidates = expandedIds;
         } else {
             candidates = searchServiceRpc.searchEntityOids(searchRequest).getEntitiesList().stream()

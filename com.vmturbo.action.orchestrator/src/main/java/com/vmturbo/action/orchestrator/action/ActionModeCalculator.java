@@ -25,9 +25,11 @@ import static com.vmturbo.components.common.setting.EntitySettingSpecs.SuspendAc
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -64,8 +66,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.commons.Units;
-import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -531,8 +533,8 @@ public class ActionModeCalculator {
 
     @Nullable
     private String getExecutionWindowSettingSpec(@Nonnull EntitySettingSpecs spec) {
-        return ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-            spec.getSettingName());
+        return ActionSettingSpecs.getSubSettingFromActionModeSetting(
+            spec.getSettingName(), ActionSettingType.SCHEDULE);
     }
 
     /**
@@ -720,47 +722,56 @@ public class ActionModeCalculator {
             // get a map of all the settings (settingName  -> setting) specific to this entity
             final Map<String, Setting> settingsForActionTarget =
                 snapshot.getSettingsForEntity(actionTargetEntityId);
-
-            // Use a "set-once" so that we can avoid the overhead of constructing a new HashMap
-            // if there are no workflow settings for the action.
-            final SetOnce<Map<ActionState, Setting>> retMap = new SetOnce<>();
-            Stream.of(ActionState.PRE_IN_PROGRESS, ActionState.IN_PROGRESS, ActionState.POST_IN_PROGRESS)
-                .forEach(state -> {
-                    // Determine which override use based on the state.
-                    final EntitySettingSpecs workflowOverride;
-                    switch (state) {
-                        case PRE_IN_PROGRESS:
-                            workflowOverride = PREP_WORKFLOW_ACTION_TYPE_MAP.get(actionType);
-                            break;
-                        case IN_PROGRESS:
-                            workflowOverride = WORKFLOW_ACTION_TYPE_MAP.get(actionType);
-                            break;
-                        case POST_IN_PROGRESS:
-                            // POST runs after success or failure
-                            workflowOverride = POST_WORKFLOW_ACTION_TYPE_MAP.get(actionType);
-                            break;
-                        default:
-                            logger.warn("Tried to retrieve workflow setting in an unexpected action "
-                                + "state {}", state);
-                            return;
-                    }
-
-                    // Is there a corresponding setting for this Workflow override for the current entity?
-                    // Note: the value of the workflowSettingSpec is the OID of the workflow, only used during
-                    // execution.
-                    Optional.ofNullable(workflowOverride)
-                        .map(EntitySettingSpecs::getSettingName)
-                        .map(settingsForActionTarget::get)
-                        .ifPresent(setting -> {
-                            // Initialize the return map if necessary.
-                            retMap.ensureSet(HashMap::new).put(state, setting);
-                        });
-                });
-            return retMap.getValue().orElse(Collections.emptyMap());
+            return getSettingForState(settingsForActionTarget, actionType);
         } catch (UnsupportedActionException e) {
             logger.error("Unable to calculate complex action mode.", e);
             return Collections.emptyMap();
         }
+    }
+
+    @Nonnull
+    private Map<ActionState, String> getActionStateSettings(@Nonnull ActionType actionType) {
+        final Map<ActionState, String> actionStateSettings = new HashMap<>();
+        final EntitySettingSpecs preInProgress = PREP_WORKFLOW_ACTION_TYPE_MAP.get(actionType);
+        if (preInProgress != null) {
+            actionStateSettings.put(ActionState.PRE_IN_PROGRESS, preInProgress.getSettingName());
+        }
+        final EntitySettingSpecs inProgress = WORKFLOW_ACTION_TYPE_MAP.get(actionType);
+        if (inProgress != null) {
+            actionStateSettings.put(ActionState.IN_PROGRESS, inProgress.getSettingName());
+        }
+        final EntitySettingSpecs postInProgress = POST_WORKFLOW_ACTION_TYPE_MAP.get(actionType);
+        if (postInProgress != null) {
+            actionStateSettings.put(ActionState.POST_IN_PROGRESS, postInProgress.getSettingName());
+        }
+        final EntitySettingSpecs baseActionSetting = WORKFLOW_ACTION_BASE_MAP.get(
+                WORKFLOW_ACTION_TYPE_MAP.get(actionType));
+        if (baseActionSetting != null) {
+            final String afterExecSettingSpec =
+                    ActionSettingSpecs.getSubSettingFromActionModeSetting(baseActionSetting,
+                            ActionSettingType.AFTER_EXEC);
+            actionStateSettings.put(ActionState.SUCCEEDED, afterExecSettingSpec);
+            final String onGenSettingSpec = ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                    baseActionSetting, ActionSettingType.ON_GEN);
+            actionStateSettings.put(ActionState.READY, onGenSettingSpec);
+        }
+        return Collections.unmodifiableMap(actionStateSettings);
+    }
+
+    @Nonnull
+    private Map<ActionState, Setting> getSettingForState(@Nonnull Map<String, Setting> actionSettings,
+            @Nonnull ActionType actionType) {
+        final Map<ActionState, String> actionStateSettings = getActionStateSettings(actionType);
+        final Map<ActionState, Setting> result = new EnumMap<>(ActionState.class);
+        for (Entry<ActionState, String> settingEntry: actionStateSettings.entrySet()) {
+            final ActionState actionState = settingEntry.getKey();
+            final String settingName = settingEntry.getValue();
+            final Setting settingValue = actionSettings.get(settingName);
+            if (settingValue != null) {
+                result.put(actionState, settingValue);
+            }
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     /**
@@ -799,13 +810,23 @@ public class ActionModeCalculator {
             case PROVISION:
                 return Stream.of(EntitySettingSpecs.Provision);
             case RESIZE:
+                final Resize resize = action.getInfo().getResize();
+                if (isApplicationComponentHeapCommodity(resize)) {
+                    EntitySettingSpecs spec = resize.getNewCapacity() > resize.getOldCapacity()
+                            ? EntitySettingSpecs.ResizeUpHeap : EntitySettingSpecs.ResizeDownHeap;
+                    return Stream.of(spec);
+                } else if (isDatabaseServerDBMemCommodity(resize)) {
+                    EntitySettingSpecs spec = resize.getNewCapacity() > resize.getOldCapacity()
+                            ? EntitySettingSpecs.ResizeUpDBMem : EntitySettingSpecs.ResizeDownDBMem;
+                    return Stream.of(spec);
+                }
                 Optional<EntitySettingSpecs> rangeAwareSpec = rangeAwareSpecCalculator
-                        .getSpecForRangeAwareCommResize(action.getInfo().getResize(), settingsForTargetEntity);
+                        .getSpecForRangeAwareCommResize(resize, settingsForTargetEntity);
                 // Return the range aware spec if present. Otherwise return the regular resize
                 // spec, or if it's a vm the default empty stream, since the only resize action
                 // that should fall into this logic is for vStorages. Resize Vms for vStorage
                 // commodities should always translate to a RECOMMENDED mode .
-                if (isVirtualMachine(action.getInfo().getResize()) && !rangeAwareSpec.isPresent()) {
+                if (isVirtualMachine(resize) && !rangeAwareSpec.isPresent()) {
                     return Stream.empty();
                 }
                 return Stream.of(rangeAwareSpec.orElse(EntitySettingSpecs.Resize),
@@ -897,6 +918,26 @@ public class ActionModeCalculator {
      * */
     private boolean isVirtualMachine(Resize resize) {
         return resize.getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE;
+    }
+
+    /**
+     * Checks if the Resize action has an EntityType, it's an Application Component and Heap commodity.
+     * @param resize the {@link Resize} action
+     * @return Returns {@code true} if the action has Application Component as a target and Heap commodity
+     */
+    private boolean isApplicationComponentHeapCommodity(Resize resize) {
+        return resize.getTarget().getType() == EntityType.APPLICATION_COMPONENT_VALUE &&
+                resize.getCommodityType().getType() == CommodityType.HEAP.getNumber();
+    }
+
+    /**
+     * Checks if the Resize action has an EntityType, it's an Database Server and DBMem commodity.
+     * @param resize The {@link Resize} action
+     * @return Returns {@code true} if the action has Database Server as a target and DBMem commodity
+     * */
+    private boolean isDatabaseServerDBMemCommodity(Resize resize) {
+        return resize.getTarget().getType() == EntityType.DATABASE_SERVER_VALUE &&
+                resize.getCommodityType().getType() == CommodityType.DB_MEM.getNumber();
     }
 
     /**

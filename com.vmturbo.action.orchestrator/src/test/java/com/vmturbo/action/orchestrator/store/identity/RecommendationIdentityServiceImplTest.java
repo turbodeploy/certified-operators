@@ -124,7 +124,7 @@ public class RecommendationIdentityServiceImplTest {
     @Before
     public void initialize() {
         attributeExtractor = new ActionInfoModelCreator();
-        store = Mockito.spy(new RecommendationIdentityStore(dbConfig.getDslContext()));
+        store = Mockito.spy(new RecommendationIdentityStore(dbConfig.getDslContext(), 1000));
         clock = Mockito.mock(Clock.class);
         Mockito.when(clock.millis()).thenReturn(0L);
         identityService =

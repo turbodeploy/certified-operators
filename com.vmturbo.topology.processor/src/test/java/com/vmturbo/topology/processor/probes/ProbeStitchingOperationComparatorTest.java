@@ -59,30 +59,35 @@ public class ProbeStitchingOperationComparatorTest {
     @Nonnull
     final ProbeInfo vcenterInfo = ProbeInfo.newBuilder()
         .setProbeType(SDKProbeType.VCENTER.getProbeType())
-        .setProbeCategory(SDKProbeType.VCENTER.getProbeCategory().getCategory())
+        .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+        .setUiProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
         .build();
 
     @Nonnull
     final ProbeInfo azureInfo = ProbeInfo.newBuilder()
         .setProbeType(SDKProbeType.AZURE.getProbeType())
-        .setProbeCategory(SDKProbeType.AZURE.getProbeCategory().getCategory())
+        .setProbeCategory(ProbeCategory.CLOUD_MANAGEMENT.getCategory())
+        .setUiProbeCategory(ProbeCategory.PUBLIC_CLOUD.getCategory())
         .build();
 
     @Nonnull
     final ProbeInfo hypervInfo = ProbeInfo.newBuilder()
         .setProbeType(SDKProbeType.HYPERV.getProbeType())
-        .setProbeCategory(SDKProbeType.HYPERV.getProbeCategory().getCategory())
+        .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+        .setUiProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
         .build();
 
     @Nonnull ProbeInfo unknownCategoryInfo = ProbeInfo.newBuilder()
         .setProbeType(SDKProbeType.HYPERV.getProbeType())
         .setProbeCategory("foo")
+        .setUiProbeCategory("doo")
         .build();
 
     @Nonnull
     final ProbeInfo unknownTypeInfo = ProbeInfo.newBuilder()
         .setProbeType("bar")
-        .setProbeCategory(SDKProbeType.AZURE.getProbeCategory().getCategory())
+        .setProbeCategory(ProbeCategory.CLOUD_MANAGEMENT.getCategory())
+        .setUiProbeCategory(ProbeCategory.CLOUD_MANAGEMENT.getCategory())
         .build();
 
     @Before
@@ -135,6 +140,7 @@ public class ProbeStitchingOperationComparatorTest {
             operations.add(new ProbeStitchingOperation(index, Mockito.mock(StitchingOperation.class)));
             final ProbeInfo info = ProbeInfo.newBuilder()
                 .setProbeCategory(cat.getCategory())
+                .setUiProbeCategory(cat.getCategory())
                 .setProbeType("foo")
                 .build();
             when(probeStore.getProbe(index)).thenReturn(Optional.of(info));

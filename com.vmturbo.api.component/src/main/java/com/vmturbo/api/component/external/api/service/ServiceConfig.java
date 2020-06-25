@@ -50,6 +50,7 @@ import com.vmturbo.api.component.security.IntersightIdTokenVerifier;
 import com.vmturbo.api.component.security.OpenIdAuthenticationCondition;
 import com.vmturbo.api.component.security.SamlAuthenticationCondition;
 import com.vmturbo.api.enums.DeploymentMode;
+import com.vmturbo.api.serviceinterfaces.IClassicMigrationService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.auth.api.AuthClientConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
@@ -66,6 +67,8 @@ import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.search.SearchDBConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 /**
@@ -82,7 +85,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         PublicKeyStoreConfig.class,
         LicenseCheckClientConfig.class,
         UserSessionConfig.class,
-        KeyValueStoreConfig.class})
+        KeyValueStoreConfig.class,
+        SearchDBConfig.class})
 @PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
 
@@ -207,6 +211,9 @@ public class ServiceConfig {
 
     @Autowired
     private KeyValueStoreConfig keyValueStoreConfig;
+
+    @Autowired
+    private SearchDBConfig searchDBConfig;
 
     @Bean
     public ActionsService actionsService() {
@@ -498,6 +505,11 @@ public class ServiceConfig {
                 communicationConfig.groupExpander());
     }
 
+    @Bean
+    public SearchQueryService searchQueryService() throws UnsupportedDialectException {
+        return new SearchQueryService(this.searchDBConfig.apiQueryEngine());
+    }
+
     /**
      * Search service fulfilling requests from search REST controller.
      *
@@ -527,11 +539,6 @@ public class ServiceConfig {
                 mapperConfig.entityAspectMapper(),
                 searchFilterResolver(),
                 communicationConfig.priceIndexPopulator());
-    }
-
-    @Bean
-    public SearchQueryService searchQueryService() {
-        return new SearchQueryService();
     }
 
     @Bean
@@ -657,6 +664,17 @@ public class ServiceConfig {
             cpuCatalogLifeHours);
     }
 
+    /**
+     * Bean for {@link TopologyDataDefinitionService}.
+     *
+     * @return topology data definition service
+     */
+    @Bean
+    public TopologyDataDefinitionService topologyDataDefinitionService() {
+        return new TopologyDataDefinitionService(communicationConfig.topologyDataDefinitionServiceBlockingStub(),
+                mapperConfig.topologyDataDefinitionMapper());
+    }
+
     @Bean
     public CpuInfoMapper cpuInfoMapper() {
         return new CpuInfoMapper();
@@ -688,6 +706,11 @@ public class ServiceConfig {
     public IWorkflowsService workflowService() {
         return new WorkflowsService(communicationConfig.fetchWorkflowRpcService(),
                 targetService(), mapperConfig.workflowMapper());
+    }
+
+    @Bean
+    public IClassicMigrationService classicMigrationService() {
+        return new ClassicMigrationService(targetService());
     }
 
     @Bean

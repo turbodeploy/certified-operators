@@ -417,7 +417,14 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>extractor-schema</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>search-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>common-api</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.opentracing</groupId>
             <artifactId>opentracing-api</artifactId>
@@ -527,6 +534,11 @@
         <dependency>
             <groupId>com.github.stefanbirkner</groupId>
             <artifactId>system-rules</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.skyscreamer</groupId>
+            <artifactId>jsonassert</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

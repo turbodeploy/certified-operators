@@ -61,6 +61,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
@@ -69,6 +70,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.template.TemplateConverterTestUtil;
+import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
 import com.vmturbo.topology.processor.template.VirtualMachineEntityConstructor;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -364,6 +366,9 @@ public class EntitySettingsApplicatorTest {
     private static final Setting.Builder RESIZE_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
 
+    private static final Setting.Builder SCALING_POLICY_SETTING_BUILDER = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ScalingPolicy.getSettingName());
+
     private static final TopologyEntityDTO PARENT_OBJECT =
             TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
     private static final double DELTA = 0.001;
@@ -612,8 +617,8 @@ public class EntitySettingsApplicatorTest {
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(888L);
 
         final TopologyEntityDTO.Builder entity = new VirtualMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(VM_TEMPLATE, Collections.emptyMap(), null, false,
-                        identityProvider, null);
+                .createTopologyEntityFromTemplate(VM_TEMPLATE, Collections.emptyMap(), null,
+                        TemplateActionType.CLONE, identityProvider, null);
         entity.setEnvironmentType(EnvironmentType.ON_PREM);
         final long entityId = entity.getOid();
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator
@@ -1691,6 +1696,38 @@ public class EntitySettingsApplicatorTest {
 
         // Resizeable false for default setting of vStorage increment.
         assertFalse(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+    }
+
+    /**
+     * Testing affect resize scaling policy on application component.
+     */
+    @Test
+    public void testScalingPolicyResizeForAppComponent() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.APPLICATION_COMPONENT, CommodityType.HEAP);
+        SCALING_POLICY_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ScalingPolicyEnum.RESIZE.name()));
+
+        applySettings(TOPOLOGY_INFO, builder, SCALING_POLICY_SETTING_BUILDER.build());
+
+        assertTrue(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+        assertFalse(builder.getAnalysisSettings().getCloneable());
+    }
+
+    /**
+     * Testing affect provision scaling policy on application component.
+     */
+    @Test
+    public void testScalingPolicyProvisionForAppComponent() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.APPLICATION_COMPONENT, CommodityType.HEAP);
+        SCALING_POLICY_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ScalingPolicyEnum.PROVISION.name()));
+
+        applySettings(TOPOLOGY_INFO, builder, SCALING_POLICY_SETTING_BUILDER.build());
+
+        assertFalse(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+        assertTrue(builder.getAnalysisSettings().getCloneable());
     }
 
     /**

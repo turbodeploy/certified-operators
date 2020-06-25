@@ -69,6 +69,7 @@ import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePri
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePriceTableByRegionEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList.StorageTierPrice;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.cost.PriceTableUploader.ProbePriceData;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -345,8 +346,10 @@ public class PriceTableUploaderTest {
                         .setPriceAmount(CurrencyAmount.newBuilder()
                             .setAmount(IP_PRICE_AMOUNT))))))
             .build();
-        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE_COST, sourcePriceTable);
-        priceTableUploader.recordPriceTable(anotherTargetId, SDKProbeType.AWS_COST, sourcePriceTable);
+        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE_COST,
+                Optional.of(ProbeCategory.COST), sourcePriceTable);
+        priceTableUploader.recordPriceTable(anotherTargetId, SDKProbeType.AWS_COST,
+                Optional.of(ProbeCategory.COST), sourcePriceTable);
 
         final Map<Long, PricingDTO.PriceTable> originalSrcTables = priceTableUploader.getSourcePriceTables();
         assertThat(originalSrcTables.keySet(), containsInAnyOrder(TARGET_ID, anotherTargetId ));
@@ -373,16 +376,18 @@ public class PriceTableUploaderTest {
     public void testTargetRemoved() {
         PricingDTO.PriceTable sourcePriceTable = createDefaultPriceTable();
         // Trying to record price with a non cost probe
-        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE, sourcePriceTable);
+        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE, Optional.of(ProbeCategory.CLOUD_MANAGEMENT),
+                sourcePriceTable);
         Assert.assertEquals(0, priceTableUploader.getSourcePriceTables().size());
         // Trying to record price with a cost probe
-        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE_COST, sourcePriceTable);
+        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE_COST,
+                Optional.of(ProbeCategory.COST), sourcePriceTable);
         Assert.assertEquals(1, priceTableUploader.getSourcePriceTables().size());
         // Trying to remove an invalid target
-        priceTableUploader.targetRemoved(TARGET_ID, SDKProbeType.AWS);
+        priceTableUploader.targetRemoved(TARGET_ID, SDKProbeType.AWS, ProbeCategory.CLOUD_MANAGEMENT);
         Assert.assertEquals(1, priceTableUploader.getSourcePriceTables().size());
         // Trying to remove a valid target
-        priceTableUploader.targetRemoved(TARGET_ID, SDKProbeType.AZURE_COST);
+        priceTableUploader.targetRemoved(TARGET_ID, SDKProbeType.AZURE_COST, ProbeCategory.COST);
         Assert.assertEquals(0, priceTableUploader.getSourcePriceTables().size());
     }
 
@@ -396,7 +401,8 @@ public class PriceTableUploaderTest {
         CloudEntitiesMap cloudEntitiesMap = new CloudEntitiesMap(stitchingContext, new HashMap<>());
         PricingDTO.PriceTable sourcePriceTable = createDefaultPriceTable();
         // Adding the price table that will be tested
-        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE_COST, sourcePriceTable);
+        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE_COST,
+                Optional.of(ProbeCategory.COST), sourcePriceTable);
         Map<Long, SDKProbeType> probeTypesForTargetId = Maps.newHashMap(
                 ImmutableMap.of(TARGET_ID, SDKProbeType.AZURE_COST));
         // Triggering 'buildPricesToUpload' method a few time instead of saving re result in order

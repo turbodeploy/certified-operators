@@ -81,7 +81,9 @@ public class MigrationsLibrary {
             .put("V_01_00_04__Remove_Orphaned_Targets_Migration",
                 new V_01_00_04__RemoveOrphanedTargetsMigration(targetStore, probeStore, targetDao))
             .put("V_01_00_05__Standalone_AWS_Billing",
-                new V_01_00_05__Standalone_AWS_Billing(keyValueStore, identityProvider));
+                new V_01_00_05__Standalone_AWS_Billing(keyValueStore, identityProvider))
+            .put("V_01_01_01__Add_UI_Category_and_license_To_Probes_Migration",
+                        new V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration(keyValueStore));;
         return builder.build();
     }
 }

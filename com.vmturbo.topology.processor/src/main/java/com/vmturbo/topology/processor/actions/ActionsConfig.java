@@ -6,6 +6,7 @@ import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.apache.logging.log4j.LogManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -84,6 +85,16 @@ public class ActionsConfig {
      */
     @Value("${actionGetStatesPeriodSec:30}")
     private long actionGetStatesPeriodSec;
+    /**
+     * Period of sending action audit batches to SDK probe.
+     */
+    @Value("${actionAuditSendPeriodSec:30}")
+    private long actionAuditSendPeriodSec;
+    /**
+     * Size of action audit events batch to send to external action audit probe.
+     */
+    @Value("${actionAuditBatchSize:50}")
+    private int actionAuditBatchSize;
 
     @Bean
     public ActionDataManager actionDataManager() {
@@ -147,6 +158,9 @@ public class ActionsConfig {
     @Bean
     public ScheduledExecutorService actionRelatedScheduler() {
         final ThreadFactory factory = new ThreadFactoryBuilder().setNameFormat("tp-aoc-sched-%d")
+                .setUncaughtExceptionHandler((thread, throwable) -> LogManager.getLogger(getClass())
+                        .error("Uncaught exception found in the thread " + thread.getName(),
+                                throwable))
                 .build();
         return Executors.newScheduledThreadPool(1, factory);
     }
@@ -197,5 +211,19 @@ public class ActionsConfig {
                 externalStateUpdatesSender(), externalActionApprovalResponseSender(),
                 operationConfig.operationManager(), actionExecutionContextFactory(),
                 targetConfig.targetStore(), actionRelatedScheduler(), actionGetStatesPeriodSec);
+    }
+
+    /**
+     * Action audit service.
+     *
+     * @return action audit service
+     */
+    @Bean
+    public ActionAuditService actionAuditService() {
+        final int priority = Math.min(targetConfig.targetStore().priority(),
+                probeConfig.probeStore().priority()) - 1;
+        return new ActionAuditService(aoClientConfig.createActionEventsListener(),
+                operationConfig.operationManager(), actionExecutionContextFactory(),
+                actionRelatedScheduler(), actionAuditSendPeriodSec, actionAuditBatchSize, priority);
     }
 }

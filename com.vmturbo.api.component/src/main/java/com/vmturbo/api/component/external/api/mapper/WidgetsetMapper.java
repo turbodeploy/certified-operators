@@ -27,6 +27,7 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.widget.WidgetApiDTO;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;

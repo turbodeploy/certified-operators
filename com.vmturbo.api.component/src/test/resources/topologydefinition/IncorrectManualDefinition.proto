@@ -1,0 +1,13 @@
+manual_entity_definition {
+  entity_type: BUSINESS_APPLICATION
+  entity_name: "UNSUPPORTED_CONNECTED_ENTITY_TYPE"
+  associated_entities {
+    static_associated_entities {
+      members_by_type {
+        members: 74412384495333
+        members: 74412384495332
+      }
+    }
+    connected_entity_type: DATABASE
+  }
+}

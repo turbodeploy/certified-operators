@@ -4,7 +4,6 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
@@ -20,17 +19,16 @@ import com.vmturbo.extractor.topology.WriterConfig;
  * than using slower batched update statements.</p>
  */
 public class DslUpdateRecordSink extends DslRecordSink {
-    private final List<String> matchColumns;
-    private final List<String> updateColumns;
+    private final Collection<Column<?>> matchColumns;
+    private final Collection<Column<?>> updateColumns;
     private final String tempSuffix;
-    private final List<String> includeColumns;
+    private final Collection<Column<?>> includeColumns;
 
     /**
      * Create a new instance.
      *
      * @param dsl            {@link DSLContext} instance for DB connection
      * @param table          target table for updates
-     * @param model          model containing target table
      * @param config         writer config
      * @param pool           thread pool
      * @param tempSuffix     suffix for temp table name
@@ -39,13 +37,12 @@ public class DslUpdateRecordSink extends DslRecordSink {
      * @param updateColumns  columns to update from temp table into matching records in target
      *                       table
      */
-    public DslUpdateRecordSink(final DSLContext dsl, final Table table, final Model model,
-            WriterConfig config, final ExecutorService pool, String tempSuffix,
-            final List<String> includeColumns, final List<String> matchColumns, final List<String> updateColumns) {
-        super(dsl, table, model, config, pool);
+    public DslUpdateRecordSink(final DSLContext dsl, final Table table, WriterConfig config,
+            final ExecutorService pool, String tempSuffix, final Collection<Column<?>> includeColumns,
+            final Collection<Column<?>> matchColumns, final Collection<Column<?>> updateColumns) {
+        super(dsl, table, config, pool);
         this.tempSuffix = tempSuffix;
-        this.includeColumns = includeColumns != null ? includeColumns
-                : table.getColumns().stream().map(Column::getName).collect(Collectors.toList());
+        this.includeColumns = includeColumns != null ? includeColumns : table.getColumns();
         this.matchColumns = matchColumns;
         this.updateColumns = updateColumns;
     }
@@ -57,15 +54,12 @@ public class DslUpdateRecordSink extends DslRecordSink {
 
     @Override
     protected Collection<Column<?>> getRecordColumns() {
-        return includeColumns.stream()
-                .map(table::getColumn)
-                .collect(Collectors.toList());
+        return includeColumns;
     }
 
     @Override
     protected void preCopyHook(final Connection conn) throws SQLException {
         String colSpecs = includeColumns.stream()
-                .map(table::getColumn)
                 .map(c -> String.format("%s %s", c.getName(), c.getDbType()))
                 .collect(Collectors.joining(", "));
         final String createSql = String.format("CREATE TEMPORARY TABLE %s (%s)",
@@ -76,9 +70,11 @@ public class DslUpdateRecordSink extends DslRecordSink {
     @Override
     protected void postCopyHook(final Connection conn) throws SQLException {
         final String sets = updateColumns.stream()
+                .map(Column::getName)
                 .map(c -> String.format("%s = _temp.%s", c, c))
                 .collect(Collectors.joining(", "));
         final String conditions = matchColumns.stream()
+                .map(Column::getName)
                 .map(c -> String.format("_t.%s = _temp.%s", c, c))
                 .collect(Collectors.joining(" AND "));
         final String updateSql = String.format("UPDATE %s AS _t SET %s FROM %s AS _temp WHERE %s",

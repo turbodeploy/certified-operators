@@ -7,7 +7,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -225,9 +227,19 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                         Optional<Target> target = targetStore.getTarget(targetId);
                         if (target.isPresent()) {
                             // TODO: (MarcoBerlot 5/26/20) do not fake the discovery object
-                            Discovery operation = new Discovery(target.get().getProbeId(), targetId,
+                            long probeId = target.get().getProbeId();
+                            Discovery operation = new Discovery(probeId, targetId,
                                     identityProvider);
-                            operationManager.notifyDiscoveryResult(operation, discoveryResponse);
+
+                            try {
+                                operationManager.notifyDiscoveryResult(operation,
+                                    discoveryResponse).get(5, TimeUnit.MINUTES);
+                            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                                logger.error("Error in notifying the discovery result for target "
+                                    + "id:{} and probe id: {}", targetId, probeId);
+                                throw new RuntimeException(e);
+                            }
+
                             TargetDiscoveryInfo info = targetDiscoveryInfoMap.computeIfAbsent(targetId,
                                     k -> new TargetDiscoveryInfo(targetId, scheduler,
                                             target.get().getDisplayName(), targetShortCircuitSpec,

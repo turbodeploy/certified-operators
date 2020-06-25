@@ -20,6 +20,7 @@ import com.vmturbo.group.policy.PolicyConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.service.RpcConfig;
 import com.vmturbo.group.setting.SettingConfig;
+import com.vmturbo.group.topologydatadefinition.TopologyDataDefinitionConfig;
 
 /**
  * Configuration for group component diagnostics.
@@ -29,6 +30,7 @@ import com.vmturbo.group.setting.SettingConfig;
         PolicyConfig.class,
         SettingConfig.class,
         ScheduleConfig.class,
+        TopologyDataDefinitionConfig.class,
         RpcConfig.class})
 public class GroupDiagnosticsConfig {
 
@@ -40,6 +42,9 @@ public class GroupDiagnosticsConfig {
 
     @Autowired
     private PolicyConfig policyConfig;
+
+    @Autowired
+    private TopologyDataDefinitionConfig topologyDataDefConfig;
 
     @Autowired
     private ScheduleConfig scheduleConfig;
@@ -61,8 +66,10 @@ public class GroupDiagnosticsConfig {
     public DiagnosticsHandlerImportable diagsHandler() {
         return new DiagnosticsHandlerImportable(recursiveZipReaderFactory(),
                 Lists.newArrayList(groupStoreDiagnostics(), policyConfig.policyStore(),
-                        settingConfig.settingStore(), scheduleConfig.scheduleStore(),
-                        prometheusDiagnisticsProvider()));
+                        settingConfig.settingStore(),
+                        topologyDataDefConfig.topologyDataDefinitionStore(),
+                        topologyDataDefConfig.persistentTopologyDataDefinitionIdentityStore(),
+                        scheduleConfig.scheduleStore(), prometheusDiagnisticsProvider()));
     }
 
     @Bean

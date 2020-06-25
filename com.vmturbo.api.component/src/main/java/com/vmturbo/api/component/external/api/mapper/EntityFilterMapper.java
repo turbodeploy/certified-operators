@@ -22,7 +22,6 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,7 +49,11 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * This class converts filter for filter entities in the API to the filter
@@ -88,6 +91,7 @@ public class EntityFilterMapper {
     public static final String CONTAINER_SPEC_WORKLOAD_CONTROLLER_TYPE = "WorkloadController:" + WORKLOAD_CONTROLLER_TYPE + ":AGGREGATES";
 
     public static final String STATE = "state";
+    public static final String USER_DEFINED_ENTITY = "UserDefinedEntity";
     public static final String NETWORKS = "networks";
     public static final String CONNECTED_NETWORKS_FIELD = "connectedNetworks";
     public static final String CONNECTED_STORAGE_TIER_FILTER_PATH = "StorageTier:oid:PRODUCES:1";
@@ -154,14 +158,18 @@ public class EntityFilterMapper {
     private static final Map<String, Function<SearchFilterContext, List<SearchFilter>>>
                 FILTER_TYPES_TO_PROCESSORS = initFilterTypesToProcessor();
 
+    private final ThinTargetCache thinTargetCache;
+
     private final GroupUseCaseParser groupUseCaseParser;
 
     /**
      * Constructor for {@link EntityFilterMapper}.
      * @param groupUseCaseParser group use case parser.
+     * @param thinTargetCache for retrieving targets without making a gRPC call.
      */
-    public EntityFilterMapper(GroupUseCaseParser groupUseCaseParser) {
+    public EntityFilterMapper(GroupUseCaseParser groupUseCaseParser,  ThinTargetCache thinTargetCache) {
         this.groupUseCaseParser = groupUseCaseParser;
+        this.thinTargetCache = thinTargetCache;
     }
 
     private static Map<String, Function<SearchFilterContext, List<SearchFilter>>>
@@ -298,6 +306,41 @@ public class EntityFilterMapper {
                     ListFilter.newBuilder()
                         .setStringFilter(stringFilter))
                 .build()));
+    }
+
+    private final SetOnce<String> udtOid = new SetOnce();
+
+    /**
+     * Processor for "User Defined Entity" filter.
+     *
+     * @param context necessary parameters for filter.
+     * @return list of {@SearchFilter} to use for querying the repository.
+     */
+    private List<SearchFilter> getUserDefinedEntityProcessor(SearchFilterContext context) {
+        final FilterApiDTO filter = context.getFilter();
+        final String criteriaOption = filter.getExpVal();
+        final boolean positiveMatch = criteriaOption.equals("True") &&
+                isPositiveMatchingOperator(filter.getExpType());
+        if (!udtOid.getValue().isPresent()) {
+            udtOid.trySetValue(thinTargetCache.getAllTargets()
+                    .stream()
+                    .filter(targetInfo ->
+                        targetInfo.probeInfo().type().equals(SDKProbeType.UDT.getProbeType()))
+                    .map(ThinTargetInfo::oid)
+                    .map(String::valueOf)
+                    .findFirst().orElse(null));
+        }
+
+        return Collections.singletonList(SearchProtoUtil.searchFilterProperty(
+                PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.EXCLUSIVE_DISCOVERING_TARGET)
+                        .setStringFilter(
+                                SearchProtoUtil.stringFilterExact(
+                                    udtOid.getValue().map(Collections::singletonList)
+                                            .orElse(Collections.emptyList()),
+                                    positiveMatch,
+                                    context.getFilter().getCaseSensitive()))
+                        .build()));
     }
 
     /**
@@ -637,6 +680,8 @@ public class EntityFilterMapper {
 
         if (filterApiDtoProcessor != null) {
             return filterApiDtoProcessor.apply(filterContext);
+        } else if (currentToken.equals(USER_DEFINED_ENTITY)) {
+            return getUserDefinedEntityProcessor(filterContext);
         } else if (ApiEntityType.fromString(currentToken) != ApiEntityType.UNKNOWN) {
             return ImmutableList.of(SearchProtoUtil.searchFilterProperty(
                     SearchProtoUtil.entityTypeFilter(currentToken)));
@@ -1034,6 +1079,7 @@ public class EntityFilterMapper {
         filterApiDTO.setExpVal(Objects.requireNonNull(sourceFilter.getExpressionValue()));
         filterApiDTO.setFilterType(Objects.requireNonNull(sourceFilter.getFilterType()));
         filterApiDTO.setCaseSensitive(Objects.requireNonNull(sourceFilter.getIsCaseSensitive()));
+
         return filterApiDTO;
     }
 

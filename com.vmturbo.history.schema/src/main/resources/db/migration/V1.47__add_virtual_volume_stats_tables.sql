@@ -1,15 +1,9 @@
 --
--- This migration applies the following steps.
--- 1. Create stats tables for Virtual Volumes:
+-- This migration creates stats tables for Virtual Volumes:
 --    - virtual_volume_stats_latest
 --    - virtual_volume_stats_by_hour
 --    - virtual_volume_stats_by_day
 --    - virtual_volume_stats_by_month
--- 2. Copy Storage commodities from vm_stats_* daily and monthly tables to sold commodities in
---    virtual_volumes_stats_* tables.
---    It is required after adding commodities bought by volumes from storage tiers.
--- 3. Migrate vm_stats_* records for Storage commodities from Storage Tier provider to Volume.
---    That is, update producer_uuid column with Volume UUID retrieved from commodity_key.
 --
 
 CREATE TABLE IF NOT EXISTS `virtual_volume_stats_latest` (
@@ -123,25 +117,3 @@ CREATE TABLE IF NOT EXISTS `virtual_volume_stats_by_month` (
 PARTITION BY RANGE (to_seconds(snapshot_time))
 (PARTITION start VALUES LESS THAN (0),
  PARTITION future VALUES LESS THAN MAXVALUE);
-
-
-UPDATE vm_stats_by_day
-SET
-  producer_uuid = commodity_key,
-  commodity_key = NULL
-WHERE commodity_key REGEXP '^[0-9]+$'
-AND (property_type = 'StorageAmount'
-  OR property_type = 'StorageProvisioned'
-  OR property_type = 'StorageAccess'
-  OR property_type = 'StorageLatency');
-
-
-UPDATE vm_stats_by_month
-SET
-  producer_uuid = commodity_key,
-  commodity_key = NULL
-WHERE commodity_key REGEXP '^[0-9]+$'
-AND (property_type = 'StorageAmount'
-  OR property_type = 'StorageProvisioned'
-  OR property_type = 'StorageAccess'
-  OR property_type = 'StorageLatency');

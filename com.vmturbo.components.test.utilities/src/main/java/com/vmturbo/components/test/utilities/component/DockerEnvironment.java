@@ -5,7 +5,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,14 +15,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.StringUtils;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.docker.compose.connection.DockerMachine;
 import com.palantir.docker.compose.connection.DockerMachine.LocalBuilder;
 import com.palantir.docker.compose.connection.DockerMachine.RemoteBuilder;
 
+import org.apache.commons.lang3.StringUtils;
+
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.components.test.utilities.component.ComponentCluster.Component;
 
@@ -455,35 +455,31 @@ public class DockerEnvironment {
         // of why we use it.
         final URL resource = ComponentUtils.class.getClassLoader().getResource("pathAnchor");
         Objects.requireNonNull(resource, "Unable to load pathAnchor." +
-            "You must have a file called \"pathAnchor\" at ${project}/src/test/resources/");
-        try {
-            Path path = Paths.get(resource.toURI()).toAbsolutePath();
-            // Go up to top-level XL directory.
-            // This won't work if the layout of the modules changes!
-            Path rootDir = path.getParent().getParent().getParent().getParent();
+        "You must have a file called \"pathAnchor\" at ${project}/src/test/resources/");
+        Path path = ResourcePath.getTestResource(ComponentUtils.class, "pathAnchor");
+        // Go up to top-level XL directory.
+        // This won't work if the layout of the modules changes!
+        Path rootDir = path.getParent().getParent().getParent().getParent();
 
-            // create the list of docker-compose files we want to load
-            final String pathStr = rootDir.toString() + File.separator + "build" + File.separator;
+        // create the list of docker-compose files we want to load
+        final String pathStr = rootDir.toString() + File.separator + "build" + File.separator;
 
-            // separate the files into list of those that exist and those that don't
-            Map<Boolean, List<String>> foundAndNotFoundFiles =
-                Stream.of("docker-compose.yml","docker-compose.test.yml")
-                    .map(filename -> pathStr + filename)
-                    .map(File::new)
-                    .collect(Collectors.partitioningBy(File::exists,
-                        Collectors.mapping(File::toString, Collectors.toList())));
+        // separate the files into list of those that exist and those that don't
+        Map<Boolean, List<String>> foundAndNotFoundFiles =
+            Stream.of("docker-compose.yml","docker-compose.test.yml")
+                .map(filename -> pathStr + filename)
+                .map(File::new)
+                .collect(Collectors.partitioningBy(File::exists,
+                    Collectors.mapping(File::toString, Collectors.toList())));
 
-            // if any of the files don't exist, throw an error
-            if (foundAndNotFoundFiles.get(false).size() > 0) {
-                throw new IllegalStateException("File(s) not found: " + String.join(",", foundAndNotFoundFiles.get(false)));
-            }
-
-            // otherwise, all of the files exist -- return the paths to the files
-            List<String> files = foundAndNotFoundFiles.get(true);
-            return files.toArray(new String[files.size()]);
-        } catch (URISyntaxException e) {
-            throw new IllegalStateException("Resource from classloader has invalid URL.", e);
+        // if any of the files don't exist, throw an error
+        if (foundAndNotFoundFiles.get(false).size() > 0) {
+            throw new IllegalStateException("File(s) not found: " + String.join(",", foundAndNotFoundFiles.get(false)));
         }
+
+        // otherwise, all of the files exist -- return the paths to the files
+        List<String> files = foundAndNotFoundFiles.get(true);
+        return files.toArray(new String[files.size()]);
     }
 
     @VisibleForTesting

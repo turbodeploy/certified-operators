@@ -1,0 +1,352 @@
+{
+  "probeType": "AppInsights",
+  "probeCategory": "Guest OS Processes",
+  "supplyChainDefinitionSet": [{
+    "templateClass": "APPLICATION_SERVER",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commodityBought": [{
+      "key": {
+        "templateClass": "VIRTUAL_MACHINE",
+        "providerType": "HOSTING",
+        "cardinalityMax": 1,
+        "cardinalityMin": 1
+      },
+      "value": [{
+        "commodityType": "APPLICATION",
+        "key": "Foo"
+      }]
+    }],
+    "externalLink": [{
+      "key": "VIRTUAL_MACHINE",
+      "value": {
+        "buyerRef": "APPLICATION_SERVER",
+        "sellerRef": "VIRTUAL_MACHINE",
+        "relationship": "HOSTING",
+        "commodityDefs": [{
+          "type": "APPLICATION",
+          "hasKey": true
+        }],
+        "probeEntityPropertyDef": [{
+          "name": "ipAddress",
+          "description": "IP Address of the VM hosting the discovered node"
+        }],
+        "externalEntityPropertyDefs": [{
+          "entity": "VIRTUAL_MACHINE",
+          "attribute": "UsesEndPoints",
+          "propertyHandler": {
+            "methodName": "getAddress",
+            "entityType": "IP",
+            "directlyApply": false
+          }
+        }]
+      }
+    }]
+  }, {
+    "templateClass": "BUSINESS_ACCOUNT",
+    "templateType": "BASE",
+    "templatePriority": -1,
+    "mergedEntityMetaData": {
+      "matchingMetadata": {
+        "returnType": "STRING",
+        "matchingData": [{
+          "matchingField": {
+            "messagePath": ["business_account_data"],
+            "fieldName": "account_id"
+          }
+        }],
+        "externalEntityReturnType": "STRING",
+        "externalEntityMatchingProperty": [{
+          "matchingField": {
+            "messagePath": ["business_account_data"],
+            "fieldName": "account_id"
+          }
+        }]
+      }
+    }
+  }, {
+    "templateClass": "APPLICATION",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commodityBought": [{
+      "key": {
+        "templateClass": "VIRTUAL_MACHINE",
+        "providerType": "HOSTING",
+        "cardinalityMax": 1,
+        "cardinalityMin": 1
+      },
+      "value": [{
+        "commodityType": "APPLICATION",
+        "key": "Foo"
+      }]
+    }],
+    "externalLink": [{
+      "key": "VIRTUAL_MACHINE",
+      "value": {
+        "buyerRef": "APPLICATION",
+        "sellerRef": "VIRTUAL_MACHINE",
+        "relationship": "HOSTING",
+        "commodityDefs": [{
+          "type": "APPLICATION",
+          "hasKey": true
+        }],
+        "probeEntityPropertyDef": [{
+          "name": "ipAddress",
+          "description": "IP Address of the VM hosting the discovered node"
+        }],
+        "externalEntityPropertyDefs": [{
+          "entity": "VIRTUAL_MACHINE",
+          "attribute": "UsesEndPoints",
+          "propertyHandler": {
+            "methodName": "getAddress",
+            "entityType": "IP",
+            "directlyApply": false
+          }
+        }]
+      }
+    }]
+  }, {
+    "templateClass": "VIRTUAL_MACHINE",
+    "templateType": "BASE",
+    "templatePriority": -1,
+    "commoditySold": [{
+      "commodityType": "VCPU",
+      "optional": false
+    }, {
+      "commodityType": "APPLICATION",
+      "key": "Foo",
+      "optional": false
+    }],
+    "mergedEntityMetaData": {
+      "matchingMetadata": {
+        "returnType": "LIST_STRING",
+        "matchingData": [{
+          "matchingField": {
+            "messagePath": ["virtual_machine_data"],
+            "fieldName": "ipAddress"
+          }
+        }],
+        "externalEntityReturnType": "LIST_STRING",
+        "externalEntityMatchingProperty": [{
+          "matchingField": {
+            "messagePath": ["virtual_machine_data"],
+            "fieldName": "ipAddress"
+          }
+        }]
+      },
+      "commoditiesSoldMetadata": [{
+        "commodityType": "VCPU"
+      }, {
+        "commodityType": "APPLICATION"
+      }]
+    }
+  }, {
+    "templateClass": "VIRTUAL_APPLICATION",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commodityBought": [{
+      "key": {
+        "templateClass": "APPLICATION_SERVER",
+        "providerType": "LAYERED_OVER",
+        "cardinalityMax": 2147483647,
+        "cardinalityMin": 1
+      },
+      "value": [{
+        "commodityType": "APPLICATION",
+        "key": "Foo"
+      }]
+    }, {
+      "key": {
+        "templateClass": "APPLICATION",
+        "providerType": "LAYERED_OVER",
+        "cardinalityMax": 2147483647,
+        "cardinalityMin": 1
+      },
+      "value": [{
+        "commodityType": "APPLICATION",
+        "key": "Foo"
+      }]
+    }]
+  }],
+  "accountDefinition": [{
+    "customDefinition": {
+      "name": "targetDescription",
+      "displayName": "Unique Target Description",
+      "description": "User-friendly name of Application Insights target",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING"
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "tenantID",
+      "displayName": "Tenant Name",
+      "description": "Enter the Tenant ID associated with Azure Account",
+      "verificationRegex": ".*",
+      "isSecret": true,
+      "primitiveValue": "STRING"
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "subscriptionID",
+      "displayName": "Azure Subscription ID",
+      "description": "Enter the Azure Subscription ID",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING"
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "clientID",
+      "displayName": "Client ID",
+      "description": "Enter the Client/App ID to allow Turbonomic access to resources in the Azure Subscription",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING"
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "clientSecretKey",
+      "displayName": "Client Secret Key",
+      "description": "Enter the Client Secret Key associated with Client App ID",
+      "verificationRegex": ".*",
+      "isSecret": true,
+      "primitiveValue": "STRING"
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "offerId",
+      "displayName": "Offer ID",
+      "description": "The number of Azure Offer (use MS-AZR-0003P as default)",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING"
+    },
+    "mandatory": false,
+    "defaultValue": "MS-AZR-0003P",
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "enrollmentNumber",
+      "displayName": "Enrollment Number",
+      "description": "Enterprise agreement enrollment number (for EA account)",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING"
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxy",
+      "displayName": "Proxy Host",
+      "description": "Enter proxy host IP address or leave blank",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING"
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "port",
+      "displayName": "Proxy Port",
+      "description": "Enter proxy host port number or leave blank",
+      "verificationRegex": "^$|(^([0-9]|[1-8][0-9]|9[0-9]|[1-8][0-9]{2}|9[0-8][0-9]|99[0-9]|[1-8][0-9]{3}|9[0-8][0-9]{2}|99[0-8][0-9]|999[0-9]|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$)",
+      "isSecret": false,
+      "primitiveValue": "NUMERIC"
+    },
+    "mandatory": false,
+    "defaultValue": "0",
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyUser",
+      "displayName": "Proxy User",
+      "description": "Enter proxy username or leave blank",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING"
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyPassword",
+      "displayName": "Proxy Password",
+      "description": "Enter proxy password or leave blank",
+      "verificationRegex": ".*",
+      "isSecret": true,
+      "primitiveValue": "STRING"
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }],
+  "targetIdentifierField": ["targetDescription"],
+  "fullRediscoveryIntervalSeconds": 600,
+  "entityMetadata": [{
+    "entityType": "BUSINESS_APPLICATION",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "APPLICATION_SERVER",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "APPLICATION",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "DATABASE_SERVER",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "VIRTUAL_MACHINE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "DATACENTER",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "PHYSICAL_MACHINE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "STORAGE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "BUSINESS_ACCOUNT",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }],
+  "actionPolicy": [{
+    "entityType": "UNKNOWN",
+    "policyElement": [{
+      "actionType": "NONE",
+      "actionCapability": "NOT_EXECUTABLE"
+    }]
+  }],
+  "discoversSupplyChain": true,
+  "creationMode": "STAND_ALONE"
+}

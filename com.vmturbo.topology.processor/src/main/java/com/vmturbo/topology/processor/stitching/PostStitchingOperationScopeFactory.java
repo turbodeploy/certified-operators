@@ -128,6 +128,14 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
      * {@inheritDoc}
      */
     @Override
+    public StitchingScope<TopologyEntity> probeCategoryScope(@Nonnull final ProbeCategory probeCategory) {
+        return new ProbeCategoryScope(topologyGraph, probeCategory, probeStore, targetStore);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public StitchingScope<TopologyEntity> multiProbeCategoryEntityTypeScope(
             @Nonnull final Set<ProbeCategory> probeCategories,
             @Nonnull final EntityType entityType) {
@@ -445,6 +453,42 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 .filter(entity -> entity.getDiscoveryOrigin().get()
                                 .getDiscoveredTargetDataMap().keySet().stream()
                                 .anyMatch(probeCategoryTargetIds::contains));
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation to entities discovered by a probe category
+     * with a specific {@link EntityType}.
+     */
+    private static class ProbeCategoryScope extends BaseStitchingScope {
+
+        private final ProbeCategory probeCategory;
+        private final ProbeStore probeStore;
+        private final TargetStore targetStore;
+
+        public ProbeCategoryScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
+                                  @Nonnull final ProbeCategory probeCategory,
+                                  @Nonnull final ProbeStore probeStore,
+                                  @Nonnull final TargetStore targetStore) {
+            super(topologyGraph);
+            this.probeCategory = Objects.requireNonNull(probeCategory);
+            this.probeStore = Objects.requireNonNull(probeStore);
+            this.targetStore = Objects.requireNonNull(targetStore);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<TopologyEntity> entities() {
+            final Set<Long> probeCategoryTargetIds = probeStore.getProbeIdsForCategory(probeCategory).stream()
+                 .flatMap(probeId -> targetStore.getProbeTargets(probeId).stream()
+                     .map(Target::getId))
+                 .collect(Collectors.toSet());
+
+            return getTopologyGraph().entities()
+                .filter(TopologyEntity::hasDiscoveryOrigin)
+                .filter(entity -> entity.getDiscoveryOrigin().get()
+                    .getDiscoveredTargetDataMap().keySet().stream()
+                    .anyMatch(probeCategoryTargetIds::contains));
         }
     }
 

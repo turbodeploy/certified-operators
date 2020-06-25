@@ -27,7 +27,9 @@ spec:
     enabled: true
   appdynamics:
     enabled: true
-  appinsight:
+  udt:
+    enabled: true
+  appinsights:
     enabled: false
   aws:
     enabled: true
@@ -54,6 +56,14 @@ spec:
   vmax:
     enabled: true
   vmm:
+    enabled: true
+  wmi:
+    enabled: true
+  snmp:
+    enabled: true
+  mssql:
+    enabled: true
+  newrelic:
     enabled: true
 
   # Resource limits - Core Services
@@ -174,6 +184,10 @@ spec:
       limits:
         memory: 2Gi
   mediation-vcenterbrowsing:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-udt:
     resources:
       limits:
         memory: 512Mi

@@ -187,8 +187,10 @@ public class DashboardsOnDisk {
                     "Saved dashboard at {} (title: {}, uid: {}) has an id explicitly set.",
                     file.getPath(), dashboard.getTitle(), dashboard.getUid()));
             });
-        if (dashboard.getUid().length() >= 40) {
-            throw new IllegalArgumentException("Dashboard UIDs must be less than 40 characters. Grafana limit.");
+        if (dashboard.getUid().length() > 40) {
+            throw new IllegalArgumentException(FormattedString.format(
+                    "Saved dashboard at {} (title: {}, uid: {}) has a uid exceeding grafana's 40 character limit.",
+                    file.getPath(), dashboard.getTitle(), dashboard.getUid()));
         }
     }
 

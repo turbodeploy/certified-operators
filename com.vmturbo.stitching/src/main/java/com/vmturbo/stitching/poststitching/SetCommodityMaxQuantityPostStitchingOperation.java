@@ -183,7 +183,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
      *  of maxValuesBackgroundLoadFrequencyMinutes.
      */
     public SetCommodityMaxQuantityPostStitchingOperation(
-        com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig setMaxValuesConfig) {
+        com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig setMaxValuesConfig) {
         this.statsHistoryClient = setMaxValuesConfig.getStatsClient();
         this.maxValuesBackgroundLoadFrequencyMinutes =
             setMaxValuesConfig.getMaxValuesBackgroundLoadFrequencyMinutes();

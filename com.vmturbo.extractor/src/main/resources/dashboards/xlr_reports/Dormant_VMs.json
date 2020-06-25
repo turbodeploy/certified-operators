@@ -12,15 +12,17 @@
       }
     ]
   },
-  "editable": true,
+  "description": "This report shows Virtual Machines that have been dormant for the past several days (lack of CPU activity for 72 hours), and the storage used by those VMs.",
+  "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1591190439907,
+  "iteration": 1592517668539,
   "links": [],
   "panels": [
     {
       "columns": [],
       "datasource": "$DB",
+      "description": "This report shows Virtual Machines that have been dormant for the past several days (lack of CPU activity for 72 hours), and the storage used by those VMs. This storage may be reclaimed, depending upon the final disposition of such VMs. ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -38,8 +40,8 @@
       "pageSize": null,
       "showHeader": true,
       "sort": {
-        "col": 1,
-        "desc": true
+        "col": null,
+        "desc": false
       },
       "styles": [
         {
@@ -88,7 +90,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "with dormant_vms as (\nSELECT\n  entity.oid as oid\nFROM entity,metric\nWHERE\n  entity.type = 'VIRTUAL_MACHINE' AND\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  metric.type = 'VCPU' AND\n  $__timeFilter(metric.time)\nGROUP BY entity.oid\nHAVING sum(metric.utilization) = 0  and min(metric.time) < (timestamp $__timeFrom() + interval '1 hour')\n)\n\nselect entity.name as \"VM Name\", sub.total as \"Storage Used\"\nfrom entity\nINNER JOIN LATERAL (\n    SELECT sum(metric.consumed) total FROM metric \n      WHERE metric.entity_oid = entity.oid\n      and metric.entity_hash = entity.hash \n      and metric.type = 'STORAGE_AMOUNT'\n      and metric.time > (timestamp $__timeTo() - interval '1 hour')\n      and $__timeFilter(metric.time)\n      GROUP BY metric.time\n      ORDER BY time DESC LIMIT 1\n  ) AS sub ON true\nwhere entity.oid in (select oid from dormant_vms)\norder by sub.total DESC\n\n",
+          "rawSql": "with dormant_vms as (\nSELECT\n  entity.oid as oid\nFROM entity,metric\nWHERE\n  entity.type = 'VIRTUAL_MACHINE' AND\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  metric.type = 'VCPU' AND\n  $__timeFilter(metric.time)\nGROUP BY entity.oid\nHAVING sum(metric.utilization) = 0  and min(metric.time) < (timestamptz $__timeFrom() + interval '1 hour')\n)\n\nselect entity.name as \"VM Name\", sub.total as \"Storage Used\"\nfrom entity\nINNER JOIN LATERAL (\n    SELECT sum(metric.consumed) total FROM metric \n      WHERE metric.entity_oid = entity.oid\n      and metric.entity_hash = entity.hash \n      and metric.type = 'STORAGE_AMOUNT'\n      and metric.time > (timestamptz $__timeTo() - interval '1 hour')\n      and $__timeFilter(metric.time)\n      GROUP BY metric.time\n      ORDER BY time DESC LIMIT 1\n  ) AS sub ON true\nwhere entity.oid in (select oid from dormant_vms)\norder by sub.total DESC\n\n",
           "refId": "A",
           "select": [
             [
@@ -124,7 +126,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Storage Utilized by Dormant VM's",
+      "title": "Storage Used by Dormant VM's",
       "transform": "table",
       "type": "table-old"
     }
@@ -136,7 +138,7 @@
   "templating": {
     "list": [
       {
-        "hide": 0,
+        "hide": 2,
         "includeAll": false,
         "label": null,
         "multi": false,
@@ -164,6 +166,6 @@
     ]
   },
   "timezone": "",
-  "title": "Dormant VMs",
+  "title": "Storage Used by Dormant VMs",
   "uid": "dormant_vms"
 }

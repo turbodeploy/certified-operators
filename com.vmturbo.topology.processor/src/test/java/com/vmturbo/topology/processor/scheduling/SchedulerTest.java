@@ -697,6 +697,7 @@ public class SchedulerTest {
         ProbeInfo standardProbeInfo = ProbeInfo.newBuilder()
                 .setProbeType("TestProbe")
                 .setProbeCategory("Test")
+                .setUiProbeCategory("Test")
                 .build();
         Assert.assertEquals(60000, scheduler.getFullDiscoveryInterval(standardProbeInfo, true));
 

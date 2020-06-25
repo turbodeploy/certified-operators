@@ -115,7 +115,6 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/execution/ActionExecutionConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/execution/TargetInfoResolver.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/execution/AutomatedActionExecutor.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/execution/notifications/ActionStateUpdater.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/execution/ActionTargetSelector.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/workflow/config/WorkflowConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/workflow/rpc/DiscoveredWorkflowRpcService.java" />
@@ -172,7 +171,6 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/stats/query/live/QueryInfoFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/stats/ManagementUnitType.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/store/ActionDecisionConverter.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/store/IActionStoreFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/store/ActionStoreConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/store/LiveActions.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/store/EntitiesAndSettingsSnapshotFactory.java" />
@@ -187,5 +185,4 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/store/query/MapBackedActionViews.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/store/query/QueryableActionViews.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/store/query/QueryFilter.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/action/orchestrator/store/ActionStoreFactory.java" />
 </suppressions>

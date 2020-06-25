@@ -109,7 +109,12 @@ public class ActionPaginator {
         }
 
         final long limit;
-        if (paginationParameters.hasLimit()) {
+        if (!paginationParameters.getEnforceLimit()) {
+            // We allow internal calls to disable the limit in very specific circumstances.
+            logger.debug("Client requested unbounded (non-paged) response. "
+                    + "Limits will not be enforced on this request.");
+            limit = Integer.MAX_VALUE;
+        } else if (paginationParameters.hasLimit()) {
             if (paginationParameters.getLimit() > maxPaginationLimit) {
                 logger.warn("Client-requested limit {} exceeds maximum!" +
                     " Lowering the limit to {}!", paginationParameters.getLimit(), maxPaginationLimit);

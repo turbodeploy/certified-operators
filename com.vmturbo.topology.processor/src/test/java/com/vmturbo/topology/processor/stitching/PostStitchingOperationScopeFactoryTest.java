@@ -228,6 +228,36 @@ public class PostStitchingOperationScopeFactoryTest {
             .collect(Collectors.toList()), contains(4L));
     }
 
+    /**
+     * testProbeCategoryScope.
+     */
+    @Test
+    public void testProbeCategoryScope() {
+        assertThat(scopeFactory.probeCategoryScope(
+            ProbeCategory.HYPERVISOR).entities()
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 4L));
+        assertThat(scopeFactory.probeCategoryScope(
+            ProbeCategory.STORAGE).entities()
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toList()), is(empty()));
+    }
+
+    /**
+     * testEntityDiscoveredByMultipleTargetsProbeCategory.
+     */
+    @Test
+    public void testEntityDiscoveredByMultipleTargetsProbeCategory() {
+        assertThat(scopeFactory.probeCategoryScope(
+            ProbeCategory.HYPERVISOR).entities()
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 4L));
+        assertThat(scopeFactory.probeCategoryScope(
+            ProbeCategory.HYPERCONVERGED).entities()
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toList()), containsInAnyOrder(4L, 5L));
+    }
+
     @Test
     public void testContainsAllEntityTypesScope() {
         assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
@@ -291,10 +321,12 @@ public class PostStitchingOperationScopeFactoryTest {
             discoveredBy(2L).lastUpdatedAt(44L), Collections.emptyList());
         final ProbeInfo vcProbeInfo = ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setUiProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .setProbeType(SDKProbeType.VCENTER.getProbeType())
             .build();
         final ProbeInfo vcStorageBrowseProbeInfo = ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.STORAGE_BROWSING.getCategory())
+            .setUiProbeCategory(ProbeCategory.STORAGE_BROWSING.getCategory())
             .setProbeType(SDKProbeType.VC_STORAGE_BROWSE.getProbeType())
             .build();
         when(target1.getProbeInfo()).thenReturn(vcProbeInfo);

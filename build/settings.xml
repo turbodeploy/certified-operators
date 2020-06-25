@@ -45,6 +45,14 @@
                         <enabled>true</enabled>
                     </snapshots>
                 </repository>
+                <!-- https://github.com/Swagger2Markup/swagger2markup/issues/300 -->
+                <repository>
+                    <id>spring-libs-milestone</id>
+                    <url>https://repo.spring.io/libs-milestone</url>
+                    <snapshots>
+                        <enabled>false</enabled>
+                    </snapshots>
+                </repository>
             </repositories>
             <pluginRepositories>
                 <pluginRepository>
@@ -69,6 +77,14 @@
                     <id>thirdparty</id>
                     <name>Turbonomic Repository</name>
                     <url>http://build.vmturbo.com:8081/nexus/content/repositories/thirdparty</url>
+                </pluginRepository>
+                <!-- https://github.com/Swagger2Markup/swagger2markup/issues/300 -->
+                <pluginRepository>
+                    <id>spring-plugins-release</id>
+                    <url>https://repo.spring.io/plugins-release</url>
+                    <snapshots>
+                        <enabled>false</enabled>
+                    </snapshots>
                 </pluginRepository>
             </pluginRepositories>
         </profile>

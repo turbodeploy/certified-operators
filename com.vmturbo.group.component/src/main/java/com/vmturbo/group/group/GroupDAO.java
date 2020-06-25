@@ -314,11 +314,18 @@ public class GroupDAO implements IGroupStore {
     private Collection<TableRecord<?>> insertTags(@Nonnull DSLContext context, @Nonnull Tags tags,
             long groupId) {
         final Collection<TableRecord<?>> result = new ArrayList<>();
+        final Set<String> trackGroupTags = new HashSet<>();
         for (Entry<String, TagValuesDTO> entry : tags.getTagsMap().entrySet()) {
             for (String tagValue : entry.getValue().getValuesList()) {
                 final GroupTags tag = new GroupTags(groupId, entry.getKey(), tagValue);
-                result.add(
-                        context.newRecord(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS, tag));
+                String tagString = entry.getKey().concat(tagValue);
+                if (trackGroupTags.contains(tagString)) {
+                    logger.warn("Skipping GroupTags insertion since record already present: {}", tag.toString());
+                } else {
+                    result.add(
+                            context.newRecord(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS, tag));
+                    trackGroupTags.add(tagString);
+                }
             }
         }
         return result;

@@ -58,6 +58,8 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc;
+import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc.TopologyDataDefinitionServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
@@ -216,6 +218,16 @@ public class CommunicationConfig {
     @Bean
     public TopologyServiceBlockingStub topologyService() {
         return TopologyServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
+    }
+
+    /**
+     * Blocking stub for Topology Data Definition service.
+     *
+     * @return blocking stub
+     */
+    @Bean
+    public TopologyDataDefinitionServiceBlockingStub topologyDataDefinitionServiceBlockingStub() {
+        return TopologyDataDefinitionServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     /**

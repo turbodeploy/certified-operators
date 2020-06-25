@@ -3,6 +3,7 @@ package com.vmturbo.components.test.performance.action.orchestrator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -42,6 +43,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -257,11 +259,15 @@ public class ActionOrchestratorPerformanceTest {
                 // Set a high limit. The server may trim it down.
                 .setLimit(100000)
                 .build();
-        final FilteredActionResponse response = actionsService.getAllActions(request.toBuilder()
-                .setPaginationParams(paginationParameters)
-                .build());
-        final int counter = response.getActionsCount();
-
+        final Iterator<FilteredActionResponse> responseIterator = actionsService.getAllActions(
+                request.toBuilder().setPaginationParams(paginationParameters).build());
+        int counter = 0;
+        while (responseIterator.hasNext()) {
+            final FilteredActionResponse response = responseIterator.next();
+            if (response.getTypeCase() == TypeCase.ACTION_CHUNK) {
+                counter += response.getActionChunk().getActionsCount();
+            }
+        }
         logger.info("Took {} retrieve the first page of {} {} actions.",
             (System.currentTimeMillis() - startFetchVisible) / 1000.0f, type, counter);
     }

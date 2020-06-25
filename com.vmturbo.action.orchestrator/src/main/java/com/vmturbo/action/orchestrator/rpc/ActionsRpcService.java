@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -17,6 +18,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
@@ -31,6 +33,7 @@ import org.jooq.exception.DataAccessException;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
+import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
@@ -42,6 +45,7 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionExcep
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
@@ -62,6 +66,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.ActionChunk;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
@@ -88,6 +93,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -128,6 +134,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final AcceptedActionsDAO acceptedActionsStore;
 
+    private final int actionPaginationMaxLimit;
+
     /**
      * Create a new ActionsRpcService.
      *
@@ -140,6 +148,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @param userSessionContext the user session context
      * @param acceptedActionsStore dao layer working with accepted actions
      * @param actionApprovalManager action approval manager
+     * @param actionPaginationMaxLimit max number of actions to return in a single pagination page
      */
     public ActionsRpcService(@Nonnull final Clock clock,
             @Nonnull final ActionStorehouse actionStorehouse,
@@ -149,7 +158,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             @Nonnull final HistoricalActionStatReader historicalActionStatReader,
             @Nonnull final CurrentActionStatReader currentActionStatReader,
             @Nonnull final UserSessionContext userSessionContext,
-            @Nonnull final AcceptedActionsDAO acceptedActionsStore) {
+            @Nonnull final AcceptedActionsDAO acceptedActionsStore,
+            final int actionPaginationMaxLimit) {
         this.clock = clock;
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionApprovalManager = Objects.requireNonNull(actionApprovalManager);
@@ -159,6 +169,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         this.currentActionStatReader = Objects.requireNonNull(currentActionStatReader);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsStore);
+        this.actionPaginationMaxLimit = actionPaginationMaxLimit;
     }
 
     /**
@@ -244,26 +255,30 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
                     Tracing.log("Got result views.");
 
-                    final FilteredActionResponse.Builder responseBuilder =
-                            FilteredActionResponse.newBuilder()
-                                    .setPaginationResponse(PaginationResponse.newBuilder());
-
                     final PaginatedActionViews paginatedViews = paginatorFactory.newPaginator()
                             .applyPagination(resultViews, request.getPaginationParams());
 
                     Tracing.log("Finished pagination.");
 
                     final PaginationResponse.Builder paginationResponseBuilder =
-                        responseBuilder.getPaginationResponseBuilder();
+                            PaginationResponse.newBuilder();
                     paginationResponseBuilder.setTotalRecordCount(paginatedViews.getTotalRecordCount());
-                    paginatedViews.getNextCursor().ifPresent(nextCursor ->
-                            paginationResponseBuilder.setNextCursor(nextCursor));
+                    paginatedViews.getNextCursor().ifPresent(paginationResponseBuilder::setNextCursor);
+                    // send pagination response as first in response
+                    responseObserver.onNext(FilteredActionResponse.newBuilder()
+                            .setPaginationResponse(paginationResponseBuilder).build());
+                    // stream results in current page in chunks
+                    Lists.partition(paginatedViews.getResults(), actionPaginationMaxLimit)
+                            .forEach(batch -> {
+                                ActionChunk.Builder actionChunk = ActionChunk.newBuilder();
+                                actionTranslator.translateToSpecs(batch)
+                                        .map(ActionsRpcService::aoAction)
+                                        .forEach(actionChunk::addActions);
+                                responseObserver.onNext(FilteredActionResponse.newBuilder()
+                                        .setActionChunk(actionChunk)
+                                        .build());
+                            });
 
-                    actionTranslator.translateToSpecs(paginatedViews.getResults())
-                            .map(ActionsRpcService::aoAction)
-                            .forEach(responseBuilder::addActions);
-
-                    responseObserver.onNext(responseBuilder.build());
                     responseObserver.onCompleted();
                 } else {
                     contextNotFoundError(responseObserver, request.getTopologyContextId());

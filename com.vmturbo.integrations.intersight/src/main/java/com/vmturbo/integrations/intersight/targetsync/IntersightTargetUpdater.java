@@ -8,14 +8,11 @@ import javax.annotation.Nonnull;
 
 import com.cisco.intersight.client.ApiClient;
 import com.cisco.intersight.client.ApiException;
-import com.cisco.intersight.client.JSON;
 import com.cisco.intersight.client.api.AssetApi;
-import com.cisco.intersight.client.model.AssetService.StatusEnum;
 import com.cisco.intersight.client.model.AssetTarget;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.topology.processor.api.TargetInfo;
@@ -150,20 +147,9 @@ public class IntersightTargetUpdater {
                 .map(service -> service.statusErrorReason(target.getNewStatusErrorReason(service))) // update err string
                 .count();
         if (changedCount > 0) {
-            // Correct the ClassId field in the target object because the Intersight Java SDK
-            // deserializes it to a different format (e.g. AssetTarget) than expected by the server
-            // (asset.Target).  This is a read-only field so we have to hack the correction via json
-            // serialization and deserialization (thanks to Patrick for this trick).
-            final JSON json = apiClient.getJSON();
-            final String originalJson = json.serialize(target.intersight());
-            final JSONObject editableJson = new JSONObject(originalJson);
-            editableJson.put("ClassId", "asset.Target");
-            final String editedJson = editableJson.toString();
-            final AssetTarget editableTarget = json.deserialize(editedJson, AssetTarget.class);
-
             final AssetApi assetApi = new AssetApi(apiClient);
             try {
-                assetApi.updateAssetTarget(target.intersight().getMoid(), editableTarget, null);
+                assetApi.updateAssetTarget(target.intersight().getMoid(), target.intersight(), null);
             } catch (ApiException e) {
                 logger.error("Attempted to update target {} status to {} but getting an error: {}",
                         target.intersight().getMoid(), target.tp().getStatus(), e.getResponseBody());

@@ -236,7 +236,8 @@ public class ReservedInstanceConfig {
                 reservedInstanceCoverageValidatorFactory(),
                 supplementalRICoverageAnalysisFactory(),
                 costNotificationConfig.costNotificationSender(),
-                riCoverageCacheExpireMinutes);
+                riCoverageCacheExpireMinutes,
+                pricingConfig.businessAccountPriceTableKeyStore());
     }
 
     /**

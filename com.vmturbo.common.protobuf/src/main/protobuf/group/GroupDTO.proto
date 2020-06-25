@@ -111,8 +111,8 @@ message GroupDefinition {
         // The environment for which this group is group of all entities
         optional .common.EnvironmentType environment_type = 2;
     }
-
 }
+
 
 // This encapsulates both the origin type and the information appropriate to that origin type
 message Origin {

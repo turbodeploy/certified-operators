@@ -22,6 +22,7 @@
         <vmturbo.mt.branch.version>${project.version}</vmturbo.mt.branch.version>
         <google.findbugs.version>2.0.3</google.findbugs.version>
         <log4j2.Version>2.6.2</log4j2.Version>
+        <guava.version>28.2-jre</guava.version>
     </properties>
 
     <build>
@@ -107,6 +108,12 @@
                 <groupId>org.hamcrest</groupId>
                 <artifactId>hamcrest-all</artifactId>
                 <version>1.3</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>components-api-test</artifactId>
+                <version>${project.version}</version>
+                <scope>test</scope>
             </dependency>
 
         </dependencies>

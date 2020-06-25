@@ -378,7 +378,7 @@ public class TimeRange {
 
                         if (latest != null) {
                             result = new TimeRange(latest.getTime(), statsFilter.getEndDate(),
-                                timeFrame, Collections.singletonList(latest));
+                                    timeFrame, Collections.singletonList(latest));
                         }
                     } else {
                         // both times given, but they're different

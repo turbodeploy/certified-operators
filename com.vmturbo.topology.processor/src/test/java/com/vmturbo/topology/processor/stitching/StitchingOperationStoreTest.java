@@ -58,6 +58,7 @@ public class StitchingOperationStoreTest {
             .thenReturn(Collections.singletonList(firstOperation));
         final MediationMessage.ProbeInfo probeInfo = MediationMessage.ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.name())
+            .setUiProbeCategory(ProbeCategory.HYPERVISOR.name())
             .setProbeType("some-hypervisor-probe")
             .build();
 
@@ -75,6 +76,7 @@ public class StitchingOperationStoreTest {
 
         final MediationMessage.ProbeInfo probeInfo = MediationMessage.ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.name())
+            .setUiProbeCategory(ProbeCategory.HYPERVISOR.name())
             .setProbeType("unknown-probe")
             .build();
 
@@ -145,6 +147,7 @@ public class StitchingOperationStoreTest {
         List<TemplateDTO> templateDTOList = Lists.newArrayList(templateDTOs);
         final MediationMessage.ProbeInfo probeInfo = MediationMessage.ProbeInfo.newBuilder()
                 .setProbeCategory(ProbeCategory.STORAGE.name())
+                .setUiProbeCategory(ProbeCategory.STORAGE.name())
                 .setProbeType(probeType)
                 .addAllSupplyChainDefinitionSet(templateDTOList)
                 .build();

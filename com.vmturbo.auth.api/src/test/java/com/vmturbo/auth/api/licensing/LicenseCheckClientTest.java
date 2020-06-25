@@ -19,6 +19,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.components.api.test.SenderReceiverPair;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 /**
  * Tests involving the license check client.
@@ -76,7 +77,7 @@ public class LicenseCheckClientTest {
 */
         // now we'll send a license summary in and the same check should succeed
         summaryReceiver.sendMessage(LicenseSummary.newBuilder()
-                .addFeature(LicenseFeature.PLANNER.getKey())
+                .addFeature(ProbeLicense.PLANNER.getKey())
                 .build());
         licenseSummary = licenseCheckClient.getLicenseSummary();
         assertNotNull("isFeatureAvailable should work after first license summary received.", licenseSummary);
@@ -88,14 +89,14 @@ public class LicenseCheckClientTest {
     @Test
     public void testIsFeatureAvailable() {
         summaryReceiver.sendMessage(LicenseSummary.newBuilder()
-                .addFeature(LicenseFeature.APP_CONTROL.getKey())
+                .addFeature(ProbeLicense.APP_CONTROL.getKey())
                 .build());
         // make sure the license check client is ready
         assertTrue(licenseCheckClient.isReady());
         assertTrue("Check passes when requested feature is available",
-                licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL));
+                licenseCheckClient.isFeatureAvailable(ProbeLicense.APP_CONTROL));
         assertFalse("Fail is requested feature is not available",
-                licenseCheckClient.isFeatureAvailable(LicenseFeature.PLANNER));
+                licenseCheckClient.isFeatureAvailable(ProbeLicense.PLANNER));
     }
 
     /**
@@ -110,16 +111,16 @@ public class LicenseCheckClientTest {
         assertFalse(licenseCheckClient.isReady());
         boolean exceptionWasThrown = false;
         try {
-            licenseCheckClient.isFeatureAvailable(LicenseFeature.PLANNER);
+            licenseCheckClient.isFeatureAvailable(ProbeLicense.PLANNER);
         } catch (LicenseCheckNotReadyException lcnre) {
             exceptionWasThrown = true;
         }
         assertTrue("LicenseCheckNotReadyException should be thrown since no summary available", exceptionWasThrown);
         // now we'll send a license summary in and the same check should succeed
         summaryReceiver.sendMessage(LicenseSummary.newBuilder()
-                .addFeature(LicenseFeature.PLANNER.getKey())
+                .addFeature(ProbeLicense.PLANNER.getKey())
                 .build());
-        assertTrue("isFeatureAvailable should work after first license summary received.", licenseCheckClient.isFeatureAvailable(LicenseFeature.PLANNER));
+        assertTrue("isFeatureAvailable should work after first license summary received.", licenseCheckClient.isFeatureAvailable(ProbeLicense.PLANNER));
     }
 
     /**
@@ -128,15 +129,15 @@ public class LicenseCheckClientTest {
     @Test
     public void testAreFeaturesAvailable() {
         summaryReceiver.sendMessage(LicenseSummary.newBuilder()
-                .addFeature(LicenseFeature.APP_CONTROL.getKey())
-                .addFeature(LicenseFeature.STORAGE.getKey())
-                .addFeature(LicenseFeature.ACTION_SCRIPT.getKey())
-                .addFeature(LicenseFeature.CONTAINER_CONTROL.getKey())
+                .addFeature(ProbeLicense.APP_CONTROL.getKey())
+                .addFeature(ProbeLicense.STORAGE.getKey())
+                .addFeature(ProbeLicense.ACTION_SCRIPT.getKey())
+                .addFeature(ProbeLicense.CONTAINER_CONTROL.getKey())
                 .build());
         // make sure the license check client is ready
         assertTrue(licenseCheckClient.isReady());
         assertTrue("Check passes when all required features are available",
-                licenseCheckClient.areFeaturesAvailable(ImmutableSet.of(LicenseFeature.STORAGE, LicenseFeature.ACTION_SCRIPT)));
+                licenseCheckClient.areFeaturesAvailable(ImmutableSet.of(ProbeLicense.STORAGE, ProbeLicense.ACTION_SCRIPT)));
         assertTrue("Check passes when no required features",
                 licenseCheckClient.areFeaturesAvailable(Collections.emptySet()));
     }
@@ -147,14 +148,14 @@ public class LicenseCheckClientTest {
     @Test
     public void testAreFeaturesAvailableMissingFeature() {
         summaryReceiver.sendMessage(LicenseSummary.newBuilder()
-                .addFeature(LicenseFeature.APP_CONTROL.getKey())
-                .addFeature(LicenseFeature.STORAGE.getKey())
-                .addFeature(LicenseFeature.CONTAINER_CONTROL.getKey())
+                .addFeature(ProbeLicense.APP_CONTROL.getKey())
+                .addFeature(ProbeLicense.STORAGE.getKey())
+                .addFeature(ProbeLicense.CONTAINER_CONTROL.getKey())
                 .build());
         // make sure the license check client is ready
         assertTrue(licenseCheckClient.isReady());
         assertFalse("Check passes when all required features are available",
-                licenseCheckClient.areFeaturesAvailable(ImmutableSet.of(LicenseFeature.STORAGE, LicenseFeature.ACTION_SCRIPT)));
+                licenseCheckClient.areFeaturesAvailable(ImmutableSet.of(ProbeLicense.STORAGE, ProbeLicense.ACTION_SCRIPT)));
         assertTrue("Check passes when no required features",
                 licenseCheckClient.areFeaturesAvailable(Collections.emptySet()));
     }
@@ -166,10 +167,10 @@ public class LicenseCheckClientTest {
     @Test
     public void testCheckFeatureAvailable() {
         summaryReceiver.sendMessage(LicenseSummary.newBuilder()
-                .addFeature(LicenseFeature.APP_CONTROL.getKey())
-                .addFeature(LicenseFeature.STORAGE.getKey())
+                .addFeature(ProbeLicense.APP_CONTROL.getKey())
+                .addFeature(ProbeLicense.STORAGE.getKey())
                 .build());
-        licenseCheckClient.checkFeatureAvailable(LicenseFeature.STORAGE);
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.STORAGE);
     }
 
     /**
@@ -179,10 +180,10 @@ public class LicenseCheckClientTest {
     @Test(expected = LicenseFeaturesRequiredException.class)
     public void testCheckFeatureNotAvailable() {
         summaryReceiver.sendMessage(LicenseSummary.newBuilder()
-                .addFeature(LicenseFeature.APP_CONTROL.getKey())
-                .addFeature(LicenseFeature.STORAGE.getKey())
+                .addFeature(ProbeLicense.APP_CONTROL.getKey())
+                .addFeature(ProbeLicense.STORAGE.getKey())
                 .build());
-        licenseCheckClient.checkFeatureAvailable(LicenseFeature.ACTION_SCRIPT);
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.ACTION_SCRIPT);
     }
 
     /**
@@ -192,14 +193,14 @@ public class LicenseCheckClientTest {
     @Test
     public void testCheckFeaturesAvailable() {
         summaryReceiver.sendMessage(LicenseSummary.newBuilder()
-                .addFeature(LicenseFeature.APP_CONTROL.getKey())
-                .addFeature(LicenseFeature.STORAGE.getKey())
-                .addFeature(LicenseFeature.ACTION_SCRIPT.getKey())
-                .addFeature(LicenseFeature.CONTAINER_CONTROL.getKey())
+                .addFeature(ProbeLicense.APP_CONTROL.getKey())
+                .addFeature(ProbeLicense.STORAGE.getKey())
+                .addFeature(ProbeLicense.ACTION_SCRIPT.getKey())
+                .addFeature(ProbeLicense.CONTAINER_CONTROL.getKey())
                 .build());
         // make sure the license check client is ready
         assertTrue(licenseCheckClient.isReady());
-        licenseCheckClient.checkFeaturesAvailable(ImmutableSet.of(LicenseFeature.STORAGE, LicenseFeature.ACTION_SCRIPT));
+        licenseCheckClient.checkFeaturesAvailable(ImmutableSet.of(ProbeLicense.STORAGE, ProbeLicense.ACTION_SCRIPT));
     }
 
     /**
@@ -208,14 +209,14 @@ public class LicenseCheckClientTest {
     @Test(expected = LicenseFeaturesRequiredException.class)
     public void testCheckFeaturesNotAvailable() {
         summaryReceiver.sendMessage(LicenseSummary.newBuilder()
-                .addFeature(LicenseFeature.APP_CONTROL.getKey())
-                .addFeature(LicenseFeature.STORAGE.getKey())
-                .addFeature(LicenseFeature.CONTAINER_CONTROL.getKey())
+                .addFeature(ProbeLicense.APP_CONTROL.getKey())
+                .addFeature(ProbeLicense.STORAGE.getKey())
+                .addFeature(ProbeLicense.CONTAINER_CONTROL.getKey())
                 .build());
         // make sure the license check client is ready
         assertTrue(licenseCheckClient.isReady());
         // this check should generate a LicenseFeaturesRequiredException
-        licenseCheckClient.checkFeaturesAvailable(ImmutableSet.of(LicenseFeature.STORAGE, LicenseFeature.ACTION_SCRIPT));
+        licenseCheckClient.checkFeaturesAvailable(ImmutableSet.of(ProbeLicense.STORAGE, ProbeLicense.ACTION_SCRIPT));
     }
 
     /**
@@ -230,17 +231,17 @@ public class LicenseCheckClientTest {
         assertFalse(licenseCheckClient.isReady());
         boolean exceptionWasThrown = false;
         try {
-            licenseCheckClient.checkFeaturesAvailable(ImmutableSet.of(LicenseFeature.STORAGE, LicenseFeature.PLANNER));
+            licenseCheckClient.checkFeaturesAvailable(ImmutableSet.of(ProbeLicense.STORAGE, ProbeLicense.PLANNER));
         } catch (LicenseCheckNotReadyException lcnre) {
             exceptionWasThrown = true;
         }
         assertTrue("LicenseCheckNotReadyException should be thrown since no summary available", exceptionWasThrown);
         // now we'll send a license summary in and the same check should succeed
         summaryReceiver.sendMessage(LicenseSummary.newBuilder()
-                .addFeature(LicenseFeature.PLANNER.getKey())
-                .addFeature(LicenseFeature.STORAGE.getKey())
+                .addFeature(ProbeLicense.PLANNER.getKey())
+                .addFeature(ProbeLicense.STORAGE.getKey())
                 .build());
-        licenseCheckClient.checkFeaturesAvailable(ImmutableSet.of(LicenseFeature.STORAGE, LicenseFeature.PLANNER));
+        licenseCheckClient.checkFeaturesAvailable(ImmutableSet.of(ProbeLicense.STORAGE, ProbeLicense.PLANNER));
     }
 
 

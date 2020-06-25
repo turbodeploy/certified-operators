@@ -52,6 +52,7 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.Consisten
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory.DefaultTierExcluderFactory;
 import com.vmturbo.topology.processor.api.util.ConcurrentLimitProcessingGate;
+import com.vmturbo.topology.processor.api.util.SingleTopologyProcessingGate;
 import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
 
 /**
@@ -110,6 +111,12 @@ public class MarketRunnerConfig {
     @Value("${analysisQueueTimeoutMins:90}")
     private long analysisQueueTimeoutMins;
 
+    /**
+     * The type of {@link TopologyProcessingGate} to use.
+     */
+    @Value("${topologyProcessingGateType:concurrent}")
+    private String topologyProcessingGateType;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -124,9 +131,15 @@ public class MarketRunnerConfig {
      */
     @Bean
     public TopologyProcessingGate analysisGate() {
-        // In the future we could use a configuration property to control what kind of gate to use.
-        return new ConcurrentLimitProcessingGate(concurrentPlanAnalyses,
-            analysisQueueTimeoutMins, TimeUnit.MINUTES);
+        switch (topologyProcessingGateType) {
+            case "single":
+                return new SingleTopologyProcessingGate(analysisQueueTimeoutMins, TimeUnit.MINUTES);
+            case "concurrent":
+            default:
+                // In the future we could use a configuration property to control what kind of gate to use.
+                return new ConcurrentLimitProcessingGate(concurrentPlanAnalyses,
+                        analysisQueueTimeoutMins, TimeUnit.MINUTES);
+        }
     }
 
     @Bean

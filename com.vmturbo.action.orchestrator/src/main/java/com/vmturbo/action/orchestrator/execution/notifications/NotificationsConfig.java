@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
+import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
@@ -23,7 +24,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
     ActionOrchestratorApiConfig.class,
     ActionExecutionConfig.class,
     TopologyProcessorConfig.class,
-    WorkflowConfig.class})
+    WorkflowConfig.class,
+    AuditCommunicationConfig.class})
 public class NotificationsConfig {
 
     @Autowired
@@ -43,6 +45,9 @@ public class NotificationsConfig {
     @Autowired
     private TopologyProcessorConfig tpConfig;
 
+    @Autowired
+    private AuditCommunicationConfig auditCommunicationConfig;
+
     /**
      * Bean for {@link ActionExecutionListener}.
      * @return The {@link ActionExecutionListener}.
@@ -57,7 +62,8 @@ public class NotificationsConfig {
             actionExecutionConfig.actionExecutor(),
             workflowConfig.workflowStore(),
             tpConfig.realtimeTopologyContextId(),
-                actionExecutionConfig.failedCloudVMGroupProcessor());
+                actionExecutionConfig.failedCloudVMGroupProcessor(),
+                auditCommunicationConfig.actionAuditSender());
         tpConfig.topologyProcessor().addActionListener(executionListener);
         return executionListener;
     }

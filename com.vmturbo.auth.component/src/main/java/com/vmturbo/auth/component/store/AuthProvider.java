@@ -6,6 +6,10 @@ import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UUID_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED_SECURITY_GROUPS_SET;
+import static com.vmturbo.auth.component.store.AuthProviderHelper.areValidRoles;
+import static com.vmturbo.auth.component.store.AuthProviderHelper.hasRoleAdministrator;
+import static com.vmturbo.auth.component.store.AuthProviderHelper.mayAlterUserWithRoles;
+import static com.vmturbo.auth.component.store.AuthProviderHelper.roleMatched;
 
 import java.security.PrivateKey;
 import java.util.ArrayList;
@@ -42,7 +46,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import com.vmturbo.api.enums.UserRole;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
@@ -54,7 +57,6 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.component.policy.UserPolicy;
-import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.auth.component.widgetset.WidgetsetDbStore;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -763,11 +765,20 @@ public class AuthProvider extends AuthProviderBase {
                        final @Nullable List<Long> scopeGroups)
             throws SecurityException {
         // only administrators may create another administrator user
-        if (mayAlterUserWithRoles(roleNames)) {
-            return addImpl(provider, userName, password, roleNames, scopeGroups);
-        } else {
+        validateRoles(roleNames);
+        return addImpl(provider, userName, password, roleNames, scopeGroups);
+
+
+    }
+
+    private void validateRoles(@Nonnull List<String> roleNames) {
+        if (!mayAlterUserWithRoles(roleNames)) {
             throw new SecurityException("Only a user with ADMINISTRATOR role user may create " +
-                "another user with ADMINISTRATOR role.");
+                    "another user with ADMINISTRATOR role.");
+        }
+
+        if (!areValidRoles(roleNames)) {
+            throw new SecurityException("Invalid role: " + roleNames);
         }
     }
 
@@ -851,6 +862,10 @@ public class AuthProvider extends AuthProviderBase {
             logger_.error("AUDIT::FAILURE:UNKNOWN: Error modifying unknown user: " + userName);
             return new ResponseEntity<>("Error modifying unknown user: " + userName, HttpStatus.BAD_REQUEST);
         }
+        if (!areValidRoles(roleNames)) {
+            logger_.error("AUDIT::FAILURE:INVALID ROLE: Error modifying user: {} with role: {}", userName, roleNames);
+            return new ResponseEntity<>("Error modifying user: " + userName + " with invalid role: " + roleNames, HttpStatus.BAD_REQUEST);
+        }
 
         final UserInfo info = GSON.fromJson(json.get(), UserInfo.class);
         // Don't allow modifying role for the last local admin user
@@ -858,8 +873,8 @@ public class AuthProvider extends AuthProviderBase {
         synchronized (storeLock_) {
             allUsers = keyValueStore_.getByPrefix(PREFIX);
         }
-        if (isLastLocalAdminUser(info, allUsers) && !CollectionUtils.isEqualCollection(info.roles,
-            roleNames)) {
+        // don't allow change administrator role, if it's the last local admin user
+        if (isLastLocalAdminUser(info, allUsers) && !roleMatched(roleNames, ADMINISTRATOR)) {
             logger_.error("AUDIT::Don't allow modifying role for last local admin user: " +
                 userName);
             return new ResponseEntity<>("Not allowed to modify role for last local " +
@@ -1310,33 +1325,7 @@ public class AuthProvider extends AuthProviderBase {
                 .orElse(false);
    }
 
-    /**
-     * Test to see if the requesting user may alter (create/update/delete) a user with
-     * the given roles. Only an ADMINISTRATOR may alter other users with ADMINISTRATOR role.
-     *
-     * @param roleNames the list of roles to be assigned to the new user
-     * @return true if the requesting user may create a new user with the given roles
-     */
-    @VisibleForTesting
-    boolean mayAlterUserWithRoles(@Nonnull final List<String> roleNames) {
-        final Authentication authentication =
-                SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null) {
-            return false;
-        }
-        return (hasRoleAdministrator(authentication) || !roleMatched(roleNames, ADMINISTRATOR));
-    }
 
-    /**
-     * Does the current user have role ADMINISTRATOR? The security defintions all have the
-     * string "ROLE_" prepended to the Turbonomic role.
-     *
-     * @return true iff the current user has role ADMINISTRATOR
-     */
-    private boolean hasRoleAdministrator(@Nonnull Authentication authentication) {
-        return authentication.getAuthorities().stream()
-            .anyMatch(ga -> "ROLE_ADMINISTRATOR".equals(ga.getAuthority()));
-    }
 
     /**
      * The internal user information structure.
@@ -1401,7 +1390,7 @@ public class AuthProvider extends AuthProviderBase {
     boolean isLastLocalAdminUser(@Nonnull final UserInfo userInfo,
                                          @Nonnull final Map<String, String> users) {
 
-        if (roleMatched(userInfo.roles, UserRole.ADMINISTRATOR.name())
+        if (roleMatched(userInfo.roles, ADMINISTRATOR)
                 // the user the admin user
                 && userInfo.provider.equals(PROVIDER.LOCAL)) { // the provider is local
             List<UserInfo> userInfoList = new ArrayList<>();
@@ -1411,22 +1400,12 @@ public class AuthProvider extends AuthProviderBase {
             }
             long administratorCount = userInfoList.stream()
                     .filter(user -> user.provider.equals(PROVIDER.LOCAL)
-                            && roleMatched(user.roles, UserRole.ADMINISTRATOR.name()))
+                            && roleMatched(user.roles, ADMINISTRATOR))
                     .count();
             return administratorCount == 1;
         }
         return false;
     }
 
-    /**
-     * Match user roles and intended role case insensitively.
-     *
-     * @param roles            the list of roles user have
-     * @param intendedRoleName the  role name intended to be matched.
-     * @return true if one of the provided role match role name case insensitively.
-     */
-    private boolean roleMatched(final @Nonnull List<String> roles,
-            final @Nonnull String intendedRoleName) {
-        return roles.stream().anyMatch(role -> role.equalsIgnoreCase(intendedRoleName));
-    }
+
 }

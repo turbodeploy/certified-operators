@@ -38,8 +38,9 @@ public interface ActionStore {
      *
      * @param actionPlan The list of actions with which to populate the store.
      * @return If the store was successfully populated with actions from the plan.
+     * @throws InterruptedException if current thread interrupted
      */
-    boolean populateRecommendedActions(@Nonnull final ActionPlan actionPlan);
+    boolean populateRecommendedActions(@Nonnull ActionPlan actionPlan) throws InterruptedException;
 
     /**
      * Return the number of elements in the store.

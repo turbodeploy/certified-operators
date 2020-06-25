@@ -35,6 +35,8 @@ spec:
     enabled: false
   appdynamics:
     enabled: false
+  udt:
+    enabled: true
   appinsight:
     enabled: false
   aws:
@@ -324,6 +326,10 @@ spec:
       limits:
         memory: 512Mi
   mediation-wmi:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-udt:
     resources:
       limits:
         memory: 512Mi

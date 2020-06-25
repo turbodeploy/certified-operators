@@ -233,6 +233,8 @@ public enum UICommodityType {
     NETWORK_INTERFACE_COUNT("NetworkInterfaceCount", CommodityType.NETWORK_INTERFACE_COUNT, "Network Interface Count"),
     /** Biclique commodity. **/
     BICLIQUE("Biclique", CommodityType.BICLIQUE, "Biclique"),
+    /** KPI commodity. **/
+    KPI("KPI", CommodityType.KPI, "KPI"),
     /** The commodity UNKNOWN. */
     UNKNOWN("Unknown", CommodityType.UNKNOWN, "Unknown");
 

@@ -213,6 +213,8 @@ public class CommodityConverter {
             resizable = true;
         }
 
+        resizable = resizable && dto.getAnalysisSettings().getControllable();
+
         final CommodityDTOs.CommoditySoldSettingsTO.Builder economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(resizable)

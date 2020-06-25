@@ -27,6 +27,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
@@ -119,6 +120,7 @@ public class ServiceEntityMapperTest {
         final ThinTargetInfo thinTargetInfo = ImmutableThinTargetInfo.builder()
                 .probeInfo(ImmutableThinProbeInfo.builder()
                         .category(PROBE_CATEGORY)
+                        .uiCategory(PROBE_CATEGORY)
                         .type(PROBE_TYPE)
                         .oid(PROBE_ID)
                         .build())

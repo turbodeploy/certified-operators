@@ -1,0 +1,43 @@
+discoveryContext {
+  contextEntry {
+    key: "aws.cloud.cost.hash"
+    value: "-24141812229187572"
+  }
+}
+priceTable {
+  version: "v1"
+  on_demand_price_table {
+    related_region {
+      entityType: REGION
+      id: "aws::ap-southeast-1::DC::ap-southeast-1"
+    }
+    compute_price_table {
+      related_compute_tier {
+        entityType: COMPUTE_TIER
+        id: "aws::VMPROFILE::c5.2xlarge"
+      }
+      compute_tier_price_list {
+        base_price {
+          guest_os_type: LINUX
+          tenancy: DEFAULT
+          prices {
+            unit: HOURS
+            price_amount {
+              amount: 0.392
+            }
+          }
+        }
+        per_configuration_price_adjustments {
+          guest_os_type: WINDOWS_WITH_SQL_WEB
+          tenancy: DEFAULT
+          prices {
+            unit: HOURS
+            price_amount {
+              amount: 0.503
+            }
+          }
+        }
+      }
+    }
+  }
+}

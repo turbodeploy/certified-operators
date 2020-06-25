@@ -2,6 +2,12 @@ package com.vmturbo.extractor;
 
 import java.sql.SQLException;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -13,6 +19,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.PostgreSQLHealthMonitor;
 import com.vmturbo.extractor.grafana.GrafanaConfig;
+import com.vmturbo.extractor.schema.ExtractorDbConfig;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.SQLDatabaseConfig2;
@@ -43,18 +50,19 @@ public class ExtractorComponent extends BaseVmtComponent {
 
     /**
      * Retention period for the reporting metric table.
-     * Todo: remove this once we support changing retention periods through our UI.
+     *
+     * <p>Todo: remove this once we support changing retention periods through our UI.</p>
      */
     @Value("${reportingMetricTableRetentionMonths:#{null}}")
     private Integer reportingMetricTableRetentionMonths;
 
-    private void setupHealthMonitor() {
+    private void setupHealthMonitor() throws InterruptedException {
         logger.info("Adding PostgreSQL health checks to the component health monitor.");
         try {
             getHealthMonitor().addHealthCheck(new PostgreSQLHealthMonitor(
                     timescaledbHealthCheckIntervalSeconds,
-                    extractorDbConfig.ingesterEndpoint().get().datasource()::getConnection));
-        } catch (InterruptedException | UnsupportedDialectException | SQLException e) {
+                    extractorDbConfig.ingesterEndpoint().datasource()::getConnection));
+        } catch (UnsupportedDialectException | SQLException e) {
             throw new IllegalStateException("DbEndpoint not available, could not start health monitor", e);
         }
     }
@@ -71,21 +79,28 @@ public class ExtractorComponent extends BaseVmtComponent {
     @Override
     protected void onStartComponent() {
         logger.debug("Writer config: {}", listenerConfig.writerConfig());
-        try {
+        // Initialize the database in a separate thread, so that we don't need to block while
+        // waiting for the auth component (to get db password) to be available.
+        ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("db-init")
+                .setDaemon(true)
+                .build();
+        final ExecutorService executorService = Executors.newSingleThreadExecutor(threadFactory);
+        executorService.submit((Callable<Void>)() -> {
             sqlDatabaseConfig.initAll();
-        } catch (UnsupportedDialectException | SQLException | InterruptedException e) {
-            throw new IllegalStateException("Failed to initialize data endpoints", e);
-        }
-        setupHealthMonitor();
+            setupHealthMonitor();
 
-        // change retention policy if custom period is provided
-        if (reportingMetricTableRetentionMonths != null) {
-            try {
-                extractorDbConfig.ingesterEndpoint().get().getAdapter().setupRetentionPolicy(
-                        "metric", ChronoUnit.MONTHS, reportingMetricTableRetentionMonths);
-            } catch (UnsupportedDialectException | InterruptedException | SQLException e) {
-                logger.error("Failed to create retention policy", e);
+            // change retention policy if custom period is provided
+            if (reportingMetricTableRetentionMonths != null) {
+                try {
+                    extractorDbConfig.ingesterEndpoint().getAdapter().setupRetentionPolicy(
+                            "metric", ChronoUnit.MONTHS, reportingMetricTableRetentionMonths);
+                } catch (UnsupportedDialectException | SQLException e) {
+                    logger.error("Failed to create retention policy", e);
+                }
             }
-        }
+            return null;
+        });
+        executorService.shutdown();
     }
 }

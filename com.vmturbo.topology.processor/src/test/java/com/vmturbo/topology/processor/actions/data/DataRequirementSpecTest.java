@@ -23,13 +23,13 @@ public class DataRequirementSpecTest {
 
     @Test
     public void testContainerResizeSpec() {
-        final String vappUuid = "0001238566";
+        final String serviceUuid = "0001238566";
         // Create a spec for container resize
         DataRequirementSpec spec = new DataRequirementSpecBuilder()
                 .addMatchCriteria(actionInfo -> actionInfo.hasResize())
                 .addMatchCriteria(actionInfo -> EntityType.CONTAINER.equals(
                         EntityType.forNumber(actionInfo.getResize().getTarget().getType())))
-                .addDataRequirement(SDKConstants.VAPP_UUID, actionInfo -> vappUuid)
+                .addDataRequirement(SDKConstants.SERVICE_UUID, actionInfo -> serviceUuid)
                 .build();
 
         // Create a move action info that won't match the spec and assert that it doesn't match
@@ -69,11 +69,11 @@ public class DataRequirementSpecTest {
         // Retrieve the context data for the matching action and assert that the vappUuid is there
         List<ContextData> contextDataList = spec.retrieveRequiredData(containerResizeActionInfo);
         Assert.assertFalse(contextDataList.isEmpty());
-        final Optional<ContextData> vappUuidContextData = contextDataList.stream()
-                .filter(contextData -> SDKConstants.VAPP_UUID.equals(contextData.getContextKey()))
+        final Optional<ContextData> serviceUuidContextData = contextDataList.stream()
+                .filter(contextData -> SDKConstants.SERVICE_UUID.equals(contextData.getContextKey()))
                 .findFirst();
-        Assert.assertTrue(vappUuidContextData.isPresent());
+        Assert.assertTrue(serviceUuidContextData.isPresent());
         // Check that the proper value was provided for the vappUuid
-        Assert.assertEquals(vappUuid, vappUuidContextData.get().getContextValue());
+        Assert.assertEquals(serviceUuid, serviceUuidContextData.get().getContextValue());
     }
 }

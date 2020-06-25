@@ -3,6 +3,7 @@
     <full-class-name>com.vmturbo.mediation.vmware.sdk.VimSdkConversionProbe</full-class-name>
     <type>vCenter</type>
     <category>Hypervisor</category>
+    <ui-category>Hypervisor</ui-category>
     <version>1.0.0</version>
     <creation-mode>ANY</creation-mode>
     <incremental-rediscovery-interval-seconds>30</incremental-rediscovery-interval-seconds>

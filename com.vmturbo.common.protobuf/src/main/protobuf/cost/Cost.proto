@@ -8,6 +8,7 @@ import "common/Pagination.proto";
 import "CommonDTO.proto";
 import "topology/TopologyDTO.proto";
 import "stats/Stats.proto";
+import "cca/CloudCommitmentAnalysis.proto";
 
 // Top down Cloud account expense discovered by the billing probe, associated with a specific account
 message AccountExpenses {
@@ -567,10 +568,10 @@ message UploadRIDataRequest {
     // The set of RI bought by the customer.
     repeated ReservedInstanceBought reserved_instance_bought = 4;
 
-    // Entity level reserved instance coverage.
+    // Entity level reserved instance coverages.
     repeated EntityRICoverageUpload reserved_instance_coverage = 5;
 
-    // Account level reserved instance coverage.
+    // Account level reserved instance coverages.
     repeated AccountRICoverageUpload account_level_reserved_instance_coverage = 6;
 
     // Contains the relationship about which service entity is covered by what reserved instance and
@@ -615,6 +616,12 @@ message UploadRIDataRequest {
 
             // The RI Coverage source for the entity
             optional RICoverageSource ri_coverage_source = 4;
+
+            // Usage start UTC timestamp in milliseconds.
+            optional int64 usage_start_timestamp = 5;
+
+            // Usage end UTC timestamp in milliseconds.
+            optional int64 usage_end_timestamp = 6;
         }
     }
 
@@ -625,12 +632,6 @@ message UploadRIDataRequest {
 
         // Coverage by reserved instances.
         repeated EntityRICoverageUpload.Coverage coverage = 2;
-
-        // Usage start UTC timestamp in milliseconds.
-        optional int64 usage_start_timestamp = 3;
-
-        // Usage end UTC timestamp in milliseconds.
-        optional int64 usage_end_timestamp = 4;
     }
 }
 
@@ -1127,7 +1128,7 @@ message StartBuyRIAnalysisRequest {
 }
 
 message GetTierPriceForEntitiesRequest{
-    optional int64 oid = 1;
+    repeated int64 oids = 1;
     optional CostCategory costCategory = 2;
     optional int64 topologyContextId = 3;
 }
@@ -1387,4 +1388,21 @@ service RIBuyContextFetchService {
     // Deletes the data corresponding to context topology id from action_context table.
     rpc DeleteRIBuyContextData(DeleteRIBuyContextDataRequest)
         returns (DeleteRIBuyContextDataResponse);
+}
+
+
+message StartCloudCommitmentAnalysisRequest {
+    optional cca.CloudCommitmentAnalysisConfig analysis_config = 1;
+}
+
+message StartCloudCommitmentAnalysisResponse {
+    optional cca.CloudCommitmentAnalysisInfo cloud_commitment_analysis_info = 1;
+}
+
+service CloudCommitmentAnalysisService {
+
+    // Start an analysis, based on the configuration provided in the request. The response will
+    // return a unique identifier for the analysis, in order to check the status.
+    rpc StartCloudCommitmentAnalysis(StartCloudCommitmentAnalysisRequest)
+    returns (StartCloudCommitmentAnalysisResponse);
 }

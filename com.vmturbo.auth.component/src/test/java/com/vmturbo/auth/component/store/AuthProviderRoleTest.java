@@ -2,6 +2,7 @@ package com.vmturbo.auth.component.store;
 
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 import static com.vmturbo.auth.component.store.AuthProviderBase.PREFIX;
+import static com.vmturbo.auth.component.store.AuthProviderHelper.mayAlterUserWithRoles;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -135,7 +136,7 @@ public class AuthProviderRoleTest {
     public void testMayAlterUserWithRolesAdministrator() {
         SecurityContextHolder.getContext()
                 .setAuthentication(getAuthentication(ROLE_ADMINISTRATOR, ADMIN));
-        assertTrue(authProviderUnderTest.mayAlterUserWithRoles(ImmutableList.of(ADMINISTRATOR)));
+        assertTrue(mayAlterUserWithRoles(ImmutableList.of(ADMINISTRATOR)));
         SecurityContextHolder.getContext().setAuthentication(null);
     }
 
@@ -161,7 +162,7 @@ public class AuthProviderRoleTest {
     public void testMayAlterUserWithRolesSiteAdminWithAdminRole() {
         SecurityContextHolder.getContext()
                 .setAuthentication(getAuthentication(ROLE_SITE_ADMIN, ADMIN));
-        assertFalse(authProviderUnderTest.mayAlterUserWithRoles(
+        assertFalse(mayAlterUserWithRoles(
                 ImmutableList.of(ADMINISTRATOR.toUpperCase())));
         SecurityContextHolder.getContext().setAuthentication(null);
     }
@@ -173,7 +174,7 @@ public class AuthProviderRoleTest {
     public void testMayAlterUserWithRolesSiteAdminWithNonAdminRole() {
         SecurityContextHolder.getContext()
                 .setAuthentication(getAuthentication(ROLE_SITE_ADMIN, ADMIN));
-        assertTrue(authProviderUnderTest.mayAlterUserWithRoles(ImmutableList.of(OBSERVER)));
+        assertTrue(mayAlterUserWithRoles(ImmutableList.of(OBSERVER)));
         SecurityContextHolder.getContext().setAuthentication(null);
     }
 
@@ -182,7 +183,7 @@ public class AuthProviderRoleTest {
      */
     @Test
     public void testMayAlterUserWithRolesSiteAdminNotLogin() {
-        assertFalse(authProviderUnderTest.mayAlterUserWithRoles(ImmutableList.of(OBSERVER)));
+        assertFalse(mayAlterUserWithRoles(ImmutableList.of(OBSERVER)));
     }
 
     /**

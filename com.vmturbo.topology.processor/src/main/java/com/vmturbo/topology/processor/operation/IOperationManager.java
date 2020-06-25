@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -21,6 +22,7 @@ import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -316,6 +318,24 @@ public interface IOperationManager {
     @Nonnull
     ActionUpdateState updateExternalAction(long targetId,
             @Nonnull Collection<ActionResponse> request,
+            @Nonnull OperationCallback<ActionErrorsResponse> callback)
+            throws TargetNotFoundException, InterruptedException, ProbeException,
+            CommunicationException;
+
+    /**
+     * Sends action audit events to external action audit probe.
+     *
+     * @param targetId target to send request to
+     * @param request action events to send
+     * @param callback callback to receive operation result
+     * @return operation reflecting operation
+     * @throws TargetNotFoundException if target not found by requested target id
+     * @throws InterruptedException if current thread is interrupted
+     * @throws ProbeException if the probe corresponding to the target is not connected.
+     * @throws CommunicationException if there is an error sending the request to the probe.
+     */
+    @Nonnull
+    ActionAudit sendActionAuditEvents(long targetId, @Nonnull Collection<ActionEventDTO> request,
             @Nonnull OperationCallback<ActionErrorsResponse> callback)
             throws TargetNotFoundException, InterruptedException, ProbeException,
             CommunicationException;

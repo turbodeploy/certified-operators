@@ -40,7 +40,6 @@ public class ActionUpdateStateService extends AbstractActionApprovalService {
 
     private final IOperationManager operationManager;
 
-    private final Object queueLock = new Object();
     private final Object stateUpdatesLock = new Object();
     @GuardedBy("stateUpdatesLock")
     private final Map<Long, Pair<ActionResponse, Runnable>> stateUpdates = new LinkedHashMap<>();
@@ -80,48 +79,36 @@ public class ActionUpdateStateService extends AbstractActionApprovalService {
         scheduler.schedule(this::sendStateUpdates, actionUpdatePeriod, TimeUnit.SECONDS);
     }
 
-    /**
-     * Sends internal state updates to external action approval backend.
-     *
-     * <p>while this is the only method that could transit {@link #actionUpdateStateOperation}
-     * from {@code null} to non-null value, this method has to be synchronized itself to
-     * avoid simultaneous execution, as could be called at the same moment from both scheduler
-     * and {@link ActionStateUpdateCallback#onSuccess(ActionErrorsResponse)}
-     */
     private void sendStateUpdates() {
-        synchronized (queueLock) {
-            if (actionUpdateStateOperation != null) {
-                getLogger().trace(
-                        "ActionUpdateState operation {} is in progress, will wait until it is finished: {}",
-                        actionUpdateStateOperation::getId, actionUpdateStateOperation::toString);
-                return;
+        if (actionUpdateStateOperation != null) {
+            getLogger().trace(
+                    "ActionUpdateState operation {} is in progress, will wait until it is finished: {}",
+                    actionUpdateStateOperation::getId, actionUpdateStateOperation::toString);
+            return;
+        }
+        final Collection<Pair<ActionResponse, Runnable>> batch = new ArrayList<>(updateBatchSize);
+        synchronized (stateUpdatesLock) {
+            final Iterator<Pair<ActionResponse, Runnable>> iterator =
+                    stateUpdates.values().iterator();
+            for (int i = 0; iterator.hasNext() && i < updateBatchSize; i++) {
+                batch.add(iterator.next());
             }
-            final Collection<Pair<ActionResponse, Runnable>> batch = new ArrayList<>(
-                    updateBatchSize);
-            synchronized (stateUpdatesLock) {
-                final Iterator<Pair<ActionResponse, Runnable>> iterator =
-                        stateUpdates.values().iterator();
-                for (int i = 0; iterator.hasNext() && i < updateBatchSize; i++) {
-                    batch.add(iterator.next());
-                }
-            }
-            final Collection<ActionResponse> actionStates = Collections2.transform(batch,
-                    Pair::getFirst);
-            final Optional<Long> targetId = getTargetId();
-            if (!targetId.isPresent()) {
-                getLogger().warn("Action state updates available but no external approval backend"
-                                + " target found: [{}]",
-                        Collections2.transform(actionStates, ActionResponse::getActionOid));
-            } else {
-                try {
-                    actionUpdateStateOperation = operationManager.updateExternalAction(
-                            targetId.get(), actionStates,
-                            new ActionStateUpdateCallback(targetId.get(), batch));
-                } catch (TargetNotFoundException | InterruptedException | ProbeException | CommunicationException e) {
-                    getLogger().warn(
-                            "Failed sending action state updates to external action approval target",
-                            e);
-                }
+        }
+        final Collection<ActionResponse> actionStates = Collections2.transform(batch,
+                Pair::getFirst);
+        final Optional<Long> targetId = getTargetId();
+        if (!targetId.isPresent()) {
+            getLogger().warn("Action state updates available but no external approval backend"
+                            + " target found: [{}]",
+                    Collections2.transform(actionStates, ActionResponse::getActionOid));
+        } else {
+            try {
+                actionUpdateStateOperation = operationManager.updateExternalAction(targetId.get(),
+                        actionStates, new ActionStateUpdateCallback(targetId.get(), batch));
+            } catch (TargetNotFoundException | InterruptedException | ProbeException | CommunicationException e) {
+                getLogger().warn(
+                        "Failed sending action state updates to external action approval target",
+                        e);
             }
         }
     }
@@ -153,6 +140,8 @@ public class ActionUpdateStateService extends AbstractActionApprovalService {
             getLogger().debug("Updating external action states {} finished successfully",
                     actionUpdateStateOperation.getId());
             actionUpdateStateOperation = null;
+            final Collection<Pair<ActionResponse, Runnable>> commits = new ArrayList<>(
+                    request.size());
             synchronized (stateUpdatesLock) {
                 for (ActionErrorDTO actionError : response.getErrorsList()) {
                     getLogger().warn("Error reported updating action {} state at target {}: {}",

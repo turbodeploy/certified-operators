@@ -1,0 +1,4910 @@
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::ap-southeast-2::RI::1f02ed7a-fd55-4630-b8ae-fd6da6529477"
+  displayName: "t2.micro"
+  reserved_instance_data {
+    reservedInstanceId: "1f02ed7a-fd55-4630-b8ae-fd6da6529477"
+    startTime: 1527168983000
+    duration: 94607999000
+    instanceTenancy: DEFAULT
+    offeringClass: STANDARD
+    offeringType: NO_UPFRONT
+    availabilityZone: "aws::ap-southeast-2::PM::ap-southeast-2c"
+    platform: LINUX
+    numberOfCoupons: 2
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.007099999580532312
+    region: "aws::ap-southeast-2::DC::ap-southeast-2"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::t2.micro"
+    purchasingAccountId: "192821421245"
+    instanceSizeFlexible: false
+    endTime: 1621776982000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::ap-southeast-2::RI::a20e30c2-1066-40a5-b2d7-7d3a2c294c3f"
+  displayName: "t2.micro"
+  reserved_instance_data {
+    reservedInstanceId: "a20e30c2-1066-40a5-b2d7-7d3a2c294c3f"
+    startTime: 1527169128000
+    duration: 94607999000
+    instanceTenancy: DEFAULT
+    offeringClass: STANDARD
+    offeringType: ALL_UPFRONT
+    availabilityZone: "aws::ap-southeast-2::PM::ap-southeast-2a"
+    platform: LINUX
+    numberOfCoupons: 2
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.0
+    region: "aws::ap-southeast-2::DC::ap-southeast-2"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::t2.micro"
+    purchasingAccountId: "192821421245"
+    instanceSizeFlexible: false
+    endTime: 1621777127000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::ap-southeast-2::RI::17baf261-1e5d-4ce3-9e5d-165d32521b4c"
+  displayName: "t2.small"
+  reserved_instance_data {
+    reservedInstanceId: "17baf261-1e5d-4ce3-9e5d-165d32521b4c"
+    startTime: 1527190279000
+    duration: 94607999000
+    instanceTenancy: DEFAULT
+    offeringClass: STANDARD
+    offeringType: NO_UPFRONT
+    availabilityZone: "aws::ap-southeast-2::PM::ap-southeast-2a"
+    platform: WINDOWS
+    numberOfCoupons: 4
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.02329999953508377
+    region: "aws::ap-southeast-2::DC::ap-southeast-2"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::t2.small"
+    purchasingAccountId: "192821421245"
+    instanceSizeFlexible: false
+    endTime: 1621798278000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::eu-west-1::RI::1dfd0860-4099-441c-9c5f-9a84956fb1a0"
+  displayName: "t2.micro"
+  reserved_instance_data {
+    reservedInstanceId: "1dfd0860-4099-441c-9c5f-9a84956fb1a0"
+    startTime: 1532628316000
+    duration: 94607999000
+    instanceTenancy: DEFAULT
+    offeringClass: STANDARD
+    offeringType: NO_UPFRONT
+    availabilityZone: "aws::eu-west-1::PM::"
+    platform: LINUX
+    numberOfCoupons: 20
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.006300000008195639
+    region: "aws::eu-west-1::DC::eu-west-1"
+    instanceCount: 10
+    relatedProfileId: "aws::VMPROFILE::t2.micro"
+    purchasingAccountId: "192821421245"
+    instanceSizeFlexible: false
+    endTime: 1627236315000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+  displayName: "m5.metal"
+  reserved_instance_data {
+    reservedInstanceId: "18bc975d-54a6-4622-929e-2d9a232766aa"
+    startTime: 1551208172000
+    duration: 94607999000
+    instanceTenancy: DEFAULT
+    offeringClass: CONVERTIBLE
+    offeringType: NO_UPFRONT
+    availabilityZone: "aws::us-east-1::PM::"
+    platform: LINUX
+    numberOfCoupons: 0
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 2.3370001316070557
+    region: "aws::us-east-1::DC::us-east-1"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::m5.metal"
+    purchasingAccountId: "192821421245"
+    instanceSizeFlexible: false
+    endTime: 1645816171000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::us-east-2::RI::f2528920-cd6f-483a-933d-9513bf13dee2"
+  displayName: "m5d.large"
+  reserved_instance_data {
+    reservedInstanceId: "f2528920-cd6f-483a-933d-9513bf13dee2"
+    startTime: 1561465301000
+    duration: 31535999000
+    instanceTenancy: DEDICATED
+    offeringClass: STANDARD
+    offeringType: PARTIAL_UPFRONT
+    availabilityZone: "aws::us-east-2::PM::"
+    platform: LINUX
+    numberOfCoupons: 16
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.03799999877810478
+    region: "aws::us-east-2::DC::us-east-2"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::m5d.large"
+    purchasingAccountId: "323871187550"
+    instanceSizeFlexible: false
+    endTime: 1593001300000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::us-east-2::RI::3e598cb4-ecf4-4776-9e97-794db266426f"
+  displayName: "i3.large"
+  reserved_instance_data {
+    reservedInstanceId: "3e598cb4-ecf4-4776-9e97-794db266426f"
+    startTime: 1561465301000
+    duration: 31535999000
+    instanceTenancy: DEDICATED
+    offeringClass: STANDARD
+    offeringType: PARTIAL_UPFRONT
+    availabilityZone: "aws::us-east-2::PM::"
+    platform: LINUX
+    numberOfCoupons: 16
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.0559999980032444
+    region: "aws::us-east-2::DC::us-east-2"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::i3.large"
+    purchasingAccountId: "323871187550"
+    instanceSizeFlexible: false
+    endTime: 1593001300000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::us-east-2::RI::6e0ede0c-5b82-4c1a-a0be-448a8ae0c0bf"
+  displayName: "c5.large"
+  reserved_instance_data {
+    reservedInstanceId: "6e0ede0c-5b82-4c1a-a0be-448a8ae0c0bf"
+    startTime: 1561465300000
+    duration: 31535999000
+    instanceTenancy: DEDICATED
+    offeringClass: STANDARD
+    offeringType: PARTIAL_UPFRONT
+    availabilityZone: "aws::us-east-2::PM::"
+    platform: LINUX
+    numberOfCoupons: 16
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.0279999990016222
+    region: "aws::us-east-2::DC::us-east-2"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::c5.large"
+    purchasingAccountId: "323871187550"
+    instanceSizeFlexible: false
+    endTime: 1593001299000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::us-east-2::RI::49dd8b91-1f90-42fe-9a6d-e4b8a60852c5"
+  displayName: "m4.2xlarge"
+  reserved_instance_data {
+    reservedInstanceId: "49dd8b91-1f90-42fe-9a6d-e4b8a60852c5"
+    startTime: 1561465301000
+    duration: 31535999000
+    instanceTenancy: DEDICATED
+    offeringClass: STANDARD
+    offeringType: PARTIAL_UPFRONT
+    availabilityZone: "aws::us-east-2::PM::"
+    platform: LINUX
+    numberOfCoupons: 64
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.1298000067472458
+    region: "aws::us-east-2::DC::us-east-2"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::m4.2xlarge"
+    purchasingAccountId: "323871187550"
+    instanceSizeFlexible: false
+    endTime: 1593001300000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::us-west-2::RI::200d8957-4ff4-423a-a9f3-9af578e7c4cb"
+  displayName: "a1.medium"
+  reserved_instance_data {
+    reservedInstanceId: "200d8957-4ff4-423a-a9f3-9af578e7c4cb"
+    startTime: 1575559592000
+    duration: 31535999000
+    instanceTenancy: DEFAULT
+    offeringClass: CONVERTIBLE
+    offeringType: NO_UPFRONT
+    availabilityZone: "aws::us-west-2::PM::"
+    platform: LINUX
+    numberOfCoupons: 8
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.01850000023841858
+    region: "aws::us-west-2::DC::us-west-2"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::a1.medium"
+    purchasingAccountId: "323871187550"
+    instanceSizeFlexible: false
+    endTime: 1607095591000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::eu-west-3::RI::2462e73d-1aba-4bd5-8abc-60ec2ac033cf"
+  displayName: "t3.nano"
+  reserved_instance_data {
+    reservedInstanceId: "2462e73d-1aba-4bd5-8abc-60ec2ac033cf"
+    startTime: 1577366261000
+    duration: 31535999000
+    instanceTenancy: DEFAULT
+    offeringClass: CONVERTIBLE
+    offeringType: ALL_UPFRONT
+    availabilityZone: "aws::eu-west-3::PM::"
+    platform: LINUX
+    numberOfCoupons: 3
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.0
+    region: "aws::eu-west-3::DC::eu-west-3"
+    instanceCount: 3
+    relatedProfileId: "aws::VMPROFILE::t3.nano"
+    purchasingAccountId: "323871187550"
+    instanceSizeFlexible: false
+    endTime: 1608902260000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::eu-west-1::RI::49b44b11-a7dd-440b-9970-34b910431f22"
+  displayName: "t3.nano"
+  reserved_instance_data {
+    reservedInstanceId: "49b44b11-a7dd-440b-9970-34b910431f22"
+    startTime: 1579183875000
+    duration: 15551999000
+    instanceTenancy: DEFAULT
+    offeringClass: STANDARD
+    offeringType: NO_UPFRONT
+    availabilityZone: "aws::eu-west-1::PM::"
+    platform: LINUX
+    numberOfCoupons: 2
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.004100000020116568
+    region: "aws::eu-west-1::DC::eu-west-1"
+    instanceCount: 2
+    relatedProfileId: "aws::VMPROFILE::t3.nano"
+    purchasingAccountId: "323871187550"
+    instanceSizeFlexible: false
+    endTime: 1594735874000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::ap-northeast-2::RI::6874f611-51c3-4ca0-ac4f-9017628664e1"
+  displayName: "t3.nano"
+  reserved_instance_data {
+    reservedInstanceId: "6874f611-51c3-4ca0-ac4f-9017628664e1"
+    startTime: 1582646400000
+    duration: 29626991000
+    instanceTenancy: DEFAULT
+    offeringClass: CONVERTIBLE
+    offeringType: ALL_UPFRONT
+    availabilityZone: "aws::ap-northeast-2::PM::"
+    platform: LINUX
+    numberOfCoupons: 2
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.0
+    region: "aws::ap-northeast-2::DC::ap-northeast-2"
+    instanceCount: 2
+    relatedProfileId: "aws::VMPROFILE::t3.nano"
+    purchasingAccountId: "323871187550"
+    instanceSizeFlexible: false
+    endTime: 1612273391000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::ap-south-1::RI::320a50e5-9302-4883-85fc-9a2306f68fca"
+  displayName: "t2.small"
+  reserved_instance_data {
+    reservedInstanceId: "320a50e5-9302-4883-85fc-9a2306f68fca"
+    startTime: 1582657610000
+    duration: 31535998000
+    instanceTenancy: DEFAULT
+    offeringClass: CONVERTIBLE
+    offeringType: ALL_UPFRONT
+    availabilityZone: "aws::ap-south-1::PM::"
+    platform: LINUX
+    numberOfCoupons: 4
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.0
+    region: "aws::ap-south-1::DC::ap-south-1"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::t2.small"
+    purchasingAccountId: "323871187550"
+    instanceSizeFlexible: false
+    endTime: 1614193608000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::ca-central-1::RI::846667fa-4e04-46c0-a032-9f720a1d48c9"
+  displayName: "m5a.2xlarge"
+  reserved_instance_data {
+    reservedInstanceId: "846667fa-4e04-46c0-a032-9f720a1d48c9"
+    startTime: 1583845153000
+    duration: 31535999000
+    instanceTenancy: DEFAULT
+    offeringClass: CONVERTIBLE
+    offeringType: NO_UPFRONT
+    availabilityZone: "aws::ca-central-1::PM::"
+    platform: LINUX
+    numberOfCoupons: 64
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.2809999883174896
+    region: "aws::ca-central-1::DC::ca-central-1"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::m5a.2xlarge"
+    purchasingAccountId: "323871187550"
+    instanceSizeFlexible: false
+    endTime: 1615381152000
+  }
+}
+entityDTO {
+  entityType: RESERVED_INSTANCE
+  id: "aws::ca-central-1::RI::cfb751ed-c4e3-4420-80ef-493188b40c07"
+  displayName: "m5a.large"
+  reserved_instance_data {
+    reservedInstanceId: "cfb751ed-c4e3-4420-80ef-493188b40c07"
+    startTime: 1583845154000
+    duration: 31535999000
+    instanceTenancy: DEFAULT
+    offeringClass: CONVERTIBLE
+    offeringType: PARTIAL_UPFRONT
+    availabilityZone: "aws::ca-central-1::PM::"
+    platform: LINUX
+    numberOfCoupons: 16
+    numberOfCouponsUsed: 0.0
+    fixedCost: 0.0
+    usageCost: 0.0
+    recurringCost: 0.032999999821186066
+    region: "aws::ca-central-1::DC::ca-central-1"
+    instanceCount: 1
+    relatedProfileId: "aws::VMPROFILE::m5a.large"
+    purchasingAccountId: "323871187550"
+    instanceSizeFlexible: false
+    endTime: 1615381153000
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-08977be7993200262"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-06e2a442ba18b2090"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-06263b8e1a3b0ecd4"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-west-1::VM::i-0c66daf936107d833"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-07ed9c0b189b53deb"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0e735b8f5e1fd4206"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-00f365ab2de2fadb3"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-02f2a673e8e066326"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-024923206638ae14f"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 32.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0b85cb6231b4fa0a2"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 16.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-073d9af0c7e6488d5"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-1::VM::i-0b84aaa2a31c874e6"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-01568cf21cde1f607"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-07ff9c43203653465"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0a940e09e22de07ec"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0f53a4c6df1af68fd"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Windows"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-1::VM::i-0808cf99be3f7d408"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-028c2280c97bbd3bf"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0c53dfcd39d8891f2"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 16.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0a39bf55c51ddcd56"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-09b3a3ebd5f1d713e"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-073af263311b6296a"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0db7b9045054dc3b3"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 16.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-0b83cbcb293c71a4f"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0215d8cdd87fc815c"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-1::VM::i-05696e5c458d7cad2"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-07a3ffde85bfb39f1"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-05483b3ea3229c269"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::ca-central-1::VM::i-0e09fd198934d203f"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "RHEL"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0e7483578e5fa3ab2"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-055095b83d4534a03"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-0924bb4805b9a8a51"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-08f374d470f30c3b4"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-040eec48323126392"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-080e44f8cc8d056a3"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0d8d1a1ee41344aac"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-041f4ee479d4ee1a6"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 64.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0aa56e4a9f447bb60"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-00165af6b9b1214c5"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-08db8bf150532a17e"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-03abd54456bee46bd"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-083d779a70ae97ba2"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-051943f3b3c96bad9"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 64.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0915e0a040126ad14"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-01b303a7f0ecb395e"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-002ee5caa9a7a059d"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 64.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-09e1e73cd5f158328"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-05cbdb15249347b83"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-01d7e44a4a5623917"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-07636f797a1482f86"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-08bb32d6e2ba1b0db"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-0a8ff52b6f215883f"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-0e5373ffdfad93a34"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-06b02dd18ec54387d"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0cc5286cb7aaa0b13"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0b788abf8c58b78c5"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0d5d4c5e16cfb1f71"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 64.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-070b05d856f4d7bf4"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 32.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0990bb9839b5f01fe"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-0f958572f69b376f6"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::ca-central-1::VM::i-0cdc94d651b3e1442"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-095aec4919642376f"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 16.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-02e4c64c5cd52bbf4"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0720ad5f043370c24"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0c2521e7f3dc4f813"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 16.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-02901882b4265e773"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-0e61d244ada3c3c9f"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0db7ba93876f3d51a"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0f2aa9f0a1293e8ec"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-0fb47e05e14d1d31b"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-07a2466009047e3d1"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-0efda593c64fd3413"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-085573104336e6313"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Windows_SQL_Standard"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0b14758b114cdfbf8"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 32.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-05c3a7844bdba42ef"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-0812e531ea21da00f"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 8.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-08996012d8bb32586"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-013d98a6b0ed8da7f"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-02661aa369e8b4ad9"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0c018334a5b3d489a"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-007bfd2e2aa4158f2"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-03f1bfdb303b2d400"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-west-3::VM::i-04201eb08fc215b8a"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 2.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0e89b99769f772b0e"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-0aa8532cded3fe6da"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-06921780353c68a1c"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-01eb013ccd9ca2f01"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-west-3::VM::i-0b425aa80206cd88c"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 2.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-west-3::VM::i-0bdf6496916050299"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0782c4c4203be5f09"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 64.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::ca-central-1::VM::i-0f4ba5c00a4852012"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Windows"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0e279ffcab8a500ab"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 64.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-072f5f70d80e1db7e"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::ca-central-1::VM::i-053bee9963b67f3dd"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 64.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-0a04d6c5f5f4e9d9b"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0a52718203fb3807c"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0d320ce9033d357f8"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-1::VM::i-03888a01adfdfb949"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::ca-central-1::VM::i-0e2f6bcee9cb34c4b"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux_SQL_Standard"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-west-3::VM::i-00726d46cbda1f3e0"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-08751fbdcce48ce7c"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-05928e9b9550e6c54"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-05589d2a6b4031cb9"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-1::VM::i-0b1c793bbfd6f4bba"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-0345456fa29ac3704"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-04636321b99e7636c"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-00b4d1a6666751348"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-023a627803eb9a892"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-0b5d931bae540d910"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-01fa8f1444eb9a190"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::ca-central-1::VM::i-04fa1b8a9fe85f11a"
+  commoditiesSold {
+    commodityType: COUPON
+    capacity: 16.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-04232026e4bb826b1"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-2::VM::i-09bf1a387a3443e45"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-051b93b59befe64e4"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::eu-central-1::VM::i-02bf7983eebff0d87"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-1::VM::i-05aa0527431534708"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-00ccc1ca364a5d5d7"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-east-2::VM::i-0a2276de82c9c3673"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "aws::us-west-1::VM::i-0c5f8ee938a607325"
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    vmState {
+    }
+    guestName: "Linux"
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: BUSINESS_ACCOUNT
+  id: "192821421245"
+  displayName: "192821421245"
+  layeredOver: "SERVICE_PROVIDER::AWS"
+  consistsOf: "631949720430"
+  consistsOf: "001844731978"
+  consistsOf: "323871187550"
+  business_account_data {
+  }
+}
+entityDTO {
+  entityType: BUSINESS_ACCOUNT
+  id: "631949720430"
+  displayName: "631949720430"
+  layeredOver: "SERVICE_PROVIDER::AWS"
+  business_account_data {
+  }
+}
+entityDTO {
+  entityType: BUSINESS_ACCOUNT
+  id: "001844731978"
+  displayName: "001844731978"
+  layeredOver: "SERVICE_PROVIDER::AWS"
+  business_account_data {
+  }
+}
+entityDTO {
+  entityType: BUSINESS_ACCOUNT
+  id: "323871187550"
+  displayName: "323871187550"
+  layeredOver: "SERVICE_PROVIDER::AWS"
+  business_account_data {
+  }
+}
+entityDTO {
+  entityType: SERVICE_PROVIDER
+  id: "SERVICE_PROVIDER::AWS"
+  displayName: "AWS"
+  consistsOf: "aws::CS::AWSElementalMediaPackage"
+  consistsOf: "aws::CS::Mobileanalytics"
+  consistsOf: "aws::CS::AmazonSimpleDB"
+  consistsOf: "aws::CS::CodeGuru"
+  consistsOf: "aws::CS::AmazonKinesisAnalytics"
+  consistsOf: "aws::CS::AmazonAppStream"
+  consistsOf: "aws::CS::AWSSystemsManager"
+  consistsOf: "aws::CS::A4B"
+  consistsOf: "aws::CS::AmazonFSx"
+  consistsOf: "aws::CS::IoTDeviceManagement"
+  consistsOf: "aws::CS::AWSDataExchange"
+  consistsOf: "aws::CS::CloudHSM"
+  consistsOf: "aws::CS::AmazonPolly"
+  consistsOf: "aws::CS::AWSDirectoryService"
+  consistsOf: "aws::CS::AmazonSES"
+  consistsOf: "aws::CS::AmazonChimeCallMe"
+  consistsOf: "aws::CS::AmazonWorkDocs"
+  consistsOf: "aws::CS::Awswaf"
+  consistsOf: "aws::CS::AWSElementalMediaTailor"
+  consistsOf: "aws::CS::AWSDataTransfer"
+  consistsOf: "aws::CS::AWSSupportBusiness"
+  consistsOf: "aws::CS::AmazonCloudFront"
+  consistsOf: "aws::CS::AmazonDynamoDB"
+  consistsOf: "aws::CS::IngestionServiceSnowball"
+  consistsOf: "aws::CS::AmazonCloudWatch"
+  consistsOf: "aws::CS::AmazonEC2"
+  consistsOf: "aws::CS::AmazonKinesisFirehose"
+  consistsOf: "aws::CS::AmazonSNS"
+  consistsOf: "aws::CS::AWSShield"
+  consistsOf: "aws::CS::AWSElementalMediaStore"
+  consistsOf: "aws::CS::AmazonGameLift"
+  consistsOf: "aws::CS::AmazonEKS"
+  consistsOf: "aws::CS::AmazonMSK"
+  consistsOf: "aws::CS::AmazonRDS"
+  consistsOf: "aws::CS::IoTDeviceDefender"
+  consistsOf: "aws::CS::AmazonS3GlacierDeepArchive"
+  consistsOf: "aws::CS::AmazonSWF"
+  consistsOf: "aws::CS::AWSQueueService"
+  consistsOf: "aws::CS::AmazonDAX"
+  consistsOf: "aws::CS::AWSGlue"
+  consistsOf: "aws::CS::AWSFMS"
+  consistsOf: "aws::CS::AmazonECR"
+  consistsOf: "aws::CS::AWSSecretsManager"
+  consistsOf: "aws::CS::AmazonDocDB"
+  consistsOf: "aws::CS::AWSCostExplorer"
+  consistsOf: "aws::CS::AmazonECS"
+  consistsOf: "aws::CS::AWSCodePipeline"
+  consistsOf: "aws::CS::AmazonCognitoSync"
+  consistsOf: "aws::CS::Comprehendmedical"
+  consistsOf: "aws::CS::AWSCertificateManager"
+  consistsOf: "aws::CS::AmazonInspector"
+  consistsOf: "aws::CS::AmazonSumerian"
+  consistsOf: "aws::CS::AmazonETS"
+  consistsOf: "aws::CS::AmazonRekognition"
+  consistsOf: "aws::CS::EBS"
+  consistsOf: "aws::CS::ContactCenterTelecomm"
+  consistsOf: "aws::CS::AmazonGuardDuty"
+  consistsOf: "aws::CS::AmazonAthena"
+  consistsOf: "aws::CS::CodeBuild"
+  consistsOf: "aws::CS::AmazonChimeVoiceConnector"
+  consistsOf: "aws::CS::AmazonRoute53"
+  consistsOf: "aws::CS::AmazonLightsail"
+  consistsOf: "aws::CS::AWSAppSync"
+  consistsOf: "aws::CS::Datapipeline"
+  consistsOf: "aws::CS::AmazonChimeDialin"
+  consistsOf: "aws::CS::AWSElementalMediaLive"
+  consistsOf: "aws::CS::AmazonS3"
+  consistsOf: "aws::CS::AWSCloudTrail"
+  consistsOf: "aws::CS::AmazonTextract"
+  consistsOf: "aws::CS::AmazonQLDB"
+  consistsOf: "aws::CS::AWSIoTAnalytics"
+  consistsOf: "aws::CS::AmazonVPC"
+  consistsOf: "aws::CS::SnowballExtraDays"
+  consistsOf: "aws::CS::IngestionService"
+  consistsOf: "aws::CS::AlexaTopSites"
+  consistsOf: "aws::CS::AWSDataSync"
+  consistsOf: "aws::CS::AmazonWorkMail"
+  consistsOf: "aws::CS::AWSDeveloperSupport"
+  consistsOf: "aws::CS::AmazonWAM"
+  consistsOf: "aws::CS::AmazonGlacier"
+  consistsOf: "aws::CS::AWSLambda"
+  consistsOf: "aws::CS::AlexaWebInfoService"
+  consistsOf: "aws::CS::AWSIoT"
+  consistsOf: "aws::CS::AWSDeviceFarm"
+  consistsOf: "aws::CS::AWSMediaConnect"
+  consistsOf: "aws::CS::AWSStorageGateway"
+  consistsOf: "aws::CS::AmazonEFS"
+  consistsOf: "aws::CS::Awskms"
+  consistsOf: "aws::CS::AWSDatabaseMigrationSvc"
+  consistsOf: "aws::CS::AWSCloudFormation"
+  consistsOf: "aws::CS::AWSConfig"
+  consistsOf: "aws::CS::AWSBackup"
+  consistsOf: "aws::CS::AmazonWorkSpaces"
+  consistsOf: "aws::CS::AWSIoTEvents"
+  consistsOf: "aws::CS::AmazonPinpoint"
+  consistsOf: "aws::CS::AWSServiceCatalog"
+  consistsOf: "aws::CS::Transcribe"
+  consistsOf: "aws::CS::AWSBudgets"
+  consistsOf: "aws::CS::AWSCloudMap"
+  consistsOf: "aws::CS::AmazonApiGateway"
+  consistsOf: "aws::CS::AWSEvents"
+  consistsOf: "aws::CS::AmazonQuickSight"
+  consistsOf: "aws::CS::AmazonChimeBusinessCalling"
+  consistsOf: "aws::CS::AWSRoboMaker"
+  consistsOf: "aws::CS::AmazonLex"
+  consistsOf: "aws::CS::AmazonStates"
+  consistsOf: "aws::CS::AWSCodeCommit"
+  consistsOf: "aws::CS::Comprehend"
+  consistsOf: "aws::CS::AWSIoT1Click"
+  consistsOf: "aws::CS::AmazonCloudSearch"
+  consistsOf: "aws::CS::AmazonKinesisVideo"
+  consistsOf: "aws::CS::AWSSecurityHub"
+  consistsOf: "aws::CS::AmazonCloudDirectory"
+  consistsOf: "aws::CS::AWSGlobalAccelerator"
+  consistsOf: "aws::CS::AmazonWorkLink"
+  consistsOf: "aws::CS::AmazonConnect"
+  consistsOf: "aws::CS::OpsWorks"
+  consistsOf: "aws::CS::AWSDirectConnect"
+  consistsOf: "aws::CS::AWSTransfer"
+  consistsOf: "aws::CS::AmazonRegistrar"
+  consistsOf: "aws::CS::Translate"
+  consistsOf: "aws::CS::AWSAmplify"
+  consistsOf: "aws::CS::AmazonES"
+  consistsOf: "aws::CS::AmazonKinesis"
+  consistsOf: "aws::CS::AWSStorageGatewayDeepArchive"
+  consistsOf: "aws::CS::AmazonML"
+  consistsOf: "aws::CS::AmazonForecast"
+  consistsOf: "aws::CS::AWSXRay"
+  consistsOf: "aws::CS::AmazonMQ"
+  consistsOf: "aws::CS::AmazonEI"
+  consistsOf: "aws::CS::AmazonManagedBlockchain"
+  consistsOf: "aws::CS::AmazonSageMaker"
+  consistsOf: "aws::CS::AWSSupportEnterprise"
+  consistsOf: "aws::CS::ElasticMapReduce"
+  consistsOf: "aws::CS::AmazonNeptune"
+  consistsOf: "aws::CS::AmazonChime"
+  consistsOf: "aws::CS::AWSElementalMediaConvert"
+  consistsOf: "aws::CS::AmazonMacie"
+  consistsOf: "aws::CS::AmazonElastiCache"
+  consistsOf: "aws::CS::AWSCodeDeploy"
+  consistsOf: "aws::CS::AWSGreengrass"
+  consistsOf: "aws::CS::AmazonRedshift"
+  consistsOf: "aws::CS::AWSIoTThingsGraph"
+  consistsOf: "aws::CS::AmazonCognito"
+}
+discoveredGroup {
+  entity_type: BUSINESS_ACCOUNT
+  display_name: "192821421245"
+  group_name: "BillingFamily::192821421245"
+  member_list {
+    member: "192821421245"
+    member: "631949720430"
+    member: "001844731978"
+    member: "323871187550"
+  }
+  groupType: BILLING_FAMILY
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::AmazonS3"
+  displayName: "AWS S3"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::AWSDeveloperSupport"
+  displayName: "AWS Developer Support"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::AmazonEKS"
+  displayName: "AWS EKS"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::AWSCostExplorer"
+  displayName: "AWS Cost Explorer"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::AmazonCloudWatch"
+  displayName: "AWS CloudWatch"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::AmazonRDS"
+  displayName: "AWS RDS"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::AWSCloudTrail"
+  displayName: "AWS CloudTrail"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::AmazonQuickSight"
+  displayName: "AWS QuickSight"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::AmazonDynamoDB"
+  displayName: "AWS DynamoDB"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::Awskms"
+  displayName: "Awskms"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::AWSBudgets"
+  displayName: "AWSBudgets"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::631949720430::CS::AmazonS3"
+  displayName: "AWS S3"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "631949720430"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::631949720430::CS::AmazonEKS"
+  displayName: "AWS EKS"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "631949720430"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::631949720430::CS::AmazonCloudWatch"
+  displayName: "AWS CloudWatch"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "631949720430"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::631949720430::CS::AmazonRDS"
+  displayName: "AWS RDS"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "631949720430"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::631949720430::CS::AWSCloudTrail"
+  displayName: "AWS CloudTrail"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "631949720430"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::631949720430::CS::AmazonECS"
+  displayName: "AWS Elastic Container Service"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "631949720430"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::631949720430::CS::AmazonEC2"
+  displayName: "AWS EC2"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "631949720430"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::631949720430::CS::AmazonVPC"
+  displayName: "AWS VPC"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "631949720430"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::631949720430::CS::AmazonRoute53"
+  displayName: "AWS Route53"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "631949720430"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::001844731978::CS::AmazonS3"
+  displayName: "AWS S3"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "001844731978"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::001844731978::CS::AmazonEKS"
+  displayName: "AWS EKS"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "001844731978"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::001844731978::CS::AmazonCloudWatch"
+  displayName: "AWS CloudWatch"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "001844731978"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::001844731978::CS::AmazonRDS"
+  displayName: "AWS RDS"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "001844731978"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::001844731978::CS::AmazonSageMaker"
+  displayName: "AWS Sage Maker"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "001844731978"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::001844731978::CS::AmazonECR"
+  displayName: "AWS Elastic Container Registry"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "001844731978"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::001844731978::CS::AmazonDynamoDB"
+  displayName: "AWS DynamoDB"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "001844731978"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::001844731978::CS::AmazonEC2"
+  displayName: "AWS EC2"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "001844731978"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::001844731978::CS::AmazonVPC"
+  displayName: "AWS VPC"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "001844731978"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::001844731978::CS::AmazonRoute53"
+  displayName: "AWS Route53"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "001844731978"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::323871187550::CS::AmazonS3"
+  displayName: "AWS S3"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "323871187550"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::323871187550::CS::AmazonCloudWatch"
+  displayName: "AWS CloudWatch"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "323871187550"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::323871187550::CS::AmazonRDS"
+  displayName: "AWS RDS"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "323871187550"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::323871187550::CS::AmazonEC2"
+  displayName: "AWS EC2"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "323871187550"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::323871187550::CS::Awskms"
+  displayName: "Awskms"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "323871187550"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::323871187550::CS::AmazonSNS"
+  displayName: "AWS Simple Notification Service"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    account_id: "323871187550"
+    price_models: ON_DEMAND
+  }
+}
+nonMarketEntityDTO {
+  entityType: CLOUD_SERVICE
+  id: "aws::192821421245::CS::AmazonEC2"
+  displayName: "AWS EC2"
+  cloud_service_data {
+    cloud_provider: "AWS"
+    billing_data {
+      billing_window_start: 1591574400000
+      billing_window_end: 1591574400000
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-08977be7993200262"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-06e2a442ba18b2090"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-06263b8e1a3b0ecd4"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-west-1::VM::i-0c66daf936107d833"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-07ed9c0b189b53deb"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0e735b8f5e1fd4206"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-00f365ab2de2fadb3"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-02f2a673e8e066326"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-024923206638ae14f"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 32.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 30.666666666666668
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0b85cb6231b4fa0a2"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 16.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 15.333333333333334
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-073d9af0c7e6488d5"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-1::VM::i-0b84aaa2a31c874e6"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-01568cf21cde1f607"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-07ff9c43203653465"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0a940e09e22de07ec"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0f53a4c6df1af68fd"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Windows"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-1::VM::i-0808cf99be3f7d408"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-028c2280c97bbd3bf"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0c53dfcd39d8891f2"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 16.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 16.0
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0a39bf55c51ddcd56"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-09b3a3ebd5f1d713e"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-073af263311b6296a"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0db7b9045054dc3b3"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 16.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 15.333333333333334
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-0b83cbcb293c71a4f"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0215d8cdd87fc815c"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-1::VM::i-05696e5c458d7cad2"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-07a3ffde85bfb39f1"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-05483b3ea3229c269"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::ca-central-1::VM::i-0e09fd198934d203f"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "RHEL"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0e7483578e5fa3ab2"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-055095b83d4534a03"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-0924bb4805b9a8a51"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-08f374d470f30c3b4"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-040eec48323126392"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-080e44f8cc8d056a3"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0d8d1a1ee41344aac"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-041f4ee479d4ee1a6"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 64.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 61.333333333333336
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0aa56e4a9f447bb60"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-00165af6b9b1214c5"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-08db8bf150532a17e"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-03abd54456bee46bd"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-083d779a70ae97ba2"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-051943f3b3c96bad9"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 64.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 61.333333333333336
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0915e0a040126ad14"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-01b303a7f0ecb395e"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-002ee5caa9a7a059d"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 64.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 33.71777866666667
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-09e1e73cd5f158328"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-05cbdb15249347b83"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-01d7e44a4a5623917"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-07636f797a1482f86"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-08bb32d6e2ba1b0db"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-0a8ff52b6f215883f"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-0e5373ffdfad93a34"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-06b02dd18ec54387d"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0cc5286cb7aaa0b13"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0b788abf8c58b78c5"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0d5d4c5e16cfb1f71"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 64.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 64.0
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-070b05d856f4d7bf4"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 32.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 30.666666666666668
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0990bb9839b5f01fe"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-0f958572f69b376f6"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::ca-central-1::VM::i-0cdc94d651b3e1442"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-095aec4919642376f"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 16.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 15.333333333333334
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-02e4c64c5cd52bbf4"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0720ad5f043370c24"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0c2521e7f3dc4f813"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 16.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 15.333333333333334
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-02901882b4265e773"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-0e61d244ada3c3c9f"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0db7ba93876f3d51a"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0f2aa9f0a1293e8ec"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-0fb47e05e14d1d31b"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-07a2466009047e3d1"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-0efda593c64fd3413"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-085573104336e6313"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Windows_SQL_Standard"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0b14758b114cdfbf8"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 32.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 32.0
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-05c3a7844bdba42ef"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-0812e531ea21da00f"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 8.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-west-2::RI::200d8957-4ff4-423a-a9f3-9af578e7c4cb"
+          bought {
+            commodityType: COUPON
+            used: 8.0
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-08996012d8bb32586"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-013d98a6b0ed8da7f"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-02661aa369e8b4ad9"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0c018334a5b3d489a"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-007bfd2e2aa4158f2"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-03f1bfdb303b2d400"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-west-3::VM::i-04201eb08fc215b8a"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 2.0
+        }
+        commoditiesBought {
+          providerId: "aws::eu-west-3::RI::2462e73d-1aba-4bd5-8abc-60ec2ac033cf"
+          bought {
+            commodityType: COUPON
+            used: 2.0
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0e89b99769f772b0e"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-0aa8532cded3fe6da"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-06921780353c68a1c"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-01eb013ccd9ca2f01"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-west-3::VM::i-0b425aa80206cd88c"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 2.0
+        }
+        commoditiesBought {
+          providerId: "aws::eu-west-3::RI::2462e73d-1aba-4bd5-8abc-60ec2ac033cf"
+          bought {
+            commodityType: COUPON
+            used: 1.0
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-west-3::VM::i-0bdf6496916050299"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0782c4c4203be5f09"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 64.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 61.333333333333336
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::ca-central-1::VM::i-0f4ba5c00a4852012"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Windows"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0e279ffcab8a500ab"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 64.0
+        }
+        commoditiesBought {
+          providerId: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+          bought {
+            commodityType: COUPON
+            used: 64.0
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-072f5f70d80e1db7e"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::ca-central-1::VM::i-053bee9963b67f3dd"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 64.0
+        }
+        commoditiesBought {
+          providerId: "aws::ca-central-1::RI::846667fa-4e04-46c0-a032-9f720a1d48c9"
+          bought {
+            commodityType: COUPON
+            used: 48.0
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        commoditiesBought {
+          providerId: "aws::ca-central-1::RI::cfb751ed-c4e3-4420-80ef-493188b40c07"
+          bought {
+            commodityType: COUPON
+            used: 16.0
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-0a04d6c5f5f4e9d9b"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0a52718203fb3807c"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0d320ce9033d357f8"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-1::VM::i-03888a01adfdfb949"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::ca-central-1::VM::i-0e2f6bcee9cb34c4b"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux_SQL_Standard"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-west-3::VM::i-00726d46cbda1f3e0"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-08751fbdcce48ce7c"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-05928e9b9550e6c54"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-05589d2a6b4031cb9"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-1::VM::i-0b1c793bbfd6f4bba"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-0345456fa29ac3704"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-04636321b99e7636c"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-00b4d1a6666751348"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-023a627803eb9a892"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-0b5d931bae540d910"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-01fa8f1444eb9a190"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::ca-central-1::VM::i-04fa1b8a9fe85f11a"
+        commoditiesSold {
+          commodityType: COUPON
+          capacity: 16.0
+        }
+        commoditiesBought {
+          providerId: "aws::ca-central-1::RI::846667fa-4e04-46c0-a032-9f720a1d48c9"
+          bought {
+            commodityType: COUPON
+            used: 16.0
+          }
+          providerType: RESERVED_INSTANCE
+        }
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-04232026e4bb826b1"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-2::VM::i-09bf1a387a3443e45"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-051b93b59befe64e4"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::eu-central-1::VM::i-02bf7983eebff0d87"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-1::VM::i-05aa0527431534708"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-00ccc1ca364a5d5d7"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-east-2::VM::i-0a2276de82c9c3673"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      virtual_machines {
+        entityType: VIRTUAL_MACHINE
+        id: "aws::us-west-1::VM::i-0c5f8ee938a607325"
+        virtual_machine_data {
+          vmState {
+          }
+          guestName: "Linux"
+        }
+        virtual_machine_related_data {
+        }
+      }
+      reserved_instances {
+        entityType: RESERVED_INSTANCE
+        id: "aws::ca-central-1::RI::846667fa-4e04-46c0-a032-9f720a1d48c9"
+        reserved_instance_data {
+          reservedInstanceId: "arn:aws:ec2:ca-central-1:323871187550:reserved-instances/846667fa-4e04-46c0-a032-9f720a1d48c9"
+          startTime: -1
+          duration: -1
+          instanceTenancy: DEFAULT
+          offeringClass: STANDARD
+          offeringType: ALL_UPFRONT
+          platform: LINUX
+          numberOfCoupons: -1
+          numberOfCouponsUsed: -1.0
+          fixedCost: -1.0
+          usageCost: -1.0
+          recurringCost: -1.0
+          region: "ca-central-1"
+          instanceCount: -1
+          relatedProfileId: "VMP-1"
+        }
+      }
+      reserved_instances {
+        entityType: RESERVED_INSTANCE
+        id: "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa"
+        reserved_instance_data {
+          reservedInstanceId: "arn:aws:ec2:us-east-1:192821421245:reserved-instances/18bc975d-54a6-4622-929e-2d9a232766aa"
+          startTime: -1
+          duration: -1
+          instanceTenancy: DEFAULT
+          offeringClass: STANDARD
+          offeringType: ALL_UPFRONT
+          platform: LINUX
+          numberOfCoupons: -1
+          numberOfCouponsUsed: -1.0
+          fixedCost: -1.0
+          usageCost: -1.0
+          recurringCost: -1.0
+          region: "us-east-1"
+          instanceCount: -1
+          relatedProfileId: "VMP-1"
+        }
+      }
+      reserved_instances {
+        entityType: RESERVED_INSTANCE
+        id: "aws::eu-west-3::RI::2462e73d-1aba-4bd5-8abc-60ec2ac033cf"
+        reserved_instance_data {
+          reservedInstanceId: "arn:aws:ec2:eu-west-3:323871187550:reserved-instances/2462e73d-1aba-4bd5-8abc-60ec2ac033cf"
+          startTime: -1
+          duration: -1
+          instanceTenancy: DEFAULT
+          offeringClass: STANDARD
+          offeringType: ALL_UPFRONT
+          platform: LINUX
+          numberOfCoupons: -1
+          numberOfCouponsUsed: -1.0
+          fixedCost: -1.0
+          usageCost: -1.0
+          recurringCost: -1.0
+          region: "eu-west-3"
+          instanceCount: -1
+          relatedProfileId: "VMP-1"
+        }
+      }
+      reserved_instances {
+        entityType: RESERVED_INSTANCE
+        id: "aws::us-west-2::RI::200d8957-4ff4-423a-a9f3-9af578e7c4cb"
+        reserved_instance_data {
+          reservedInstanceId: "arn:aws:ec2:us-west-2:323871187550:reserved-instances/200d8957-4ff4-423a-a9f3-9af578e7c4cb"
+          startTime: -1
+          duration: -1
+          instanceTenancy: DEFAULT
+          offeringClass: STANDARD
+          offeringType: ALL_UPFRONT
+          platform: LINUX
+          numberOfCoupons: -1
+          numberOfCouponsUsed: -1.0
+          fixedCost: -1.0
+          usageCost: -1.0
+          recurringCost: -1.0
+          region: "us-west-2"
+          instanceCount: -1
+          relatedProfileId: "VMP-1"
+        }
+      }
+      reserved_instances {
+        entityType: RESERVED_INSTANCE
+        id: "aws::ca-central-1::RI::cfb751ed-c4e3-4420-80ef-493188b40c07"
+        reserved_instance_data {
+          reservedInstanceId: "arn:aws:ec2:ca-central-1:323871187550:reserved-instances/cfb751ed-c4e3-4420-80ef-493188b40c07"
+          startTime: -1
+          duration: -1
+          instanceTenancy: DEFAULT
+          offeringClass: STANDARD
+          offeringType: ALL_UPFRONT
+          platform: LINUX
+          numberOfCoupons: -1
+          numberOfCouponsUsed: -1.0
+          fixedCost: -1.0
+          usageCost: -1.0
+          recurringCost: -1.0
+          region: "ca-central-1"
+          instanceCount: -1
+          relatedProfileId: "VMP-1"
+        }
+      }
+      billingDataUuid: "f805d945-8915-41b2-abd8-38b82a02ec3c"
+      type: PROXY
+      mainTargetId: "192821421245"
+    }
+    account_id: "192821421245"
+    price_models: ON_DEMAND
+    price_models: ON_DEMAND
+    price_models: RESERVED
+  }
+}
+costDTO {
+  id: "aws::192821421245::CS::AmazonS3"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 0.0061992356
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::192821421245::CS::AWSDeveloperSupport"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 0.124590166
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::192821421245::CS::AmazonEKS"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 0.2
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::192821421245::CS::AWSCostExplorer"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 0.0029166667
+  usage_date: 1591646400000
+}
+costDTO {
+  id: "aws::192821421245::CS::AmazonCloudWatch"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 1.9765328
+  usage_date: 1591578000000
+}
+costDTO {
+  id: "aws::192821421245::CS::AmazonRDS"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 1.3681271
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "6F4CE564-DB49-3790-8007-DAC8646E18A7"
+  applies_profile: true
+  entity_type: DATABASE_SERVER
+  account_id: "192821421245"
+  cost: 0.171
+}
+costDTO {
+  id: "14AC3813-42BE-32D8-BBF7-22CF76F20F8B"
+  applies_profile: true
+  entity_type: DATABASE_SERVER
+  account_id: "192821421245"
+  cost: 0.114999995
+}
+costDTO {
+  id: "CF79B031-08B4-3A46-AC2C-ABC20BE46882"
+  applies_profile: true
+  entity_type: DATABASE_SERVER
+  account_id: "192821421245"
+  cost: 0.58
+}
+costDTO {
+  id: "FE569439-3A4A-309C-BAF3-06B40E48F93B"
+  applies_profile: true
+  entity_type: DATABASE_SERVER
+  account_id: "192821421245"
+  cost: 0.342
+}
+costDTO {
+  id: "A6697B73-F825-389D-8DDD-B3B89F48E266"
+  applies_profile: true
+  entity_type: DATABASE_SERVER
+  account_id: "192821421245"
+  cost: 0.038999997
+}
+costDTO {
+  id: "aws::192821421245::CS::AWSCloudTrail"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 4.1666667E-8
+  usage_date: 1591588800000
+}
+costDTO {
+  id: "aws::192821421245::CS::AmazonQuickSight"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 0.016666668
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::192821421245::CS::AmazonDynamoDB"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 0.0
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::192821421245::CS::AmazonEC2"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 2.3498855
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::VMPROFILE::r5a.xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "192821421245"
+  cost: 0.226
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.small"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "192821421245"
+  cost: 0.0276
+}
+costDTO {
+  id: "aws::VMPROFILE::m5.large"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "192821421245"
+  cost: 0.0
+}
+costDTO {
+  id: "aws::VMPROFILE::m5.2xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "192821421245"
+  cost: 0.0
+}
+costDTO {
+  id: "aws::VMPROFILE::t3a.nano"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "192821421245"
+  cost: 0.0047
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.2xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "192821421245"
+  cost: 0.3712
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.micro"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "192821421245"
+  cost: 0.0162
+}
+costDTO {
+  id: "aws::VMPROFILE::m5n.xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "192821421245"
+  cost: 0.23799999
+}
+costDTO {
+  id: "aws::VMPROFILE::r5.xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "192821421245"
+  cost: 0.252
+}
+costDTO {
+  id: "aws::VMPROFILE::t3a.large"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "192821421245"
+  cost: 0.15869999
+}
+costDTO {
+  id: "aws::192821421245::CS::Awskms"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 0.029166669
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::192821421245::CS::AWSBudgets"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "192821421245"
+  cost: 0.0
+  usage_date: 1591657200000
+}
+costDTO {
+  id: "aws::631949720430::CS::AmazonS3"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "631949720430"
+  cost: 0.0020939584
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::631949720430::CS::AmazonEKS"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "631949720430"
+  cost: 0.2875
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::631949720430::CS::AmazonCloudWatch"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "631949720430"
+  cost: 0.108741276
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::631949720430::CS::AmazonRDS"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "631949720430"
+  cost: 0.042572573
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "14AC3813-42BE-32D8-BBF7-22CF76F20F8B"
+  applies_profile: true
+  entity_type: DATABASE_SERVER
+  account_id: "631949720430"
+  cost: 0.03929167
+}
+costDTO {
+  id: "aws::631949720430::CS::AWSCloudTrail"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "631949720430"
+  cost: 0.0
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::631949720430::CS::AmazonECS"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "631949720430"
+  cost: 0.036435835
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::631949720430::CS::AmazonEC2"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "631949720430"
+  cost: 1.9668776
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::VMPROFILE::m5.xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "631949720430"
+  cost: 0.0
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.small"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "631949720430"
+  cost: 0.04408333
+}
+costDTO {
+  id: "aws::VMPROFILE::t3.medium"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "631949720430"
+  cost: 0.079733334
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.micro"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "631949720430"
+  cost: 0.022233332
+}
+costDTO {
+  id: "aws::VMPROFILE::t3.2xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "631949720430"
+  cost: 0.9568
+}
+costDTO {
+  id: "aws::631949720430::CS::AmazonVPC"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "631949720430"
+  cost: 0.1917904
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::631949720430::CS::AmazonRoute53"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "631949720430"
+  cost: 0.47924554
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::001844731978::CS::AmazonS3"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "001844731978"
+  cost: 24.210104
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::001844731978::CS::AmazonEKS"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "001844731978"
+  cost: 0.19166666
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::001844731978::CS::AmazonCloudWatch"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "001844731978"
+  cost: 1.5957954
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::001844731978::CS::AmazonRDS"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "001844731978"
+  cost: 0.90296316
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "6F4CE564-DB49-3790-8007-DAC8646E18A7"
+  applies_profile: true
+  entity_type: DATABASE_SERVER
+  account_id: "001844731978"
+  cost: 0.163875
+}
+costDTO {
+  id: "F456353D-AFEF-3066-966E-EC6DE54921F0"
+  applies_profile: true
+  entity_type: DATABASE_SERVER
+  account_id: "001844731978"
+  cost: 0.27791664
+}
+costDTO {
+  id: "FE569439-3A4A-309C-BAF3-06B40E48F93B"
+  applies_profile: true
+  entity_type: DATABASE_SERVER
+  account_id: "001844731978"
+  cost: 0.36225
+}
+costDTO {
+  id: "aws::001844731978::CS::AmazonSageMaker"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "001844731978"
+  cost: 0.045398377
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::001844731978::CS::AmazonECR"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "001844731978"
+  cost: 1.3827791E-5
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::001844731978::CS::AmazonDynamoDB"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "001844731978"
+  cost: 0.0
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::001844731978::CS::AmazonEC2"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "001844731978"
+  cost: 11.666299
+  usage_date: 1591592400000
+}
+costDTO {
+  id: "aws::VMPROFILE::i3.large"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 0.4485
+}
+costDTO {
+  id: "aws::VMPROFILE::t3.xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 0.4784
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.nano"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 0.005558333
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.medium"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 0.17786665
+}
+costDTO {
+  id: "aws::VMPROFILE::m5.2xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 1.288
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.micro"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 0.122283325
+}
+costDTO {
+  id: "aws::VMPROFILE::m5a.2xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 0.32966667
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.large"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 0.88933325
+}
+costDTO {
+  id: "aws::VMPROFILE::m4.xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 0.575
+}
+costDTO {
+  id: "aws::VMPROFILE::m5.xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 0.42933333
+}
+costDTO {
+  id: "aws::VMPROFILE::m5.large"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 0.368
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.2xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 1.0672
+}
+costDTO {
+  id: "aws::VMPROFILE::m4.large"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "001844731978"
+  cost: 0.86249995
+}
+costDTO {
+  id: "aws::001844731978::CS::AmazonVPC"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "001844731978"
+  cost: 0.047916684
+  usage_date: 1591650000000
+}
+costDTO {
+  id: "aws::001844731978::CS::AmazonRoute53"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "001844731978"
+  cost: 6.0999996E-6
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::323871187550::CS::AmazonS3"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "323871187550"
+  cost: 5.105297E-4
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::323871187550::CS::AmazonCloudWatch"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "323871187550"
+  cost: 4.384952
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::323871187550::CS::AmazonRDS"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "323871187550"
+  cost: 0.20520258
+  usage_date: 1591657200000
+}
+costDTO {
+  id: "14AC3813-42BE-32D8-BBF7-22CF76F20F8B"
+  applies_profile: true
+  entity_type: DATABASE_SERVER
+  account_id: "323871187550"
+  cost: 0.1660449
+}
+costDTO {
+  id: "A6697B73-F825-389D-8DDD-B3B89F48E266"
+  applies_profile: true
+  entity_type: DATABASE_SERVER
+  account_id: "323871187550"
+  cost: 0.023999998
+}
+costDTO {
+  id: "aws::323871187550::CS::AmazonEC2"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "323871187550"
+  cost: 4.3959703
+  usage_date: 1591574400000
+}
+costDTO {
+  id: "aws::VMPROFILE::t3.micro"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "323871187550"
+  cost: 0.0177
+}
+costDTO {
+  id: "aws::VMPROFILE::i3.large"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "323871187550"
+  cost: 0.232
+}
+costDTO {
+  id: "aws::VMPROFILE::c5.large"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "323871187550"
+  cost: 0.0
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.nano"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "323871187550"
+  cost: 0.0067
+}
+costDTO {
+  id: "aws::VMPROFILE::m5.xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "323871187550"
+  cost: 0.0
+}
+costDTO {
+  id: "aws::VMPROFILE::m5.large"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "323871187550"
+  cost: 1.255
+}
+costDTO {
+  id: "aws::VMPROFILE::m5.2xlarge"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "323871187550"
+  cost: 0.0
+}
+costDTO {
+  id: "aws::VMPROFILE::t3a.nano"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "323871187550"
+  cost: 0.0019526315
+}
+costDTO {
+  id: "aws::VMPROFILE::c1.medium"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "323871187550"
+  cost: 0.12098864
+}
+costDTO {
+  id: "aws::VMPROFILE::t2.micro"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "323871187550"
+  cost: 0.032473292
+}
+costDTO {
+  id: "aws::VMPROFILE::m1.small"
+  applies_profile: true
+  entity_type: VIRTUAL_MACHINE
+  account_id: "323871187550"
+  cost: 0.047000002
+}
+costDTO {
+  id: "aws::323871187550::CS::Awskms"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "323871187550"
+  cost: 0.0
+  usage_date: 1591639200000
+}
+costDTO {
+  id: "aws::323871187550::CS::AmazonSNS"
+  applies_profile: false
+  entity_type: CLOUD_SERVICE
+  account_id: "323871187550"
+  cost: 0.0
+  usage_date: 1591639200000
+}

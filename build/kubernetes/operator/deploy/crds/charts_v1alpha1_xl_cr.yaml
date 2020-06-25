@@ -40,19 +40,40 @@ spec:
     enabled: true
   hyperv:
     enabled: true
+  kubeturbo:
+    enabled: true
   netapp:
     enabled: true
   nutanix:
     enabled: true
   oneview:
     enabled: true
+  prometheus-mysql-exporter:
+    enabled: true
+    mysql:
+      user: root
+      pass: vmturbo
+  prometheus:
+    enabled: true
+  prometurbo:
+    enabled: true
   pure:
     enabled: true
   ucs:
+    enabled: true
+  udt:
     enabled: true
   vcenter:
     enabled: true
   vmax:
     enabled: true
   vmm:
+    enabled: true
+  wmi:
+    enabled: true
+  snmp:
+    enabled: true
+  mssql:
+    enabled: true
+  newrelic:
     enabled: true

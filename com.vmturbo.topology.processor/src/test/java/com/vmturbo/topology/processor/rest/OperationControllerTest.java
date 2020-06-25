@@ -671,6 +671,7 @@ public class OperationControllerTest {
                           @Nonnull final String probeType) throws Exception {
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
                 .setProbeCategory(probeCategory)
+                .setUiProbeCategory(probeCategory)
                 .setProbeType(probeType)
                 .addTargetIdentifierField("targetId")
                 .addAccountDefinition(Probes.mandatoryField)

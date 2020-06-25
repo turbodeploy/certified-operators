@@ -39,7 +39,7 @@ public interface EntityType {
      */
     static EntityType get(String name) throws IllegalArgumentException {
         return EntityType.named(name).orElseThrow(() ->
-                new IllegalArgumentException("EntityType " + name + " not found"));
+            new IllegalArgumentException("EntityType " + name + " not found"));
     }
 
     /**
@@ -190,9 +190,9 @@ public interface EntityType {
      */
     default boolean persistsPriceIndex() {
         return getSdkEntityType()
-                .map(sdkType -> !StatsUtils.SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES.contains(
-                        sdkType.getNumber()))
-                .orElse(false);
+            .map(sdkType -> !StatsUtils.SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES.contains(
+                sdkType.getNumber()))
+            .orElse(false);
     }
 
     /**
@@ -227,15 +227,15 @@ public interface EntityType {
         Spend;
 
         static final UseCase[] STANDARD_STATS = new UseCase[]{
-                PersistEntity, PersistStats, RollUp
+            PersistEntity, PersistStats, RollUp
         };
 
         static final UseCase[] NON_ROLLUP_STATS = new UseCase[]{
-                PersistEntity, PersistStats
+            PersistEntity, PersistStats
         };
 
         static final UseCase[] NON_PRICE_STATS = new UseCase[]{
-                PersistEntity, PersistEntity, RollUp
+            PersistEntity, PersistEntity, RollUp
         };
     }
 }

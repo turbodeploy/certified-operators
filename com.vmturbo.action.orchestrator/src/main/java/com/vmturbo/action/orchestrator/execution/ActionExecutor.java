@@ -130,7 +130,23 @@ public class ActionExecutor implements ActionExecutionListener {
      */
     @Nonnull
     public static ExecuteActionRequest createRequest(final long targetId, @Nonnull final ActionDTO.Action action,
-            @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt) {
+                                                     @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt) {
+        return createRequest(targetId, action, workflowOpt, null);
+    }
+
+    /**
+     * Creates execute action request, suitable to send it to topology processor.
+     *
+     * @param targetId target to execute action on
+     * @param action action to execute
+     * @param workflowOpt workflow associated with this target (if any)
+     * @param explanation the explanation string describing the action.
+     * @return DTO to send request to topology processor
+     */
+    @Nonnull
+    public static ExecuteActionRequest createRequest(final long targetId, @Nonnull final ActionDTO.Action action,
+            @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt,
+            @Nullable String explanation) {
         Objects.requireNonNull(action);
         Objects.requireNonNull(workflowOpt);
 
@@ -140,6 +156,9 @@ public class ActionExecutor implements ActionExecutionListener {
                 .setActionId(action.getId())
                 .setActionInfo(action.getInfo())
                 .setActionType(actionType);
+        if (explanation != null) {
+            executionRequestBuilder.setExplanation(explanation);
+        }
         if (workflowOpt.isPresent()) {
             // if there is a Workflow for this action, then the target to execute the action
             // will be the one from which the Workflow was discovered instead of the target

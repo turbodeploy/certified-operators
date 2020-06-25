@@ -340,7 +340,7 @@ public class ClusterStatsReader {
         final PaginatedStats paginatedStats =
                 new EntityStatsPaginator()
                         .paginate(statsPerCluster.keySet(),
-                                  oid -> Optional.of(SingleClusterStats.getComparisonFunction(orderByField)
+                                  oid -> Optional.of(SingleClusterStats.getComparisonFunction(orderByField, entityStatsPaginationParams.isAscending())
                                                  .apply(statsPerCluster.get(oid))),
                                   entityStatsPaginationParams);
         final PaginationResponse paginationResponse = paginatedStats.getPaginationResponse();
@@ -540,13 +540,16 @@ public class ClusterStatsReader {
          * Return utilization of a stat for this cluster and timestamp.
          *
          * @param key the stat name
+         * @param isAscending whether sort in ascending order or not
          * @return the utilization
          */
-        public double getUtilization(@Nonnull String key) {
+        public double getUtilization(@Nonnull String key, boolean isAscending) {
             final Double used = usages.get(key);
             final Double capacity = capacities.get(key);
             if (used == null || capacity == null || capacity == 0.0) {
-                return 0.0;
+                // Here we return positive infinity when it's ascending and
+                // -1.0 when it's descending so that such records will be grouped at the end.
+                return isAscending ? Double.POSITIVE_INFINITY : -1.0;
             }
             return used / capacity;
         }
@@ -554,15 +557,16 @@ public class ClusterStatsReader {
         /**
          * Return total headroom utilization for this cluster and timestamp.
          *
+         * @param isAscending whether sort in ascending order or not
          * @return the utilization
          */
-        public double getTotalHeadroomUtilization() {
+        public double getTotalHeadroomUtilization(boolean isAscending) {
             if (!usages.containsKey(TOTAL_HEADROOM) || !capacities.containsKey(TOTAL_HEADROOM)) {
                 // total headroom has not been calculated
                 calculateTotalHeadroom();
             }
 
-            return getUtilization(TOTAL_HEADROOM);
+            return getUtilization(TOTAL_HEADROOM, isAscending);
         }
 
         /**
@@ -759,14 +763,16 @@ public class ClusterStatsReader {
          * Sorting happens according to a stat of the most recent historical record.
          *
          * @param key name of the stat to be used for sorting
+         * @param isAscending whether sort in ascending order or not
          * @return function to be used by the comparator when sorting
          */
-        public static Function<SingleClusterStats, Float> getComparisonFunction(@Nonnull String key) {
+        static Function<SingleClusterStats, Float> getComparisonFunction(@Nonnull String key,
+                                                                         boolean isAscending) {
             if (TOTAL_HEADROOM.equalsIgnoreCase(key)) {
                 return s -> (float)(s.allStats.get(s.allStats.firstKey())
-                                            .getTotalHeadroomUtilization());
+                                            .getTotalHeadroomUtilization(isAscending));
             } else if (STATS_STORED_IN_TWO_RECORDS.contains(key)) {
-                return s -> (float)(s.allStats.get(s.allStats.firstKey()).getUtilization(key));
+                return s -> (float)(s.allStats.get(s.allStats.firstKey()).getUtilization(key, isAscending));
             } else {
                 return s -> (float)(s.allStats.get(s.allStats.firstKey()).getValue(key));
             }

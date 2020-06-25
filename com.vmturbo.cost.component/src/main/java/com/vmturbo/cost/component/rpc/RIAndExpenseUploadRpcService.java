@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceImplBase;
@@ -30,6 +31,7 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+
 
 /**
  * This class is an uploader service for RIs and expenses.
@@ -128,14 +130,54 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
         // its own. Therefore, the only way to map a Coverage instance to a ReservedInstanceBought
         // is through the ProbeReservedInstanceId. We normalize the Coverage records here to remove
         // the dependency on downstream consumers.
+        final Map<String, Long> riProbeIdToOid = reservedInstanceBoughtStore
+                .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER)
+                .stream()
+                .filter(ReservedInstanceBought::hasReservedInstanceBoughtInfo)
+                .collect(
+                        Collectors.toMap(
+                                ri -> ri.getReservedInstanceBoughtInfo()
+                                        .getProbeReservedInstanceId(),
+                                ReservedInstanceBought::getId
+                        ));
         final List<EntityRICoverageUpload> entityRiCoverageWithRIOid =
-                updateCoverageWithLocalRIBoughtIds(request.getReservedInstanceCoverageList());
+                updateCoverageWithLocalRIBoughtIds(request.getReservedInstanceCoverageList(), riProbeIdToOid);
         reservedInstanceCoverageUpdate.storeEntityRICoverageOnlyIntoCache(request.getTopologyContextId(),
                 entityRiCoverageWithRIOid);
+        // Store the account coverage in cache
+        final List<AccountRICoverageUpload> accountRiCoverageWithRIOid =
+                updateAccountCoverageWithLocalRIBoughtIds(request.getAccountLevelReservedInstanceCoverageList(),
+                        riProbeIdToOid);
+        reservedInstanceCoverageUpdate.cacheAccountRICoverageData(request.getTopologyContextId(),
+                accountRiCoverageWithRIOid);
         lastProcessedRIDataChecksum = request.getChecksum();
         responseObserver.onNext(UploadRIDataResponse.getDefaultInstance());
         responseObserver.onCompleted();
     }
+
+    /**
+     * Updates the reserved instance id with the cost component generated id.
+     * @param accountLevelReservedInstanceCoverageList the account coverage list uploaded by TP
+     * @param riProbeIdToOid mapping of the probe id to the cost component generated oid.
+     * @return the list of account coverages with reference to the id from cost component
+     */
+    private List<AccountRICoverageUpload> updateAccountCoverageWithLocalRIBoughtIds(
+            final List<AccountRICoverageUpload> accountLevelReservedInstanceCoverageList,
+            @Nonnull final Map<String, Long> riProbeIdToOid) {
+
+        return accountLevelReservedInstanceCoverageList.stream()
+                .map(accountRICoverage -> AccountRICoverageUpload.newBuilder(accountRICoverage))
+                // update the ReservedInstanceId for each Coverage record, mapping through
+                // the ProbeReservedInstanceId
+                .peek(entityRiCoverageBuilder -> entityRiCoverageBuilder
+                        .getCoverageBuilderList().stream()
+                        .forEach(coverageBuilder -> coverageBuilder
+                                .setReservedInstanceId(riProbeIdToOid.getOrDefault(
+                                        coverageBuilder.getProbeReservedInstanceId(), 0L))))
+                .map(AccountRICoverageUpload.Builder::build)
+                .collect(Collectors.toList());
+    }
+
 
     /**
      * Store the received reserved instance bought and specs into database.
@@ -199,21 +241,12 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
      * @param entityRICoverageList a list of {@link EntityRICoverageUpload}, in which the underlying
      *                             Coverage entries contain the ProbeReservedInstanceId attribute to map
      *                             to a {@link ReservedInstanceBought}
+     * @param riProbeIdToOid mapping of the probe id to the cost component generated oid.
      * @return a list of updated {@link EntityRICoverageUpload}
      */
     private List<EntityRICoverageUpload> updateCoverageWithLocalRIBoughtIds(
-            @Nonnull final List<EntityRICoverageUpload> entityRICoverageList) {
-
-        final Map<String, Long> riProbeIdToOid = reservedInstanceBoughtStore
-                .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER)
-                .stream()
-                .filter(ReservedInstanceBought::hasReservedInstanceBoughtInfo)
-                .collect(
-                        Collectors.toMap(
-                                ri -> ri.getReservedInstanceBoughtInfo()
-                                        .getProbeReservedInstanceId(),
-                                ReservedInstanceBought::getId
-                        ));
+            @Nonnull final List<EntityRICoverageUpload> entityRICoverageList,
+            @Nonnull final Map<String, Long> riProbeIdToOid ) {
 
         return entityRICoverageList.stream()
                 .map(entityRICoverage -> EntityRICoverageUpload.newBuilder(entityRICoverage))

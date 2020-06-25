@@ -237,6 +237,11 @@ resource "helm_release" "xl" {
     value = "${var.xtremio ? true : false}"
   }
 
+  set {
+      name  = "udt.enabled"
+      value = "${var.udt ? true : false}"
+    }
+
   # Resources
   set {
     name  = "action-orchestrator.resources.limits.memory"
@@ -272,4 +277,9 @@ resource "helm_release" "xl" {
     name  = "mediation-vcenter.resources.limits.memory"
     value = "${var.mediation-vcenter_memory}"
   }
+
+  set {
+      name  = "mediation-udt.resources.limits.memory"
+      value = "${var.mediation-udt_memory}"
+    }
 }
