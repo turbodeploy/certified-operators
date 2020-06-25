@@ -111,6 +111,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.SinglePolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
@@ -882,7 +883,7 @@ public class MarketsServiceTest {
                                 PolicyMapper.MERGE_TYPE_API_TO_PROTO.get(
                                     policyApiInputDTO.getMergeType()))
                             .addMergeGroupIds(MERGE_GROUP_ID))))
-                .build()).when(policiesBackend).getPolicy(PolicyRequest.newBuilder()
+                .build()).when(policiesBackend).getPolicy(SinglePolicyRequest.newBuilder()
                     .setPolicyId(POLICY_ID)
                     .build());
             final UpdateGroupRequest updateGroupRequest = UpdateGroupRequest.newBuilder()

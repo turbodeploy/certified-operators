@@ -15,14 +15,10 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.repository.EntityConstraints.CurrentPlacement;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsResponse;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.RelationType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -57,11 +53,18 @@ public class ConstraintsCalculator {
                 List<ConstraintGrouping> constraintGroupingsForEntityType = constraintGroupings.get(e.getEntityType());
                 for (CommoditySoldDTO commSold : e.getTopologyEntity().getCommoditySoldListList()) {
                     for (ConstraintGrouping constraintGrouping : constraintGroupingsForEntityType) {
-                        if (constraintGrouping.sellersByCommodityType.containsKey(commSold.getCommodityType())) {
+                        if (constraintGrouping.potentialSellersByCommodityType.containsKey(commSold.getCommodityType())) {
                             logger.trace("Adding potential seller {} for Consumer = {}, Provider Entity type = {}, Comm type bought = {}",
                                 e.getDisplayName(), entity.getDisplayName(), e.getEntityType(),
                                 getPrintableConstraint(commSold.getCommodityType()));
-                            constraintGrouping.sellersByCommodityType.get(commSold.getCommodityType()).add(e.getOid());
+                            PotentialSellers potentialSellers = constraintGrouping.potentialSellersByCommodityType.get(commSold.getCommodityType());
+                            potentialSellers.addSeller(e.getOid());
+                            if (StringUtils.isEmpty((potentialSellers.scopeDisplayName))) {
+                                if (commSold.hasAccesses()) {
+                                    Optional<RepoGraphEntity> accessesBy = entityGraph.getEntity(commSold.getAccesses());
+                                    accessesBy.ifPresent(a -> potentialSellers.scopeDisplayName = a.getDisplayName());
+                                }
+                            }
                         }
                     }
                 }
@@ -133,61 +136,11 @@ public class ConstraintsCalculator {
                     constraintGrouping.currentPlacement = Optional.of(commBoughtGrouping.getProviderId());
                 }
                 commBoughtTypesWithKey.forEach(cTypeWithKey ->
-                    constraintGrouping.sellersByCommodityType.computeIfAbsent(cTypeWithKey, c -> Sets.newHashSet()));
+                    constraintGrouping.potentialSellersByCommodityType.computeIfAbsent(cTypeWithKey, c -> new PotentialSellers()));
                 constraintGroupingsForEntityType.add(constraintGrouping);
             }
         }
         return constraintGroupings;
-    }
-
-    /**
-     * Converts the constraintGroupings to EntityConstraintsResponse.
-     *
-     * @param constraintGroupings constraintGroupings for the requested entity
-     * @param entityGraph entity graph
-     * @return EntityConstraintsResponse
-     */
-    private EntityConstraintsResponse buildEntityConstraintsResponse(
-        @Nonnull final Map<Integer, List<ConstraintGrouping>> constraintGroupings,
-        @Nonnull final TopologyGraph<RepoGraphEntity> entityGraph) {
-        // Convert the constraintGroupings map to protobuf structures
-        final EntityConstraintsResponse.Builder response = EntityConstraintsResponse.newBuilder();
-        constraintGroupings.forEach((providerEntityType, constraintGroupingsForProviderEntityType) -> {
-            constraintGroupingsForProviderEntityType.forEach(constraintGrouping -> {
-                // We create an EntityConstraint for each constraintGrouping
-                final EntityConstraint.Builder entityConstraint = EntityConstraint.newBuilder();
-                entityConstraint.setRelationType(RelationType.BOUGHT);
-                // set the current placement
-                constraintGrouping.currentPlacement.ifPresent(currPlacement -> {
-                    entityGraph.getEntity(currPlacement).ifPresent(curPlacementEntity -> {
-                        entityConstraint.setCurrentPlacement(CurrentPlacement.newBuilder()
-                            .setOid(curPlacementEntity.getOid())
-                            .setDisplayName(curPlacementEntity.getDisplayName())
-                            .build());
-                        entityConstraint.setEntityType(curPlacementEntity.getEntityType());
-                    });
-                });
-                // Overall potential placements should be the intersection of the
-                // potential placements for all of the commodity types
-                final Set<Long> overallPotentialPlacements = Sets.newHashSet();
-                if (!constraintGrouping.sellersByCommodityType.isEmpty()) {
-                    // Initialize the overallPotentialPlacements to the first set of sellers
-                    overallPotentialPlacements.addAll(
-                        constraintGrouping.sellersByCommodityType.values().iterator().next());
-                }
-                constraintGrouping.sellersByCommodityType.forEach((commType, sellers) -> {
-                    entityConstraint.addPotentialPlacements(
-                        PotentialPlacements.newBuilder()
-                            .setCommodityType(commType)
-                            .setNumPotentialPlacements(sellers.size())
-                            .setScopeDisplayName(commType.getKey()));
-                    overallPotentialPlacements.retainAll(sellers);
-                });
-                entityConstraint.setNumPotentialPlacements(overallPotentialPlacements.size());
-                response.addEntityConstraint(entityConstraint);
-            });
-        });
-        return response.build();
     }
 
     /**
@@ -227,7 +180,7 @@ public class ConstraintsCalculator {
      */
     public static class ConstraintGrouping {
         // A map of the commodity type bought to the set of providers which sell this commodity type.
-        private final Map<CommodityType, Set<Long>> sellersByCommodityType = Maps.newHashMap();
+        private final Map<CommodityType, PotentialSellers> potentialSellersByCommodityType = Maps.newHashMap();
 
         // Current placement of this
         private Optional<Long> currentPlacement = Optional.empty();
@@ -236,8 +189,35 @@ public class ConstraintsCalculator {
             return currentPlacement;
         }
 
-        public Map<CommodityType, Set<Long>> getSellersByCommodityType() {
-            return Collections.unmodifiableMap(sellersByCommodityType);
+        public Map<CommodityType, PotentialSellers> getPotentialSellersByCommodityType() {
+            return Collections.unmodifiableMap(potentialSellersByCommodityType);
+        }
+    }
+
+    /**
+     * Potential sellers along with the scope display name.
+     */
+    public static class PotentialSellers {
+        // oids of potential placements
+        private Set<Long> potentialPlacements;
+        // Scope display name
+        private String scopeDisplayName;
+
+        private PotentialSellers() {
+            potentialPlacements = Sets.newHashSet();
+            scopeDisplayName = "";
+        }
+
+        private void addSeller(Long sellerOid) {
+            potentialPlacements.add(sellerOid);
+        }
+
+        public Set<Long> getSellers() {
+            return Collections.unmodifiableSet(potentialPlacements);
+        }
+
+        public String getScopeDisplayName() {
+            return scopeDisplayName;
         }
     }
 }

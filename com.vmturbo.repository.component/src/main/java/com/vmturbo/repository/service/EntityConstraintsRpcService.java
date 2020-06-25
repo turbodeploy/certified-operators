@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -97,11 +99,12 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
             return;
         }
         final DataMetricTimer timer = CALCULATE_CONSTRAINTS_DURATION_SUMMARY.startTimer();
+        RepoGraphEntity repoEntity = entity.get();
         Map<Integer, List<ConstraintGrouping>> constraintGroupingsByProviderEntityType =
-            constraintsCalculator.calculateConstraints(entity.get(), entityGraph);
+            constraintsCalculator.calculateConstraints(repoEntity, entityGraph);
 
         EntityConstraintsResponse response = buildEntityConstraintsResponse(
-            constraintGroupingsByProviderEntityType, entityGraph);
+            constraintGroupingsByProviderEntityType, entityGraph, repoEntity.getDiscoveringTargetIds());
         responseObserver.onNext(response);
         responseObserver.onCompleted();
         timer.observe();
@@ -113,11 +116,13 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
      *
      * @param constraintGroupings constraintGroupings for the requested entity
      * @param entityGraph entity graph
+     * @param discoveringTargetIds discovering target ids of entity
      * @return EntityConstraintsResponse
      */
     private EntityConstraintsResponse buildEntityConstraintsResponse(
         @Nonnull final Map<Integer, List<ConstraintGrouping>> constraintGroupings,
-        @Nonnull final TopologyGraph<RepoGraphEntity> entityGraph) {
+        @Nonnull final TopologyGraph<RepoGraphEntity> entityGraph,
+        @Nonnull final Stream<Long> discoveringTargetIds) {
         // Convert the constraintGroupings map to protobuf structures
         final EntityConstraintsResponse.Builder response = EntityConstraintsResponse.newBuilder();
         constraintGroupings.forEach((providerEntityType, constraintGroupingsForProviderEntityType) -> {
@@ -138,23 +143,24 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
                 // Overall potential placements should be the intersection of the
                 // potential placements for all of the commodity types
                 final Set<Long> overallPotentialPlacements = Sets.newHashSet();
-                if (!constraintGrouping.getSellersByCommodityType().isEmpty()) {
+                if (!constraintGrouping.getPotentialSellersByCommodityType().isEmpty()) {
                     // Initialize the overallPotentialPlacements to the first set of sellers
                     overallPotentialPlacements.addAll(
-                        constraintGrouping.getSellersByCommodityType().values().iterator().next());
+                        constraintGrouping.getPotentialSellersByCommodityType().values().iterator().next().getSellers());
                 }
-                constraintGrouping.getSellersByCommodityType().forEach((commType, sellers) -> {
+                constraintGrouping.getPotentialSellersByCommodityType().forEach((commType, potentialSellers) -> {
                     entityConstraint.addPotentialPlacements(
                         PotentialPlacements.newBuilder()
                             .setCommodityType(commType)
-                            .setNumPotentialPlacements(sellers.size())
-                            .setScopeDisplayName(commType.getKey()));
-                    overallPotentialPlacements.retainAll(sellers);
+                            .setNumPotentialPlacements(potentialSellers.getSellers().size())
+                            .setScopeDisplayName(potentialSellers.getScopeDisplayName()));
+                    overallPotentialPlacements.retainAll(potentialSellers.getSellers());
                 });
                 entityConstraint.setNumPotentialPlacements(overallPotentialPlacements.size());
                 response.addEntityConstraint(entityConstraint);
             });
         });
+        response.addAllDiscoveringTargetIds(discoveringTargetIds.collect(Collectors.toList()));
         return response.build();
     }
 

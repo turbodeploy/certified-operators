@@ -331,7 +331,9 @@ public class ServiceConfig {
                 actionSearchUtil(),
                 communicationConfig.repositoryApi(),
                 entitySettingQueryExecutor(),
-                communicationConfig.entityConstraintRpcService());
+                communicationConfig.entityConstraintRpcService(),
+                communicationConfig.policyRpcService(),
+                communicationConfig.thinTargetCache());
     }
 
     @Bean

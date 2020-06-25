@@ -48,7 +48,7 @@ public enum UICommodityType {
     /** The commodity DATACENTER. */
     DATACENTER("DataCenterCommodity", CommodityType.DATACENTER, "Data Center Commodity"),
     /** The commodity DATASTORE. */
-    DATASTORE("DatastoreCommodity", CommodityType.DATASTORE, "Data Store Commodity"),
+    DATASTORE("DatastoreCommodity", CommodityType.DATASTORE, "Storage Accessibility"),
     /** The commodity DB_CACHE_HIT_RATE. */
     DB_CACHE_HIT_RATE("DBCacheHitRate", CommodityType.DB_CACHE_HIT_RATE, "DB Cache Hit Rate"),
     /** The commodity DB_MEM. */
@@ -58,7 +58,7 @@ public enum UICommodityType {
     /** The commodity DRS_SEGMENTATION. */
     DRS_SEGMENTATION("DrsSegmentationCommodity", CommodityType.DRS_SEGMENTATION, "DRS Segmentation Commodity"),
     /** The commodity DSPM_ACCESS. */
-    DSPM_ACCESS("DSPMAccessCommodity", CommodityType.DSPM_ACCESS, "DSPM Access Commodity"),
+    DSPM_ACCESS("DSPMAccessCommodity", CommodityType.DSPM_ACCESS, "Host Accessibility"),
     /** The commodity EXTENT. */
     EXTENT("Extent", CommodityType.EXTENT, "Extent"),
     /** The commodity FLOW. */

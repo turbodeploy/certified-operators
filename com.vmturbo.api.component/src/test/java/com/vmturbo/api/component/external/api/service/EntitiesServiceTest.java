@@ -63,6 +63,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -86,6 +88,7 @@ import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.dto.InputField;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Tests for {@link EntitiesService}.
@@ -113,17 +116,19 @@ public class EntitiesServiceTest {
     private final RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
     private final SupplyChainFetcherFactory supplyChainFetcherFactory =
             mock(SupplyChainFetcherFactory.class);
+    private final PolicyServiceMole policyService = spy(new PolicyServiceMole());
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
     private EntitySettingQueryExecutor entitySettingQueryExecutor = mock(EntitySettingQueryExecutor.class);
 
     private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
-
     // gRPC servers
     @Rule
     public final GrpcTestServer grpcServer =
-        GrpcTestServer.newServer(actionsService, groupService, historyService, reportingService, repositoryService);
+        GrpcTestServer.newServer(actionsService, groupService, historyService, reportingService,
+            repositoryService, policyService);
+    private final ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
 
     // a sample topology ST -> PM -> VM
     private static final long CONTEXT_ID = 777777L;
@@ -182,6 +187,7 @@ public class EntitiesServiceTest {
             .setEntityState(ST_STATE)
             .putDiscoveredTargetData(TARGET_ID, PER_TARGET_INFO)
             .build();
+
     /**
      * Set up a mock topology processor server and a {@link ProbesService} client and connects them.
      */
@@ -232,7 +238,9 @@ public class EntitiesServiceTest {
                 mock(SettingsMapper.class),
                 actionSearchUtil,
                 repositoryApi, entitySettingQueryExecutor,
-                EntityConstraintsServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+                EntityConstraintsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                thinTargetCache);
     }
 
     /**

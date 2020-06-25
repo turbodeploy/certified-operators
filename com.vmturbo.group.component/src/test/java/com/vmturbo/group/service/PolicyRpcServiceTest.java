@@ -441,7 +441,7 @@ public class PolicyRpcServiceTest {
 
     @Test
     public void testGetEmptyRequest() {
-        final PolicyDTO.PolicyRequest emptyReq = PolicyDTO.PolicyRequest.getDefaultInstance();
+        final PolicyDTO.SinglePolicyRequest emptyReq = PolicyDTO.SinglePolicyRequest.getDefaultInstance();
 
         final StreamObserver<PolicyDTO.PolicyResponse> mockObserver =
                 Mockito.mock(StreamObserver.class);
@@ -458,7 +458,7 @@ public class PolicyRpcServiceTest {
     @Test
     public void testGetPolicy() throws Exception {
         final long policyIdToGet = 1234L;
-        final PolicyDTO.PolicyRequest policyRequest = PolicyDTO.PolicyRequest.newBuilder()
+        final PolicyDTO.SinglePolicyRequest policyRequest = PolicyDTO.SinglePolicyRequest.newBuilder()
                 .setPolicyId(policyIdToGet)
                 .build();
 
@@ -483,7 +483,7 @@ public class PolicyRpcServiceTest {
     @Test
     public void testGetMissingPolicy() {
         final long policyIdToGet = 1234L;
-        final PolicyDTO.PolicyRequest policyRequest = PolicyDTO.PolicyRequest.newBuilder()
+        final PolicyDTO.SinglePolicyRequest policyRequest = PolicyDTO.SinglePolicyRequest.newBuilder()
                 .setPolicyId(policyIdToGet).build();
 
         final StreamObserver<PolicyDTO.PolicyResponse> mockObserver =
@@ -499,7 +499,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test
-    public void testGetAllPolicies() {
+    public void testGetPolicies() {
         final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.getDefaultInstance();
         final Collection<PolicyDTO.Policy> testPolicies = ImmutableList.of(
                 PolicyDTO.Policy.newBuilder().setId(1L).build(),
@@ -514,7 +514,7 @@ public class PolicyRpcServiceTest {
 
         when(policyStore.getAll()).thenReturn(testPolicies);
 
-        policyRpcService.getAllPolicies(request, mockObserver);
+        policyRpcService.getPolicies(request, mockObserver);
 
         verify(mockObserver, times(testPolicies.size())).onNext(any(PolicyDTO.PolicyResponse.class));
         verify(mockObserver).onCompleted();
@@ -539,7 +539,7 @@ public class PolicyRpcServiceTest {
 
         given(policyStore.get(policyIdInScope)).willReturn(Optional.of(policyInScope));
 
-        final PolicyDTO.PolicyRequest policyInScopeRequest = PolicyDTO.PolicyRequest.newBuilder()
+        final PolicyDTO.SinglePolicyRequest policyInScopeRequest = PolicyDTO.SinglePolicyRequest.newBuilder()
                 .setPolicyId(policyIdInScope)
                 .build();
 
@@ -569,7 +569,7 @@ public class PolicyRpcServiceTest {
                 .build();
         given(policyStore.get(policyIdNotInScope)).willReturn(Optional.of(policyNotInScope));
 
-        final PolicyDTO.PolicyRequest policyInScopeRequest = PolicyDTO.PolicyRequest.newBuilder()
+        final PolicyDTO.SinglePolicyRequest policyInScopeRequest = PolicyDTO.SinglePolicyRequest.newBuilder()
                 .setPolicyId(policyIdNotInScope)
                 .build();
 
@@ -582,7 +582,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test
-    public void testGetAllPoliciesForScopedUser() throws Exception {
+    public void testGetPoliciesForScopedUser() throws Exception {
         final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.getDefaultInstance();
         final Collection<PolicyDTO.Policy> testPolicies = ImmutableList.of(
                 Policy.newBuilder().setId(1L)
@@ -614,7 +614,7 @@ public class PolicyRpcServiceTest {
         when(groupRpcService.userHasAccessToGrouping(groupStore, 1L)).thenReturn(true);
         when(groupRpcService.userHasAccessToGrouping(groupStore, 2L)).thenReturn(false);
 
-        policyRpcService.getAllPolicies(request, mockObserver);
+        policyRpcService.getPolicies(request, mockObserver);
         // verify we have one result and it's for policy 1
         final ArgumentCaptor<PolicyResponse> policyCaptor = ArgumentCaptor.forClass(PolicyResponse.class);
         verify(mockObserver, times(1)).onNext(policyCaptor.capture());
