@@ -59,6 +59,9 @@ message EntityConstraintsRequest {
 message EntityConstraintsResponse {
     // A list of entity constraints.
     repeated EntityConstraint entityConstraint = 1;
+
+    // Discovering target ids.
+    repeated int64 discoveringTargetIds = 2;
 }
 
 message PotentialPlacementsRequest {

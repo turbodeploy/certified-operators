@@ -51,6 +51,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.SinglePolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementFailureInfo;
@@ -364,7 +365,7 @@ public class ReservationMapper {
      */
     private Optional<Policy> getPolicyConstraint(final long constraintId) {
         try {
-            final PolicyResponse response = policyService.getPolicy(PolicyRequest.newBuilder()
+            final PolicyResponse response = policyService.getPolicy(SinglePolicyRequest.newBuilder()
                     .setPolicyId(constraintId)
                     .build());
             return response.hasPolicy() ? Optional.of(response.getPolicy()) : Optional.empty();

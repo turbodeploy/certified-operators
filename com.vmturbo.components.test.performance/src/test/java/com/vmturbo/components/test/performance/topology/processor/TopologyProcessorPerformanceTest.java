@@ -445,7 +445,7 @@ public class TopologyProcessorPerformanceTest {
 
     public class PolicyServiceStub extends PolicyServiceImplBase {
         @Override
-        public void getAllPolicies(final PolicyDTO.PolicyRequest request,
+        public void getPolicies(final PolicyDTO.PolicyRequest request,
                                    final StreamObserver<PolicyResponse> responseObserver) {
             responseObserver.onNext(
                 PolicyResponse.newBuilder()

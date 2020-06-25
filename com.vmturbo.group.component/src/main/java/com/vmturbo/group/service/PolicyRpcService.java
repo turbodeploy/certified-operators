@@ -62,15 +62,20 @@ public class PolicyRpcService extends PolicyServiceImplBase {
     }
 
     @Override
-    public void getAllPolicies(final PolicyDTO.PolicyRequest request,
+    public void getPolicies(final PolicyDTO.PolicyRequest request,
                                final StreamObserver<PolicyDTO.PolicyResponse> responseObserver) {
         final Predicate<Policy> userScopeFilter;
-        final Collection<Policy> allPolicies = policyStore.getAll();
+        final Collection<Policy> policies;
+        if (request.getPolicyIdsList().isEmpty()) {
+            policies = policyStore.getAll();
+        } else {
+            policies = policyStore.getPolicies(request.getPolicyIdsList());
+        }
         if (userSessionContext.isUserScoped()) {
             // create a predicate that will check user access to a group id using a cache of results.
             // (the cache is to help speed up the case where the same groups are used in several policies)
             final Set<Long> accessedGroups = new HashSet<>();
-            final Set<Long> groups = allPolicies.stream()
+            final Set<Long> groups = policies.stream()
                     .map(GroupProtoUtil::getPolicyGroupIds)
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
@@ -90,7 +95,7 @@ public class PolicyRpcService extends PolicyServiceImplBase {
             userScopeFilter = policy -> true;
         }
 
-        allPolicies.stream()
+        policies.stream()
                 .filter(userScopeFilter)
                 .map(policy -> PolicyDTO.PolicyResponse.newBuilder().setPolicy(policy).build())
                 .forEach(responseObserver::onNext);
@@ -98,10 +103,10 @@ public class PolicyRpcService extends PolicyServiceImplBase {
     }
 
     @Override
-    public void getPolicy(final PolicyDTO.PolicyRequest request,
+    public void getPolicy(final PolicyDTO.SinglePolicyRequest request,
                           final StreamObserver<PolicyDTO.PolicyResponse> responseObserver) {
         if (!request.hasPolicyId()) {
-            final String errMsg = "Incoming policy get request does not contain any policy ID";
+            final String errMsg = "Incoming policy get request does not contain any policy ID or has more than one policy ID";
             logger.error(errMsg);
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
             return;
