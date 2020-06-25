@@ -11,13 +11,13 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Collections2;
 import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Table;
 
 import org.apache.logging.log4j.LogManager;
@@ -36,7 +36,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
  */
 public class RecommendationIdentityStore implements IdentityDataStore<ActionInfoModel> {
 
-    private final int modelsChunkSize;
     private final DSLContext context;
     private final Logger logger = LogManager.getLogger(getClass());
 
@@ -44,17 +43,9 @@ public class RecommendationIdentityStore implements IdentityDataStore<ActionInfo
      * Constructs the store.
      *
      * @param context DB context to use.
-     * @param modelsChunkSize a chunk size to split models requests to the DB. It turned out
-     *         that extra large requests are processed unstable in the DB, so we split the requests
-     *         to certain amount of records requestsd
      */
-    public RecommendationIdentityStore(@Nonnull DSLContext context, int modelsChunkSize) {
+    public RecommendationIdentityStore(@Nonnull DSLContext context) {
         this.context = Objects.requireNonNull(context);
-        if (modelsChunkSize < 1) {
-            throw new IllegalArgumentException(
-                    "modelsChunkSize must be a positive value. Got " + modelsChunkSize);
-        }
-        this.modelsChunkSize = modelsChunkSize;
     }
 
     @Override
@@ -64,7 +55,9 @@ public class RecommendationIdentityStore implements IdentityDataStore<ActionInfo
             return Collections.emptyMap();
         }
         final Set<ActionInfoModel> modelsSet = new HashSet<>(models);
-        final Collection<RecommendationIdentityRecord> records = retrieveRecords(models);
+        final Condition filter = getCondition(models);
+        final List<RecommendationIdentityRecord> records = context.selectFrom(
+                Tables.RECOMMENDATION_IDENTITY).where(filter).fetch();
         final Map<ActionInfoModel, Long> result = new HashMap<>(records.size());
         final Collection<RecommendationIdentityRecord> complexRecords = new ArrayList<>(
                 models.size());
@@ -85,33 +78,7 @@ public class RecommendationIdentityStore implements IdentityDataStore<ActionInfo
             }
         }
         result.putAll(fetchComplexRecords(modelsSet, complexRecords));
-        logger.debug("Successfully fetched {} recommendation identities from the DB", result::size);
         return result;
-    }
-
-    /**
-     * Retrieves recommendation identity records for the specified action models. If the incoming
-     * set is too large, this method will also chunk the requests.
-     *
-     * @param models models to query
-     * @return list of records
-     */
-    @Nonnull
-    private Collection<RecommendationIdentityRecord> retrieveRecords(
-            @Nonnull Collection<ActionInfoModel> models) {
-        final Collection<RecommendationIdentityRecord> result = new ArrayList<>(models.size());
-        for (Collection<ActionInfoModel> modelsChunk : Iterables.partition(models,
-                modelsChunkSize)) {
-            logger.debug("Retrieving next {} recommendation identity records",
-                    modelsChunk.size());
-            final Condition filter = getCondition(modelsChunk);
-            final List<RecommendationIdentityRecord> records = context.selectFrom(
-                    Tables.RECOMMENDATION_IDENTITY).where(filter).fetch();
-            result.addAll(records);
-        }
-        logger.debug("Fetched {} parent records for {} requested actions",
-                result.size(), models.size());
-        return Collections.unmodifiableCollection(result);
     }
 
     @Nonnull
@@ -136,33 +103,20 @@ public class RecommendationIdentityStore implements IdentityDataStore<ActionInfo
 
     @Nonnull
     private Map<Long, Set<String>> getActionDetails(
-            @Nonnull Collection<RecommendationIdentityRecord> recommRecords) {
+            @Nonnull Collection<RecommendationIdentityRecord> recommRecords,
+            Table<Integer, Long, Collection<ActionInfoModel>> requestedActions) {
         final Collection<Long> recordIds = Collections2.transform(recommRecords,
                 RecommendationIdentityRecord::getId);
-        logger.debug("Requesting additional info for {} recommendation identity records",
-                recommRecords);
-        final Map<Long, Set<String>> result = new HashMap<>(recommRecords.size() * 2);
-        for (Collection<Long> idsChunk: Iterables.partition(recordIds, modelsChunkSize)) {
-            logger.debug("Fetching additional {} identity data records", modelsChunkSize);
-            final Map<Long, Set<String>> records = context.selectFrom(
-                    Tables.RECOMMENDATION_IDENTITY_DETAILS)
-                    .where(Tables.RECOMMENDATION_IDENTITY_DETAILS.RECOMMENDATION_ID.in(idsChunk))
-                    .fetch()
-                    .stream()
-                    .collect(Collectors.groupingBy(
-                            RecommendationIdentityDetailsRecord::getRecommendationId,
-                            Collectors.mapping(RecommendationIdentityDetailsRecord::getDetail,
-                                    Collectors.toSet())));
-            result.putAll(records);
-        }
-        logger.debug("Fetched {} detail records for {} identity records",
-                () -> result.values()
-                        .stream()
-                        .map(Collection::size)
-                        .reduce((a, b) -> a + b)
-                        .orElse(0),
-                () -> result.keySet().size());
-        return result;
+        final Map<Long, Set<String>> records = context.selectFrom(
+                Tables.RECOMMENDATION_IDENTITY_DETAILS)
+                .where(Tables.RECOMMENDATION_IDENTITY_DETAILS.RECOMMENDATION_ID.in(recordIds))
+                .fetch()
+                .stream()
+                .collect(Collectors.groupingBy(
+                        RecommendationIdentityDetailsRecord::getRecommendationId,
+                        Collectors.mapping(RecommendationIdentityDetailsRecord::getDetail,
+                                Collectors.toSet())));
+        return records;
     }
 
     @Nonnull
@@ -171,8 +125,11 @@ public class RecommendationIdentityStore implements IdentityDataStore<ActionInfo
             @Nonnull Collection<RecommendationIdentityRecord> complexReqRecords) {
         final Table<Integer, Long, Collection<ActionInfoModel>> requestedActions =
                 groupActionModels(complexRequests);
+        final Map<Long, RecommendationIdentityRecord> recommendationIdentityRecordMap =
+                complexReqRecords.stream().collect(
+                        Collectors.toMap(RecommendationIdentityRecord::getId, Function.identity()));
         final Map<ActionInfoModel, Long> result = new HashMap<>(complexReqRecords.size());
-        final Map<Long, Set<String>> records = getActionDetails(complexReqRecords);
+        final Map<Long, Set<String>> records = getActionDetails(complexReqRecords, requestedActions);
         for (RecommendationIdentityRecord record: complexReqRecords) {
             final long recommendationId = record.getId();
             final Set<String> detailsInDb = records.getOrDefault(recommendationId, Collections.emptySet());

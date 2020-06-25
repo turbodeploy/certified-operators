@@ -79,8 +79,7 @@ public class IdentityServiceImpl<T, M> implements IdentityService<T> {
                     newModels.put(model, IdentityGenerator.next());
                 }
             }
-            logger.trace("The following new models found: {}", newModels::toString);
-            logger.debug("Persisting {} new models to the DB", newModels::size);
+            logger.debug("The following new models found: {}", newModels::toString);
             identityStore.persistModels(newModels);
             final long currentTime = clock.millis();
             addToCache(fromDb, currentTime);
