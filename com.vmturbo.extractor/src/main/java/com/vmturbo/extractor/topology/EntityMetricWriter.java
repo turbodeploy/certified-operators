@@ -263,7 +263,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         final Set<Long> related = dataProvider.getRelatedEntities(oid);
         LongSet result = new LongOpenHashSet(related);
         related.stream()
-                .map(id -> dataProvider.getGroupsForEntity(oid))
+                .map(dataProvider::getGroupsForEntity)
                 .flatMap(Collection::stream)
                 .mapToLong(Grouping::getId)
                 .forEach(result::add);

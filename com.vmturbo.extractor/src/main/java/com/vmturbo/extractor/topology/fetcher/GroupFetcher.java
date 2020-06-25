@@ -37,8 +37,8 @@ public class GroupFetcher extends DataFetcher<GroupData> {
     private final GroupServiceBlockingStub groupService;
 
     public GroupFetcher(@Nonnull GroupServiceBlockingStub groupService,
-                        @Nonnull MultiStageTimer timer,
-                        @Nonnull Consumer<GroupData> consumer) {
+            @Nonnull MultiStageTimer timer,
+            @Nonnull Consumer<GroupData> consumer) {
         super(timer, consumer);
         this.groupService = groupService;
     }
@@ -106,27 +106,29 @@ public class GroupFetcher extends DataFetcher<GroupData> {
             }
         }
         // retrieve (flattened) group memberships for all the nested groups we care about
-        try {
-            final GetMembersRequest getLeafEntitiesRequest = GetMembersRequest.newBuilder()
-                    .addAllId(nestedGroups)
-                    .setExpectPresent(true)
-                    .setEnforceUserScope(false)
-                    .setExpandNestedGroups(true)
-                    .build();
-            groupService.getMembers(getLeafEntitiesRequest).forEachRemaining(ms -> {
-                List<Long> memberIdList = ms.getMemberIdList();
-                groupToLeafEntityIds.put(ms.getGroupId(), memberIdList);
-                memberIdList.forEach(member ->
-                        leafEntityToGroups.computeIfAbsent((long)member, m -> new ArrayList<>())
-                                .add(groupsById.get(ms.getGroupId())));
-            });
-        } catch (StatusRuntimeException e) {
-            logger.error("Error retrieving leaf entities for nested groups", e);
+        if (!nestedGroups.isEmpty()) {
+            try {
+                final GetMembersRequest getLeafEntitiesRequest = GetMembersRequest.newBuilder()
+                        .addAllId(nestedGroups)
+                        .setExpectPresent(true)
+                        .setEnforceUserScope(false)
+                        .setExpandNestedGroups(true)
+                        .build();
+                groupService.getMembers(getLeafEntitiesRequest).forEachRemaining(ms -> {
+                    List<Long> memberIdList = ms.getMemberIdList();
+                    groupToLeafEntityIds.put(ms.getGroupId(), memberIdList);
+                    memberIdList.forEach(member ->
+                            leafEntityToGroups.computeIfAbsent((long)member, m -> new ArrayList<>())
+                                    .add(groupsById.get(ms.getGroupId())));
+                });
+            } catch (StatusRuntimeException e) {
+                logger.error("Error retrieving leaf entities for nested groups", e);
+            }
         }
     }
 
     private void populateDirectMembers(Long2ObjectMap<Grouping> groupsById,
-                                       Long2ObjectMap<List<Long>> groupToDirectMemberIds) {
+            Long2ObjectMap<List<Long>> groupToDirectMemberIds) {
         final LongList dynamicGroupIds = new LongArrayList();
         for (Grouping group : groupsById.values()) {
             if (group.getDefinition().hasStaticGroupMembers()) {
@@ -136,15 +138,17 @@ public class GroupFetcher extends DataFetcher<GroupData> {
             }
         }
         // get members for dynamic groups
-        try {
-            GetMembersRequest getDynamicGroupMembersRequest = GetMembersRequest.newBuilder()
-                    .setExpectPresent(true)
-                    .addAllId(dynamicGroupIds)
-                    .build();
-            groupService.getMembers(getDynamicGroupMembersRequest).forEachRemaining(response ->
-                    groupToDirectMemberIds.put(response.getGroupId(), response.getMemberIdList()));
-        } catch (StatusRuntimeException e) {
-            logger.error("Error getting members for dynamic groups", e);
+        if (!dynamicGroupIds.isEmpty()) {
+            try {
+                GetMembersRequest getDynamicGroupMembersRequest = GetMembersRequest.newBuilder()
+                        .setExpectPresent(true)
+                        .addAllId(dynamicGroupIds)
+                        .build();
+                groupService.getMembers(getDynamicGroupMembersRequest).forEachRemaining(response ->
+                        groupToDirectMemberIds.put(response.getGroupId(), response.getMemberIdList()));
+            } catch (StatusRuntimeException e) {
+                logger.error("Error getting members for dynamic groups", e);
+            }
         }
     }
 
@@ -154,8 +158,8 @@ public class GroupFetcher extends DataFetcher<GroupData> {
         Long2ObjectMap<List<Long>> groupToDirectMemberIds;
 
         GroupData(Long2ObjectMap<List<Grouping>> leafEntityToGroups,
-                  Long2ObjectMap<List<Long>> groupToLeafEntityIds,
-                  Long2ObjectMap<List<Long>> groupToDirectMemberIds) {
+                Long2ObjectMap<List<Long>> groupToLeafEntityIds,
+                Long2ObjectMap<List<Long>> groupToDirectMemberIds) {
             this.leafEntityToGroups = leafEntityToGroups;
             this.groupToLeafEntityIds = groupToLeafEntityIds;
             this.groupToDirectMemberIds = groupToDirectMemberIds;
