@@ -105,7 +105,7 @@ public class StorageLatencyPostStitchingOpTest {
         final TopologyEntity testTE = makeTopologyEntity(startingList);
 
         operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        assertTrue(resultBuilder.getChanges().isEmpty());
+        assertTrue(resultBuilder.getChanges().size() == 1);
     }
 
 

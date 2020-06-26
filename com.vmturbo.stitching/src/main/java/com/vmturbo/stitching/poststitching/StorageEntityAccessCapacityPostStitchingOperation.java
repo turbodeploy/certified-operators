@@ -37,6 +37,8 @@ import com.vmturbo.stitching.TopologyEntity;
 public class StorageEntityAccessCapacityPostStitchingOperation implements PostStitchingOperation {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final double IOPS_CAPACITY_GLOBAL_DEFAULT =
+            EntitySettingSpecs.IOPSCapacity.getSettingSpec().getNumericSettingValueType().getDefault();
 
     private static final Predicate<CommoditySoldDTOOrBuilder> COMMODITY_IS_STORAGE_ACCESS =
         commodity -> commodity.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE;
@@ -56,6 +58,9 @@ public class StorageEntityAccessCapacityPostStitchingOperation implements PostSt
 
         entities.forEach(storage -> {
             final Optional<Double> providerCapacity = findProviderCapacity(storage.getProviders());
+            // TODO: should iopsUserSetting be used first: OM-60141
+//          final Optionahttps://vmturbo.atlassian.net/browse/OM-60141l<Setting> iopsUserSetting =
+//                  settingsCollection.getEntityUserSetting(storage, EntitySettingSpecs.IOPSCapacity);
             final Optional<Setting> iopsSetting =
                     settingsCollection.getEntitySetting(storage, EntitySettingSpecs.IOPSCapacity);
             // The provider capacity, if set, overrides the setting-derived capacity AND any
@@ -67,24 +72,28 @@ public class StorageEntityAccessCapacityPostStitchingOperation implements PostSt
                     getCommoditiesToUpdate(entityForUpdate).forEach(commodity ->
                             commodity.setCapacity(providerCapacity.get()));
                 });
-            } else if (iopsSetting.isPresent()) {
+            } else {
+                final double settingVal;
+                if (iopsSetting.isPresent()) {
+                    settingVal = iopsSetting.get().getNumericSettingValue().getValue();
+                } else {
+                    logger.debug("Could not find Storage Access capacity for Storage {} ({}) because "
+                                    + "it had no Disk Array or Logical Pool provider with Storage Access capacity, and"
+                                    + " no setting for IOPS capacity. Using default IOPS capacity {}",
+                            storage.getOid(), storage.getDisplayName(), IOPS_CAPACITY_GLOBAL_DEFAULT);
+                    settingVal = IOPS_CAPACITY_GLOBAL_DEFAULT;
+                }
                 // If there is no storage access provider (which happens with hypervisor probes),
                 // and the probe did not set an explicit storage access capacity, derive
                 // the storage access capacity from the IOPS capacity setting.
                 resultBuilder.queueUpdateEntityAlone(storage, entityForUpdate -> {
-                    final float settingVal = iopsSetting.get().getNumericSettingValue().getValue();
                     logger.debug("Setting unset Storage Access capacities for Storage {} using IOPS " +
                             "Capacity setting {}", entityForUpdate.getOid(), settingVal);
                     getCommoditiesToUpdate(entityForUpdate)
-                        // Only update the unset commodities.
-                        .filter(comm -> !comm.hasCapacity() || comm.getCapacity() == 0)
-                        .forEach(commodity -> commodity.setCapacity(iopsSetting.get().getNumericSettingValue().getValue()));
+                            // Only update the unset commodities.
+                            .filter(comm -> !comm.hasCapacity() || comm.getCapacity() == 0)
+                            .forEach(commodity -> commodity.setCapacity(settingVal));
                 });
-            } else {
-                // TODO switched from warn to debug to reduce logging load - does it need more visibility?
-                logger.debug("Could not set Storage Access capacity for Storage {} ({}) because " +
-                    "it had no Disk Array or Logical Pool provider with Storage Access capacity, and" +
-                    " no setting for IOPS capacity.", storage.getOid(), storage.getDisplayName());
             }
         });
 
