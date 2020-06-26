@@ -88,7 +88,7 @@ public class TraversalToDepthFilterTest {
         final TraversalToDepthFilter<TestGraphEntity> filter =
             new TraversalToDepthFilter<TestGraphEntity>(TraversalDirection.PRODUCES, 1, null);
 
-        assertThat(filterOids(filter, topologyGraph, 1L), contains(4L, 5L));
+        assertThat(filterOids(filter, topologyGraph, 1L), containsInAnyOrder(4L, 5L));
     }
 
     @Test
@@ -104,7 +104,7 @@ public class TraversalToDepthFilterTest {
         final TraversalToDepthFilter<TestGraphEntity> filter =
             new TraversalToDepthFilter<TestGraphEntity>(TraversalDirection.PRODUCES, 1, null);
 
-        assertThat(filterOids(filter, topologyGraph, 1L, 2L, 3L), contains(4L, 5L, 6L));
+        assertThat(filterOids(filter, topologyGraph, 1L, 2L, 3L), containsInAnyOrder(4L, 5L, 6L));
     }
 
     @Test

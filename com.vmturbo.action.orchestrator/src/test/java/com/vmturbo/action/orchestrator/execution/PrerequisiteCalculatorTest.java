@@ -37,13 +37,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Architecture;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -98,7 +97,7 @@ public class PrerequisiteCalculatorTest {
      * @return an {@link ActionPartialEntity}
      */
     private ActionPartialEntity buildGeneralVMActionPartialEntity(PrerequisiteType... prerequisiteTypes) {
-        final VirtualMachineInfo.Builder builder = VirtualMachineInfo.newBuilder();
+        final ActionVirtualMachineInfo.Builder builder = ActionVirtualMachineInfo.newBuilder();
         for (PrerequisiteType type : prerequisiteTypes) {
             switch (type) {
                 case ENA:
@@ -120,7 +119,7 @@ public class PrerequisiteCalculatorTest {
         }
 
         return ActionPartialEntity.newBuilder().setOid(VM1)
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder()
                 .setVirtualMachine(builder)).build();
     }
 
@@ -132,7 +131,7 @@ public class PrerequisiteCalculatorTest {
      */
     private ActionPartialEntity buildGeneralComputeTierActionPartialEntity(
             @Nonnull final PrerequisiteType... prerequisiteTypes) {
-        final ComputeTierInfo.Builder builder = ComputeTierInfo.newBuilder();
+        final ActionComputeTierInfo.Builder builder = ActionComputeTierInfo.newBuilder();
         for (PrerequisiteType type : prerequisiteTypes) {
             switch (type) {
                 case ENA:
@@ -153,7 +152,7 @@ public class PrerequisiteCalculatorTest {
         }
 
         return ActionPartialEntity.newBuilder().setOid(0)
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder()
                 .setComputeTier(builder)).build();
     }
 
@@ -354,8 +353,7 @@ public class PrerequisiteCalculatorTest {
         assertTrue(PrerequisiteCalculator.calculateGeneralPrerequisites(
             buildMoveAction(3, 0),
             ActionPartialEntity.newBuilder().setOid(2)
-                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                    .setApplication(ApplicationInfo.getDefaultInstance())).build(),
+                .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.getDefaultInstance()).build(),
             snapshot,
             ProbeCategory.CLOUD_MANAGEMENT).isEmpty());
     }
@@ -508,7 +506,7 @@ public class PrerequisiteCalculatorTest {
      */
     private ActionPartialEntity buildCoreQuotaVMActionPartialEntity(final long regionId) {
         return ActionPartialEntity.newBuilder().setOid(0)
-            .setTypeSpecificInfo(TypeSpecificInfo.getDefaultInstance())
+            .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.getDefaultInstance())
             .addConnectedEntities(ConnectedEntity.newBuilder()
                 .setConnectedEntityId(regionId).setConnectedEntityType(EntityType.REGION_VALUE))
             .build();
@@ -524,8 +522,8 @@ public class PrerequisiteCalculatorTest {
     private ActionPartialEntity buildCoreQuotaComputeTierActionPartialEntity(
             final int numCores, final String quotaFamily) {
         return ActionPartialEntity.newBuilder().setOid(0)
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                .setComputeTier(ComputeTierInfo.newBuilder()
+            .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder()
+                .setComputeTier(ActionComputeTierInfo.newBuilder()
                     .setNumCores(numCores).setQuotaFamily(quotaFamily))).build();
     }
 }

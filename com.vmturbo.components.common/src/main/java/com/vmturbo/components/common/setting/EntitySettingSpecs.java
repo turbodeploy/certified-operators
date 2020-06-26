@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -1350,6 +1351,17 @@ public enum EntitySettingSpecs {
     public static boolean isAutomationSetting(@Nonnull String specName) {
         Objects.requireNonNull(specName);
         return AUTOMATION_SETTINGS.contains(specName);
+    }
+
+    /**
+     * Return {@link EntitySettingSpecs}s with given {@link SettingTiebreaker}.
+     *
+     * @param tieBreaker a {@link SettingTiebreaker}
+     * @return {@link EntitySettingSpecs}s with given {@link SettingTiebreaker}
+     */
+    public static Stream<EntitySettingSpecs> getEntitySettingSpecByTierBreaker(final SettingTiebreaker tieBreaker) {
+        return Stream.of(EntitySettingSpecs.values())
+            .filter(settingSpecs -> settingSpecs.getSettingSpec().getEntitySettingSpec().getTiebreaker() == tieBreaker);
     }
 
     /**

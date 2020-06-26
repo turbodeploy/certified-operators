@@ -13,7 +13,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -42,6 +41,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ActionGroupFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.EntityScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.GlobalScope;
@@ -237,6 +237,52 @@ public class QueryInfoFactoryTest {
                 .setType(EntityType.RESERVED_INSTANCE_VALUE)
                 .setEnvironmentType(EnvironmentType.ON_PREM)
                 .build()));
+        Assert.assertEquals(InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS,
+                queryInfo.involvedEntityCalculation());
+    }
+
+    /**
+     * Test that we correctly form entity predicate for action stats query with action type
+     * {@link ActionType#BUY_RI}. It includes selecting correct
+     * {@link InvolvedEntityCalculation#INCLUDE_ALL_INVOLVED_ENTITIES} for calculating entities
+     * involved in buy_Ri action, because otherwise we return empty list of involved entities for
+     * Buy_RI actions.
+     */
+    @Test
+    public void testQueryBuyRiActionsMarketGlobalScope() {
+        long computeTierEntityId = 1L;
+        long regionEntityId = 2L;
+
+        final CurrentActionStatsQuery actionStatsQuery = CurrentActionStatsQuery.newBuilder()
+                .setScopeFilter(ScopeFilter.newBuilder()
+                        .setTopologyContextId(777777L)
+                        .setGlobal(GlobalScope.getDefaultInstance())
+                        .build())
+                .addGroupBy(GroupBy.TARGET_ENTITY_ID)
+                .setActionGroupFilter(ActionGroupFilter.newBuilder()
+                        .addActionType(ActionType.BUY_RI)
+                        .addAllActionState(Arrays.asList(ActionState.ACCEPTED, ActionState.READY,
+                                ActionState.QUEUED, ActionState.IN_PROGRESS))
+                        .build())
+                .build();
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(
+                SingleQuery.newBuilder().setQuery(actionStatsQuery).build());
+
+        Assert.assertTrue(queryInfo.entityPredicate()
+                .test(ActionEntity.newBuilder()
+                        .setId(computeTierEntityId)
+                        .setType(EntityType.COMPUTE_TIER.getNumber())
+                        .setEnvironmentType(EnvironmentType.CLOUD)
+                        .build()));
+
+        Assert.assertTrue(queryInfo.entityPredicate()
+                .test(ActionEntity.newBuilder()
+                        .setId(regionEntityId)
+                        .setType(EntityType.REGION.getNumber())
+                        .setEnvironmentType(EnvironmentType.CLOUD)
+                        .build()));
+        Assert.assertEquals(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES,
+                queryInfo.involvedEntityCalculation());
     }
 
     @Test

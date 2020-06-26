@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
+import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 
 /**
@@ -35,7 +36,7 @@ import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
  * @param <E> The type of entities in the {@link TopologyGraph}.
  */
 @ThreadSafe
-public class SearchResolver<E extends TopologyGraphEntity<E>> {
+public class SearchResolver<E extends TopologyGraphSearchableEntity<E>> {
     private static final Logger logger = LogManager.getLogger();
 
     private final TopologyFilterFactory<E> filterFactory;

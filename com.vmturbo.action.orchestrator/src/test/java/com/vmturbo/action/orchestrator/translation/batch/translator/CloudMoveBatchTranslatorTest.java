@@ -34,8 +34,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionComputeTierInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -315,8 +315,8 @@ public class CloudMoveBatchTranslatorTest {
         final String instanceSizeFamily = "m4";
         final ActionPartialEntity computeTierPartial = ActionPartialEntity.newBuilder()
                 .setOid(1L)
-                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                        .setComputeTier(ComputeTierInfo.newBuilder()
+                .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder()
+                        .setComputeTier(ActionComputeTierInfo.newBuilder()
                                 .setFamily(instanceSizeFamily)))
                 .build();
         final Optional<ActionPartialEntity> computeTierPartialOpt = Optional.of(computeTierPartial);

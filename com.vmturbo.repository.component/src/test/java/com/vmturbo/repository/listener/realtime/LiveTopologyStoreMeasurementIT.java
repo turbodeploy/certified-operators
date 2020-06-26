@@ -1,12 +1,16 @@
 package com.vmturbo.repository.listener.realtime;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
@@ -26,6 +30,7 @@ import jdk.nashorn.internal.ir.debug.ObjectSizeCalculator;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -47,11 +52,88 @@ public class LiveTopologyStoreMeasurementIT {
     private final GlobalSupplyChainCalculator globalSupplyChainCalculator =
             new GlobalSupplyChainCalculator();
 
+    /**
+     * Use this "test" to rewrite entities saved as a string to binary format.
+     * This makes it much (i.e. 10x) faster to load them afterwards for other tests.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    @Ignore
+    public void testRewriteAsBinary() throws Exception {
+
+        final String filePath = "/home/turbo/Work/topologies/bofa/live.realtime.source.entities";
+
+        final BufferedReader reader =
+                new BufferedReader(new FileReader(filePath));
+
+        String outFile = "/home/turbo/Work/topologies/bofa/live.entities.binary";
+
+        FileOutputStream fos = new FileOutputStream(outFile);
+
+        JsonFormat.Parser parser = JsonFormat.parser().ignoringUnknownFields();
+        int cnt = 0;
+        while (reader.ready()) {
+            final TopologyEntityDTO.Builder bldr = TopologyEntityDTO.newBuilder();
+            parser.merge(reader.readLine(), bldr);
+            TopologyEntityDTO entity = bldr.build();
+
+            entity.writeDelimitedTo(fos);
+            if (cnt++ % 1000 == 0) {
+                logger.info(cnt);
+            }
+        }
+        fos.flush();
+        fos.close();
+    }
+
+    private void doForEntity(String filePath, Consumer<TopologyEntityDTO> consumer) throws IOException {
+        File file = new File(filePath);
+        MutableInt lineCnt = new MutableInt(0);
+        try (InputStream is = FileUtils.openInputStream(file)) {
+            try {
+                while (true) {
+                    Topology e = Topology.parseDelimitedFrom(is);
+                    if (e == null) {
+                        break;
+                    }
+                    e.getData().getEntitiesList().forEach(segment -> {
+                        lineCnt.increment();
+                        consumer.accept(segment.getEntity());
+                    });
+                    logger.info("Processed {}", lineCnt);
+                }
+            } catch (IOException e) {
+                // Noop.
+
+            }
+        }
+    }
+
+    /**
+     * Test the size of a topology.
+     *
+     * @throws IOException If anything goes wrong.
+     */
+    @Test
+    @Ignore
+    public void testSize() throws IOException {
+        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(globalSupplyChainCalculator);
+        SourceRealtimeTopologyBuilder sourceRealtimeTopologyBuilder = liveTopologyStore.newRealtimeTopology(TopologyInfo.getDefaultInstance());
+
+        doForEntity("/home/turbo/work/saved-topology/citi.binary", entity -> {
+            sourceRealtimeTopologyBuilder.addEntities(Collections.singletonList(entity));
+        });
+
+        SourceRealtimeTopology topology = sourceRealtimeTopologyBuilder.finish();
+        logger.info(ObjectSizeCalculator.getObjectSize(topology));
+    }
+
     @Test
     @Ignore
     public void testRealtimeSource() throws IOException {
         // Put the filename here.
-        final String filePath = "/Volumes/Workspace/topologies/bofa/may23/repo/live.topology.source.entities";
+        final String filePath = "/home/turbo/Work/topologies/bofa/may23/";
         Preconditions.checkArgument(!StringUtils.isEmpty(filePath));
         final BufferedReader reader =
             new BufferedReader(new FileReader(filePath));

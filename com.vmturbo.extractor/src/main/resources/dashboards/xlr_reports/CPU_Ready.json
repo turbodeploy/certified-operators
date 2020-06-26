@@ -15,16 +15,25 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592514128105,
+  "iteration": 1592975104057,
   "links": [],
   "panels": [
     {
-      "datasource": "$DB",
+      "datasource": "-- Dashboard --",
       "fieldConfig": {
         "defaults": {
           "custom": {},
-          "displayName": "${__cell_0} ",
-          "mappings": [],
+          "displayName": "${__cell_0} ${__cell_1}",
+          "mappings": [
+            {
+              "from": "",
+              "id": 0,
+              "operator": "",
+              "text": "",
+              "to": "",
+              "type": 1
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -38,7 +47,7 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -64,63 +73,8 @@
       "pluginVersion": "7.0.1",
       "targets": [
         {
-          "format": "table",
-          "group": [],
-          "metricColumn": "entity_oid || ' ' || type",
-          "rawQuery": true,
-          "rawSql": "SELECT\n  metric.type || ' ' || entity.name AS metric,\n  avg(metric.utilization) AS \"value\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND\n  metric.type LIKE 'Q%_VCPU' AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  entity.type = 'PHYSICAL_MACHINE' AND\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN  ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGroup by metric\nORDER BY 2 desc, 1 ",
-          "refId": "A",
-          "select": [
-            [
-              {
-                "params": [
-                  "value"
-                ],
-                "type": "column"
-              },
-              {
-                "params": [
-                  "avg"
-                ],
-                "type": "aggregate"
-              },
-              {
-                "params": [
-                  "value"
-                ],
-                "type": "alias"
-              }
-            ]
-          ],
-          "table": "metric",
-          "timeColumn": "\"time\"",
-          "timeColumnType": "timestamptz",
-          "where": [
-            {
-              "name": "$__timeFilter",
-              "params": [],
-              "type": "macro"
-            },
-            {
-              "datatype": "text",
-              "name": "",
-              "params": [
-                "type",
-                "LIKE",
-                "'Q%_VCPU'"
-              ],
-              "type": "expression"
-            },
-            {
-              "name": "",
-              "params": [
-                "measurement",
-                "=",
-                "'utilization'"
-              ],
-              "type": "expression"
-            }
-          ]
+          "panelId": 4,
+          "refId": "A"
         }
       ],
       "timeFrom": null,
@@ -129,7 +83,7 @@
       "type": "bargauge"
     },
     {
-      "datasource": "$DB",
+      "datasource": "-- Dashboard --",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -148,7 +102,7 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -164,7 +118,7 @@
         "orientation": "horizontal",
         "reduceOptions": {
           "calcs": [
-            "mean"
+            "first"
           ],
           "limit": 10,
           "values": true
@@ -174,30 +128,8 @@
       "pluginVersion": "7.0.1",
       "targets": [
         {
-          "format": "table",
-          "group": [],
-          "metricColumn": "none",
-          "rawQuery": true,
-          "rawSql": "SELECT\n  entity.name as \"VM Name\",\n  avg(metric.consumed/200) as \"Avg CPU Wait Pct\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND entity.oid = metric.entity_oid AND entity.hash = metric.entity_hash AND entity.type = 'VIRTUAL_MACHINE' AND \n  metric.type LIKE 'Q%_VCPU' AND\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGROUP BY entity.oid, entity.name \nORDER BY 2 desc  ",
-          "refId": "A",
-          "select": [
-            [
-              {
-                "params": [
-                  "value"
-                ],
-                "type": "column"
-              }
-            ]
-          ],
-          "timeColumn": "time",
-          "where": [
-            {
-              "name": "$__timeFilter",
-              "params": [],
-              "type": "macro"
-            }
-          ]
+          "panelId": 6,
+          "refId": "A"
         }
       ],
       "timeFrom": null,
@@ -225,8 +157,8 @@
       "pageSize": null,
       "showHeader": true,
       "sort": {
-        "col": 2,
-        "desc": true
+        "col": null,
+        "desc": false
       },
       "styles": [
         {
@@ -259,10 +191,10 @@
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
           "decimals": 2,
           "mappingType": 1,
-          "pattern": "CPU Ready Pct",
+          "pattern": "/.*CPU Ready Pct/",
           "thresholds": [],
           "type": "number",
-          "unit": "percent"
+          "unit": "percentunit"
         },
         {
           "alias": "",
@@ -280,32 +212,7 @@
           "thresholds": [],
           "type": "string",
           "unit": "short",
-          "valueMaps": [
-            {
-              "text": "1 vCPU",
-              "value": "Q1_VCPU"
-            },
-            {
-              "text": "2 vCPU",
-              "value": "Q2_VCPU"
-            },
-            {
-              "text": "4 vCPU",
-              "value": "Q4_VCPU"
-            },
-            {
-              "text": "8 vCPU",
-              "value": "Q8_VCPU"
-            },
-            {
-              "text": "16 vCPU",
-              "value": "Q16_VCPU"
-            },
-            {
-              "text": "32 vCPU",
-              "value": "Q32_VCPU"
-            }
-          ]
+          "valueMaps": []
         },
         {
           "alias": "",
@@ -331,7 +238,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  entity.name as \"Host\", \n  metric.type \"Queue Type\",\n  avg(metric.utilization) AS \"Avg CPU Ready Pct\",\n  max(metric.utilization) AS \"Max CPU Ready Pct\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND\n  metric.type LIKE 'Q%_VCPU' AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  entity.type = 'PHYSICAL_MACHINE' AND \n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGroup by 2, 1\nORDER BY 2 asc, 4 desc",
+          "rawSql": "SELECT\n  entity.name as \"Host\", \n  REGEXP_REPLACE(metric.type, 'Q([0-9]*)_VCPU', '\\1 vCPU') \"Queue Type\",\n  avg(metric.utilization) AS \"Avg CPU Ready Pct\",\n  max(metric.utilization) AS \"Max CPU Ready Pct\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND\n  metric.type LIKE 'Q%_VCPU' AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  entity.type = 'PHYSICAL_MACHINE' AND \n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGroup by 2, 1\nORDER BY 3 desc",
           "refId": "A",
           "select": [
             [
@@ -379,11 +286,12 @@
       "pageSize": null,
       "showHeader": true,
       "sort": {
-        "col": 4,
-        "desc": true
+        "col": null,
+        "desc": false
       },
       "styles": [
         {
+          "$$hashKey": "object:382",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -394,7 +302,7 @@
           ],
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
           "decimals": 2,
-          "link": true,
+          "link": false,
           "linkUrl": "/d/fY_MyJeWz/vm-cpu-ready?var-VM=${__cell_0}",
           "mappingType": 1,
           "pattern": "VM Name",
@@ -403,6 +311,7 @@
           "unit": "short"
         },
         {
+          "$$hashKey": "object:383",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -420,6 +329,7 @@
           "unit": "short"
         },
         {
+          "$$hashKey": "object:384",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -431,12 +341,13 @@
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
           "decimals": 2,
           "mappingType": 1,
-          "pattern": "Avg CPU Wait Pct",
+          "pattern": "Avg CPU Ready Pct",
           "thresholds": [],
           "type": "number",
-          "unit": "percent"
+          "unit": "percentunit"
         },
         {
+          "$$hashKey": "object:385",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -448,12 +359,13 @@
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
           "decimals": 2,
           "mappingType": 1,
-          "pattern": "Max CPU Wait Pct",
+          "pattern": "Max CPU Ready Pct",
           "thresholds": [],
           "type": "number",
-          "unit": "percent"
+          "unit": "percentunit"
         },
         {
+          "$$hashKey": "object:386",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -471,6 +383,7 @@
           "unit": "short"
         },
         {
+          "$$hashKey": "object:387",
           "alias": "",
           "align": "right",
           "colorMode": null,
@@ -492,7 +405,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  entity.oid as \"VM OID\",\n  entity.name as \"VM Name\",\n  max(entity.attrs->>'num_cpus') as \"Num vCPUs\",\n  avg(metric.consumed/200) as \"Avg CPU Wait Pct\",\n  max(metric.consumed/200) as \"Max CPU Wait Pct\"\nFROM metric, entity\nWHERE\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  $__timeFilter(\"time\") AND entity.oid = metric.entity_oid AND entity.hash = metric.entity_hash and \n  entity.type = 'VIRTUAL_MACHINE' AND \n  metric.type LIKE 'Q%_VCPU' \n  AND CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGROUP BY entity.oid, entity.name\nORDER BY 3",
+          "rawSql": "SELECT\n  entity.name as \"VM Name\",\n  max(entity.attrs->>'num_cpus') || ' vCPUs' as \"Num vCPUs\",\n  avg(metric.consumed/20000) as \"Avg CPU Ready Pct\",\n  max(metric.consumed/20000) as \"Max CPU Ready Pct\",\n\n  entity.oid as \"VM OID\"\nFROM metric, entity\nWHERE\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  $__timeFilter(\"time\") AND entity.oid = metric.entity_oid AND entity.hash = metric.entity_hash and \n  entity.type = 'VIRTUAL_MACHINE' AND \n  metric.type LIKE 'Q%_VCPU' \n  AND CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGROUP BY entity.oid, entity.name\nORDER BY 3 desc",
           "refId": "A",
           "select": [
             [
@@ -537,6 +450,7 @@
         "name": "DB",
         "options": [],
         "query": "postgres",
+        "queryValue": "",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,

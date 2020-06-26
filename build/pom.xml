@@ -49,6 +49,7 @@
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
 
         <lz4.version>1.4</lz4.version>
+        <fastutil.version>8.3.1</fastutil.version>
 
         <!-- START Versions for the various opentracing libraries.
              Do not change them independently without verifying that they are compatible with
@@ -2895,6 +2896,11 @@
                 <groupId>io.projectreactor</groupId>
                 <artifactId>reactor-core</artifactId>
                 <version>${reactor.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>it.unimi.dsi</groupId>
+                <artifactId>fastutil</artifactId>
+                <version>${fastutil.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.tomcat</groupId>

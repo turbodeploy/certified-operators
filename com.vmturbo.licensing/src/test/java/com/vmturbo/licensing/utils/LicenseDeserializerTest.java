@@ -5,7 +5,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
@@ -155,4 +158,38 @@ public class LicenseDeserializerTest {
         assertFalse(LicenseDeserializer.isLicenseGeneratedByFlexlm(turboLicenseV1));
         assertFalse(LicenseDeserializer.isLicenseGeneratedByFlexlm(turboLicenseV2));
     }
+
+    /**
+     * Verify XXE attack is prevented by disabling XML external entity and DTD processing.
+     *
+     * @throws IOException if fails to parse license.
+     */
+    @Test(expected = SecurityException.class)
+    public void isWellFormedXmlXxeAttack() throws IOException {
+        String turboLicenseXXE = IOUtils.toString(
+                getClass().getResourceAsStream("LicenseDeserializationTest_XXE_attack_1.xml"),
+                StandardCharsets.UTF_8);
+        String turboLicenseXXE2 = IOUtils.toString(
+                getClass().getResourceAsStream("LicenseDeserializationTest_XXE_attack_2.xml"),
+                StandardCharsets.UTF_8);
+        String turboLicenseXXE3 = IOUtils.toString(
+                getClass().getResourceAsStream("LicenseDeserializationTest_XXE_attack_3.xml"),
+                StandardCharsets.UTF_8);
+
+        try {
+            LicenseDeserializer.isWellFormedXML(turboLicenseXXE);
+            fail("Security exception should throw.");
+        } catch (SecurityException e) {
+            //expected
+        }
+        try {
+            LicenseDeserializer.isWellFormedXML(turboLicenseXXE2);
+            fail("Security exception should throw.");
+        } catch (SecurityException e) {
+            //expected
+        }
+        LicenseDeserializer.isWellFormedXML(turboLicenseXXE3);
+        fail("Security exception should throw.");
+    }
+
 }

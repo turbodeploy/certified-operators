@@ -1,32 +1,31 @@
 package com.vmturbo.repository.service;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
-import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecificPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity.SoldCommodity;
 
 /**
  * Responsible for converting entities in the repository to {@link PartialEntity}s with the
@@ -56,15 +55,6 @@ public class PartialEntityConverter {
                     .addAllDiscoveringTargetIds(
                         repoGraphEntity.getDiscoveringTargetIds().collect(Collectors.toList())));
                 break;
-            case TYPE_SPECIFIC:
-                final TypeSpecificPartialEntity.Builder typeSpecificBuilder =
-                    TypeSpecificPartialEntity.newBuilder()
-                        .setOid(repoGraphEntity.getOid())
-                        .setDisplayName(repoGraphEntity.getDisplayName())
-                        .setEntityType(repoGraphEntity.getEntityType())
-                        .setTypeSpecificInfo(repoGraphEntity.getTypeSpecificInfo());
-                partialEntityBldr.setTypeSpecific(typeSpecificBuilder);
-                break;
             case WITH_CONNECTIONS:
                 final EntityWithConnections.Builder withConnectionsBuilder =
                     EntityWithConnections.newBuilder()
@@ -82,10 +72,10 @@ public class PartialEntityConverter {
                     .setDisplayName(repoGraphEntity.getDisplayName())
                     .addAllDiscoveringTargetIds(
                             repoGraphEntity.getDiscoveringTargetIds().collect(Collectors.toList()));
-                ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.forEach(commType -> {
-                    repoGraphEntity.soldCommoditiesByType().getOrDefault(commType, Collections.emptyList())
-                        .forEach(actionEntityBldr::addCommoditySold);
-                });
+                repoGraphEntity.soldCommoditiesByType(new IntOpenHashSet(ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES))
+                        .filter(SoldCommodity::isSupportsHotReplace)
+                        .mapToInt(SoldCommodity::getType)
+                        .forEach(actionEntityBldr::addCommTypesWithHotReplace);
                 List<Integer> providerEntityTypes = repoGraphEntity.getProviders().stream()
                     .map(RepoGraphEntity::getEntityType).collect(Collectors.toList());
                 Optional<Integer> primaryProviderIndex = TopologyDTOUtil.getPrimaryProviderIndex(
@@ -94,24 +84,23 @@ public class PartialEntityConverter {
                     long providerId = repoGraphEntity.getProviders().get(index).getOid();
                     actionEntityBldr.setPrimaryProviderId(providerId);
                 });
-                actionEntityBldr.setTypeSpecificInfo(repoGraphEntity.getTypeSpecificInfo());
+                ActionEntityTypeSpecificInfo typeSpecificInfo = repoGraphEntity.getActionTypeSpecificInfo();
+                if (typeSpecificInfo != null) {
+                    actionEntityBldr.setTypeSpecificInfo(typeSpecificInfo);
+                }
                 actionEntityBldr.addAllConnectedEntities(repoGraphEntity.getBroadcastConnections());
                 addHostToVSANStorageConnection(repoGraphEntity, actionEntityBldr);
                 partialEntityBldr.setAction(actionEntityBldr);
                 break;
             case API:
                 // Information required by the API.
-                final Tags.Builder tagsBldr = Tags.newBuilder();
-                repoGraphEntity.getTags().forEach((key, vals) -> tagsBldr.putTags(key, TagValuesDTO.newBuilder()
-                    .addAllValues(vals)
-                    .build()));
                 final ApiPartialEntity.Builder apiBldr = ApiPartialEntity.newBuilder()
                     .setOid(repoGraphEntity.getOid())
                     .setDisplayName(repoGraphEntity.getDisplayName())
                     .setEntityState(repoGraphEntity.getEntityState())
                     .setEntityType(repoGraphEntity.getEntityType())
                     .setEnvironmentType(repoGraphEntity.getEnvironmentType())
-                    .setTags(tagsBldr);
+                    .setTags(repoGraphEntity.getTags());
                 repoGraphEntity.getDiscoveringTargetIds().forEach(id -> {
                     String vendorId = repoGraphEntity.getVendorId(id);
                     PerTargetEntityInformation.Builder info = PerTargetEntityInformation.newBuilder();
@@ -146,15 +135,14 @@ public class PartialEntityConverter {
             return;
         }
         for (RepoGraphEntity consumer : repoGraphEntity.getConsumers())    {
-            TypeSpecificInfo typeInfo = consumer.getTypeSpecificInfo();
             if (consumer.getEntityType() == EntityType.STORAGE_VALUE
-                    && typeInfo.hasStorage()
-                    && typeInfo.getStorage().getStorageType() == StorageType.VSAN)   {
+                    && consumer.getActionTypeSpecificInfo() != null
+                    && consumer.getActionTypeSpecificInfo().getStorage().getStorageType() == StorageType.VSAN) {
                 ConnectedEntity vsanConnectedEntity = ConnectedEntity.newBuilder()
-                                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
-                                .setConnectedEntityType(consumer.getEntityType())
-                                .setConnectedEntityId(consumer.getOid())
-                                .build();
+                        .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                        .setConnectedEntityType(consumer.getEntityType())
+                        .setConnectedEntityId(consumer.getOid())
+                        .build();
                 actionEntityBldr.addConnectedEntities(vsanConnectedEntity);
                 return;
             }
@@ -191,15 +179,6 @@ public class PartialEntityConverter {
                     .addAllDiscoveringTargetIds(
                         topoEntity.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet()));
                 break;
-            case TYPE_SPECIFIC:
-                final TypeSpecificPartialEntity.Builder typeSpecificBuilder =
-                    TypeSpecificPartialEntity.newBuilder()
-                        .setOid(topoEntity.getOid())
-                        .setDisplayName(topoEntity.getDisplayName())
-                        .setEntityType(topoEntity.getEntityType())
-                        .setTypeSpecificInfo(topoEntity.getTypeSpecificInfo());
-                partialEntityBldr.setTypeSpecific(typeSpecificBuilder);
-                break;
             case WITH_CONNECTIONS:
                 final EntityWithConnections.Builder withConnectionsBuilder =
                     EntityWithConnections.newBuilder()
@@ -220,7 +199,9 @@ public class PartialEntityConverter {
                 topoEntity.getCommoditySoldListList().stream()
                     .filter(comm -> ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(
                         comm.getCommodityType().getType()))
-                    .forEach(actionEntityBldr::addCommoditySold);
+                    .filter(comm -> comm.getHotResizeInfo().getHotReplaceSupported())
+                    .mapToInt(comm -> comm.getCommodityType().getType())
+                    .forEach(actionEntityBldr::addCommTypesWithHotReplace);
                 List<Integer> providerEntityTypes = topoEntity.getCommoditiesBoughtFromProvidersList().stream()
                     .map(CommoditiesBoughtFromProvider::getProviderEntityType)
                     .collect(Collectors.toList());
@@ -230,7 +211,8 @@ public class PartialEntityConverter {
                     long primaryProviderId = topoEntity.getCommoditiesBoughtFromProvidersList().get(index).getProviderId();
                     actionEntityBldr.setPrimaryProviderId(primaryProviderId);
                 });
-                actionEntityBldr.setTypeSpecificInfo(topoEntity.getTypeSpecificInfo());
+                TopologyDTOUtil.makeActionTypeSpecificInfo(topoEntity.getTypeSpecificInfo())
+                    .ifPresent(actionEntityBldr::setTypeSpecificInfo);
                 partialEntityBldr.setAction(actionEntityBldr);
                 break;
             case API:

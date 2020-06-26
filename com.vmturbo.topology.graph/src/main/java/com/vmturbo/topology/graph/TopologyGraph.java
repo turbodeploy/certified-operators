@@ -21,6 +21,7 @@ import com.google.common.collect.Maps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -61,7 +62,7 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
      * A map permitting lookup from OID to {@link TopologyGraphEntity}.
      */
     @Nonnull
-    private final Map<Long, E> graph;
+    private final Long2ObjectMap<E> graph;
 
     /**
      * An index permitting lookup from entity type to all the entities of that type in the graph.
@@ -75,8 +76,8 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
      * @param graph           The graph of entities in the {@link TopologyGraph}.
      * @param entityTypeIndex entities organized by entity type
      */
-    public TopologyGraph(@Nonnull final Map<Long, E> graph,
-            @Nonnull final Map<Integer, Collection<E>> entityTypeIndex) {
+    public TopologyGraph(@Nonnull final Long2ObjectMap<E> graph,
+                         @Nonnull final Map<Integer, Collection<E>> entityTypeIndex) {
         this.graph = Objects.requireNonNull(graph);
         this.entityTypeIndex = Objects.requireNonNull(entityTypeIndex);
     }
@@ -284,7 +285,7 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
      * @return All providers for a {@link TopologyGraphEntity} in the graph by its OID.
      */
     @Nonnull
-    public Stream<E> getProviders(Long oid) {
+    public Stream<E> getProviders(long oid) {
         // Because this is high-performance code, do not call getEntity which allocates
         // an additional object.
         final E topologyEntity = graph.get(oid);

@@ -1128,7 +1128,7 @@ message StartBuyRIAnalysisRequest {
 }
 
 message GetTierPriceForEntitiesRequest{
-    optional int64 oid = 1;
+    repeated int64 oids = 1;
     optional CostCategory costCategory = 2;
     optional int64 topologyContextId = 3;
 }

@@ -7,8 +7,9 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import com.vmturbo.topology.graph.SearchableProps;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.graph.TopologyGraphEntity;
+import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
 
 /**
  * A property filter selects members of the topology that match
@@ -21,11 +22,41 @@ import com.vmturbo.topology.graph.TopologyGraphEntity;
  * @param <E> {@inheritDoc}
  */
 @Immutable
-public class PropertyFilter<E extends TopologyGraphEntity<E>> implements TopologyFilter<E> {
+public class PropertyFilter<E extends TopologyGraphSearchableEntity<E>> implements TopologyFilter<E> {
     private final Predicate<E> test;
 
+    /**
+     * Create a new property filter from a predicate.
+     *
+     * @param test The predicate.
+     */
     public PropertyFilter(@Nonnull final Predicate<E> test) {
         this.test = Objects.requireNonNull(test);
+    }
+
+    /**
+     * Create a new property filter that will return false if the input entity is not of the
+     * specified type, and will apply the predicate to the entity's searchable properties if
+     * it is. This allows the user to specify which {@link SearchableProps} they want to filter on
+     * in the predicate.
+     *
+     * @param propsTest The predicate for the searchable properties.
+     * @param clazz The class of {@link SearchableProps} (which is tied to the type of the entity).
+     * @param <E> The type of searchable entity.
+     * @param <T> The type of {@link SearchableProps} for the target entity type.
+     * @return A {@link PropertyFilter} that can be used to filter entities. It will return false
+     *         if the type doesn't match. If the type matches it will apply the predicate to
+     *         the {@link SearchableProps}.
+     */
+    public static <E extends TopologyGraphSearchableEntity<E>, T extends SearchableProps> PropertyFilter<E> typeSpecificFilter(Predicate<T> propsTest, Class<T> clazz) {
+        return new PropertyFilter<>(e -> {
+            T props = e.getSearchableProps(clazz);
+            if (props == null) {
+                return false;
+            } else {
+                return propsTest.test(props);
+            }
+        });
     }
 
     /**
@@ -39,10 +70,10 @@ public class PropertyFilter<E extends TopologyGraphEntity<E>> implements Topolog
     }
 
     /**
-     * Test if a particular {@link TopologyGraphEntity} passes the filter.
+     * Test if a particular {@link TopologyGraphSearchableEntity} passes the filter.
      *
-     * @param entity The {@link TopologyGraphEntity} to test against the filter.
-     * @return True if the {@link TopologyGraphEntity} passes the filter, false otherwise.
+     * @param entity The {@link TopologyGraphSearchableEntity} to test against the filter.
+     * @return True if the {@link TopologyGraphSearchableEntity} passes the filter, false otherwise.
      */
     boolean test(@Nonnull E entity) {
         return test.test(entity);

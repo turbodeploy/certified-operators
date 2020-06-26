@@ -37,6 +37,7 @@ public class VsanStorageApplicator implements SettingApplicator {
     private static final Logger logger = LogManager.getLogger();
 
     private static final double THRESHOLD_EFFECTIVE_CAPACITY = 1;
+    private static final double RAID_FACTOR_DEFAULT = 1.0d;
 
     private final TopologyGraph<TopologyEntity> graph;
 
@@ -55,29 +56,42 @@ public class VsanStorageApplicator implements SettingApplicator {
             return;
         }
 
+        final double slackSpaceRatio = getSlackSpaceRatio(settings);
+        final double iopsCapacityPerHost =  getNumericSetting(settings,
+                EntitySettingSpecs.HciHostIopsCapacity);
+        final boolean useCompressionSetting = getBooleanSetting(settings,
+                EntitySettingSpecs.HciUseCompression);
+        final double compressionRatio = useCompressionSetting
+                ? getNumericSetting(settings, EntitySettingSpecs.HciCompressionRatio)
+                : 1.0;
+        // hostCapacityReservcation is handled in HCIPhysicalMachineEntityConstructor for Plans
+        final double hostCapacityReservation = storage.getOrigin().hasPlanScenarioOrigin()
+                || storage.getOrigin().hasReservationOrigin() ? 0
+                : getNumericSetting(settings,
+                EntitySettingSpecs.HciHostCapacityReservation);
+        final double storageOverprovisioningCoefficient =
+                getNumericSetting(settings,
+                        EntitySettingSpecs.StorageOverprovisionedPercentage) / 100;
+        final double raidFactor = computeRaidFactor(storage);
+        final double hciUsablePercentage = raidFactor * slackSpaceRatio * compressionRatio * 100;
         try {
-            final double iopsCapacityPerHost = getNumericSetting(settings,
-                            EntitySettingSpecs.HciHostIopsCapacity);
-            final boolean useCompressionSetting = getBooleanSetting(settings,
-                            EntitySettingSpecs.HciUseCompression);
-            final double compressionRatio = useCompressionSetting
-                            ? getNumericSetting(settings, EntitySettingSpecs.HciCompressionRatio)
-                            : 1.0;
-            final double slackSpaceRatio = getSlackSpaceRatio(settings);
-            final double raidFactor = computeRaidFactor(storage);
-            double hciUsablePercentage = raidFactor * slackSpaceRatio * compressionRatio * 100;
-
-            applyToStorage(storage, settings, raidFactor, slackSpaceRatio,
-                            compressionRatio, iopsCapacityPerHost);
-            applyToStorageHosts(storage, settings, iopsCapacityPerHost, hciUsablePercentage);
+            applyToStorage(storage, raidFactor, slackSpaceRatio,
+                    compressionRatio, iopsCapacityPerHost, hostCapacityReservation);
         } catch (EntityApplicatorException e) {
             logger.error("Error applying settings to Storage commodities for vSAN storage "
                     + storage.getDisplayName(), e);
         }
+        applyToStorageHosts(storage, iopsCapacityPerHost,
+                hciUsablePercentage, storageOverprovisioningCoefficient);
     }
 
-    private double getSlackSpaceRatio(@Nonnull Map<EntitySettingSpecs, Setting> settings)
-                    throws EntityApplicatorException {
+    /**
+     * Get the slack space ratio.
+     *
+     * @param settings setting map
+     * @return Slack space ratio
+     */
+    private double getSlackSpaceRatio(@Nonnull Map<EntitySettingSpecs, Setting> settings) {
         double slackSpacePercentage = getNumericSetting(settings,
                         EntitySettingSpecs.HciSlackSpacePercentage);
         return (100.0 - slackSpacePercentage) / 100.0;
@@ -91,41 +105,44 @@ public class VsanStorageApplicator implements SettingApplicator {
      * @param storage vSAN storage
      * @return a factor <= 1.0 by which the raw storage amount is reduced to get
      *         usable space
-     * @throws EntityApplicatorException conversion error
      */
-    private static double computeRaidFactor(@Nonnull Builder storage)
-            throws EntityApplicatorException {
+    private static double computeRaidFactor(@Nonnull Builder storage) {
         if (!storage.hasTypeSpecificInfo()) {
-            throw new EntityApplicatorException(
-                    "Storage '" + storage.getDisplayName() + "' does not have Type Specific Info");
+            logger.error("Storage '{}' does not have Type Specific Info.  "
+                    + "Assuming RAID0. ", storage.getDisplayName());
+            return RAID_FACTOR_DEFAULT;
         }
 
         TypeSpecificInfo info = storage.getTypeSpecificInfo();
 
         if (!info.hasStorage()) {
-            throw new EntityApplicatorException(
-                    "Storage '" + storage.getDisplayName() + "' does not have Storage Info");
+            logger.error("Storage '{}' does not have Storage Info. "
+                    + "Assuming RAID0. ", storage.getDisplayName() );
+            return RAID_FACTOR_DEFAULT;
         }
 
         StorageInfo storageInfo = info.getStorage();
 
         if (!storageInfo.hasPolicy()) {
-            throw new EntityApplicatorException(
-                    "Storage '" + storage.getDisplayName() + "' does not have Storage Policy");
+            logger.error("Storage '{}' does not have Storage Policy. "
+                    + "Assuming RAID0. ", storage.getDisplayName() );
+            return RAID_FACTOR_DEFAULT;
         }
 
         StoragePolicy policy = storageInfo.getPolicy();
 
         if (!policy.hasRedundancy()) {
-            throw new EntityApplicatorException(
-                    "Storage '" + storage.getDisplayName() + "' does not have Redundancy");
+            logger.error("Storage '{}' does not have Redundancy. "
+                    + "Assuming RAID0. ", storage.getDisplayName() );
+            return RAID_FACTOR_DEFAULT;
         }
 
         StorageRedundancyMethod raidType = policy.getRedundancy();
 
         if (!policy.hasFailuresToTolerate()) {
-            throw new EntityApplicatorException("Storage '" + storage.getDisplayName()
-                    + "' does not have Failures To Tolerate");
+            logger.error("Storage '{}' does not have Failures To Tolerate. Assuming RAID0. ",
+                    storage.getDisplayName() );
+            return RAID_FACTOR_DEFAULT;
         }
 
         int failuresToTolerate = policy.getFailuresToTolerate();
@@ -139,20 +156,16 @@ public class VsanStorageApplicator implements SettingApplicator {
             return 1.0 / (1.0 + failuresToTolerate / (2.0 + failuresToTolerate));
         }
 
-        throw new EntityApplicatorException(
-                "Invalid RAID type " + raidType + ", while computing the RAID factor for Storage "
-                        + storage.getDisplayName());
+        logger.error("Invalid RAID type " + raidType + ", while computing the RAID factor for Storage "
+                        + storage.getDisplayName() + " Assuming RAID0. ");
+        return RAID_FACTOR_DEFAULT;
     }
 
-    private void applyToStorage(Builder storage, Map<EntitySettingSpecs, Setting> settings,
+    private void applyToStorage(Builder storage,
                     double raidFactor, double slackSpaceRatio,
-                    double compressionRatio, double iopsCapacityPerHost)
+                    double compressionRatio, double iopsCapacityPerHost,
+                                double hostCapacityReservation)
                                     throws EntityApplicatorException {
-        // It is handled in HCIPhysicalMachineEntityConstructor for Plans
-        final double hostCapacityReservation = storage.getOrigin().hasPlanScenarioOrigin()
-                || storage.getOrigin().hasReservationOrigin() ? 0
-                        : getNumericSetting(settings,
-                                EntitySettingSpecs.HciHostCapacityReservation);
         final long hciHostCount = countHCIHosts(storage);
 
         CommoditySoldDTO.Builder storageAmount = getSoldStorageCommodityBuilder(
@@ -204,11 +217,9 @@ public class VsanStorageApplicator implements SettingApplicator {
         }
     }
 
-    private void applyToStorageHosts(Builder storage, Map<EntitySettingSpecs, Setting> settings,
-                    double iopsCapacityPerHost, double hciUsablePercentage)
-                                    throws EntityApplicatorException {
-        final double storageOverprovisioningCoefficient = getNumericSetting(settings,
-                        EntitySettingSpecs.StorageOverprovisionedPercentage) / 100;
+    private void applyToStorageHosts(Builder storage,
+                    double iopsCapacityPerHost, double hciUsablePercentage,
+                                     double storageOverprovisioningCoefficient) {
 
         //Set values for providers.
         for (CommoditiesBoughtFromProvider.Builder boughtBuilder :
@@ -304,25 +315,33 @@ public class VsanStorageApplicator implements SettingApplicator {
         return capacity;
     }
 
+    private static double getNumericSettingDefault(EntitySettingSpecs settingSpecs) {
+        return settingSpecs.getSettingSpec().getNumericSettingValueType().getDefault();
+    }
+
+    private static boolean getBooleanSettingDefault(EntitySettingSpecs settingSpecs) {
+        return settingSpecs.getSettingSpec().getBooleanSettingValueType().getDefault();
+    }
+
     private static double getNumericSetting(@Nonnull Map<EntitySettingSpecs, Setting> settings,
-            @Nonnull EntitySettingSpecs spec) throws EntityApplicatorException {
+            @Nonnull EntitySettingSpecs spec) {
         Setting setting = settings.get(spec);
 
         if (setting == null || !setting.hasNumericSettingValue()) {
-            throw new EntityApplicatorException(
-                    "The numeric setting " + spec.getDisplayName() + " is missing");
+            logger.error("The numeric setting " + spec.getDisplayName() + " is missing.  Using defaults. ");
+            return getNumericSettingDefault(spec);
         }
 
         return setting.getNumericSettingValue().getValue();
     }
 
     private static boolean getBooleanSetting(@Nonnull Map<EntitySettingSpecs, Setting> settings,
-            @Nonnull EntitySettingSpecs spec) throws EntityApplicatorException {
+            @Nonnull EntitySettingSpecs spec) {
         Setting setting = settings.get(spec);
 
         if (setting == null || !setting.hasBooleanSettingValue()) {
-            throw new EntityApplicatorException(
-                    "The boolean setting " + spec.getDisplayName() + " is missing");
+            logger.error("The boolean setting " + spec.getDisplayName() + " is missing. Using defaults. ");
+            return getBooleanSettingDefault(spec);
         }
 
         return setting.getBooleanSettingValue().getValue();

@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -50,7 +51,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Workloa
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo.ControllerTypeCase;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.topology.graph.TestGraphEntity;
@@ -1431,8 +1431,7 @@ public class TopologyFilterFactoryTest {
      * Test exception in case if we try to filter entity which has not this property.
      */
     @Test
-    public void testAssociatedTargetFilterException() {
-        expectedException.expect(IllegalArgumentException.class);
+    public void testAssociatedTargetFilterInvalidEntity() {
         final PropertyFilter<TestGraphEntity> associatedTargetFilter = filterFactory.filterFor(
                 Search.PropertyFilter.newBuilder()
                         .setPropertyName(SearchableProperties.ASSOCIATED_TARGET_ID)
@@ -1446,8 +1445,8 @@ public class TopologyFilterFactoryTest {
                                 .build())
                         .build();
 
-        associatedTargetFilter.apply(Stream.of(notSupportedEntity), graph)
-                .collect(Collectors.toList());
+        assertTrue(associatedTargetFilter.apply(Stream.of(notSupportedEntity), graph)
+                .collect(Collectors.toList()).isEmpty());
     }
 
     /**

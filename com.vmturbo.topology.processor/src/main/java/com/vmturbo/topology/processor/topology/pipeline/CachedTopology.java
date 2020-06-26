@@ -58,7 +58,6 @@ public class CachedTopology {
                     if (entity.getEntityType() == EntityType.APPLICATION_SERVER.getValue() ||
                             entity.getEntityType() == EntityType.DATABASE_SERVER.getValue() ||
                             entity.getEntityType() == EntityType.BUSINESS_APPLICATION.getValue() ||
-                            entity.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue() ||
                             entity.getEntityType() == EntityType.APPLICATION.getValue() ||
                             entity.getEntityType() == EntityType.CONTAINER.getValue() ||
                             entity.getEntityType() == EntityType.CONTAINER_POD.getValue() ||

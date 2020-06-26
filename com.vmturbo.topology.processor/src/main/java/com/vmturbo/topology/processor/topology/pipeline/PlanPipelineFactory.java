@@ -297,11 +297,11 @@ public class PlanPipelineFactory {
             .addStage(new ScopeResolutionStage(groupServiceClient, scope))
             .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient))
             .addStage(new PolicyStage(policyManager, changes))
-            .addStage(new ReservationTrimStage())
             .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes, consistentScalingManager))
             .addStage(new SettingsApplicationStage(settingsApplicator))
             .addStage(new PostStitchingStage(stitchingManager))
             .addStage(new ExtractTopologyGraphStage())
+            .addStage(new ReservationTrimStage())
             .addStage(new TopSortStage())
             .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
             .build();

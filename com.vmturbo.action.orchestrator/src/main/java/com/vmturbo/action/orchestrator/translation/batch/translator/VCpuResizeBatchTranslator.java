@@ -27,7 +27,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecificPartialEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -98,18 +97,18 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
         // properly. Generating a lazy stream of gRPC results that is not evaluated until
         // after the method return causes any potential gRPC exception not to be thrown
         // until it is too late to be handled.
-        final Map<Long, TypeSpecificPartialEntity> hostInfoMap = RepositoryDTOUtil.topologyEntityStream(
+        final Map<Long, ActionPartialEntity> hostInfoMap = RepositoryDTOUtil.topologyEntityStream(
             repoService.retrieveTopologyEntities(
                 RetrieveTopologyEntitiesRequest.newBuilder()
                     .setTopologyContextId(snapshot.getToologyContextId())
                     .addAllEntityOids(entitiesToRetrieve)
-                    .setReturnType(Type.TYPE_SPECIFIC)
+                    .setReturnType(Type.ACTION)
                     // Look in the same topology type (source vs projected) as the one we looked
                     // in to get the rest of the entity information.
                     .setTopologyType(snapshot.getTopologyType())
                     .build()))
-            .map(PartialEntity::getTypeSpecific)
-            .collect(Collectors.toMap(TypeSpecificPartialEntity::getOid, Function.identity()));
+            .map(PartialEntity::getAction)
+            .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
 
         return resizeActionsByVmTargetId.entrySet().stream().flatMap(
             entry -> translateVcpuResizes(
@@ -130,9 +129,9 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
      */
     private <T extends ActionView> Stream<T> translateVcpuResizes(long targetId,
                                                                   Long providerId,
-                                                                  @Nonnull final Map<Long, TypeSpecificPartialEntity> hostInfoMap,
+                                                                  @Nonnull final Map<Long, ActionPartialEntity> hostInfoMap,
                                                                   @Nonnull List<T> resizeActions) {
-        TypeSpecificPartialEntity hostInfo = hostInfoMap.get(providerId);
+        ActionPartialEntity hostInfo = hostInfoMap.get(providerId);
         if (providerId == null || hostInfo == null || !hostInfo.hasTypeSpecificInfo()
             || !hostInfo.getTypeSpecificInfo().hasPhysicalMachine()
             || !hostInfo.getTypeSpecificInfo().getPhysicalMachine().hasCpuCoreMhz()) {
@@ -180,7 +179,7 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
      * @return The translated resize information (in # of vCPU).
      */
     private Resize translateVcpuResizeInfo(@Nonnull final Resize originalResize,
-                                           @Nonnull final TypeSpecificPartialEntity hostInfo) {
+                                           @Nonnull final ActionPartialEntity hostInfo) {
         // don't apply the mhz translation for limit and reserved commodity attributes
         if (originalResize.getCommodityAttribute() == CommodityAttribute.LIMIT
             || originalResize.getCommodityAttribute() == CommodityAttribute.RESERVED) {
