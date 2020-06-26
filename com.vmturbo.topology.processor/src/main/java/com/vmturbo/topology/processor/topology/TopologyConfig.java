@@ -254,6 +254,7 @@ public class TopologyConfig {
                 licenseCheckClientConfig.licenseCheckClient(),
                 consistentScalingConfig.consistentScalingManager(),
                 actionsConfig.actionConstraintsUploader(),
+                actionsConfig.actionMergeSpecsUploader(),
                 requestCommodityThresholdsInjector(),
                 ephemeralEntityEditor()
         );

@@ -1,0 +1,96 @@
+syntax = "proto2";
+package action;
+
+option java_package = "com.vmturbo.common.protobuf.action";
+
+import "Discovery.proto";
+import "ActionExecution.proto";
+import "CommonDTO.proto";
+import "google/protobuf/empty.proto";
+import "action/ActionDTO.proto";
+
+// AtomicActionSpec generated for the set of entities whose actions will be merged to create atomic action.
+// Specs is created for entities belonging to probes that send the ActionMergePolicyDTOs during
+// probe registration. They define which probe entities with which action types must be merged.
+// Spec will be created per execution target entity and action type.
+// For example -
+//  - one spec per deployment for container vcpu/vmem resize
+//      that will merge resize action for all the containers in that deployment..
+//  - one spec per deployment for each container pod provision.
+message AtomicActionSpec {
+
+    // The associated merge policy from the target
+    optional common_dto.ActionMergePolicyDTO actionMergePolicy = 1;
+
+    // All the entity OIDs whose actions as per the action spec will be merged
+    repeated int64 entityIds = 2;
+
+    // The entity which will execute the merged actions for the spec entity
+    optional AtomicActionEntity aggregateEntity = 3;
+
+    oneof actionSpec {
+        ResizeMergeSpec resizeSpec = 5;
+        ScaleMergeSpec scaleSpec = 6;
+        MoveMergeSpec moveSpec = 7;
+        ProvisionMergeSpec provisionSpec = 8;
+    }
+}
+
+message AtomicActionEntity {
+    optional ActionEntity entity = 1;
+    optional string entityName = 2;
+}
+
+message ResizeMergeSpec {
+    // Specifies the commodity resize to merge
+    repeated CommodityMergeData commodityData = 1;
+
+    // The deduplication target for resizing the resources, if available
+    // Commodity Resize action for all the entities belonging to a scaling or deployment group
+    // will be de-duplicated or reduced to one action item.
+    // The action target is the configuration entity that configures the resources for the group,
+    // e.g. is CONTAINER_SPEC or VM_SPEC
+    optional AtomicActionEntity deDuplicationTarget = 2;
+
+    message CommodityMergeData {
+        // The type of the commodity
+        optional common_dto.CommodityDTO.CommodityType commodity_type = 1;
+        // The type of the changed attribute.
+        optional common_dto.ActionItemDTO.CommodityAttribute changed_attr = 2;
+    }
+}
+
+message ScaleMergeSpec {
+    // Specifies the commodity scale to merge
+    repeated CommodityMergeData commodityData = 1;
+
+    // The deduplication target for scale, if available
+    optional AtomicActionEntity deDuplicationTarget = 2;
+
+    message CommodityMergeData {
+        // The type of the commodity
+        optional common_dto.CommodityDTO.CommodityType commodity_type = 1;
+        // The type of the changed attribute.
+        optional common_dto.ActionItemDTO.CommodityAttribute changed_attr = 2;
+    }
+}
+
+message MoveMergeSpec {
+    // provider for the move
+    required common_dto.EntityDTO.EntityType providerType = 1;
+}
+
+message ProvisionMergeSpec {
+}
+
+// A request to upload list of AtomicActionSpec's
+message UploadAtomicActionSpecsRequest {
+    // A list of AtomicActionSpec per target
+    repeated AtomicActionSpec atomic_action_specs_info = 1;
+}
+
+// This service provides RPCs for CRUD-type operations related to action merge specs
+service AtomicActionSpecsUploadService {
+    // Upload action merge specs
+    rpc UploadAtomicActionSpecs (stream UploadAtomicActionSpecsRequest) returns (google.protobuf.Empty);
+}

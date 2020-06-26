@@ -23,6 +23,8 @@ import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTOREST.ActionConstraintsServiceController;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionsServiceController;
+import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
+import com.vmturbo.common.protobuf.action.ActionMergeSpecDTOREST.AtomicActionSpecsUploadServiceController;
 import com.vmturbo.common.protobuf.action.ActionsDebugREST.ActionsDebugServiceController;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeverityServiceController;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -152,6 +154,25 @@ public class RpcConfig {
     @Bean
     public ActionConstraintsServiceController actionConstraintsServiceController() {
         return new ActionConstraintsServiceController(actionConstraintsRpcService());
+    }
+
+    /**
+     * Create the {@link AtomicActionSpecsRpcService} to receive the {@link AtomicActionSpec}'s.
+     *
+     * @return the bean created
+     */
+    @Bean
+    public AtomicActionSpecsRpcService atomicActionSpecsRpcService() {
+        return new AtomicActionSpecsRpcService(actionStoreConfig.actionMergeSpecsCache());
+    }
+
+    /**
+     * Create the  {@link AtomicActionSpecsUploadServiceController}.
+     * @return the bean created
+     */
+    @Bean
+    public AtomicActionSpecsUploadServiceController actionMergeSpecsServiceController() {
+        return new AtomicActionSpecsUploadServiceController(atomicActionSpecsRpcService());
     }
 
     @Bean
