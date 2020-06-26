@@ -50,8 +50,8 @@ public class CachedTopologyTest {
      * Test getting a cached topology for a reservation plan.
      */
     @Test
-    public void testGetReservationTopology() {
-        List<Builder> entities = Lists.newArrayList(TopologyEntityUtils.topologyEntity(1, EntityType.VIRTUAL_MACHINE),
+        public void testGetReservationTopology() {
+        List<Builder> entities = Lists.newArrayList(TopologyEntityUtils.topologyEntity(1, EntityType.APPLICATION),
             TopologyEntityUtils.topologyEntity(2, EntityType.PHYSICAL_MACHINE),
             TopologyEntityUtils.topologyEntity(3, EntityType.STORAGE));
         cachedTopology.updateTopology(entities.stream()
@@ -65,7 +65,7 @@ public class CachedTopologyTest {
         // Size 2
         assertThat(result.toString(), containsString("2"));
         assertThat(result.toString(), containsString("Removed"));
-        assertThat(result.toString(), containsString(ApiEntityType.VIRTUAL_MACHINE.toString()));
+        assertThat(result.toString(), containsString(ApiEntityType.APPLICATION.toString()));
         assertThat(result.getEntities().keySet(), containsInAnyOrder(2L, 3L));
     }
 
