@@ -2,6 +2,8 @@ package com.vmturbo.topology.processor.util;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+import javax.annotation.Nonnull;
+
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
@@ -61,5 +63,20 @@ public class Probes {
         return ProbeInfo.newBuilder(emptyProbe).setProbeType("probe-type-" + index)
                 .setUiProbeCategory("probe-ui-category-" + index)
                 .setProbeCategory("probe-category-" + index);
+    }
+
+    /**
+     * Create an AccountDefEntry.Builder for a string AccountDef with the given name.
+     *
+     * @param name the name of the CustomAccountDefEntry
+     * @return Builder for the CustomerAccountDefEntry specified
+     */
+    public static AccountDefEntry.Builder createStringAccountDefinition(@Nonnull String name) {
+        return AccountDefEntry.newBuilder()
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                        .setName(name)
+                        .setDescription(name + " description")
+                        .setDisplayName(name + " display name")
+                        .setPrimitiveValue(PrimitiveValue.STRING));
     }
 }

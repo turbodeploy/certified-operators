@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.migration;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -23,6 +24,7 @@ import com.vmturbo.platform.sdk.common.util.AccountDefEntryConstants;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -35,15 +37,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * according to the new scheme.  For efficiency, we skip targets that come from probe types that
  * don't have "address" as a target identifying field.
  */
-public class V_01_00_03__Target_Oid_Replace_Ip_With_Address extends AbstractMigration {
-
-    private final Logger logger = LogManager.getLogger();
-
-    private final ProbeStore probeStore;
-
-    private final TargetStore targetStore;
-
-    private final IdentityStore<TargetSpec> identityStore;
+public class V_01_00_03__Target_Oid_Replace_Ip_With_Address extends HandleTargetOidChange {
 
     /**
      * Create the migration object.
@@ -53,67 +47,17 @@ public class V_01_00_03__Target_Oid_Replace_Ip_With_Address extends AbstractMigr
      * @param targetStore to provide targets and target specs for updating identity store
      * @param idStore identity store to update by replacing ip address by the value the user put in
      *                the "address" field.
+     * @param targetDao the target store for deleting targets made redundant by the Oid generation
+     *        changes
      */
-    public V_01_00_03__Target_Oid_Replace_Ip_With_Address(@Nonnull ProbeStore  probeStore,
-                                                          @Nonnull TargetStore targetStore,
-                                                          @Nonnull IdentityStore<TargetSpec> idStore)
-    {
-        this.probeStore = Objects.requireNonNull(probeStore);
-        this.targetStore = Objects.requireNonNull(targetStore);
-        this.identityStore = Objects.requireNonNull(idStore);
+    public V_01_00_03__Target_Oid_Replace_Ip_With_Address(@Nonnull ProbeStore probeStore,
+            @Nonnull TargetStore targetStore, @Nonnull IdentityStore<TargetSpec> idStore,
+            @Nonnull TargetDao targetDao) {
+        super(probeStore, targetStore, idStore, targetDao);
     }
 
     @Override
-    protected MigrationProgressInfo doStartMigration() {
-        logger.info("Starting target OID migration.");
-
-        // Force initialization of the probe and target store (if applicable), so the non-migrated
-        // data is loaded from Consul into their local state.
-        if (probeStore instanceof RequiresDataInitialization) {
-            try {
-                ((RequiresDataInitialization)probeStore).initialize();
-            } catch (InitializationException e) {
-                String msg = "Failed to initialize probe store with error: " + e.getMessage();
-                logger.error("{}", msg, e);
-                return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
-            }
-        }
-
-        if (targetStore instanceof RequiresDataInitialization) {
-            try {
-                ((RequiresDataInitialization)targetStore).initialize();
-            } catch (InitializationException e) {
-                String msg = "Failed to initialize target store with error: " + e.getMessage();
-                logger.error("{}", msg, e);
-                return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
-            }
-        }
-
-        // Get the set of all probes that use "address" as a target identifying field
-        final Set<Long> relevantProbeTypes = probeStore.getProbes().entrySet().stream()
-            .filter(entry -> entry.getValue().getTargetIdentifierFieldList()
-                .contains(AccountDefEntryConstants.ADDRESS_FIELD))
-            .map(Entry::getKey)
-            .collect(Collectors.toSet());
-        // Get all targets of these probes and update the OID cache and DB based on the new OID
-        // matching attributes.
-        final Map<Long, TargetSpec> targetToSpecMap = relevantProbeTypes.stream()
-            .flatMap(id -> targetStore.getProbeTargets(id).stream())
-            .collect(Collectors.toMap(Target::getId, Target::getSpec));
-        logger.info("Updating OID attributes for {} targets from {} probe types.",
-            targetToSpecMap.size(), relevantProbeTypes.size());
-        try {
-            identityStore.updateItemAttributes(targetToSpecMap);
-        } catch (IdentityStoreException e) {
-            String msg = "Error while updating target OIDs.";
-            logger.error(msg, e);
-            return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
-        } catch (IdentifierConflictException e) {
-            String msg = "Oid clash while updating target OIDs.";
-            logger.error(msg, e);
-            return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
-        }
-        return updateMigrationProgress(MigrationStatus.SUCCEEDED, 100,
-            "Successfully migrated " + targetToSpecMap.size() + " targets.");
+    protected Set<String> getImpactedAccountDefKeys() {
+        return Collections.singleton(AccountDefEntryConstants.ADDRESS_FIELD);
     }
 }
