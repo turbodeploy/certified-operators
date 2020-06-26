@@ -526,11 +526,12 @@ public class CostDTOCreator {
                     List<CommoditySoldDTO> ioThruPut =
                             typeToCommodities.get(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE);
 
-                    if (netThruPut.size() == 1 && ioThruPut.size() == 1) {
-                        ComputeResourceDependency.Builder dependency =
-                                ComputeResourceDependency.newBuilder();
-                        dependency.setBaseResourceType(commodityConverter.commoditySpecification(
-                                netThruPut.get(0).getCommodityType()))
+                    if (netThruPut != null && ioThruPut != null && netThruPut.size() == 1
+                            && ioThruPut.size() == 1) {
+                        ComputeResourceDependency.Builder dependency = ComputeResourceDependency
+                                .newBuilder()
+                                .setBaseResourceType(commodityConverter.commoditySpecification(
+                                        netThruPut.get(0).getCommodityType()))
                                 .setDependentResourceType(commodityConverter.commoditySpecification(
                                         ioThruPut.get(0).getCommodityType()));
                         return Optional.of(dependency.build());
