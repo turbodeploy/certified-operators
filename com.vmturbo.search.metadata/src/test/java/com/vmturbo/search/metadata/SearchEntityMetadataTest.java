@@ -5,9 +5,11 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 import java.util.Map;
+import java.util.Objects;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.api.dto.searchquery.FieldApiDTO;
@@ -17,7 +19,7 @@ import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.enums.EntityType;
 
 /**
- * Unit tests verify that all fields in SearchEntityMetadataMapping for different field types
+ * Unit tests verify that all fields in {@link SearchEntityMetadata} for different field types
  * are set as expected. This is needed to ensure correct data ingestion and search query.
  */
 public class SearchEntityMetadataTest {
@@ -35,7 +37,7 @@ public class SearchEntityMetadataTest {
                     .build();
 
     /**
-     * Check tha all fields in SearchEntityMetadataMapping are set as expected.
+     * Check that all fields in {@link SearchMetadataMapping} are set as expected.
      */
     @Test
     public void testMetadataFieldsSetCorrectly() {
@@ -78,6 +80,35 @@ public class SearchEntityMetadataTest {
         }
     }
 
+    /**
+     * For each entity type, the mapping from {@link FieldApiDTO}s to jsonKeyNames should not
+     * map more than one {@link FieldApiDTO} object to the same jsonKeyName.
+     */
+    @Test
+    public void testNoDuplicateFieldMappings() {
+        for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
+            final Map<FieldApiDTO, SearchMetadataMapping> metadataMapping =
+                        searchEntityMetadata.getMetadataMappingMap();
+
+            // calculate the records that map to json key names
+            long jsonKeyNamesRecordCount = metadataMapping.values().stream()
+                                                .map(SearchMetadataMapping::getJsonKeyName)
+                                                .filter(Objects::nonNull)
+                                                .count();
+
+            // calculate how many distinct json key names are mapped
+            long jsonKeyNamesDistinctCount = metadataMapping.values().stream()
+                    .map(SearchMetadataMapping::getJsonKeyName)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .count();
+
+            // there should be no duplicate mapping: therefore the jsonKeyNamesCount
+            // should equal the size of the map
+            Assert.assertEquals(jsonKeyNamesDistinctCount, jsonKeyNamesRecordCount);
+        }
+    }
+
     @FunctionalInterface
     private interface MetadataVerifier {
 
@@ -101,7 +132,6 @@ public class SearchEntityMetadataTest {
             assertNotNull(metadata.getJsonKeyName());
             assertNotNull(metadata.getCommodityType());
             assertNotNull(metadata.getCommodityAttribute());
-            assertNotNull(metadata.getCommodityUnit());
         }
     }
 

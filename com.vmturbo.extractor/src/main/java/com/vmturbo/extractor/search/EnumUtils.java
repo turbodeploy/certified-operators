@@ -40,6 +40,7 @@ public class EnumUtils {
                     .put(com.vmturbo.api.enums.EntityType.DESKTOP_POOL, EntityDTO.EntityType.DESKTOP_POOL)
                     .put(com.vmturbo.api.enums.EntityType.DISKARRAY, EntityDTO.EntityType.DISK_ARRAY)
                     .put(com.vmturbo.api.enums.EntityType.IOMODULE, EntityDTO.EntityType.IO_MODULE)
+                    .put(com.vmturbo.api.enums.EntityType.NAMESPACE, EntityDTO.EntityType.NAMESPACE)
                     .put(com.vmturbo.api.enums.EntityType.NETWORK, EntityDTO.EntityType.NETWORK)
                     .put(com.vmturbo.api.enums.EntityType.REGION, EntityDTO.EntityType.REGION)
                     .put(com.vmturbo.api.enums.EntityType.PHYSICAL_MACHINE, EntityDTO.EntityType.PHYSICAL_MACHINE)
