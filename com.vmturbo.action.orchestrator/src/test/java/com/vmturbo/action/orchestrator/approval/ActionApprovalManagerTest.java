@@ -112,8 +112,7 @@ public class ActionApprovalManagerTest {
             ACTION_RECOMMENDATION_OID);
         action.getActionTranslation().setTranslationSuccess(
             ActionDTO.Action.newBuilder().buildPartial());
-        when(actionStore.getAction(ACTION_ID)).thenReturn(Optional.of(action));
-        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, ACTION_ID);
+        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
         // after accepting, the action should have transitioned from READY to IN_PROGRESS
         Assert.assertEquals(ActionState.IN_PROGRESS, action.getState());
     }

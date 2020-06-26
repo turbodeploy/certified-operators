@@ -37,6 +37,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -328,6 +329,11 @@ public class LiveActionStoreTest {
 
         actionStore.populateRecommendedActions(plan);
         assertEquals(2, actionStore.size());
+        final Action action = actionStore.getActions().values().iterator().next();
+        final Optional<Action> actionOpt =
+                actionStore.getActionByRecommendationId(action.getRecommendationOid());
+        Assert.assertTrue(actionOpt.isPresent());
+        Assert.assertEquals(action, actionOpt.get());
     }
 
     @Test

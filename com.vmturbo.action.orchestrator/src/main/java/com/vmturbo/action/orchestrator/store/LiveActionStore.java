@@ -328,7 +328,7 @@ public class LiveActionStore implements ActionStore {
 
             // Apply addition and removal to the internal store atomically.
             final List<ActionView> completedSinceLastPopulate = new ArrayList<>();
-            final List<Long> actionsToRemove = new ArrayList<>();
+            final List<Action> actionsToRemove = new ArrayList<>();
 
             actions.doForEachMarketAction(action -> {
                 // Only retain IN-PROGRESS, QUEUED, ACCEPTED and READY actions which are re-recommended.
@@ -340,15 +340,15 @@ public class LiveActionStore implements ActionStore {
                     case READY:
                     case ACCEPTED:
                         recommendations.add(action);
-                        actionsToRemove.add(action.getId());
+                        actionsToRemove.add(action);
                         break;
                     case SUCCEEDED:
                     case FAILED:
                         completedSinceLastPopulate.add(action);
-                        actionsToRemove.add(action.getId());
+                        actionsToRemove.add(action);
                         break;
                     default:
-                        actionsToRemove.add(action.getId());
+                        actionsToRemove.add(action);
                 }
             });
 
@@ -418,7 +418,7 @@ public class LiveActionStore implements ActionStore {
                     // Make sure to remove the actions with failed translations.
                     // We don't send NotRecommendedEvent-s because the action is still recommended
                     // but it's useless.
-                    actionsToRemove.add(action.getId());
+                    actionsToRemove.add(action);
                     logger.trace("Removed action {} with failed translation. Full action: {}",
                         action.getId(), action);
                 } else {
@@ -653,6 +653,15 @@ public class LiveActionStore implements ActionStore {
         return actions.getAction(actionId);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public Optional<Action> getActionByRecommendationId(long recommendationId) {
+        return actions.getActionByRecommendationId(recommendationId);
+    }
+
     @Nonnull
     @Override
     public Map<Long, Action> getActions() {
@@ -674,7 +683,6 @@ public class LiveActionStore implements ActionStore {
         return getAction(actionId)
             .map(Function.identity());
     }
-
 
     /**
      * {@inheritDoc}

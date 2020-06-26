@@ -41,8 +41,8 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.mockito.stubbing.Answer;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
@@ -183,7 +183,7 @@ public class LiveActionsTest {
         liveActions.replaceMarketActions(Stream.of(action1));
 
         // Remove action1, add action 2 and 3
-        liveActions.updateMarketActions(Collections.singleton(action1.getId()),
+        liveActions.updateMarketActions(Collections.singleton(action1),
                 Arrays.asList(action2, action3), entityCacheSnapshot, actionTargetSelector);
 
         assertThat(liveActions.getAll().collect(Collectors.toList()),
@@ -709,8 +709,13 @@ public class LiveActionsTest {
         assertTrue(liveActions.isEmpty());
     }
 
+    /**
+     * Test that {@link LiveActions#getAction(long)} and
+     * {@link LiveActions#getActionByRecommendationId(long)} return the same action
+     * regardless searching by actionId or by recommendationId.
+     */
     @Test
-    public void getAction() {
+    public void testGetActionAndGetActionByRecommendationId() {
         final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
 
@@ -719,6 +724,11 @@ public class LiveActionsTest {
 
         assertThat(liveActions.getAction(action1.getId()).get(), is(action1));
         assertThat(liveActions.getAction(action2.getId()).get(), is(action2));
+        assertThat(liveActions.getActionByRecommendationId(action1.getRecommendationOid()).get(),
+                is(action1));
+        assertThat(liveActions.getActionByRecommendationId(action2.getRecommendationOid()).get(),
+                is(action2));
+
         assertFalse(liveActions.getAction(action1.getId() + 100).isPresent());
     }
 

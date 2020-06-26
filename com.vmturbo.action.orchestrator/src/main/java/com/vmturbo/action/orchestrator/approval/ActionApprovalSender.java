@@ -67,9 +67,9 @@ public class ActionApprovalSender {
                             workflowStore);
 
                     // It does not matter which target this action is expected to face.
-                    final ExecuteActionRequest request = ActionExecutor.createRequest(-1,
-                            recommendation, workflowOpt,
-                            action.getDescription());
+                    final ExecuteActionRequest request =
+                            ActionExecutor.createRequest(-1, recommendation, workflowOpt,
+                                    action.getDescription(), action.getRecommendationOid());
                     builder.addActions(request);
                 }
             }

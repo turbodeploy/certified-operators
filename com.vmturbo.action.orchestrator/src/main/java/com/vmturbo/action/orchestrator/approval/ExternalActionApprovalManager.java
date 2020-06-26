@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
@@ -64,12 +65,19 @@ public class ExternalActionApprovalManager {
         }
         for (Entry<Long, ActionResponseState> entry : externalStates.getActionStateMap()
                 .entrySet()) {
-            final long actionId = entry.getKey();
+            final long recommendationId = entry.getKey();
             if (entry.getValue() == ActionResponseState.ACCEPTED) {
+                final Optional<Action> action =
+                        liveActionStore.get().getActionByRecommendationId(recommendationId);
+                if (!action.isPresent()) {
+                    logger.error("Action with recommendation id ({}) doesn't exist, so external "
+                            + "approval is not applied.", recommendationId);
+                    continue;
+                }
                 final AcceptActionResponse acceptResult = actionApprovalManager.attemptAndExecute(
-                        liveActionStore.get(), USER_ID, actionId);
+                        liveActionStore.get(), USER_ID, action.get());
                 if (acceptResult.hasError()) {
-                    logger.info("Failed accepting action {}: {}", actionId,
+                    logger.info("Failed accepting action {}: {}", recommendationId,
                             acceptResult.getError());
                 }
             }

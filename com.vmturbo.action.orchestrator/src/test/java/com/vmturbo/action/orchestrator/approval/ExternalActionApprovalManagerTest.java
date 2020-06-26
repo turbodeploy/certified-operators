@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
@@ -43,10 +44,9 @@ public class ExternalActionApprovalManagerTest {
     public void init() {
         MockitoAnnotations.initMocks(this);
         mgr = Mockito.mock(ActionApprovalManager.class);
-        Mockito.when(mgr.attemptAndExecute(Mockito.any(), Mockito.anyString(), Mockito.anyLong()))
-                .thenReturn(AcceptActionResponse.newBuilder()
-                        .setError("Some error")
-                        .build());
+        Mockito.when(mgr.attemptAndExecute(Mockito.any(), Mockito.anyString(),
+                Mockito.any(Action.class)))
+                .thenReturn(AcceptActionResponse.newBuilder().setError("Some error").build());
         actionStore = Mockito.mock(ActionStore.class);
         storehouse = Mockito.mock(ActionStorehouse.class);
         Mockito.when(storehouse.getStore(CTX_ID))
@@ -64,16 +64,26 @@ public class ExternalActionApprovalManagerTest {
     @Test
     public void testSuccessfulFlow() {
         final Runnable commit = Mockito.mock(Runnable.class);
+        final Action acceptedAction = Mockito.mock(Action.class);
+        final Action pendingAcceptAction = Mockito.mock(Action.class);
+
+        Mockito.when(actionStore.getActionByRecommendationId(ACTION1))
+                .thenReturn(Optional.of(pendingAcceptAction));
+        Mockito.when(actionStore.getActionByRecommendationId(ACTION2))
+                .thenReturn(Optional.of(acceptedAction));
+
         consumer.accept(GetActionStateResponse.newBuilder()
                 .putActionState(ACTION1, ActionResponseState.PENDING_ACCEPT)
                 .putActionState(ACTION2, ActionResponseState.ACCEPTED)
                 .build(), commit);
         Mockito.verify(mgr)
-                .attemptAndExecute(actionStore, ExternalActionApprovalManager.USER_ID, ACTION2);
+                .attemptAndExecute(Mockito.eq(actionStore),
+                        Mockito.eq(ExternalActionApprovalManager.USER_ID),
+                        Mockito.eq(acceptedAction));
         Mockito.verify(mgr, Mockito.never())
-                .attemptAndExecute(Mockito.any(), Mockito.anyString(), Mockito.eq(ACTION1));
-        Mockito.verify(commit)
-                .run();
+                .attemptAndExecute(Mockito.any(), Mockito.anyString(),
+                        Mockito.eq(pendingAcceptAction));
+        Mockito.verify(commit).run();
     }
 
     /**

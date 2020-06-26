@@ -95,13 +95,13 @@ public class ActionAuditSenderTest {
 
         final ActionEvent event1 = messageCaptor.getAllValues().get(0);
         Assert.assertEquals(TARGET_1, event1.getActionRequest().getTargetId());
-        Assert.assertEquals(ACTION1_ID, event1.getActionRequest().getActionId());
+        Assert.assertEquals(action1.getRecommendationOid(), event1.getActionRequest().getActionId());
         Assert.assertEquals(ActionResponseState.PENDING_ACCEPT, event1.getOldState());
         Assert.assertEquals(ActionResponseState.PENDING_ACCEPT, event1.getNewState());
 
         final ActionEvent event2 = messageCaptor.getAllValues().get(1);
         Assert.assertEquals(TARGET_2, event2.getActionRequest().getTargetId());
-        Assert.assertEquals(ACTION2_ID, event2.getActionRequest().getActionId());
+        Assert.assertEquals(action2.getRecommendationOid(), event2.getActionRequest().getActionId());
         Assert.assertEquals(ActionResponseState.IN_PROGRESS, event2.getOldState());
         Assert.assertEquals(ActionResponseState.SUCCEEDED, event2.getNewState());
     }

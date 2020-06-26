@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
+import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
@@ -199,9 +200,15 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
 
         final ActionStore store = optionalStore.get();
+        final Optional<Action> actionOpt = store.getAction(request.getActionId());
+        if (!actionOpt.isPresent()) {
+            responseObserver.onNext(acceptanceError("Action " + request.getActionId() + " doesn't exist."));
+            responseObserver.onCompleted();
+            return;
+        }
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
         final AcceptActionResponse response = actionApprovalManager.attemptAndExecute(store,
-                userNameAndUuid, request.getActionId());
+                userNameAndUuid, actionOpt.get());
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }

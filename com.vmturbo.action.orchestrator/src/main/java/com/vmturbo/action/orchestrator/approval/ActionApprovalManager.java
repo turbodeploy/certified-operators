@@ -101,20 +101,14 @@ public class ActionApprovalManager {
      *
      * @param store action store
      * @param userNameAndUuid ID of a user accepting the action
-     * @param actionId action OID to accept
+     * @param action the action to accept
      * @return action acceptance response
      */
     @Nonnull
     public AcceptActionResponse attemptAndExecute(@Nonnull ActionStore store,
-            @Nonnull String userNameAndUuid, long actionId) {
-        final Optional<Action> actionOptional = store.getAction(actionId);
-        if (!actionOptional.isPresent()) {
-            return acceptanceError("Action " + actionId + " doesn't exist.");
-        }
-        final Action action = actionOptional.get();
-
+            @Nonnull String userNameAndUuid, @Nonnull Action action) {
         if (action.getState() == ActionState.ACCEPTED) {
-            return acceptanceError("Action " + actionId + " was already accepted");
+            return acceptanceError("Action " + action.getId() + " was already accepted");
         }
 
         final AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,

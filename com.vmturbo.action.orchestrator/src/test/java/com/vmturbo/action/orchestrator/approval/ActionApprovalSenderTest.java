@@ -72,19 +72,20 @@ public class ActionApprovalSenderTest {
      */
     @Test
     public void testSuccessfulFlow() throws Exception {
-        createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL);
+        final Action externalApprovalAction = createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL);
         createAction(ACTION2, ActionMode.MANUAL);
         aas.sendApprovalRequests(actionStore);
         final ArgumentCaptor<ActionApprovalRequests> captor = ArgumentCaptor.forClass(
                 ActionApprovalRequests.class);
         Mockito.verify(requestSender)
                 .sendMessage(captor.capture());
-        Assert.assertEquals(Collections.singleton(ACTION1), captor.getAllValues()
-                .get(0)
-                .getActionsList()
-                .stream()
-                .map(ExecuteActionRequest::getActionId)
-                .collect(Collectors.toSet()));
+        Assert.assertEquals(Collections.singleton(externalApprovalAction.getRecommendationOid()),
+                captor.getAllValues()
+                        .get(0)
+                        .getActionsList()
+                        .stream()
+                        .map(ExecuteActionRequest::getActionId)
+                        .collect(Collectors.toSet()));
 
         // all actions should have an explanation
         Assert.assertTrue(
@@ -137,18 +138,20 @@ public class ActionApprovalSenderTest {
 
         Mockito.verify(requestSender, Mockito.times(2))
                 .sendMessage(captor.capture());
-        Assert.assertEquals(Collections.singleton(ACTION1), captor.getAllValues()
-                .get(0)
-                .getActionsList()
-                .stream()
-                .map(ExecuteActionRequest::getActionId)
-                .collect(Collectors.toSet()));
-        Assert.assertEquals(Collections.singleton(ACTION2), captor.getAllValues()
-                .get(1)
-                .getActionsList()
-                .stream()
-                .map(ExecuteActionRequest::getActionId)
-                .collect(Collectors.toSet()));
+        Assert.assertEquals(Collections.singleton(action1.getRecommendationOid()),
+                captor.getAllValues()
+                        .get(0)
+                        .getActionsList()
+                        .stream()
+                        .map(ExecuteActionRequest::getActionId)
+                        .collect(Collectors.toSet()));
+        Assert.assertEquals(Collections.singleton(action2.getRecommendationOid()),
+                captor.getAllValues()
+                        .get(1)
+                        .getActionsList()
+                        .stream()
+                        .map(ExecuteActionRequest::getActionId)
+                        .collect(Collectors.toSet()));
 
         // all actions should have an explanation
         Assert.assertTrue(
