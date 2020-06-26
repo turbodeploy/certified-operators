@@ -1,8 +1,9 @@
 package db.migration;
 
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
+
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -40,8 +41,8 @@ public abstract class BaseJdbcMigration implements JdbcMigration {
      *
      * @param connection connection to DB
      * @throws SQLException error during work with queries
-     * @throws IOException reading and parsing data exception
+     * @throws InvalidProtocolBufferException parsing data exception
      */
     protected abstract void performMigrationTasks(Connection connection)
-            throws SQLException, IOException;
+            throws SQLException, InvalidProtocolBufferException;
 }
