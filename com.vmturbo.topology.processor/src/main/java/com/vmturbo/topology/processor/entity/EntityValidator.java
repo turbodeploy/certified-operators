@@ -58,10 +58,8 @@ public class EntityValidator {
                                      @Nonnull final CommoditySoldDTO.Builder original,
                                      @Nonnull final String property,
                                      final double illegalAmount) {
-        // TODO changed from warn to trace to reduce logging load - does it need more visibility?
-        // yes it needs more visibility, this has to be reverted back to warn
-        // and root causes of missing capacities investigated instead
-        logger.trace("Entity {} with name {} of type {} is selling {} commodity {} with illegal {} {}",
+        // This has to be at warning level so that the root causes of missing capacities can be investigated.
+        logger.warn("Entity {} with name {} of type {} is selling {} commodity {} with illegal {} {}",
                 entityId,
                 entityName,
                 EntityType.forNumber(entityType),
@@ -151,19 +149,31 @@ public class EntityValidator {
                     commoditySold.clearCapacity();
                     entity.getAnalysisSettingsBuilder().setControllable(false);
                     StringBuilder controllableFalseEntities = new StringBuilder();
-                    entityGraph.getAllConsumersRecursively(entity.getOid()).forEach(e -> {
-                        if (e.getTopologyEntityDtoBuilder().getAnalysisSettings().getControllable()) {
+                    entityGraph.getConsumers(entity.getOid()).forEach(consumer -> {
+                        boolean shouldMarkConsumerControllableFalse  =
+                            consumer.getTopologyEntityDtoBuilder()
+                                .getCommoditiesBoughtFromProvidersList()
+                                .stream()
+                                .filter(grouping -> grouping.getProviderId() == entity.getOid())
+                                .filter(grouping -> grouping.getCommodityBoughtList().stream()
+                                    .map(CommodityBoughtDTO::getCommodityType)
+                                    .anyMatch(boughtCommType -> boughtCommType.equals(commoditySold.getCommodityType()))
+                                )
+                                .findFirst().isPresent();
+                        if (shouldMarkConsumerControllableFalse) {
+                            consumer.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
                             if (logger.isTraceEnabled()) {
-                                controllableFalseEntities.append((e.toString())).append(", ");
+                                controllableFalseEntities.append(consumer.toString()).append(", ");
                             }
-                            e.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
                         }
                     });
                     controllableFalseEntities.setLength(Math.max(controllableFalseEntities.length() - 2, 0));
-                    logger.warn("Setting controllable false on entity {} and its consumers because of "
-                        + "illegal capacity on one or more sold commodities.", entity.getDisplayName());
-                    logger.trace("The consumers of {} for which controllable was set to false are - {}.",
-                        entity.getDisplayName(), controllableFalseEntities.toString());
+                    logger.warn("Setting controllable false on {}|{} and its consumers which buy {}|{} from it because of "
+                        + "illegal capacity on the comm sold.", id, name,
+                        CommodityType.forNumber(commoditySold.getCommodityType().getType()),
+                        commoditySold.getCommodityType().getKey());
+                    logger.trace("The consumers of {}|{} for which controllable was set to false are - {}.",
+                        id, name, controllableFalseEntities.toString());
                 } else {
                     logger.warn("Setting capacity value for oid " + id
                                     + ", commodity "
