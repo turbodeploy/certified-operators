@@ -355,10 +355,17 @@ public class GroupProtoUtil {
      *
      * @param group the input group
      * @return true iff the input group is a group of clusters
+     * @throws IllegalArgumentException if the input {@link Grouping} is missing definition.
      */
-    public static boolean isGroupOfClusters(@Nonnull final Grouping group) {
-        return group.getExpectedTypesCount() == 1 && group.getExpectedTypes(0).hasGroup()
-                    && CLUSTER_GROUP_TYPES.contains(group.getExpectedTypes(0).getGroup());
+    public static boolean isGroupOfClusters(@Nonnull final Grouping group)
+            throws IllegalArgumentException {
+        if (!group.hasDefinition()) {
+            throw new IllegalArgumentException("Missing definition for group " + group.getId());
+        }
+        List<MemberType> directMemberTypes = getDirectMemberTypes(group.getDefinition()).collect(
+                Collectors.toList());
+        return directMemberTypes.size() == 1 && directMemberTypes.get(0).hasGroup()
+                    && CLUSTER_GROUP_TYPES.contains(directMemberTypes.get(0).getGroup());
     }
 
     /**
