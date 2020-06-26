@@ -56,15 +56,7 @@ class PlanProjectBuilder {
      * All resize settings.
      */
     private final Set<EntitySettingSpecs> resizeSettings = ImmutableSet.of(
-            EntitySettingSpecs.Resize,
-            EntitySettingSpecs.ResizeVcpuBelowMinThreshold,
-            EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds,
-            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
-            EntitySettingSpecs.ResizeVcpuAboveMaxThreshold,
-            EntitySettingSpecs.ResizeVmemBelowMinThreshold,
-            EntitySettingSpecs.ResizeVmemDownInBetweenThresholds,
-            EntitySettingSpecs.ResizeVmemUpInBetweenThresholds,
-            EntitySettingSpecs.ResizeVmemAboveMaxThreshold);
+            EntitySettingSpecs.Resize);
 
     PlanProjectBuilder(@Nonnull final PlanProjectServiceBlockingStub planProjectRpcService,
                       @Nonnull final ScenarioServiceBlockingStub scenariosService,

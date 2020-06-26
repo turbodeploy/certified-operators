@@ -9,8 +9,10 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo.Builder;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
@@ -37,7 +39,21 @@ public class TopologyPipelineContext {
      * For plans like MPC, this is the set of entities that are selected for migration to a
      * target CSP. This is used by various stages of the plan pipeline, thus stored here.
      */
-    private final Set<Long> sourceEntityOids;
+    private final Set<Long> sourceEntities;
+
+    /**
+     * Filtered applicable destination entity oids - e.g target region ids for MCP case.
+     */
+    private final Set<Long> destinationEntities;
+
+    /**
+     * Grouping info (if set) that is used to create placement policies later in PolicyStage.
+     * This is mainly used for cloud migration case, where first element of pair is the grouping
+     * for source entities being migrated, and second element is the target region group that the
+     * entities are being migrated to.
+     * These groupings are later used by PolicyManager for creating placement policies.
+     */
+    private final Set<Pair<Grouping, Grouping>> policyGroups;
 
     public TopologyPipelineContext(@Nonnull final GroupResolver groupResolver,
                                    @Nonnull final TopologyInfo topologyInfo,
@@ -46,7 +62,9 @@ public class TopologyPipelineContext {
         this.topologyInfoBuilder = Objects.requireNonNull(TopologyInfo.newBuilder(topologyInfo));
         this.stitchingJournalContainer = new StitchingJournalContainer();
         this.consistentScalingManager = consistentScalingManager;
-        sourceEntityOids = new HashSet<>();
+        sourceEntities = new HashSet<>();
+        destinationEntities = new HashSet<>();
+        policyGroups = new HashSet<>();
     }
 
     @Nonnull
@@ -68,9 +86,19 @@ public class TopologyPipelineContext {
      *
      * @param sourceOids Set of source entity oids.
      */
-    public void setSourceEntityOids(@Nonnull final Collection<Long> sourceOids) {
-        sourceEntityOids.clear();
-        sourceEntityOids.addAll(sourceOids);
+    public void setSourceEntities(@Nonnull final Collection<Long> sourceOids) {
+        sourceEntities.clear();
+        sourceEntities.addAll(sourceOids);
+    }
+
+    /**
+     * Sets the set of destination entity oids in this context.
+     *
+     * @param destinationOids Set of destination entity oids.
+     */
+    public void setDestinationEntities(@Nonnull final Collection<Long> destinationOids) {
+        destinationEntities.clear();
+        destinationEntities.addAll(destinationOids);
     }
 
     /**
@@ -79,8 +107,44 @@ public class TopologyPipelineContext {
      * @return Set of source entity oids.
      */
     @Nonnull
-    public Set<Long> getSourceEntityOids() {
-        return Collections.unmodifiableSet(sourceEntityOids);
+    public Set<Long> getSourceEntities() {
+        return Collections.unmodifiableSet(sourceEntities);
+    }
+
+    /**
+     * Gets the set of destination entity oids.
+     *
+     * @return Set of destination entity oids.
+     */
+    @Nonnull
+    public Set<Long> getDestinationEntities() {
+        return Collections.unmodifiableSet(destinationEntities);
+    }
+
+    /**
+     * Gets policy groups which are used to create placement policies.
+     *
+     * @return Policy group source and destination pairs.
+     */
+    @Nonnull
+    public Set<Pair<Grouping, Grouping>> getPolicyGroups() {
+        return Collections.unmodifiableSet(policyGroups);
+    }
+
+    /**
+     * Clears policy groups currently set if any.
+     */
+    public void clearPolicyGroups() {
+        policyGroups.clear();
+    }
+
+    /**
+     * Adds a policy group to the set.
+     *
+     * @param group Policy group to add.
+     */
+    public void addPolicyGroup(@Nonnull final Pair<Grouping, Grouping> group) {
+        policyGroups.add(group);
     }
 
     public String getTopologyTypeName() {

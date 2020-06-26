@@ -68,6 +68,7 @@ import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator.Results;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
  * Unit tests for {@link PolicyManager}.
@@ -86,6 +87,8 @@ public class PolicyManagerTest {
     private final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
 
     private final PolicyApplicator policyApplicator = mock(PolicyApplicator.class);
+
+    final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
 
     private final ReservationPolicyFactory reservationPolicyFactory =
             mock(ReservationPolicyFactory.class);
@@ -139,6 +142,7 @@ public class PolicyManagerTest {
                     .setPolicy(policy)
                     .build())
                 .collect(Collectors.toList()));
+        when(context.getTopologyInfo()).thenReturn(TopologyInfo.getDefaultInstance());
 
         final PolicyServiceGrpc.PolicyServiceBlockingStub policyRpcService =
             PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -159,10 +163,9 @@ public class PolicyManagerTest {
     public void testNoPoliciesNoGroupRPC() {
         when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.emptyList());
         when(topologyGraph.entities()).thenReturn(Stream.empty());
-        when(policyApplicator.applyPolicies(any(), eq(groupResolver), eq(topologyGraph)))
+        when(policyApplicator.applyPolicies(any(), any(), eq(topologyGraph)))
             .thenReturn(new Results());
-        policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList(),
-            TopologyInfo.getDefaultInstance(), Collections.emptySet());
+        policyManager.applyPolicies(context, topologyGraph, Collections.emptyList());
 
         // There shouldn't be a call to get groups if there are no policies.
         verify(groupServiceMole, never()).getGroups(any());
@@ -181,13 +184,13 @@ public class PolicyManagerTest {
 
         Results expectedResults = mock(Results.class);
 
-        when(policyApplicator.applyPolicies(any(), eq(groupResolver), eq(topologyGraph)))
+        when(policyApplicator.applyPolicies(any(), any(), eq(topologyGraph)))
             .thenReturn(expectedResults);
 
-        final Results results = policyManager.applyPolicies(topologyGraph, groupResolver,
-                Collections.emptyList(), TopologyInfo.getDefaultInstance(), Collections.emptySet());
+        final Results results = policyManager.applyPolicies(context, topologyGraph,
+                Collections.emptyList());
         // We should filter out the invalid policy.
-        verify(policyApplicator).applyPolicies(eq(Collections.emptyList()), eq(groupResolver), eq(topologyGraph));
+        verify(policyApplicator).applyPolicies(eq(Collections.emptyList()), any(), eq(topologyGraph));
         assertThat(results, is(expectedResults));
     }
 
@@ -204,8 +207,7 @@ public class PolicyManagerTest {
         // Do not configure the group service to return any of the groups.
         when(topologyGraph.entities()).thenReturn(Stream.empty());
 
-        policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList(),
-                TopologyInfo.getDefaultInstance(), Collections.emptySet());
+        policyManager.applyPolicies(context, topologyGraph, Collections.emptyList());
     }
 
     /*

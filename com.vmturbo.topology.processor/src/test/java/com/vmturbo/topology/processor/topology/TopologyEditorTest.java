@@ -423,7 +423,6 @@ public class TopologyEditorTest {
         assertEquals(10, topology.size());
         topologyEditor.editTopology(topology,
                 Lists.newArrayList(migrateVm), context, groupResolver);
-        Collection<Long> clonedSourceVms = context.getSourceEntityOids();
 
         // TODO: rework needed here, no longer using clones. Scoping for MCP not the same as OCP.
         assertEquals(10, topology.size());
@@ -442,6 +441,7 @@ public class TopologyEditorTest {
                 && zoneConnectedEntityToRemove.getEntityBuilder().getEdit().hasRemoved());
 
         // Verify that the cloned source VM id has been added to the addedEntityOids.
+        Collection<Long> clonedSourceVms = context.getSourceEntities();
         assertFalse(clonedSourceVms.isEmpty());
         assertTrue(clonedSourceVms.contains(vmCloneId));
     }

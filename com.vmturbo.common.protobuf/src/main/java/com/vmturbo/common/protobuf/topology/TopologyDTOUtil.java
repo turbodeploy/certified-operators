@@ -51,6 +51,14 @@ public final class TopologyDTOUtil {
     private static final String OPTIMIZE_CLOUD_PLAN = "OPTIMIZE_CLOUD";
 
     /**
+     * Types of entities that are considered as workloads.
+     */
+    public static final Set<EntityType> WORKLOAD_TYPES = ImmutableSet.of(
+            EntityType.VIRTUAL_MACHINE,
+            EntityType.DATABASE,
+            EntityType.DATABASE_SERVER);
+
+    /**
      * The primary tiers entity types. Cloud consumers like VMs and DBs can only consume from one
      * primary tier like compute / database tier. But they can consume from multiple
      * secondary tiers like storage tiers.
@@ -242,6 +250,16 @@ public final class TopologyDTOUtil {
      */
     public static boolean isPrimaryTierEntityType(int entityType) {
         return PRIMARY_TIER_VALUES.contains(entityType);
+    }
+
+    /**
+     * Checks whether entity type is a workload type.
+     *
+     * @param entityType Type of entity.
+     * @return Whether entity is a workload (if VM/DB/DBS).
+     */
+    public static boolean isWorkload(int entityType) {
+        return WORKLOAD_TYPES.contains(EntityType.forNumber(entityType));
     }
 
     /**

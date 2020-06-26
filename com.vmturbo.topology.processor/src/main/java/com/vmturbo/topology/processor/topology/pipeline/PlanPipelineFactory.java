@@ -30,6 +30,7 @@ import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
+import com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
@@ -45,6 +46,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommo
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CachingConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.CloudMigrationPlanStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CommoditiesEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
@@ -131,6 +133,8 @@ public class PlanPipelineFactory {
 
     private final EphemeralEntityEditor ephemeralEntityEditor;
 
+    private final CloudMigrationPlanHelper cloudMigrationPlanHelper;
+
     public PlanPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                @Nonnull final PolicyManager policyManager,
                                @Nonnull final StitchingManager stitchingManager,
@@ -155,7 +159,8 @@ public class PlanPipelineFactory {
                                @Nonnull DemandOverriddenCommodityEditor demandOverriddenCommodityEditor,
                                @Nonnull final ConsistentScalingManager consistentScalingManager,
                                @Nonnull final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector,
-                               @Nonnull final EphemeralEntityEditor ephemeralEntityEditor) {
+                               @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
+                               @Nonnull final CloudMigrationPlanHelper cloudMigrationPlanHelper) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -181,6 +186,7 @@ public class PlanPipelineFactory {
         this.demandOverriddenCommodityEditor = demandOverriddenCommodityEditor;
         this.requestCommodityThresholdsInjector = Objects.requireNonNull(requestCommodityThresholdsInjector);
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
+        this.cloudMigrationPlanHelper = Objects.requireNonNull(cloudMigrationPlanHelper);
     }
 
     /**
@@ -234,6 +240,7 @@ public class PlanPipelineFactory {
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient))
+                .addStage(new CloudMigrationPlanStage(cloudMigrationPlanHelper, scope, changes))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
                 .addStage(new PolicyStage(policyManager, changes))
                 .addStage(new IgnoreConstraintsStage(context.getGroupResolver(), groupServiceClient, changes))

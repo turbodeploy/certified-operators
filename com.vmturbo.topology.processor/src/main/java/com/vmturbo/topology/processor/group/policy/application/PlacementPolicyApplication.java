@@ -243,6 +243,15 @@ public abstract class PlacementPolicyApplication {
                         .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                         .findFirst();
                     if (!optVM.isPresent()) {
+                        // Check consumes relation also, inboundAssociatedEntities doesn't seem to
+                        // be set at least for cloud migration case.
+                        optVM = optionalConsumer.get()
+                                .getConsumers()
+                                .stream()
+                                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                                .findFirst();
+                    }
+                    if (!optVM.isPresent()) {
                         // the volume is not used by any VM, which means it is a wasted volume,
                         // so we can't add segmentation commodity to related VM
                         logger.debug("Skipping applying consumer segment for wasted volume: {}", consumerId);
@@ -302,15 +311,20 @@ public abstract class PlacementPolicyApplication {
                                                       @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                                       final int providerType,
                                                       @Nonnull Optional<Long> volumeId) {
+        long checkVolumeId = commodityBoughtGrouping.getVolumeId();
+        if (checkVolumeId == 0 && commodityBoughtGrouping.hasProviderId()) {
+            // For cloud virtual volumes, that are providers, the provider id is the volume id.
+            checkVolumeId = commodityBoughtGrouping.getProviderId();
+        }
         // TODO: After we guarantee that commodity type always have provider entity type, we will not
         // need to check topology graph to get provider entity type.
         if (commodityBoughtGrouping.hasProviderEntityType()) {
             return commodityBoughtGrouping.getProviderEntityType() == providerType &&
-                (!volumeId.isPresent() || volumeId.get() == commodityBoughtGrouping.getVolumeId());
+                (!volumeId.isPresent() || volumeId.get() == checkVolumeId);
         } else {
             return commodityBoughtGrouping.hasProviderId() &&
                 isProviderOfType(commodityBoughtGrouping.getProviderId(), topologyGraph, providerType) &&
-                (!volumeId.isPresent() || volumeId.get() == commodityBoughtGrouping.getVolumeId());
+                (!volumeId.isPresent() || volumeId.get() == checkVolumeId);
         }
     }
 

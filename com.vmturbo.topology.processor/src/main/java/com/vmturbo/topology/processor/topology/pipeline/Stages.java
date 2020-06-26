@@ -92,6 +92,7 @@ import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFa
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
+import com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor.ConstraintsEditorException;
@@ -746,7 +747,7 @@ public class Stages {
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             commoditiesEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo(),
-                    scope, getContext().getSourceEntityOids());
+                    scope);
             // TODO (roman, 23 Oct 2018): Add some information about number/type of modified commodities?
             return Status.success();
         }
@@ -889,8 +890,7 @@ public class Stages {
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
             final PolicyApplicator.Results applicationResults =
-                    policyManager.applyPolicies(input, getContext().getGroupResolver(), changes,
-                    getContext().getTopologyInfo(), getContext().getSourceEntityOids());
+                    policyManager.applyPolicies(getContext(), input, changes);
             final StringJoiner statusMsg = new StringJoiner("\n")
                 .setEmptyValue("No policies to apply.");
             final boolean errors = applicationResults.getErrors().size() > 0;
@@ -1487,8 +1487,7 @@ public class Stages {
                                 " from topology of size " + graph.size()));
             } else {
                 // cloud plans
-                result = planTopologyScopeEditor.scopeCloudTopology(topologyInfo, graph,
-                        getContext().getSourceEntityOids());
+                result = planTopologyScopeEditor.scopeTopology(topologyInfo, graph, getContext());
                 return StageResult.withResult(result)
                                 .andStatus(Status.success("PlanScopingStage: Constructed a scoped topology of size "
                                                 + result.size() + " from topology of size " + graph.size()));
@@ -1543,6 +1542,63 @@ public class Stages {
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             ephemeralEntityEditor.applyEdits(graph);
             return Status.success();
+        }
+    }
+
+    /**
+     * Handles some cloud migration specific tasks.
+     */
+    public static class CloudMigrationPlanStage extends
+            Stage<TopologyGraph<TopologyEntity>, TopologyGraph<TopologyEntity>> {
+        /**
+         * Plan scoping info.
+         */
+        private final PlanScope planScope;
+
+        /**
+         * Helper doing the real migration stage work.
+         */
+        private final CloudMigrationPlanHelper cloudMigrationPlanHelper;
+
+        /**
+         * User specified scenario changes.
+         */
+        private final List<ScenarioChange> changes;
+
+        /**
+         * Creates new stage.
+         *
+         * @param cloudMigrationPlanHelper Helper for migration stage.
+         * @param planScope Scope for plan.
+         * @param changes Scenario changes.
+         */
+        public CloudMigrationPlanStage(
+                @Nonnull final CloudMigrationPlanHelper cloudMigrationPlanHelper,
+                @Nullable final PlanScope planScope,
+                @Nonnull final List<ScenarioChange> changes) {
+            this.cloudMigrationPlanHelper = Objects.requireNonNull(cloudMigrationPlanHelper);
+            this.planScope = planScope;
+            this.changes = changes;
+        }
+
+        /**
+         * Runs the migration stage.
+         *
+         * @param inputGraph Input graph from previous pipeline stage.
+         * @return Updated graph going to next stage of pipeline.
+         * @throws PipelineStageException Thrown on stage processing issues.
+         */
+        @Override
+        @Nonnull
+        public StageResult<TopologyGraph<TopologyEntity>> execute(
+                @Nonnull final TopologyGraph<TopologyEntity> inputGraph)
+                throws PipelineStageException {
+            TopologyGraph<TopologyEntity> outputGraph = cloudMigrationPlanHelper.executeStage(
+                    getContext(), inputGraph, planScope, changes);
+            return StageResult.withResult(outputGraph)
+                    .andStatus(Status.success("CloudMigrationPlanStage: Output topology of size "
+                            + outputGraph.size() + ", from input topology of size "
+                            + inputGraph.size()));
         }
     }
 

@@ -400,6 +400,23 @@ public class CloudTopologyConverter {
     @Nonnull
     Set<TopologyEntityDTO> getTopologyEntityDTOProvidersOfType(
             @Nonnull TopologyEntityDTO entity, int providerType) {
+        final Integer collapsedEntityType = CollapsedTraderHelper.getCollapsedEntityType(entity.getEntityType(), providerType);
+        // If there is collapsed entity between entity and providerType, first get collapsed entity,
+        // then recursively get providers with providerType from collapsed entity.
+        // If a cloud VM is passed in as the entity and EntityType.STORAGE_TIER_VALUE as providerType,
+        // returns the storageTier providers for the volumes that the VM resides on. For example,
+        // given that VM1 consumes from vol1, and vol1 consumes from storageTier1, with input VM1 and
+        // EntityType.STORAGE_TIER_VALUE, this method will return storageTier1 TopologyEntityDTO.
+        if (collapsedEntityType != null) {
+            return entity.getCommoditiesBoughtFromProvidersList().stream()
+                    .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                    .filter(commBought -> commBought.getProviderEntityType() == collapsedEntityType)
+                    .map(CommoditiesBoughtFromProvider::getProviderId)
+                    .map(topology::get)
+                    .filter(Objects::nonNull)
+                    .flatMap(t -> getTopologyEntityDTOProvidersOfType(t, providerType).stream())
+                    .collect(Collectors.toSet());
+        }
         return entity.getCommoditiesBoughtFromProvidersList().stream()
             .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
             .filter(commBought -> commBought.getProviderEntityType() == providerType)

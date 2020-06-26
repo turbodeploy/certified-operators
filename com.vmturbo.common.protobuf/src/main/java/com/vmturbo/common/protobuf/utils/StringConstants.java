@@ -397,22 +397,6 @@ public class StringConstants {
     public static final String CLOUD_MIGRATION_PLAN__CONSUMPTION = "CLOUD_MIGRATION__CONSUMPTION";
 
     /**
-     * For Cloud migration allocation (Lift_n_Shift) plan, we only support GP2 & managed_premium.
-     */
-    public static final Set<String> ALLOCATION_PLAN_KEEP_STORAGE_TIERS = ImmutableSet.of(
-            "GP2",
-            "MANAGED_PREMIUM"
-    );
-
-    /**
-     * Non-EBS AWS storage types are skipped for Cloud migration consumption plan.
-     */
-    public static final Set<String> CONSUMPTION_PLAN_SKIP_STORAGE_TIERS = ImmutableSet.of(
-            "HDD",
-            "SSD"
-    );
-
-    /**
      * String indicating the Business Account entity type in the UI.
      */
     public static final String BUSINESS_ACCOUNT = "BusinessAccount";

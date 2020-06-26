@@ -66,6 +66,11 @@ public class ReservationPolicyFactory {
      */
     private static final String NETWORK_COMMODITY_NAME_PREFIX = "Network::";
 
+    /**
+     * Description for policy group that is created.
+     */
+    private static final String POLICY_GROUP_DESCRIPTION = "Reservation policy generated group";
+
     private final GroupServiceBlockingStub groupServiceBlockingStub;
 
     public ReservationPolicyFactory(@Nonnull final GroupServiceBlockingStub groupServiceBlockingStub) {
@@ -88,7 +93,8 @@ public class ReservationPolicyFactory {
             @Nonnull final Set<Long> consumers) {
         final Grouping pmProviderGroup = generateProviderGroup(graph, constraints);
         final Grouping consumerGroup = generateConsumerGroup(consumers);
-        final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup.getId(), consumerGroup.getId());
+        final Policy bindToGroupPolicyPM = PolicyManager.generateBindToGroupPolicy(
+                pmProviderGroup.getId(), consumerGroup.getId());
         return new BindToGroupPolicy(bindToGroupPolicyPM, new PolicyEntities(
                 consumerGroup, Collections.emptySet()), new PolicyEntities(pmProviderGroup));
     }
@@ -100,7 +106,8 @@ public class ReservationPolicyFactory {
         // when we support different template types for reservation, we should generate generic provider group
         final Grouping pmProviderGroup = generateProviderGroup(graph, constraints);
         final Grouping consumerGroup = generateConsumerGroup(reservation);
-        final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup.getId(), consumerGroup.getId());
+        final Policy bindToGroupPolicyPM = PolicyManager.generateBindToGroupPolicy(
+                pmProviderGroup.getId(), consumerGroup.getId());
         return new BindToGroupPolicy(bindToGroupPolicyPM, new PolicyEntities(
                 consumerGroup, Collections.emptySet()), new PolicyEntities(pmProviderGroup));
     }
@@ -112,11 +119,13 @@ public class ReservationPolicyFactory {
                 .flatMap(List::stream)
                 .map(ReservationInstance::getEntityId)
                 .collect(Collectors.toSet());
-        return generateStaticGroup(consumerGroupIds, EntityType.VIRTUAL_MACHINE_VALUE);
+        return PolicyManager.generateStaticGroup(consumerGroupIds, EntityType.VIRTUAL_MACHINE_VALUE,
+                POLICY_GROUP_DESCRIPTION);
     }
 
     private Grouping generateConsumerGroup(@Nonnull final Set<Long> consumers) {
-        return generateStaticGroup(consumers, EntityType.VIRTUAL_MACHINE_VALUE);
+        return PolicyManager.generateStaticGroup(consumers, EntityType.VIRTUAL_MACHINE_VALUE,
+                POLICY_GROUP_DESCRIPTION);
     }
 
     private Grouping generateProviderGroup(@Nonnull final TopologyGraph<TopologyEntity> graph,
@@ -131,7 +140,8 @@ public class ReservationPolicyFactory {
                         .stream()
                         .map(TopologyEntity::getOid)
                         .collect(Collectors.toSet());
-        return generateStaticGroup(pmEntities, EntityType.PHYSICAL_MACHINE_VALUE);
+        return PolicyManager.generateStaticGroup(pmEntities, EntityType.PHYSICAL_MACHINE_VALUE,
+                POLICY_GROUP_DESCRIPTION);
     }
 
     /**
@@ -287,51 +297,5 @@ public class ReservationPolicyFactory {
             }
         }
         return targetEntities;
-    }
-
-    /**
-     * Generate a static group for provider and consumer of BindToGroup policy. This group will not be registered with
-     * the group component or persisted in the database. This is a feature.
-     *
-     * @param members a set of ids of group members.
-     * @param entityType entity type of group.
-     * @return {@link Grouping}.
-     */
-    public static Grouping generateStaticGroup(@Nonnull final Set<Long> members, final int entityType) {
-        final Grouping staticGroup = Grouping.newBuilder()
-                .setId(IdentityGenerator.next())
-                .addExpectedTypes(MemberType.newBuilder().setEntity(entityType))
-                .setDefinition(GroupDefinition.newBuilder()
-                    .setType(GroupType.REGULAR)
-                    .setStaticGroupMembers(StaticMembers.newBuilder()
-                        .addMembersByType(StaticMembersByType.newBuilder()
-                            .setType(MemberType.newBuilder().setEntity(entityType))
-                            .addAllMembers(members))))
-                .setOrigin(GroupDTO.Origin.newBuilder().setSystem(
-                    GroupDTO.Origin.System.newBuilder()
-                        .setDescription("Reservation policy generated group")).build())
-                .build();
-        return staticGroup;
-    }
-
-    /**
-     * Generate a {@link BindToGroupPolicy} associating provider and consumer groups represented by
-     * {@param providerGroupId} and {@param consumerGroupId}.
-     *
-     * @param providerGroupId the ID of a provider {@link Grouping}
-     * @param consumerGroupId the ID of a consumer {@link Grouping}
-     * @return a BindToGroup {@link Policy} definition
-     */
-    public static Policy generateBindToGroupPolicy(final long providerGroupId,
-                                                   final long consumerGroupId) {
-        final Policy bindToGroupPolicy = Policy.newBuilder()
-                .setId(IdentityGenerator.next())
-                .setPolicyInfo(PolicyInfo.newBuilder()
-                    .setEnabled(true)
-                    .setBindToGroup(PolicyInfo.BindToGroupPolicy.newBuilder()
-                            .setConsumerGroupId(consumerGroupId)
-                            .setProviderGroupId(providerGroupId)))
-                .build();
-        return bindToGroupPolicy;
     }
 }

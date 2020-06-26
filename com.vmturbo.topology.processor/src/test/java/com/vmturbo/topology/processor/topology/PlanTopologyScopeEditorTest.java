@@ -62,6 +62,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor.FastLookupQueue;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
  * Unit tests for {@link PlanTopologyScopeEditor}.
@@ -425,6 +426,8 @@ public class PlanTopologyScopeEditorTest {
     private PlanTopologyScopeEditor planTopologyScopeEditor;
     private final GroupServiceMole groupServiceClient = spy(new GroupServiceMole());
 
+    final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceClient);
 
@@ -576,8 +579,8 @@ public class PlanTopologyScopeEditorTest {
                         .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
                         .addAllScopeSeedOids(oidsList)
                         .build();
-        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeCloudTopology(
-                cloudTopologyInfo, graph, Collections.emptySet());
+        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
+                cloudTopologyInfo, graph, context);
         Assert.assertEquals(expectedEntities.size(), result.size());
         expectedEntities.forEach(entity -> assertTrue(entity.getOid() + " is missing", result.getEntity(entity.getOid())
                         .isPresent()));
@@ -911,23 +914,13 @@ public class PlanTopologyScopeEditorTest {
                 .collect(Collectors.toSet());
         final Set<Long> sourceVMOids = new HashSet<>();
         sourceVMOids.add(vm1InDc1.getOid());
-        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeCloudTopology(
-                cloudTopologyInfo, cloudMigrationGraph, sourceVMOids);
-        Assert.assertEquals(awsRegionExpectedEntities.size(), result.size());
+        when(context.getSourceEntities()).thenReturn(sourceVMOids);
+        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
+                cloudTopologyInfo, cloudMigrationGraph, context);
+        // Now we use generic scoping, that pulls in more entities than directly connected ones.
+        Assert.assertEquals(19, result.size());
         awsRegionExpectedEntities.forEach(entity -> assertTrue(entity.getOid()
                 + " is missing", result.getEntity(entity.getOid()).isPresent()));
-    }
-
-    private static TopologyEntity.Builder createClonedEntity(long oid,
-                                                             TopologyEntity.Builder cloneFrom,
-                                                             String displayName,
-                                                             EntityType entityType,
-                                                             Map<Long, List<TopologyDTO.CommodityType>> producers,
-                                                             List<TopologyDTO.CommodityType> soldComms,
-                                                             long... connectedEntities) {
-        TopologyEntity.Builder clone = createHypervisorTopologyEntity(oid, displayName, entityType,
-                producers, soldComms, connectedEntities);
-        return clone.setClonedFromEntity(cloneFrom.getEntityBuilder());
     }
 
     private static TopologyEntity.Builder createCloudVm(

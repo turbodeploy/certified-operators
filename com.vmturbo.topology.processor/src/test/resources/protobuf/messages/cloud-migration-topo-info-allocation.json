@@ -1,0 +1,14 @@
+{
+  "topologyId": "73522132502656",
+  "topologyContextId": "214259620852896",
+  "creationTime": "1593107355374",
+  "topologyType": "PLAN",
+  "scopeSeedOids": ["73320835643877"],
+  "planInfo": {
+    "planProjectType": "CLOUD_MIGRATION",
+    "planType": "CLOUD_MIGRATION",
+    "planSubType": "CLOUD_MIGRATION__ALLOCATION"
+  },
+  "analysisType": ["MARKET_ANALYSIS"],
+  "scopeEntityType": 54
+}

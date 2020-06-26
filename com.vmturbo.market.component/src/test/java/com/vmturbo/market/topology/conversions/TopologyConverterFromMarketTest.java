@@ -250,7 +250,7 @@ public class TopologyConverterFromMarketTest {
                         .build());
 
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, null,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, null, null,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field shoppingListInfos =
                 TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
@@ -355,7 +355,7 @@ public class TopologyConverterFromMarketTest {
                 CommodityBoughtDTO.newBuilder().setCommodityType(cpuCommType).build());
 
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(2, DS_OID, PM_OID, null,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(2, DS_OID, PM_OID, null, null,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field shoppingListInfos =
                 TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
@@ -723,7 +723,7 @@ public class TopologyConverterFromMarketTest {
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
         shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, VOLUME_ID,
-                EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
+                null, EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field shoppingListInfos =
                 TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
         shoppingListInfos.setAccessible(true);
@@ -869,7 +869,7 @@ public class TopologyConverterFromMarketTest {
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, VOLUME_ID,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, VOLUME_ID, null,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field shoppingListInfos =
                 TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");

@@ -220,6 +220,16 @@ public class TopologyConfig {
     }
 
     /**
+     * Helper for cloud migration stage.
+     *
+     * @return Newly created single helper instance per plan pipeline.
+     */
+    @Bean
+    public CloudMigrationPlanHelper cloudMigrationPlanHelper() {
+        return new CloudMigrationPlanHelper(groupConfig.groupServiceBlockingStub());
+    }
+
+    /**
      * A bean configuration to instantiate a live pipeline factory.
      *
      * @return A {@link LivePipelineFactory} instance.
@@ -290,7 +300,8 @@ public class TopologyConfig {
                 dmandOverriddenCommodityEditor(),
                 consistentScalingConfig.consistentScalingManager(),
                 requestCommodityThresholdsInjector(),
-                ephemeralEntityEditor()
+                ephemeralEntityEditor(),
+                cloudMigrationPlanHelper()
         );
     }
 

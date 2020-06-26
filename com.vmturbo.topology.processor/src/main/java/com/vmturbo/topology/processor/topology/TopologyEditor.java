@@ -28,7 +28,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.PlanDTOUtil;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -136,8 +135,6 @@ public class TopologyEditor {
         Map<Long, Long> entityAdditions = new HashMap<>();
         Set<Long> entitiesToRemove = new HashSet<>();
         Set<Long> entitiesToReplace = new HashSet<>();
-        Set<Long> entitiesToMigrate = new HashSet<>();
-        Set<Long> sourceEntityOids = new HashSet<>();
         final Map<Long, Long> templateToAdd = new HashMap<>();
         // Map key is template id, and value is the replaced topologyEntity.
         final Multimap<Long, Long> templateToReplacedEntity =
@@ -187,54 +184,24 @@ public class TopologyEditor {
                 }
             } else if (change.hasTopologyMigration()) {
                 // also consider on-prem migration use case
-                    TopologyMigration topologyMigration = change.getTopologyMigration();
+                TopologyMigration topologyMigration = change.getTopologyMigration();
                 Integer migratingEntityType = topologyMigration.getDestinationEntityType()
                         == TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE
                         ? EntityType.VIRTUAL_MACHINE_VALUE
                         : EntityType.DATABASE_SERVER_VALUE;
 
-                entitiesToMigrate.addAll(expandAndFlattenReferences(
+                Set<Long> entitiesToMigrate = expandAndFlattenReferences(
                         topologyMigration.getSourceList(), migratingEntityType, groupIdToGroupMap,
-                        groupResolver, topologyGraph));
+                        groupResolver, topologyGraph);
+                context.setSourceEntities(entitiesToMigrate);
 
-                sourceEntityOids.addAll(prepareForCloudMigration(entitiesToMigrate, topology));
-
-                if (topologyMigration.getRemoveNonMigratingWorkloads()) {
-                    Set<Long> destinations = expandAndFlattenReferences(
-                            topologyMigration.getDestinationList(),
-                            migratingEntityType,
-                            groupIdToGroupMap,
-                            groupResolver,
-                            topologyGraph);
-
-                    Set<Integer> entityRemovalTypes = Sets.newHashSet(
-                            EntityType.VIRTUAL_VOLUME_VALUE,
-                            EntityType.VIRTUAL_MACHINE_VALUE,
-                            EntityType.DATABASE_VALUE,
-                            EntityType.DATABASE_SERVER_VALUE);
-
-                    // Azure - workloads directly connected to regions, and zones that workloads are connected from
-                    entitiesToRemove.addAll(
-                            getAggregatedEntities(
-                                    destinations,
-                                    entityRemovalTypes,
-                                    topologyGraph));
-
-                    // Get zones associated with target regions
-                    Set<Long> destinationZoneOids = getOwnedEntities(
-                            destinations,
-                            Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE),
-                            topologyGraph);
-
-                    // AWS - workloads connected to availability zones
-                    if (CollectionUtils.isNotEmpty(destinationZoneOids)) {
-                        entitiesToRemove.addAll(
-                                getAggregatedEntities(
-                                        destinationZoneOids,
-                                        entityRemovalTypes,
-                                        topologyGraph));
-                    }
-                }
+                Set<Long> migratingToRegions = expandAndFlattenReferences(
+                        topologyMigration.getDestinationList(),
+                        migratingEntityType,
+                        groupIdToGroupMap,
+                        groupResolver,
+                        topologyGraph);
+                context.setDestinationEntities(migratingToRegions);
             } else if (change.hasTopologyRemoval()) {
                 final TopologyRemoval removal = change.getTopologyRemoval();
                 int targetType = removal.getTargetEntityType();
@@ -360,41 +327,6 @@ public class TopologyEditor {
                         entity.setOrigin(entityOrigin);
                         topology.put(entity.getOid(), TopologyEntity.newBuilder(entity));
                     });
-        context.setSourceEntityOids(sourceEntityOids);
-    }
-
-    /**
-     * Preps entities that are being migrated. Checks to make sure all are in topology map.
-     * Sets shopAlone to false for them, will get set to true later after market fixes to support
-     * shopTogether properly.
-     *
-     * @param entities Set of entities being migrated.
-     * @param topology Topology map.
-     * @return Set of source entities, essentially the input set.
-     */
-    @Nonnull
-    private Set<Long> prepareForCloudMigration(@Nonnull final Set<Long> entities,
-                                          @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
-        Set<Long> sourceEntities = new HashSet<>();
-        entities.forEach(oid -> {
-            TopologyEntity.Builder entityBuilder = topology.get(oid);
-            if (entityBuilder == null) {
-                logger.warn("Could not get entity with id {} for Cloud Migration.", oid);
-                return;
-            }
-            // Set shopTogether as false till market issue is fixed.
-            entityBuilder.getEntityBuilder().getAnalysisSettingsBuilder().setShopTogether(false);
-
-            // Analysis needs to treat the entity as if it's a cloud entity for purposes of
-            // applying template exclusions, obtaining pricing, etc.
-            entityBuilder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
-
-            // Remove non-applicable commodities first here, before other stages add some bought
-            // commodities like segmentation.
-            CommoditiesEditor.skipNonApplicableBoughtCommodities(entityBuilder.getEntityBuilder());
-            sourceEntities.add(oid);
-        });
-        return sourceEntities;
     }
 
     /**

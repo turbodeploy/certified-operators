@@ -52,7 +52,11 @@ public class TopologyConversionConstants {
                     .put(CommodityType.VCPU_VALUE, CommodityType.VCPU_VALUE)
                     // mapping for Azure Database commodities
                     .put(CommodityType.DB_MEM_VALUE, CommodityType.VMEM_VALUE)
-                    .put(CommodityType.TRANSACTION_VALUE, CommodityType.VCPU_VALUE).build();
+                    .put(CommodityType.TRANSACTION_VALUE, CommodityType.VCPU_VALUE)
+                    // mapping for cloud volume commodities
+                    .put(CommodityType.STORAGE_ACCESS_VALUE, CommodityType.STORAGE_ACCESS_VALUE)
+                    .put(CommodityType.IO_THROUGHPUT_VALUE, CommodityType.IO_THROUGHPUT_VALUE)
+                    .build();
 
     /**
      * Map for the type of the commodity in an entity on the cloud to the type of

@@ -1,0 +1,38 @@
+{
+  "entity_type": 10,
+  "oid": 73442089143120,
+  "display_name": "i-09b3a3ebd5f1d713e",
+  "commodities_bought_from_providers": [{
+    "provider_id": 73442089143125,
+    "provider_entity_type": 60,
+    "commodity_bought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.3433333333333333,
+      "peak": 0.44333333333333336,
+      "active": true,
+      "historical_used": {
+        "hist_utilization": 0.31902992725372314
+      },
+      "historical_peak": {
+        "hist_utilization": 0.36065036058425903
+      },
+      "display_name": ""
+    }],
+    "movable": false,
+    "startable": false,
+    "scalable": false
+  }],
+  "entity_state": "POWERED_ON",
+  "analysis_settings": {
+    "is_available_as_provider": true,
+    "shop_together": false,
+    "suspendable": true,
+    "is_eligible_for_resize_down": true,
+    "controllable": true,
+    "provider_must_clone": false,
+    "deletable": true
+  },
+  "environment_type": "CLOUD"
+}
