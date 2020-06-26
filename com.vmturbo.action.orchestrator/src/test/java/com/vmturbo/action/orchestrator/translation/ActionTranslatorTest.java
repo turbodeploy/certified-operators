@@ -62,11 +62,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionPhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecificPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -132,7 +131,7 @@ public class ActionTranslatorTest {
             RetrieveTopologyEntitiesRequest.newBuilder()
                 .addAllEntityOids(Arrays.asList(HOST_ID))
                 .setTopologyContextId(actionPlanId)
-                .setReturnType(Type.TYPE_SPECIFIC)
+                .setReturnType(Type.ACTION)
                 .setTopologyType(TopologyType.SOURCE).build()
         )).thenReturn(Arrays.asList(PartialEntityBatch.newBuilder().build()));
         when(mockSnapshot.getEntityFromOid(VM_TARGET_ID)).thenReturn(Optional.of(
@@ -363,13 +362,13 @@ public class ActionTranslatorTest {
             RetrieveTopologyEntitiesRequest.newBuilder()
                 .addAllEntityOids(Arrays.asList(HOST_ID))
                 .setTopologyContextId(actionPlanId)
-                .setReturnType(Type.TYPE_SPECIFIC)
+                .setReturnType(Type.ACTION)
                 .setTopologyType(TopologyType.SOURCE).build()
         )).thenReturn(Arrays.asList(PartialEntityBatch.newBuilder().addEntities(
             PartialEntity.newBuilder()
-                .setTypeSpecific(TypeSpecificPartialEntity.newBuilder()
-                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
-                        PhysicalMachineInfo.newBuilder().setCpuCoreMhz(CPU_SPEED_MHZ)))
+                .setAction(ActionPartialEntity.newBuilder()
+                    .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder().setPhysicalMachine(
+                        ActionPhysicalMachineInfo.newBuilder().setCpuCoreMhz(CPU_SPEED_MHZ)))
                     .setOid(HOST_ID))).build()));
 
         when(mockSnapshot.getEntityFromOid(VM_TARGET_ID)).thenReturn(Optional.of(
@@ -395,13 +394,13 @@ public class ActionTranslatorTest {
             RetrieveTopologyEntitiesRequest.newBuilder()
                 .addAllEntityOids(Arrays.asList(HOST_ID))
                 .setTopologyContextId(actionPlanId)
-                .setReturnType(Type.TYPE_SPECIFIC)
+                .setReturnType(Type.ACTION)
                 .setTopologyType(TopologyType.SOURCE).build()
         )).thenReturn(Arrays.asList(PartialEntityBatch.newBuilder().addEntities(
             PartialEntity.newBuilder()
-                .setTypeSpecific(TypeSpecificPartialEntity.newBuilder()
-                    .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
-                        PhysicalMachineInfo.newBuilder().setCpuCoreMhz(1234)))
+                .setAction(ActionPartialEntity.newBuilder()
+                    .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder().setPhysicalMachine(
+                        ActionPhysicalMachineInfo.newBuilder().setCpuCoreMhz(1234)))
                     .setOid(HOST_ID))).build()));
         when(mockSnapshot.getEntityFromOid(VM_TARGET_ID)).thenReturn(Optional.of(
             ActionPartialEntity.newBuilder()

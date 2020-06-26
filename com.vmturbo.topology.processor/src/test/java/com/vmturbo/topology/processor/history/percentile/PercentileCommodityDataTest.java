@@ -11,6 +11,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -156,9 +159,10 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                                         .addUserSettings(SettingToPolicyId.newBuilder()
                                                         .setSetting(minObservationPeriodSetting)
                                                         .build()).build();
-        HistoryAggregationContext ctx = Mockito.spy(new HistoryAggregationContext(topologyInfo, new GraphWithSettings(new TopologyGraphCreator<>(
-                        Collections.singletonMap(1L, TopologyEntity.newBuilder(
-                                        entity.getTopologyEntityDtoBuilder()))).build(),
+        Long2ObjectMap<TopologyEntity.Builder> topologyMap = new Long2ObjectOpenHashMap<>();
+        topologyMap.put(1L, TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder()));
+        HistoryAggregationContext ctx = Mockito.spy(new HistoryAggregationContext(topologyInfo,
+                new GraphWithSettings(new TopologyGraphCreator<>(topologyMap).build(),
                         Collections.singletonMap(1L, settings), Collections.emptyMap()), false));
         final ICommodityFieldAccessor accessor = createAccessor(100f, 99d, 12d, 80d, entity, currentTime);
         Mockito.doReturn(accessor).when(ctx).getAccessor();

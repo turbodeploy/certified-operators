@@ -19,11 +19,22 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionPhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionStorageInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfoOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -344,4 +355,70 @@ public final class TopologyDTOUtil {
         return String.format("%s Topology @%s[id: %s; ctx: %s]",
             topologyType, hms, topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId());
     }
+
+    /**
+     * Create a {@link ActionEntityTypeSpecificInfo} from a {@link TopologyDTO.TypeSpecificInfo}.
+     *
+     * @param typeSpecificInfo The input type-specific-info (or builder).
+     * @return An optional containing the {@link ActionEntityTypeSpecificInfo}, or an empty optional
+     *         if there is no associated action-specific object.
+     */
+    public static Optional<ActionEntityTypeSpecificInfo.Builder> makeActionTypeSpecificInfo(@Nonnull final TypeSpecificInfoOrBuilder typeSpecificInfo) {
+        switch (typeSpecificInfo.getTypeCase()) {
+            case COMPUTE_TIER:
+                ComputeTierInfo tierInfo = typeSpecificInfo.getComputeTier();
+                return Optional.of(ActionEntityTypeSpecificInfo.newBuilder()
+                    .setComputeTier(ActionComputeTierInfo.newBuilder()
+                        .setFamily(tierInfo.getFamily())
+                        .setQuotaFamily(tierInfo.getQuotaFamily())
+                        .setNumCores(tierInfo.getNumCores())
+                        .setSupportedCustomerInfo(tierInfo.getSupportedCustomerInfo())));
+            case VIRTUAL_MACHINE:
+                VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
+                return createActionVmInfo(vmInfo)
+                        .map(actionVmInfo -> ActionEntityTypeSpecificInfo.newBuilder()
+                            .setVirtualMachine(actionVmInfo));
+            case PHYSICAL_MACHINE:
+                if (typeSpecificInfo.getPhysicalMachine().hasCpuCoreMhz()) {
+                    return Optional.of(ActionEntityTypeSpecificInfo.newBuilder()
+                        .setPhysicalMachine(ActionPhysicalMachineInfo.newBuilder()
+                            .setCpuCoreMhz(typeSpecificInfo.getPhysicalMachine().getCpuCoreMhz())));
+                } else {
+                    return Optional.empty();
+                }
+            case STORAGE:
+                return Optional.of(ActionEntityTypeSpecificInfo.newBuilder()
+                    .setStorage(ActionStorageInfo.newBuilder()
+                            .setStorageType(typeSpecificInfo.getStorage().getStorageType())));
+            default:
+                // No other action-specific data.
+                return Optional.empty();
+        }
+    }
+
+    private static Optional<ActionVirtualMachineInfo.Builder> createActionVmInfo(@Nonnull final VirtualMachineInfo vmInfo) {
+        // Avoid creating an object if the necessary properties are not set.
+        // Most notably, none of these properties are set for on-prem VMs.
+        if (!(vmInfo.hasArchitecture() || vmInfo.hasVirtualizationType()
+                || (vmInfo.hasDriverInfo() && !vmInfo.getDriverInfo().equals(DriverInfo.getDefaultInstance()))
+                || !StringUtils.isEmpty(vmInfo.getLocks()))) {
+            return Optional.empty();
+        } else {
+            ActionVirtualMachineInfo.Builder actionVmInfo = ActionVirtualMachineInfo.newBuilder();
+            if (vmInfo.hasArchitecture()) {
+                actionVmInfo.setArchitecture(vmInfo.getArchitecture());
+            }
+            if (vmInfo.hasVirtualizationType()) {
+                actionVmInfo.setVirtualizationType(vmInfo.getVirtualizationType());
+            }
+            if (vmInfo.hasDriverInfo() && !vmInfo.getDriverInfo().equals(DriverInfo.getDefaultInstance())) {
+                actionVmInfo.setDriverInfo(vmInfo.getDriverInfo());
+            }
+            if (!StringUtils.isEmpty(vmInfo.getLocks())) {
+                actionVmInfo.setLocks(vmInfo.getLocks());
+            }
+            return Optional.of(actionVmInfo);
+        }
+    }
+
 }

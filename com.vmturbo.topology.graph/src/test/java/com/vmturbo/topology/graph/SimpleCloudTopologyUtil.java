@@ -1,11 +1,10 @@
 package com.vmturbo.topology.graph;
 
-import java.util.Map;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
-import com.google.common.collect.ImmutableMap;
-
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.topology.graph.TestGraphEntity.Builder;
 
 /**
@@ -65,15 +64,13 @@ public class SimpleCloudTopologyUtil {
         final TestGraphEntity.Builder storageTier =
                 TestGraphEntity.newBuilder(6L, ApiEntityType.STORAGE_TIER)
                         .addConnectedEntity(RG_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
-        final Map<Long, Builder> cloudTopologyMap =
-                ImmutableMap.<Long, TestGraphEntity.Builder>builder()
-                        .put(RG_ID, region)
-                        .put(AZ_ID, zone)
-                        .put(DB_ID, db)
-                        .put(VM_ID, vm)
-                        .put(CT_ID, computeTier)
-                        .put(ST_ID, storageTier)
-                        .build();
+        final Long2ObjectMap<Builder> cloudTopologyMap = new Long2ObjectOpenHashMap<>();
+        cloudTopologyMap.put(RG_ID, region);
+        cloudTopologyMap.put(AZ_ID, zone);
+        cloudTopologyMap.put(DB_ID, db);
+        cloudTopologyMap.put(VM_ID, vm);
+        cloudTopologyMap.put(CT_ID, computeTier);
+        cloudTopologyMap.put(ST_ID, storageTier);
         return TestGraphEntity.newGraph(cloudTopologyMap);
     }
 }

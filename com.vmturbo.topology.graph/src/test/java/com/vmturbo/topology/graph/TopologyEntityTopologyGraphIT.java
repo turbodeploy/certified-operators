@@ -2,9 +2,7 @@ package com.vmturbo.topology.graph;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -18,7 +16,11 @@ import org.apache.logging.log4j.Logger;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.topology.graph.TestGraphEntity.Builder;
 
 @Ignore
 public class TopologyEntityTopologyGraphIT {
@@ -45,7 +47,7 @@ public class TopologyEntityTopologyGraphIT {
     // to your test run arguments, and uncomment the memory measurer lines.
     @Test
     public void gatherPerformanceMetrics() {
-        final Map<Long, TestGraphEntity.Builder> topologyMap = buildTopologyMap();
+        final Long2ObjectMap<Builder> topologyMap = buildTopologyMap();
         final TopologyGraph<TestGraphEntity> graph = benchmark("Creating graph",
             () -> TestGraphEntity.newGraph(topologyMap),
             TimeUnit.MILLISECONDS);
@@ -64,9 +66,9 @@ public class TopologyEntityTopologyGraphIT {
     }
 
     @Nonnull
-    public Map<Long, TestGraphEntity.Builder> buildTopologyMap() {
+    public Long2ObjectMap<TestGraphEntity.Builder> buildTopologyMap() {
         System.out.println("Building topology map...");
-        Map<Long, TestGraphEntity.Builder> map = new HashMap<>();
+        Long2ObjectMap<TestGraphEntity.Builder> map = new Long2ObjectOpenHashMap<>();
         long nextVertex = 0;
         long nextEdge = 0;
 

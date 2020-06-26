@@ -15,7 +15,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.graph.TopologyGraphEntity;
+import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
 
 /**
  * A filter that traverses the topology graph and inserts certain visited nodes
@@ -35,7 +35,7 @@ import com.vmturbo.topology.graph.TopologyGraphEntity;
  *
  * @param <E> {@inheritDoc}
  */
-public abstract class TraversalFilter<E extends TopologyGraphEntity<E>> implements TopologyFilter<E> {
+public abstract class TraversalFilter<E extends TopologyGraphSearchableEntity<E>> implements TopologyFilter<E> {
 
     protected final TraversalDirection traversalDirection;
 
@@ -132,8 +132,10 @@ public abstract class TraversalFilter<E extends TopologyGraphEntity<E>> implemen
      * visited at exactly depth == traversalDepth when performing the traversal. But if
      * VerticesCondition is set, it will check the number of connected vertices of the given
      * entity type at the given depth, if it matches, then the starting vertex is included.
+     *
+     * @param <E>  The type of entity.
      */
-    public static class TraversalToDepthFilter<E extends TopologyGraphEntity<E>> extends TraversalFilter<E> {
+    public static class TraversalToDepthFilter<E extends TopologyGraphSearchableEntity<E>> extends TraversalFilter<E> {
         private final int traversalDepth;
 
         private final VerticesCondition verticesCondition;
@@ -238,8 +240,10 @@ public abstract class TraversalFilter<E extends TopologyGraphEntity<E>> implemen
 
     /**
      * Traverse a topology graph in a fixed direction until entities of a given type are reached.
+     *
+     * @param <E> The type of entity.
      */
-    public static class TraversalToPropertyFilter<E extends TopologyGraphEntity<E>> extends TraversalFilter<E> {
+    public static class TraversalToPropertyFilter<E extends TopologyGraphSearchableEntity<E>> extends TraversalFilter<E> {
 
         /**
          * The maximum depth permitted to recurse to when traversing for entities of a given type.

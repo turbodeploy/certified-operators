@@ -63,7 +63,6 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
@@ -607,14 +606,8 @@ public class ActionModeCalculator {
             // Check applicable commodities.
             if (ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(commType)
                     && resizeAction.getCommodityAttribute() == CommodityAttribute.CAPACITY) {
-                Optional<CommoditySoldDTO> commoditySold = entity.getCommoditySoldList().stream()
-                    .filter(commSold -> commType == commSold.getCommodityType().getType())
-                    .findFirst();
-                boolean supportsHotReplace = false;
-                if (commoditySold.isPresent()) {
-                    CommoditySoldDTO commSold = commoditySold.get();
-                    supportsHotReplace = commSold.getHotResizeInfo().getHotReplaceSupported();
-                }
+                boolean supportsHotReplace = entity.getCommTypesWithHotReplaceList().stream()
+                        .anyMatch(type -> type == commType);
 
                 // Check hot replace setting enabled.
                 if (supportsHotReplace) {

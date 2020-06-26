@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -13,6 +12,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -26,7 +26,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.journal.JournalableEntity;
+import com.vmturbo.topology.graph.SearchableProps;
+import com.vmturbo.topology.graph.ThickSearchableProps;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
+import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
 
 /**
  * A wrapper around {@link TopologyEntityDTO.Builder}.Properties of the entity such as commodity values
@@ -37,12 +40,12 @@ import com.vmturbo.topology.graph.TopologyGraphEntity;
  *
  * The TopologyEntityDTO.Builder within a TopologyEntity may be edited but the TopologyEntity is immutable otherwise.
  */
-public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, JournalableEntity<TopologyEntity> {
+public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEntity>, JournalableEntity<TopologyEntity> {
 
     /**
      * A builder for the entity in the topology corresponding to this TopologyEntity.
      */
-    private TopologyEntityDTO.Builder entityBuilder;
+    private final TopologyEntityDTO.Builder entityBuilder;
 
     /**
      * The set of all entities in the topology that consume commodities from this TopologyEntity.
@@ -187,9 +190,19 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
     }
 
     @Nonnull
-    @Override
     public TypeSpecificInfo getTypeSpecificInfo() {
         return entityBuilder.getTypeSpecificInfo();
+    }
+
+    @Nullable
+    @Override
+    public <T extends SearchableProps> T getSearchableProps(@Nonnull Class<T> clazz) {
+        final SearchableProps props = ThickSearchableProps.newProps(entityBuilder);
+        if (clazz.isInstance(props)) {
+            return (T)props;
+        } else {
+            return null;
+        }
     }
 
     @Nonnull
@@ -224,17 +237,9 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
     }
 
     @Nonnull
-    @Override
     public Map<Integer, List<CommoditySoldDTO>> soldCommoditiesByType() {
         return entityBuilder.getCommoditySoldListList().stream()
             .collect(Collectors.groupingBy(commSold -> commSold.getCommodityType().getType()));
-    }
-
-    @Nonnull
-    @Override
-    public Map<String, List<String>> getTags() {
-        return entityBuilder.getTags().getTagsMap().entrySet().stream()
-            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValuesList()));
     }
 
     /**
@@ -312,20 +317,6 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
     @Override
     public List<TopologyEntity> getControlledEntities() {
         return Collections.unmodifiableList(controlledEntities);
-    }
-
-    /**
-     * Get deletable state of the topology entity. Default is true.
-     *
-     * @return true, means the Market can delete this entity.
-     *         false, means Market will not generate Delete Actions.
-     */
-    @Override
-    public boolean getDeletable() {
-        if (entityBuilder.hasAnalysisSettings()) {
-            return entityBuilder.getAnalysisSettings().getDeletable();
-        }
-        return true;
     }
 
     /**

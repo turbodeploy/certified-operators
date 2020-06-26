@@ -1036,12 +1036,14 @@ public class ActionModeCalculatorTest {
                                         .setHotResizeInfo(HotResizeInfo.newBuilder()
                                             .setHotReplaceSupported(hotAddSupported))
                         .build();
-        return ActionPartialEntity.newBuilder()
+        ActionPartialEntity.Builder bldr = ActionPartialEntity.newBuilder()
             .setOid(vmId)
-            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .addCommoditySold(vCPU)
-            .addCommoditySold(vMEM)
-            .build();
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
+        if (hotAddSupported) {
+            bldr.addCommTypesWithHotReplace(CommodityDTO.CommodityType.VCPU_VALUE)
+                .addCommTypesWithHotReplace(CommodityDTO.CommodityType.VMEM_VALUE);
+        }
+        return bldr.build();
     }
 
     /**
