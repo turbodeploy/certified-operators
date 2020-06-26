@@ -117,6 +117,12 @@ public class VsanStorageApplicatorTest {
         ApplicatorResult raid1 = runApplicator(RAID1, true, 1.7f, 13, HCI_HOST_CAPACITY_RESERVATION_ON);
         raid1.checkStorageAmount(13.81, 7.4);
         raid1.checkUtilizationThreshold(73.95);
+
+        // Run applicator with auto-chosen defaults
+        ApplicatorResult allDefaultsResult = runApplicatorWithDefaults(RAID0);
+        allDefaultsResult.checkStorageAmount(32.46, 22.49);
+        allDefaultsResult.checkUtilizationThreshold(75.0);
+        allDefaultsResult.checkIOPS(1);
     }
 
     /**
@@ -154,6 +160,22 @@ public class VsanStorageApplicatorTest {
                 getNumericSettingValue(HCI_HOST_IOPS_CAPACITY_DEFAULT));
         settings.put(EntitySettingSpecs.StorageOverprovisionedPercentage,
                         getNumericSettingValue(STORAGE_OVERPROVISIONED_PERCENTAGE_DEFAULT));
+
+        Pair<GraphWithSettings, Integer> graphNHostsCnt = makeGraphWithSettings(storage, settings);
+        new VsanStorageApplicator(graphNHostsCnt.getFirst()).apply(storage, settings);
+
+        return new ApplicatorResult(storage, graphNHostsCnt);
+    }
+
+    private static ApplicatorResult runApplicatorWithDefaults(@Nonnull String fileName) throws IOException {
+
+        InputStream is = VsanStorageApplicatorTest.class
+                .getResourceAsStream(fileName);
+        TopologyEntityDTO.Builder storage = TopologyEntityDTO.newBuilder();
+        JsonFormat.parser().merge(new InputStreamReader(is), storage);
+
+        // Having empty settings will trigger default logic
+        Map<EntitySettingSpecs, Setting> settings = new HashMap<>();
 
         Pair<GraphWithSettings, Integer> graphNHostsCnt = makeGraphWithSettings(storage, settings);
         new VsanStorageApplicator(graphNHostsCnt.getFirst()).apply(storage, settings);
