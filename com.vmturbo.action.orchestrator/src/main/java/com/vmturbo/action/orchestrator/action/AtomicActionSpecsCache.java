@@ -49,6 +49,16 @@ public class AtomicActionSpecsCache {
     }
 
     /**
+     * Check if there are any atomic action specs.
+     *
+     * @return true if there are atomic action specs, false otherwise
+     */
+    public boolean isEmpty() {
+        return atomicActionSpecsStores.isEmpty();
+    }
+
+
+    /**
      * Check if there is an atomic action merge spec for an entity.
      *
      * @param actionType action type

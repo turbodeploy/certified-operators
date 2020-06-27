@@ -96,6 +96,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
@@ -106,6 +107,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -132,6 +134,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -546,7 +549,11 @@ public class ActionSpecMapper {
                 addProvisionInfo(actionApiDTO, info.getProvision(), context);
                 break;
             case RESIZE:
-                addResizeInfo(actionApiDTO, info.getResize(), context);
+                if (info.hasAtomicResize()) {
+                    addAtomicResizeInfo(actionApiDTO, info.getAtomicResize(), context);
+                } else {
+                    addResizeInfo(actionApiDTO, info.getResize(), context);
+                }
                 break;
             case ACTIVATE:
                 // if the ACTIVATE action was originally a MOVE, we need to set the action details
@@ -1341,6 +1348,113 @@ public class ActionSpecMapper {
             // provisions when constructing the projected topology.
             actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
         }
+    }
+
+    // Top level merged resize action
+    private void addAtomicResizeInfo(@Nonnull final ActionApiDTO actionApiDTO,
+                               @Nonnull final AtomicResize resize,
+                               @Nonnull final ActionSpecMappingContext context) {
+
+        actionApiDTO.setActionType(ActionType.RESIZE);
+        logger.debug("Handling merged action spec {}", actionApiDTO.getActionID());
+
+        // Target entity for the action
+        final ActionEntity targetEntity = resize.getExecutionTarget();
+        actionApiDTO.setTarget(getServiceEntityDTO(context, targetEntity));
+        actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, targetEntity));
+        actionApiDTO.setNewEntity(getServiceEntityDTO(context, targetEntity));
+
+        setRelatedDatacenter(targetEntity.getId(), actionApiDTO, context, false);
+        setRelatedDatacenter(targetEntity.getId(), actionApiDTO, context, true);
+
+        //list of actions based of the resize action info list
+        List<ActionApiDTO> actions = Lists.newArrayList();
+        for (ResizeInfo resizeInfo : resize.getResizesList()) {
+            actions.add(singleResize(actionApiDTO, resizeInfo, context));
+        }
+        actionApiDTO.addCompoundActions(actions);
+    }
+
+    // Resize details for each resize action that was merged
+    // that will be added to the compound action DTO
+    private ActionApiDTO singleResize(ActionApiDTO compoundDto,
+                                    @Nonnull final ResizeInfo resizeInfo,
+                                    @Nonnull final ActionSpecMappingContext context) {
+        ActionApiDTO actionApiDTO = new ActionApiDTO();
+        actionApiDTO.setTarget(new ServiceEntityApiDTO());
+        actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
+        actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
+
+        actionApiDTO.setActionMode(compoundDto.getActionMode());
+        actionApiDTO.setActionState(compoundDto.getActionState());
+        actionApiDTO.setDisplayName(compoundDto.getActionMode().name());
+
+        actionApiDTO.setActionType(ActionType.RESIZE);
+
+        final ActionEntity originalEntity = resizeInfo.getTarget();
+        final ActionEntity targetEntity = resizeInfo.getTarget();
+
+        actionApiDTO.setTarget(getServiceEntityDTO(context, targetEntity));
+        actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, originalEntity));
+        actionApiDTO.setNewEntity(getServiceEntityDTO(context, originalEntity));
+        setRelatedDatacenter(originalEntity.getId(), actionApiDTO, context, false);
+        setRelatedDatacenter(originalEntity.getId(), actionApiDTO, context, true);
+
+        final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType.forNumber(
+                resizeInfo.getCommodityType().getType());
+        Objects.requireNonNull(commodityType, "Commodity for number "
+                + resizeInfo.getCommodityType().getType());
+
+        if (resizeInfo.hasCommodityAttribute()) {
+            actionApiDTO.setResizeAttribute(resizeInfo.getCommodityAttribute().name());
+        }
+        actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getOldCapacity()));
+        actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
+        try {
+            String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
+            if (!StringUtils.isEmpty(units)) {
+                actionApiDTO.setValueUnits(units);
+            }
+        } catch (IllegalArgumentException e) {
+            // the Enum is missing, it may be expected if there is no units associated with the
+            // commodity, or unexpected if someone forgot to define units for the commodity
+            logger.warn("No units for commodity {}", commodityType);
+        }
+
+        // set current location, new location and cloud aspects for cloud resize actions
+        if (resizeInfo.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+            // set location, which is the region
+            setCurrentAndNewLocation(resizeInfo.getTarget().getId(), context, actionApiDTO);
+            // set cloud aspects to target entity
+            final Map<AspectName, EntityAspect> aspects = new HashMap<>();
+            context.getCloudAspect(resizeInfo.getTarget().getId()).map(cloudAspect -> aspects.put(
+                    AspectName.CLOUD, cloudAspect));
+            actionApiDTO.getTarget().setAspectsByName(aspects);
+        }
+
+        // Set action details
+        actionApiDTO.setDetails(resizeDetails(actionApiDTO, resizeInfo,  context));
+        return actionApiDTO;
+    }
+
+    private String resizeDetails( ActionApiDTO actionApiDTO,
+                                  ResizeInfo resizeInfo, ActionSpecMappingContext context) {
+
+        final String commType = UICommodityType.fromType(resizeInfo.getCommodityType()).displayName()
+                + (resizeInfo.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
+
+        StringBuilder actionDetails = new StringBuilder();
+        final boolean isResizeDown = resizeInfo.getOldCapacity() > resizeInfo.getNewCapacity();
+        if (isResizeDown) {
+            actionDetails.append("Underutilized " + commType);
+        } else {
+            actionDetails.append(commType + " Congestion");
+        }
+
+        String message = MessageFormat.format("{0} in {1}", actionDetails.toString(),
+                    actionApiDTO.getCurrentEntity().getDisplayName());
+
+        return message;
     }
 
     private void addResizeInfo(@Nonnull final ActionApiDTO actionApiDTO,

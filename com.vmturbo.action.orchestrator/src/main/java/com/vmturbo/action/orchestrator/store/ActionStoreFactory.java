@@ -51,6 +51,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final ActionTranslator actionTranslator;
 
+    private final AtomicActionFactory atomicActionFactory;
+
     private final Clock clock;
 
     private final UserSessionContext userSessionContext;
@@ -82,6 +84,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.actionsStatistician = Objects.requireNonNull(builder.actionsStatistician);
         this.probeCapabilityCache = Objects.requireNonNull(builder.probeCapabilityCache);
         this.actionTranslator = Objects.requireNonNull(builder.actionTranslator);
+        this.atomicActionFactory = Objects.requireNonNull(builder.atomicActionFactory);
         this.clock = Objects.requireNonNull(builder.clock);
         this.userSessionContext = Objects.requireNonNull(builder.userSessionContext);
         this.supplyChainService = Objects.requireNonNull(builder.supplyChainService);
@@ -106,6 +109,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
      * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot
      * @param actionsStatistician works with action stats
      * @param actionTranslator the action translator class
+     * @param atomicActionFactory the atomic action factory class
      * @param clock the {@link Clock}
      * @param userSessionContext the user session context
      * @param acceptedActionsDAO dao layer working with accepted actions
@@ -124,6 +128,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                               @Nonnull final LiveActionsStatistician actionsStatistician,
                               @Nonnull final ActionTranslator actionTranslator,
+                              @Nonnull final AtomicActionFactory atomicActionFactory,
                               @Nonnull final Clock clock,
                               @Nonnull final UserSessionContext userSessionContext,
                               @Nonnull final AcceptedActionsDAO acceptedActionsDAO,
@@ -142,6 +147,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.actionsStatistician = Objects.requireNonNull(actionsStatistician);
         this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
+        this.atomicActionFactory = Objects.requireNonNull(atomicActionFactory);
         this.clock = Objects.requireNonNull(clock);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.supplyChainService = Objects.requireNonNull(supplyChainService);
@@ -165,7 +171,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
             return new LiveActionStore(actionFactory, topologyContextId,
                 supplyChainService, repositoryService, actionTargetSelector,
                 probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, clock, userSessionContext,
+                actionsStatistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, actionIdentityService,
                     involvedEntitiesExpander, externalAuditEventSender);
         } else {
@@ -205,6 +211,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private ProbeCapabilityCache probeCapabilityCache;
         private LiveActionsStatistician actionsStatistician;
         private ActionTranslator actionTranslator;
+        private AtomicActionFactory atomicActionFactory;
         private Clock clock;
         private UserSessionContext userSessionContext;
         private SupplyChainServiceBlockingStub supplyChainService;
@@ -314,6 +321,17 @@ public class ActionStoreFactory implements IActionStoreFactory {
          */
         public Builder withActionTranslator(@Nonnull ActionTranslator actionTranslator) {
             this.actionTranslator = actionTranslator;
+            return this;
+        }
+
+        /**
+         * Sets the atomicActionFactory on this builder.
+         *
+         * @param atomicActionFactory the atomicActionFactory
+         * @return the same builder with the atomicActionFactory set.
+         */
+        public Builder withAtomicActionFactory(@Nonnull AtomicActionFactory atomicActionFactory) {
+            this.atomicActionFactory = atomicActionFactory;
             return this;
         }
 

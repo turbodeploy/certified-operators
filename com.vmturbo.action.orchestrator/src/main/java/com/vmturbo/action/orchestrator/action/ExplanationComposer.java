@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.buildEntityNameOrType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.buildEntityTypeAndName;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDisplayName;
@@ -10,11 +11,12 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.TimeZone;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -28,6 +30,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
@@ -44,6 +47,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExpla
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -171,6 +175,9 @@ public class ExplanationComposer {
                 return buildMoveExplanation(action, settingPolicyIdToSettingPolicyName, keepItShort);
             case ALLOCATE:
                 return Collections.singleton(buildAllocateExplanation(action, keepItShort));
+            case ATOMICRESIZE:
+                //invoked when the action spec is created from the action view
+                return buildAtomicResizeExplanation(action, keepItShort);
             case RESIZE:
                 return Collections.singleton(buildResizeExplanation(action, keepItShort));
             case ACTIVATE:
@@ -527,6 +534,103 @@ public class ExplanationComposer {
         final String instanceSizeFamily = action.getExplanation().getAllocate()
                 .getInstanceSizeFamily();
         return MessageFormat.format(ALLOCATE_EXPLANATION, instanceSizeFamily);
+    }
+
+    /**
+     * Build atomic resize action explanation.
+     * e.g. full explanation:
+     *   "Merged on Workload Controller twitter-cass-tweet -
+     *     VCPU Congestion in Container Spec istio-proxy
+     *     [Resize DOWN VCPU from 5,328 to 328],
+     *     VMem Congestion in Container Spec twitter-cass-tweet
+     *     [Resize DOWN VMem from 512.0 MB to 128.0 MB],
+     *     VCPU Congestion in Container Spec twitter-cass-tweet
+     *     [Resize UP VCPU from 666 to 966],
+     *     VMem Congestion in Container Spec istio-proxy
+     *     [Resize DOWN VMem from 1.0 GB to 128.0 MB]"
+     *
+
+     * e.g. short explanation:
+     *      "Merged on Workload Controller twitter-cass-tweet"
+     *
+     * @param action the action to explain
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation sentence
+     */
+    private static Set<String> buildAtomicResizeExplanation(
+            @Nonnull final ActionDTO.Action action,
+            final boolean keepItShort) {
+
+        if (!action.getInfo().hasAtomicResize()) {
+            logger.warn("Cannot build atomic resize explanation for non-resize action {}", action.getId());
+            return Collections.emptySet();
+        }
+
+        AtomicResize atomicResize = action.getInfo().getAtomicResize();
+
+        final String coreExplanation = buildAtomicResizeCoreExplanation(action);
+        if (keepItShort) {
+            return Collections.singleton(coreExplanation);
+        }
+
+        final Set<String> resizeInfoExplanations = new HashSet<>();
+        for (ResizeInfo resize : atomicResize.getResizesList()) {
+
+            String resizeExplanation;
+
+            final String commodityType = commodityDisplayName(resize.getCommodityType(), keepItShort)
+                    + (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
+
+            final boolean isResizeDown = action.getInfo().getResize().getOldCapacity()
+                                            > action.getInfo().getResize().getNewCapacity();
+            if (isResizeDown) {
+                resizeExplanation = UNDERUTILIZED_EXPLANATION + commodityType;
+            } else {
+                resizeExplanation = commodityType + CONGESTION_EXPLANATION;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            String targetClause = resize.hasTarget()
+                    ? " in " + buildEntityTypeAndName(resize.getTarget())
+                    : "";
+            sb.append(resizeExplanation).append(targetClause);
+
+            CommodityDTO.CommodityType commodity = CommodityDTO.CommodityType
+                    .forNumber(resize.getCommodityType().getType());
+
+            String format_capacity =  "{0} [Resize {1} {2} from {3} to {4}]";
+            String format_reservation = "{0} [Resize {1} {2} reservation from {3} to {4}]";
+
+            String explanation = MessageFormat.format(
+                    resize.getCommodityAttribute() == CommodityAttribute.CAPACITY ? format_capacity : format_reservation,
+                    sb.toString(),
+                    resize.getNewCapacity() > resize.getOldCapacity() ? "UP" : "DOWN",
+                    beautifyCommodityType(resize.getCommodityType()),
+                    ActionDescriptionBuilder.formatResizeActionCommodityValue(
+                            commodity, resize.getTarget().getType(), resize.getOldCapacity()),
+                    ActionDescriptionBuilder.formatResizeActionCommodityValue(
+                            commodity, resize.getTarget().getType(), resize.getNewCapacity())
+            );
+
+            resizeInfoExplanations.add(explanation);
+        }
+
+        StringBuilder allExplanations = new StringBuilder();
+        allExplanations.append(coreExplanation).append(" - ");
+        allExplanations.append(String.join(", ", resizeInfoExplanations));
+
+        return Collections.singleton(allExplanations.toString());
+    }
+
+    private static String buildAtomicResizeCoreExplanation(ActionDTO.Action action) {
+        StringBuilder sb = new StringBuilder(ActionDTOUtil.TRANSLATION_PREFIX);
+        AtomicResize atomicResize = action.getInfo().getAtomicResize();
+        String targetClause = atomicResize.hasExecutionTarget()
+                ? " Merged on " + buildEntityTypeAndName(atomicResize.getExecutionTarget())
+                : "";
+
+        sb.append(targetClause);
+        return sb.toString();
     }
 
     /**

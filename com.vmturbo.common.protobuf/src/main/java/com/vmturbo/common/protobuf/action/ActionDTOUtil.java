@@ -17,10 +17,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActionExplanationTypeCase;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.text.WordUtils;
@@ -28,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -39,18 +36,22 @@ import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActionExplanationTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -199,6 +200,7 @@ public class ActionDTOUtil {
                 return actionInfo.getBuyRi().getRegion().getId();
             case ALLOCATE:
             case PROVISION:
+            case ATOMICRESIZE:
             case RESIZE:
             case ACTIVATE:
             case DEACTIVATE:
@@ -245,6 +247,8 @@ public class ActionDTOUtil {
                 // The entity to clone is the target of the action. The
                 // newly provisioned entity is the result of the clone.
                 return actionInfo.getProvision().getEntityToClone();
+            case ATOMICRESIZE:
+                return actionInfo.getAtomicResize().getExecutionTarget();
             case RESIZE:
                 return actionInfo.getResize().getTarget();
             case ACTIVATE:
@@ -441,7 +445,17 @@ public class ActionDTOUtil {
                 return getInvolvedScale(action, involvedEntityCalculation);
             case ALLOCATE:
                 return getInvolvedAllocate(action, involvedEntityCalculation);
-            case RESIZE:
+            case ATOMICRESIZE:
+                final List<ActionEntity> atomicResizeEntities = new ArrayList<>();
+                atomicResizeEntities.add(getPrimaryEntity(action));
+                for (ResizeInfo resize : action.getInfo().getAtomicResize().getResizesList()) {
+                    atomicResizeEntities.addAll(resize.getSourceEntitiesList());
+                    if (resize.hasTarget()) {
+                        atomicResizeEntities.add(resize.getTarget());
+                    }
+                }
+                return atomicResizeEntities;
+                case RESIZE:
             case ACTIVATE:
             case DEACTIVATE:
             case PROVISION:
@@ -593,6 +607,8 @@ public class ActionDTOUtil {
             case PROVISION:
                 return ActionType.PROVISION;
             case RESIZE:
+                return ActionType.RESIZE;
+            case ATOMICRESIZE:
                 return ActionType.RESIZE;
             case ACTIVATE:
                 return ActionType.ACTIVATE;

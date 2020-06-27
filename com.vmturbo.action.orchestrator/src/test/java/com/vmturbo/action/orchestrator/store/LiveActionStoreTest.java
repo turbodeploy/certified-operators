@@ -19,8 +19,12 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -49,6 +53,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
+import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
@@ -66,12 +71,18 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionEntity;
+import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
+import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.ResizeMergeSpec;
+import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.ResizeMergeSpec.CommodityMergeData;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
@@ -83,6 +94,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -97,6 +110,14 @@ public class LiveActionStoreTest {
     private final long vm1 = 1;
     private final long vm2 = 2;
     private final long vm3 = 3;
+
+    private final long container1 = 11;
+    private final long container2 = 12;
+    private final long container3 = 13;
+    private final long container4 = 14;
+    private final long controller1 = 31;
+    private final long containerSpec1 = 41;
+    private final long containerSpec2 = 42;
 
     private final long hostA = 0xA;
     private final long hostB = 0xB;
@@ -179,6 +200,12 @@ public class LiveActionStoreTest {
 
     private final AcceptedActionsDAO acceptedActionsStore = mock(AcceptedActionsDAO.class);
 
+    final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
+    final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
+    private ActionEntity aggregateEntity1;
+    private ActionEntity deDupEntity1;
+    private ActionEntity deDupEntity2;
+
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
@@ -192,7 +219,7 @@ public class LiveActionStoreTest {
             SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             targetSelector, probeCapabilityCache, entitySettingsCache,
-            actionHistoryDao, actionsStatistician, actionTranslator,
+            actionHistoryDao, actionsStatistician, actionTranslator, atomicActionFactory,
             clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
             actionIdentityService, involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class));
 
@@ -207,6 +234,7 @@ public class LiveActionStoreTest {
         when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
         setEntitiesOIDs();
         IdentityGenerator.initPrefix(0);
+        setUpActionMergeCache();
     }
 
     private static ActionDTO.Action.Builder move(long targetId,
@@ -239,6 +267,27 @@ public class LiveActionStoreTest {
         when(snapshot.getEntityFromOid(eq(hostD)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(hostD,
                 EntityType.PHYSICAL_MACHINE.getNumber()));
+        when(snapshot.getEntityFromOid(eq(container1)))
+                .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(container1,
+                        EntityType.CONTAINER.getNumber()));
+        when(snapshot.getEntityFromOid(eq(container2)))
+                .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(container2,
+                        EntityType.CONTAINER.getNumber()));
+        when(snapshot.getEntityFromOid(eq(controller1)))
+                .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(controller1,
+                        EntityType.WORKLOAD_CONTROLLER.getNumber()));
+        when(snapshot.getEntityFromOid(eq(containerSpec1)))
+                .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(containerSpec1,
+                        EntityType.CONTAINER_SPEC.getNumber()));
+        when(snapshot.getEntityFromOid(eq(containerSpec2)))
+                .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(containerSpec2,
+                        EntityType.CONTAINER_SPEC.getNumber()));
+        when(snapshot.getEntityFromOid(eq(container3)))
+                .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(container3,
+                        EntityType.CONTAINER.getNumber()));
+        when(snapshot.getEntityFromOid(eq(container4)))
+                .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(container4,
+                        EntityType.CONTAINER.getNumber()));
     }
 
     /**
@@ -345,7 +394,7 @@ public class LiveActionStoreTest {
             SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-            actionsStatistician, actionTranslator, clock, userSessionContext,
+            actionsStatistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
             licenseCheckClient, acceptedActionsStore, actionIdentityService,
                 involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class));
 
@@ -1030,6 +1079,102 @@ public class LiveActionStoreTest {
                     .map(action -> action.getId())
                     .collect(Collectors.toSet())));
         }
+    }
+
+    /**
+     * Set the atomic action specs used to create atomic actions.
+     */
+    public void setUpActionMergeCache() {
+        aggregateEntity1 = ActionEntity.newBuilder()
+                .setType(EntityType.WORKLOAD_CONTROLLER_VALUE).setId(controller1)
+                .build();
+
+        deDupEntity1 = ActionEntity.newBuilder()
+                .setType(EntityType.CONTAINER_SPEC_VALUE).setId(containerSpec1)
+                .build();
+        deDupEntity2 = ActionEntity.newBuilder()
+                .setType(EntityType.CONTAINER_SPEC_VALUE).setId(containerSpec2)
+                .build();
+
+        AtomicActionSpec spec1 = AtomicActionSpec.newBuilder()
+                .addAllEntityIds(Arrays.asList(container1, container2))
+                .setAggregateEntity(AtomicActionEntity.newBuilder()
+                                    .setEntity(aggregateEntity1)
+                                    .setEntityName("controller1"))
+                .setResizeSpec(ResizeMergeSpec.newBuilder()
+                                .setDeDuplicationTarget(AtomicActionEntity.newBuilder()
+                                        .setEntity(deDupEntity1)
+                                        .setEntityName("spec1"))
+                                .addCommodityData(CommodityMergeData.newBuilder()
+                                                    .setCommodityType(CommodityType.VCPU))
+                                .addCommodityData(CommodityMergeData.newBuilder()
+                                                    .setCommodityType(CommodityType.VMEM)))
+                .build();
+
+        AtomicActionSpec spec2 = AtomicActionSpec.newBuilder()
+                .addAllEntityIds(Arrays.asList(container3, container4))
+                .setAggregateEntity(AtomicActionEntity.newBuilder()
+                        .setEntity(aggregateEntity1)
+                        .setEntityName("controller1"))
+                .setResizeSpec(ResizeMergeSpec.newBuilder()
+                        .setDeDuplicationTarget(AtomicActionEntity.newBuilder()
+                                .setEntity(deDupEntity2)
+                                .setEntityName("spec2"))
+                        .addCommodityData(CommodityMergeData.newBuilder()
+                                .setCommodityType(CommodityType.VCPU))
+                        .addCommodityData(CommodityMergeData.newBuilder()
+                                .setCommodityType(CommodityType.VMEM)))
+                .build();
+
+        List<AtomicActionSpec> resizeSpecs = Arrays.asList(spec1, spec2);
+
+        Map<ActionType, List<AtomicActionSpec>> mergeSpecsInfoMap = new HashMap<>();
+        mergeSpecsInfoMap.put(ActionType.RESIZE, resizeSpecs);
+        atomicActionSpecsCache.updateAtomicActionSpecsInfo(mergeSpecsInfoMap);
+    }
+
+    private static ActionDTO.Action.Builder resize(long targetId) {
+        return ActionOrchestratorTestUtils.createResizeRecommendation(IdentityGenerator.next(),
+                targetId, CommodityDTO.CommodityType.VCPU, 1.0, 2.0).toBuilder();
+    }
+
+    /**
+     * Test creation of atomic actions.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testPopulateWithAtomicActions() throws Exception {
+        ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder resize1 = resize(container1);
+        ActionDTO.Action.Builder resize2 = resize(container2);
+
+        ActionPlan firstPlan = ActionPlan.newBuilder()
+                .setInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                                        .setTopologyId(topologyId))))
+                .setId(firstPlanId)
+                .addAction(firstMove)
+                .addAction(resize1).addAction(resize2)
+                .build();
+
+        Collection<Long> atomicActionTargetEntities =
+                Arrays.asList(aggregateEntity1.getId(), deDupEntity1.getId(), deDupEntity2.getId());
+        Collection<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList());
+        Stream<Long> combinedStream = Stream.of(atomicActionTargetEntities, involvedEntities)
+                .flatMap(Collection::stream);
+        Set<Long> allEntities = combinedStream.collect(Collectors.toSet());
+
+        final EntitiesAndSettingsSnapshot snapshot =
+                entitySettingsCache.newSnapshot(allEntities,
+                        Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+
+        actionStore.populateRecommendedActions(firstPlan);
+
+        assertEquals(4, actionStore.size());
     }
 
 }

@@ -802,6 +802,8 @@ public class ActionModeCalculator {
                 return Stream.of(EntitySettingSpecs.Reconfigure);
             case PROVISION:
                 return Stream.of(EntitySettingSpecs.Provision);
+            case ATOMICRESIZE:
+                return Stream.of(EntitySettingSpecs.Resize);
             case RESIZE:
                 final Resize resize = action.getInfo().getResize();
                 if (isApplicationComponentHeapCommodity(resize)) {

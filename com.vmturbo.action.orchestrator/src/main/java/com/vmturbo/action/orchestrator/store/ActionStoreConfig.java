@@ -144,6 +144,16 @@ public class ActionStoreConfig {
         return new AtomicActionSpecsCache();
     }
 
+    /**
+     * Create atomic action factory.
+     *
+     * @return @link AtomicActionFactory}
+     */
+    @Bean
+    public AtomicActionFactory atomicActionFactory() {
+        return new AtomicActionFactory(actionMergeSpecsCache());
+    }
+
     @Bean
     public EntitiesAndSettingsSnapshotFactory entitySettingsCache() {
         return new EntitiesAndSettingsSnapshotFactory(
@@ -212,6 +222,7 @@ public class ActionStoreConfig {
             .withEntitySettingsCache(entitySettingsCache())
             .withActionsStatistician(actionStatsConfig.actionsStatistician())
             .withActionTranslator(actionTranslationConfig.actionTranslator())
+            .withAtomicActionFactory(atomicActionFactory())
             .withClock(actionOrchestratorGlobalConfig.actionOrchestratorClock())
             .withUserSessionContext(userSessionConfig.userSessionContext())
             .withSupplyChainService(SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))

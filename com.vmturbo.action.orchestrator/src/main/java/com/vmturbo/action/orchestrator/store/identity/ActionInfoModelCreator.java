@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store.identity;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -17,6 +18,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
@@ -25,6 +27,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -53,6 +56,7 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
         map.put(ActionTypeCase.BUYRI, ActionInfoModelCreator::getBuyRi);
         map.put(ActionTypeCase.ALLOCATE, ActionInfoModelCreator::getAllocate);
         map.put(ActionTypeCase.SCALE, ActionInfoModelCreator::getScale);
+        map.put(ActionTypeCase.ATOMICRESIZE, ActionInfoModelCreator::getAtomicResize);
         fieldsCalculators = Collections.unmodifiableMap(map);
     }
 
@@ -107,6 +111,29 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
         final String modelString = gson.toJson(model);
         return new ActionInfoModel(ActionTypeCase.RESIZE, resize.getTarget().getId(), modelString,
                 null);
+    }
+
+    @Nonnull
+    private static ActionInfoModel getAtomicResize(@Nonnull ActionInfo action) {
+        final AtomicResize atomicResize = action.getAtomicResize();
+        final List<ResizeChange> changes = new ArrayList<>(atomicResize.getResizesCount());
+        for (ResizeInfo resizeInfo : atomicResize.getResizesList()) {
+            final ResizeChange change = new ResizeChange(resizeInfo.getTarget().getId());
+            changes.add(change);
+        }
+        final String changesString = gson.toJson(changes);
+        return new ActionInfoModel(ActionTypeCase.ATOMICRESIZE, atomicResize.getExecutionTarget().getId(), changesString, null);
+    }
+
+    /**
+     * Model for atomic resize action details.
+     */
+    private static class ResizeChange {
+        private final long sourceId;
+
+        ResizeChange(long sourceId) {
+            this.sourceId = sourceId;
+        }
     }
 
     @Nonnull
