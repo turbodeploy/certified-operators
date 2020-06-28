@@ -492,7 +492,7 @@ public class TestUtils {
         // create cost function DTO for gp2
         StorageResourceRatioDependency dependencyDTO =
                 StorageResourceRatioDependency.newBuilder().setBaseResourceType(stAmtTO)
-                                        .setDependentResourceType(iopsTO).setRatio(3).build();
+                                        .setDependentResourceType(iopsTO).setMaxRatio(3).build();
         StorageTierPriceData stAmtPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(Double.POSITIVE_INFINITY)
                         .setIsUnitPrice(true).setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 0.10)).build();
         StorageResourceCost stAmtCostDTO = StorageResourceCost.newBuilder().setResourceType(stAmtTO)
@@ -515,7 +515,7 @@ public class TestUtils {
         // create cost function DTO for io1
         StorageResourceRatioDependency dependencyDTO =
                 StorageResourceRatioDependency.newBuilder().setBaseResourceType(stAmtTO)
-                                        .setDependentResourceType(iopsTO).setRatio(50).build();
+                                        .setDependentResourceType(iopsTO).setMaxRatio(50).build();
         StorageTierPriceData stAmtPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(Double.POSITIVE_INFINITY)
                         .setIsUnitPrice(true).setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 0.125)).build();
         StorageTierPriceData iopsPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(Double.POSITIVE_INFINITY)

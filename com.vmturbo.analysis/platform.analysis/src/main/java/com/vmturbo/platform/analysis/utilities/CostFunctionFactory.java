@@ -93,10 +93,10 @@ public class CostFunctionFactory {
     public static class DependentResourcePair {
         private CommoditySpecification baseCommodity_;
         private CommoditySpecification dependentCommodity_;
-        private int maxRatio_;
+        private double maxRatio_;
 
         public DependentResourcePair(CommoditySpecification baseCommodity,
-                        CommoditySpecification dependentCommodity, int maxRatio) {
+                        CommoditySpecification dependentCommodity, double maxRatio) {
             baseCommodity_ = baseCommodity;
             dependentCommodity_ = dependentCommodity;
             maxRatio_ = maxRatio;
@@ -119,7 +119,7 @@ public class CostFunctionFactory {
         /**
          * Returns the maximal ratio of dependent commodity to base commodity
          */
-        public int getMaxRatio() {
+        public double getMaxRatio() {
             return maxRatio_;
         }
     }
@@ -227,7 +227,7 @@ public class CostFunctionFactory {
                                         dto.getBaseResourceType()),
                         ProtobufToAnalysis.commoditySpecification(
                                         dto.getDependentResourceType()),
-                        dto.getRatio())));
+                        dto.getMaxRatio())));
         return dependencyList;
     }
 
