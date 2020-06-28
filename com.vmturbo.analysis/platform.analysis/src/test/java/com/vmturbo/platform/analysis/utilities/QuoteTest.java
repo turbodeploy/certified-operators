@@ -176,7 +176,7 @@ public class QuoteTest {
         final DependentResourcePair dependentResourcePair = new DependentResourcePair(cpuSpec, memSpec, 2);
 
         final Quote quote = new InfiniteDependentResourcePairQuote(dependentResourcePair, 1.0, 5.0);
-        assertEquals("Dependent commodity MEM (5.0) exceeds base commodity CPU (1.0) [maxRatio=2]",
+        assertEquals("Dependent commodity MEM (5.0) exceeds base commodity CPU (1.0) [maxRatio=2.0]",
             quote.getExplanation(shoppingList));
     }
 
