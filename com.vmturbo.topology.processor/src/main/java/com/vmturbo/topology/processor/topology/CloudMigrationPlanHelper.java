@@ -28,14 +28,14 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -171,7 +171,7 @@ public class CloudMigrationPlanHelper {
      * @param planScope Scope of the plan.
      * @param changes Migration changes specified by user.
      * @return Output graph, mostly same as input, execept non-migrating workloads/volumes removed.
-     * @throws PipelineStageException
+     * @throws PipelineStageException When a PipelineStageException occurs
      */
     public TopologyGraph<TopologyEntity> executeStage(
             @Nonnull final TopologyPipelineContext context,
@@ -220,6 +220,7 @@ public class CloudMigrationPlanHelper {
      *
      * @param context Plan pipeline context containing source entities being migrated.
      * @param graph Topology graph.
+     * @param migrationChange User specified migration scenario change.
      * @throws PipelineStageException Thrown when entity lookup by oid fails.
      */
     private void prepareEntities(@Nonnull final TopologyPipelineContext context,
