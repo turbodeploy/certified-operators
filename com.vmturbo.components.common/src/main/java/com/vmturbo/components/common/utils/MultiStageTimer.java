@@ -279,6 +279,31 @@ public class MultiStageTimer {
     }
 
     /**
+     * Visit the per-stage timers in this timer.
+     *
+     * @param visitor The visitor.
+     */
+    public void visit(@Nonnull final TimerVisitor visitor) {
+        timers.forEach((stageName, stageTimer) -> {
+            visitor.visitStage(stageName, stageTimer.state == TimerState.STOPPED, stageTimer.getTotalDuration().toMillis());
+        });
+    }
+
+    /**
+     * Visitor for the stages in the timer.
+     */
+    public interface TimerVisitor {
+        /**
+         * This method will be called for every stage in the timer.
+         *
+         * @param stageName The name of the stage.
+         * @param stopped True if the timer for that stage is stopped.
+         * @param totalDurationMs The total duration for the stage.
+         */
+        void visitStage(@Nonnull String stageName, boolean stopped, long totalDurationMs);
+    }
+
+    /**
      * Log a report of the current stage at the indicated log level.
      *
      * @param level   log level to use

@@ -6,6 +6,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.zip.ZipOutputStream;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -18,6 +21,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.PostgreSQLHealthMonitor;
+import com.vmturbo.extractor.diags.ExtractorDiagnosticsConfig;
 import com.vmturbo.extractor.grafana.GrafanaConfig;
 import com.vmturbo.extractor.schema.ExtractorDbConfig;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
@@ -32,9 +36,13 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 @Import({TopologyListenerConfig.class,
         ExtractorDbConfig.class,
         SQLDatabaseConfig2.class,
-        GrafanaConfig.class})
+        GrafanaConfig.class,
+        ExtractorDiagnosticsConfig.class})
 public class ExtractorComponent extends BaseVmtComponent {
     private static final Logger logger = LogManager.getLogger();
+
+    @Autowired
+    private ExtractorDiagnosticsConfig diagnosticsConfig;
 
     @Autowired
     private TopologyListenerConfig listenerConfig;
@@ -65,6 +73,11 @@ public class ExtractorComponent extends BaseVmtComponent {
         } catch (UnsupportedDialectException | SQLException e) {
             throw new IllegalStateException("DbEndpoint not available, could not start health monitor", e);
         }
+    }
+
+    @Override
+    public void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
+        diagnosticsConfig.diagnosticsHandler().dump(diagnosticZip);
     }
 
     /**
