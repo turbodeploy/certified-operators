@@ -646,9 +646,9 @@ public class CommodityConverter {
     /**
      * utility method to check if a market id is that of a biclique.
      * @param marketId the market id to check
-     * @return true if the id is the one assigned to TopologyConversionConstants.BICLIQUE
+     * @return true if the commodity is a BiClique commodity
      */
     public boolean isSpecBiClique(final int marketId) {
-        return  commodityTypeAllocator.isSpecBiClique(marketId);
+        return marketId == CommodityDTO.CommodityType.BICLIQUE_VALUE;
     }
 }

@@ -36,7 +36,6 @@ public class CommodityTypeAllocator {
             = new TimeSlotCommodityIDKeyGenerator();
     private final CommodityIDKeyGenerator defaultKeyGenerator
             = new DefaultCommodityIDKeyGenerator();
-    private int bcBaseType = -1;
 
     // Mapping of CommoditySpecificationTO (string representation of type and baseType from
     // CommoditySpecificationTO) to specific CommodityType.
@@ -56,23 +55,12 @@ public class CommodityTypeAllocator {
     @Nonnull
     public CommoditySpecificationTO commoditySpecificationBiClique(@Nonnull String bcKey) {
         return CommoditySpecificationTO.newBuilder()
-                .setBaseType(bcBaseType())
+                .setBaseType(CommodityDTO.CommodityType.BICLIQUE_VALUE)
                 .setType(idAllocator.allocate(
                         CommodityDTO.CommodityType.BICLIQUE_VALUE
                                 + TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR + bcKey))
-                .setDebugInfoNeverUseInCode(TopologyConversionConstants.BICLIQUE + " " + bcKey)
+                .setDebugInfoNeverUseInCode(CommodityDTO.CommodityType.BICLIQUE.toString() + " " + bcKey)
                 .build();
-    }
-
-    /**
-     * The base type of bicliques. Allocates a new type if not already allocated.
-     * @return An integer representing the base type of biCliques.
-     */
-    private int bcBaseType() {
-        if (bcBaseType == -1) {
-            bcBaseType = idAllocator.allocate(TopologyConversionConstants.BICLIQUE);
-        }
-        return bcBaseType;
     }
 
     /**
@@ -134,8 +122,7 @@ public class CommodityTypeAllocator {
         final String name = idAllocator.getName(marketCommodity.getType());
         final CommodityType topologyCommodity = commoditySpecMap.get(name);
         if (topologyCommodity == null) {
-            if (!TopologyConversionConstants.BICLIQUE.equals(idAllocator.getName(marketCommodity.getBaseType())
-                    )) {
+            if (marketCommodity.getBaseType() != CommodityDTO.CommodityType.BICLIQUE_VALUE) {
                 // this is a biclique commodity
                 logger.error("Market returned invalid commodity specification " +
                         marketCommodity + "! " +
@@ -183,20 +170,6 @@ public class CommodityTypeAllocator {
     }
 
     /**
-     * Uses a {@link NumericIDAllocator} to construct an integer type to
-     * each unique combination of numeric commodity type + string key.
-     * @param commType a commodity description that contains the numeric type and the key
-     * @param slotIndex the slot index for the commodity if applicable
-     * @return and integer identifying the type
-     */
-    private int topologyToMarketCommodityId(@Nonnull final CommodityType commType,
-                                            final Optional<Integer> slotIndex) {
-        CommodityIDKeyGenerator keyGenerator = retrieveIdKeyGenerator(commType.getType());
-        String commodityTypeString = keyGenerator.commodityTypeToString(commType, slotIndex);
-        return idAllocator.allocate(commodityTypeString);
-    }
-
-    /**
      * Gets the name of the commodity from the id.
      *
      * @param marketCommId the commodity id for which the name is needed
@@ -204,15 +177,6 @@ public class CommodityTypeAllocator {
      */
     public String getMarketCommodityName(int marketCommId) {
         return idAllocator.getName(marketCommId);
-    }
-
-    /**
-     * utility method to check if a market id is that of a biclique.
-     * @param marketId the market id to check
-     * @return true if the id is the one assigned to TopologyConversionConstants.BICLIQUE
-     */
-    public boolean isSpecBiClique(final int marketId) {
-        return (marketId == bcBaseType());
     }
 
     /**
