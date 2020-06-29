@@ -37,7 +37,7 @@ public class GroupTypeMapper {
 
     /**
      * Get the {@link GroupType} associated with a
-     * {@link com.vmturbo.extractor.schema.enums.EntityType}.
+     * {@link EntityType}.
      *
      * @param entityType The {@link EntityType}.
      * @return The associated {@link GroupType}, or null
@@ -47,7 +47,7 @@ public class GroupTypeMapper {
     }
 
     /**
-     * Get the {@link EntityType} associated with a {@link com.vmturbo.api.enums.EntityType}.
+     * Get the {@link EntityType} associated with a {@link GroupType}.
      *
      * @param groupType The {@link GroupType}.
      * @return The associated {@link EntityType}, or null.
@@ -58,15 +58,15 @@ public class GroupTypeMapper {
 
 
     /**
-     * Functional Interface of {@link EntityTypeMapper#fromSearchSchemaToApi}.
+     * Functional Interface of {@link GroupTypeMapper#fromSearchSchemaToApi}.
      */
-    public static final Function<EntityType, com.vmturbo.api.enums.EntityType>
-        fromSearchSchemaToApiFunction = (en) -> EntityTypeMapper.fromSearchSchemaToApi(en);
+    public static final Function<EntityType, GroupType>
+        fromSearchSchemaToApiFunction = (en) -> GroupTypeMapper.fromSearchSchemaToApi(en);
 
 
     /**
-     * Functional Interface of {@link EntityTypeMapper#fromApiToSearchSchema}.
+     * Functional Interface of {@link GroupTypeMapper#fromApiToSearchSchema}.
      */
-    public static final Function<com.vmturbo.api.enums.EntityType, EntityType>
-        fromApiToSearchSchemaFunction = (en) -> EntityTypeMapper.fromApiToSearchSchema(en);
+    public static final Function<GroupType, EntityType>
+        fromApiToSearchSchemaFunction = (gtype) -> GroupTypeMapper.fromApiToSearchSchema(gtype);
 }
