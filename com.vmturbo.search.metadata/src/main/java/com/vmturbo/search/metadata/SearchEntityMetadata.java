@@ -103,6 +103,7 @@ public enum SearchEntityMetadata {
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.STORAGE), SearchMetadataMapping.RELATED_STORAGE)
                 .putAll(Constants.BASIC_APPLICATION_FIELDS)
                 // related groups
+                .put(RelatedGroupFieldApiDTO.groupNames(GroupType.RESOURCE), SearchMetadataMapping.RELATED_RESOURCE_GROUP_NAME_FOR_VM)
                 .put(RelatedGroupFieldApiDTO.groupNames(GroupType.COMPUTE_HOST_CLUSTER), SearchMetadataMapping.RELATED_COMPUTE_HOST_CLUSTER_NAME)
                 .build();
     }
@@ -182,6 +183,8 @@ public enum SearchEntityMetadata {
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.STORAGE), SearchMetadataMapping.RELATED_STORAGE)
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.STORAGE_TIER), SearchMetadataMapping.RELATED_STORAGE_TIER)
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.VIRTUAL_MACHINE), SearchMetadataMapping.RELATED_VM)
+                // related groups
+                .put(RelatedGroupFieldApiDTO.groupNames(GroupType.RESOURCE), SearchMetadataMapping.RELATED_RESOURCE_GROUP_NAME_FOR_VV)
                 .build();
     }
 
@@ -434,6 +437,8 @@ public enum SearchEntityMetadata {
         return ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
                 // common fields
                 .putAll(Constants.ENTITY_COMMON_FIELDS)
+                // related groups
+                .put(RelatedGroupFieldApiDTO.groupNames(GroupType.BILLING_FAMILY), SearchMetadataMapping.RELATED_BILLING_FAMILY_NAME)
                 .build();
     }
 
@@ -548,6 +553,8 @@ public enum SearchEntityMetadata {
                 // related entities
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.BUSINESS_ACCOUNT), SearchMetadataMapping.RELATED_ACCOUNT)
                 .putAll(Constants.BASIC_APPLICATION_FIELDS)
+                // related groups
+                .put(RelatedGroupFieldApiDTO.groupNames(GroupType.RESOURCE), SearchMetadataMapping.RELATED_RESOURCE_GROUP_NAME_FOR_DB)
                 .build();
     }
 

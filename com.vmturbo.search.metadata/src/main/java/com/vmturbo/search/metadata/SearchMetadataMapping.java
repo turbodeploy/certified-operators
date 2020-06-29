@@ -77,6 +77,18 @@ public enum SearchMetadataMapping {
     RELATED_STORAGE_CLUSTER_NAME("attrs", "related_storage_cluster", GroupType.STORAGE_CLUSTER,
             EntityType.STORAGE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
+    RELATED_BILLING_FAMILY_NAME("attrs", "related_billing_family", GroupType.BILLING_FAMILY,
+            EntityType.BUSINESS_ACCOUNT, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+
+    RELATED_RESOURCE_GROUP_NAME_FOR_VM("attrs", "related_resource_group", GroupType.RESOURCE,
+            EntityType.VIRTUAL_MACHINE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+
+    RELATED_RESOURCE_GROUP_NAME_FOR_VV("attrs", "related_resource_group", GroupType.RESOURCE,
+            EntityType.VIRTUAL_VOLUME, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+
+    RELATED_RESOURCE_GROUP_NAME_FOR_DB("attrs", "related_resource_group", GroupType.RESOURCE,
+            EntityType.DATABASE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+
     /**
      * Entity type specific fields.
      */
@@ -365,10 +377,10 @@ public enum SearchMetadataMapping {
             Type.INTEGER),
     // related vms count (only used by cluster for now)
     RELATED_MEMBER_COUNT_VM("attrs", "vm_count", ImmutableSet.of(EntityType.VIRTUAL_MACHINE),
-            Property.COUNT, Type.INTEGER),
+            RelatedEntitiesProperty.COUNT, Type.INTEGER),
     // related storages count (only used by cluster for now)
     RELATED_MEMBER_COUNT_ST("attrs", "st_count", ImmutableSet.of(EntityType.STORAGE),
-            Property.COUNT, Type.INTEGER),
+            RelatedEntitiesProperty.COUNT, Type.INTEGER),
 
     /**
      * Commodities for group. For now, this is only used by cluster, and is only for leaf entities

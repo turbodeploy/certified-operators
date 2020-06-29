@@ -30,6 +30,7 @@ public class SearchGroupMetadataTest {
                     .put(FieldType.PRIMITIVE, new PrimitiveMetadataVerifier())
                     .put(FieldType.AGGREGATE_COMMODITY, new CommodityMetadataVerifier())
                     .put(FieldType.RELATED_ACTION, new RelatedActionMetadataVerifier())
+                    .put(FieldType.RELATED_ENTITY, new RelatedEntityMetadataVerifier())
                     .put(FieldType.MEMBER, new MemberMetadataVerifier())
                     .build();
 
@@ -124,6 +125,16 @@ public class SearchGroupMetadataTest {
         public void verify(SearchMetadataMapping metadata) {
             commonVerify(metadata);
             assertNull(metadata.getJsonKeyName());
+        }
+    }
+
+    public static class RelatedEntityMetadataVerifier implements MetadataVerifier {
+        @Override
+        public void verify(SearchMetadataMapping metadata) {
+            commonVerify(metadata);
+            assertNotNull(metadata.getJsonKeyName());
+            assertNotNull(metadata.getRelatedEntityTypes());
+            assertNotNull(metadata.getRelatedEntityProperty());
         }
     }
 
