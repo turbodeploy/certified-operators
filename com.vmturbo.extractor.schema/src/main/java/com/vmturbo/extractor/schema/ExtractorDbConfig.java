@@ -31,7 +31,7 @@ public class ExtractorDbConfig {
         if (!StringUtils.isEmpty(migrationLocationsOverride)) {
             migrationLocations = migrationLocationsOverride;
         }
-        return DbEndpoint.primaryDbEndpoint(SQLDialect.POSTGRES)
+        return DbEndpoint.secondaryDbEndpoint("extractor", SQLDialect.POSTGRES)
                 .withDbAccess(DbEndpointAccess.ALL)
                 .withDbDestructiveProvisioningEnabled(true)
                 .withDbMigrationLocations(migrationLocations)
@@ -39,7 +39,7 @@ public class ExtractorDbConfig {
     }
 
     /**
-     * R/W endpoint to same data, for in query execution.
+     * Read endpoint to same data, for in query execution.
      *
      * @return query endpoint
      */
