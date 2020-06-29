@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.RatioDependency;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -794,12 +795,19 @@ public class SdkToTopologyEntityConverter {
             retCommSoldBuilder.setRangeDependency(commDTO.getRangeDependency());
         }
         if (commDTO.hasRatioDependency()) {
-            retCommSoldBuilder.setRatioDependency(TopologyDTO.CommoditySoldDTO.RatioDependency.newBuilder()
-                .setBaseCommodity(TopologyDTO.CommodityType.newBuilder()
-                    .setType(commDTO.getRatioDependency().getBaseCommodity().getNumber())
-                    .build())
-                .setRatio(commDTO.getRatioDependency().getRatio())
-                .build());
+            RatioDependency.Builder ratioDependencyBuilder = TopologyDTO.CommoditySoldDTO.RatioDependency.newBuilder()
+                    .setBaseCommodity(TopologyDTO.CommodityType.newBuilder()
+                            .setType(commDTO.getRatioDependency().getBaseCommodity().getNumber())
+                            .build())
+                    .setMaxRatio(commDTO.getRatioDependency().getMaxRatio());
+            if (commDTO.getRatioDependency().hasMinRatio()) {
+                ratioDependencyBuilder.setMinRatio(commDTO.getRatioDependency().getMinRatio());
+            }
+            if (commDTO.getRatioDependency().hasIncreaseBaseAmountDefaultSupported()) {
+                ratioDependencyBuilder.setIncreaseBaseAmountDefaultSupported(
+                        commDTO.getRatioDependency().getIncreaseBaseAmountDefaultSupported());
+            }
+            retCommSoldBuilder.setRatioDependency(ratioDependencyBuilder.build());
         }
         if (commDTO.hasUtilizationData()) {
             CommonDTO.CommodityDTO.UtilizationData data = commDTO.getUtilizationData();

@@ -228,7 +228,7 @@ public class CostDTOCreatorTest {
         StorageResourceRatioDependency storageResourceDependency = storageTierCostDTO.getStorageResourceRatioDependency(0);
         assertEquals(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, storageResourceDependency.getDependentResourceType().getType());
         assertEquals(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, storageResourceDependency.getBaseResourceType().getType());
-        assertEquals(3, storageResourceDependency.getRatio());
+        assertEquals(3, storageResourceDependency.getMaxRatio(), 0.01d);
 
         assertEquals(1, storageTierCostDTO.getStorageResourceRangeDependencyCount());
         StorageResourceRangeDependency storageResourceRange = storageTierCostDTO.getStorageResourceRangeDependency(0);
@@ -264,7 +264,7 @@ public class CostDTOCreatorTest {
         final TopologyDTO.CommoditySoldDTO stAccess =
                 TopologyDTO.CommoditySoldDTO.newBuilder()
                         .setCommodityType(storageAccessType)
-                        .setRatioDependency(RatioDependency.newBuilder().setBaseCommodity(storageAmountType).setRatio(3))
+                        .setRatioDependency(RatioDependency.newBuilder().setBaseCommodity(storageAmountType).setMaxRatio(3))
                         .build();
 
         Set<RangeTuple> rangeTuples = new HashSet<>();
