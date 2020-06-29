@@ -4,7 +4,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -47,7 +49,15 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
                     final ApiEntityType providerEntityType = GroupProtoUtil.getEntityTypes(providerGroup).iterator().next();
                     final ApiEntityType consumerEntityType = GroupProtoUtil.getEntityTypes(consumerGroup).iterator().next();
                     Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph).getEntitiesOfType(providerEntityType), policy.getProviderPolicyEntities().getAdditionalEntities());
-                    final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType), policy.getConsumerPolicyEntities().getAdditionalEntities());
+                    Set<Long> consumers = groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType);
+                    consumers = consumers.stream().filter(id -> {
+                        Optional<TopologyEntity> entity = topologyGraph.getEntity(id);
+                        if (entity.isPresent() && entity.get().hasReservationOrigin()) {
+                            return false;
+                        }
+                        return true;
+                    }).collect(Collectors.toSet());
+                    consumers.addAll(policy.getConsumerPolicyEntities().getAdditionalEntities());
                     //checkEntityType logic makes sure that the group only has only one entity type here
                     // if providers have been replaced, add them to the list of providers so as to skip them
                     Set<Long> replacedProviders = new HashSet<>();

@@ -22,6 +22,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -32,6 +36,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -98,6 +103,12 @@ public class ReservationPolicyFactoryTest {
                 .setConstraintId(123L)
                 .setType(ReservationConstraintInfo.Type.CLUSTER)
                 .build();
+        Reservation reservation = Reservation.newBuilder()
+                .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                        .addReservationTemplate(ReservationTemplate.newBuilder()
+                                .addReservationInstance(
+                                        ReservationInstance.newBuilder().setEntityId(5L))))
+                .build();
         final GetMembersRequest request = GetMembersRequest.newBuilder().addId(123L).build();
         final GetMembersResponse response = GetMembersResponse.newBuilder()
             .setGroupId(123L)
@@ -107,11 +118,13 @@ public class ReservationPolicyFactoryTest {
         Mockito.when(groupServiceMole.getMembers(request))
                 .thenReturn(Collections.singletonList(response));
         final PlacementPolicy placementPolicy =
-                reservationPolicyFactory.generatePolicyForInitialPlacement(topologyGraph,
-                        Lists.newArrayList(clusterConstraint), Sets.newHashSet(5L));
+                reservationPolicyFactory.generatePolicyForReservation(topologyGraph,
+                        Lists.newArrayList(clusterConstraint), reservation);
         final Policy policy = placementPolicy.getPolicyDefinition();
         Mockito.verify(groupServiceMole, Mockito.times(1)).getMembers(request);
         Assert.assertTrue(policy.getPolicyInfo().getEnabled());
+        Assert.assertTrue(((BindToGroupPolicy)placementPolicy)
+                .getConsumerPolicyEntities().getAdditionalEntities().contains(5L));
         Assert.assertTrue(policy.getPolicyInfo().hasBindToGroup());
     }
 

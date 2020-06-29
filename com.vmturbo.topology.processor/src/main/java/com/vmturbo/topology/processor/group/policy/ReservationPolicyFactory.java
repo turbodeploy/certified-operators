@@ -15,13 +15,13 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -72,51 +72,32 @@ public class ReservationPolicyFactory {
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
     }
 
-    /**
-     * Generate BindToGroup policy for initial placement. And based on input the list of
-     * {@link ReservationConstraintInfo}, it creates provider group. And also it creates consumer
-     * group for all entities created from templates.
-     *
-     * @param graph The topology graph contains all entities and relations between entities.
-     * @param constraints a list of {@link ReservationConstraintInfo}.
-     * @param consumers a list id of initial placement entity.
-     * @return {@link BindToGroupPolicy}.
-     */
-    public PlacementPolicy generatePolicyForInitialPlacement(
-            @Nonnull final TopologyGraph<TopologyEntity> graph,
-            @Nonnull final List<ReservationConstraintInfo> constraints,
-            @Nonnull final Set<Long> consumers) {
-        final Grouping pmProviderGroup = generateProviderGroup(graph, constraints);
-        final Grouping consumerGroup = generateConsumerGroup(consumers);
-        final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup, consumerGroup);
-        return new BindToGroupPolicy(bindToGroupPolicyPM, new PolicyEntities(
-                consumerGroup, Collections.emptySet()), new PolicyEntities(pmProviderGroup));
-    }
-
     public PlacementPolicy generatePolicyForReservation(
             @Nonnull final TopologyGraph<TopologyEntity> graph,
             @Nonnull final List<ReservationConstraintInfo> constraints,
             @Nonnull final Reservation reservation) {
         // when we support different template types for reservation, we should generate generic provider group
         final Grouping pmProviderGroup = generateProviderGroup(graph, constraints);
-        final Grouping consumerGroup = generateConsumerGroup(reservation);
+        final Grouping consumerGroup = generateStaticGroup(new HashSet<>(), EntityType.VIRTUAL_MACHINE_VALUE);
+        final Set<Long> consumerList = generateConsumerList(reservation);
         final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup, consumerGroup);
         return new BindToGroupPolicy(bindToGroupPolicyPM, new PolicyEntities(
-                consumerGroup, Collections.emptySet()), new PolicyEntities(pmProviderGroup));
+                consumerGroup, consumerList), new PolicyEntities(pmProviderGroup));
     }
 
-    private Grouping generateConsumerGroup(@Nonnull final Reservation reservation) {
-        final Set<Long> consumerGroupIds = reservation.getReservationTemplateCollection()
+    /**
+     * generate a list of consumers for the new policy created for the reservation.
+     * The list of consumers is in fact the reserved instances of the reservation.
+     * @param reservation the reservation of interest.
+     * @return a set of oids of all the reservation instances (consumers of the policy).
+     */
+    private Set<Long> generateConsumerList(@Nonnull final Reservation reservation) {
+        return reservation.getReservationTemplateCollection()
                 .getReservationTemplateList().stream()
                 .map(ReservationTemplate::getReservationInstanceList)
                 .flatMap(List::stream)
                 .map(ReservationInstance::getEntityId)
                 .collect(Collectors.toSet());
-        return generateStaticGroup(consumerGroupIds, EntityType.VIRTUAL_MACHINE_VALUE);
-    }
-
-    private Grouping generateConsumerGroup(@Nonnull final Set<Long> consumers) {
-        return generateStaticGroup(consumers, EntityType.VIRTUAL_MACHINE_VALUE);
     }
 
     private Grouping generateProviderGroup(@Nonnull final TopologyGraph<TopologyEntity> graph,
