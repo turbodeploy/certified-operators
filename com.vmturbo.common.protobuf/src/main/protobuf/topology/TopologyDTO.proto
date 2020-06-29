@@ -1348,7 +1348,12 @@ message CommoditySoldDTO {
         // The type of commodity whose usage will be used as a factor.
         optional CommodityType base_commodity = 1;
         // The ratio which will be used to multiply with base commodity's usage.
-        optional int32 ratio = 2;
+        optional double max_ratio = 2;
+        // The min ratio which will be used to multiply with base commodity's usage.
+        optional double min_ratio = 3;
+        // When consumer consumes amount more than (base amount * max_ratio), whether can directly
+        // increase base amount to achieve max ratio dependency.
+        optional bool increase_base_amount_default_supported = 4 [default = false];
     }
 
     message HotResizeInfo {
