@@ -99,7 +99,7 @@ public enum SearchGroupMetadata {
                 .put(PrimitiveFieldApiDTO.oid(), SearchMetadataMapping.PRIMITIVE_GROUP_OID)
                 .put(PrimitiveFieldApiDTO.groupType(), SearchMetadataMapping.PRIMITIVE_GROUP_TYPE)
                 .put(PrimitiveFieldApiDTO.name(), SearchMetadataMapping.PRIMITIVE_GROUP_NAME)
-                .put(PrimitiveFieldApiDTO.severity(), SearchMetadataMapping.PRIMITIVE_SEVERITY)
+                .put(PrimitiveFieldApiDTO.entitySeverity(), SearchMetadataMapping.PRIMITIVE_SEVERITY)
                 .put(PrimitiveFieldApiDTO.origin(), SearchMetadataMapping.PRIMITIVE_GROUP_ORIGIN)
                 .put(PrimitiveFieldApiDTO.dynamic(), SearchMetadataMapping.PRIMITIVE_GROUP_DYNAMIC)
                 .put(PrimitiveFieldApiDTO.memberTypes(), SearchMetadataMapping.PRIMITIVE_GROUP_MEMBER_TYPES)
