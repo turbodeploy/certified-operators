@@ -1,6 +1,8 @@
 package com.vmturbo.integrations.intersight.licensing;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -8,6 +10,7 @@ import javax.annotation.Nullable;
 
 import com.cisco.intersight.client.ApiClient;
 import com.cisco.intersight.client.ApiException;
+import com.cisco.intersight.client.ApiResponse;
 import com.cisco.intersight.client.api.LicenseApi;
 import com.cisco.intersight.client.model.LicenseLicenseInfo;
 import com.cisco.intersight.client.model.LicenseLicenseInfoList;
@@ -38,16 +41,24 @@ public class IntersightLicenseClient {
      * 504 (Gateway Timeout): We are not getting responses in time, which could be a temporary issue.
      */
     public static final Set<Integer> RETRYABLE_HTTP_CODES = ImmutableSet.of(429, 502, 503, 504);
+    public static final int HTTP_STATUS_NO_DATA = 204;
+    public static final int HTTP_STATUS_OK = 200;
 
     private final IntersightConnection connection;
+
+    // we are going to cache a reference to the ApiClient directly here, since the IntersightConnection
+    // seems to create new tokens fairly often.
+    private ApiClient apiClient;
 
     private final String defaultLicenseQueryFilter;
 
     /**
      * Construct an IntersightLicenseClient.
      * @param connection An intersight API connection to use.
+     * @param defaultLicenseQueryFilter the filter expresssion to use when fetching licenses
      */
-    public IntersightLicenseClient(@Nonnull final IntersightConnection connection, @Nullable String defaultLicenseQueryFilter) {
+    public IntersightLicenseClient(@Nonnull final IntersightConnection connection,
+                                   @Nullable String defaultLicenseQueryFilter) {
         this.connection = connection;
         this.defaultLicenseQueryFilter = defaultLicenseQueryFilter;
     }
@@ -59,23 +70,19 @@ public class IntersightLicenseClient {
      * @throws IOException if there is an error establishing the session
      */
     public ApiClient getApiClient() throws IOException {
-        // The original intent of this method was to provide reuse of an ApiClient instance as long as we
-        // could, since it may be a lot of unnecessary load for the IWO back end to have to keep
-        // generating tokens.
-        // But after reusing the instance for a few calls, the requests just start failing with NPE's.
-        // There seems to be no explicit signal that the token has expired or anything to distinguish
-        // token expirations / quotas from regular API errors. So we will just create a new one each
-        // time and avoid this issue. We can come back and change this in the future if the
-        // infrastructure provides a pattern that supports it.
-        //
-        logger.debug("Creating new Intersight API client.");
-        return connection.getApiClient();
+        apiClient = connection.getApiClient();
+        return apiClient;
     }
 
     /**
      * Get the list of licenses that this account has from Intersight, using default parameters.
+     *
+     * @return a list of {@link LicenseLicenseInfo} containing the licenses available for the current
+     * account.
+     * @throws IOException if there is an error establishing the session
+     * @throws ApiException if there are errors returned from the Intersight API
      */
-    protected LicenseLicenseInfoList getIntersightLicenses() throws IOException, ApiException {
+    protected List<LicenseLicenseInfo> getIntersightLicenses() throws IOException, ApiException {
         return getIntersightLicenses(defaultLicenseQueryFilter);
     }
 
@@ -83,12 +90,12 @@ public class IntersightLicenseClient {
      * Get the list of licenses that this account has from Intersight using a specific filter.
      *
      * @param filter A filter to use when retreiving licenses. Can be null.
-     * @return a {@link LicenseLicenseInfoList} containing the licenses available for the current
+     * @return a list of {@link LicenseLicenseInfo} containing the licenses available for the current
      * account.
      * @throws IOException if there is an error establishing the session
      * @throws ApiException if there are errors returned from the Intersight API
      */
-    protected LicenseLicenseInfoList getIntersightLicenses(@Nullable String filter) throws IOException, ApiException {
+    protected List<LicenseLicenseInfo> getIntersightLicenses(@Nullable String filter) throws IOException, ApiException {
         ApiClient apiClient = getApiClient();
         // get the Intersight license list
         LicenseApi licenseApi = new LicenseApi(apiClient);
@@ -101,9 +108,8 @@ public class IntersightLicenseClient {
         if (filter != null) {
             logger.info("Fetching intersight licenses using filter: {}", filter);
         }
-        LicenseLicenseInfoList licenseList = null;
         try {
-            licenseList = licenseApi.getLicenseLicenseInfoList(filter,
+            ApiResponse<LicenseLicenseInfoList> response = licenseApi.getLicenseLicenseInfoListWithHttpInfo(filter,
                     IntersightDefaultQueryParameters.$orderby,
                     IntersightDefaultQueryParameters.$top,
                     IntersightDefaultQueryParameters.$skip,
@@ -114,13 +120,25 @@ public class IntersightLicenseClient {
                     IntersightDefaultQueryParameters.$inlinecount,
                     IntersightDefaultQueryParameters.$at,
                     IntersightDefaultQueryParameters.$tags);
+            // the LicenseAPI is pretty clumsy with "no result" responses -- it may or may not return
+            // an LicenseLicenseInfoList object in the reponse, and even then, the actual list reference
+            // may be null. We're going to wrap all that here so the rest of our code doesn't have to
+            // deal with it.
+            if (response.getData() != null) {
+                if (response.getData().getResults() != null) {
+                    return response.getData().getResults();
+                }
+            }
+            // log for posterity -- it's not an error, but we want to know why the empty collection
+            // is getting returned instead of an actual response
+            logger.info("getLicenseLicenseInfosList returned an empty response with status {}.", response.getStatusCode());
+            return Collections.emptyList();
         } catch (ApiException e) {
             logger.error("Error Getting License using Intersight API. Query TraceId {} ",
                     e.getResponseHeaders() != null ?
                             e.getResponseHeaders().get(INTERSIGHT_TRACEID) : "Unknown");
             throw e;
         }
-        return licenseList;
     }
 
     /**
@@ -134,7 +152,12 @@ public class IntersightLicenseClient {
     public LicenseLicenseInfo updateLicenseLicenseInfo(String moid, LicenseLicenseInfo updatedLicenseInfo) throws IOException, ApiException {
         ApiClient apiClient = getApiClient();
         LicenseApi licenseApi = new LicenseApi(apiClient);
-        return licenseApi.updateLicenseLicenseInfo(moid, updatedLicenseInfo, null);
+        ApiResponse<LicenseLicenseInfo> responseInfo = licenseApi.patchLicenseLicenseInfoWithHttpInfo(moid, updatedLicenseInfo, null);
+        LicenseLicenseInfo licenseInfo = responseInfo.getData();
+        logger.info("Response license: traceid {} moid {} license count {}}",
+                IntersightLicenseUtils.getTraceIdHeader(responseInfo.getHeaders()),
+                licenseInfo.getMoid(), licenseInfo.getLicenseCount());
+        return licenseInfo;
     }
 
     /**
