@@ -300,7 +300,6 @@
         <profile>
             <id>extractor</id>
             <modules>
-                <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.topology.graph</module>

@@ -8,7 +8,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -33,8 +32,6 @@ import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.extractor.topology.SupplyChainEntity.Builder;
-import com.vmturbo.proactivesupport.DataMetricCounter;
-import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.processor.api.EntitiesListener;
@@ -44,25 +41,6 @@ import com.vmturbo.topology.processor.api.EntitiesListener;
  * topology.
  */
 public class TopologyEntitiesListener implements EntitiesListener {
-
-    private static final DataMetricHistogram PROCESSING_HISTOGRAM = DataMetricHistogram.builder()
-            .withName("xtr_topology_processing_duration_seconds")
-            .withHelp("Duration of topology processing (reading, fetching related data, and writing),"
-                    + " broken down by stage. Only for topologies that fully processed without errors.")
-            .withLabelNames("stage")
-            // 10s, 1min, 3min, 7min, 10min, 15min, 30min
-            // The SLA is to process everything in under 10 minutes.
-            .withBuckets(10, 60, 180, 420, 600, 900, 1800)
-            .build()
-            .register();
-
-    private static final DataMetricCounter  PROCESSING_ERRORS_CNT = DataMetricCounter.builder()
-            .withName("xtr_topology_processing_error_count")
-            .withHelp("Errors encountered during topology processing, broken down by high level type.")
-            .withLabelNames("type")
-            .build()
-            .register();
-
     private final Logger logger = LogManager.getLogger();
 
     private final List<Supplier<? extends ITopologyWriter>> writerFactories;
@@ -142,13 +120,6 @@ public class TopologyEntitiesListener implements EntitiesListener {
                 Thread.currentThread().interrupt();
             }
             elapsedTimer.close();
-            // Record all the stages into the Prometheus metric.
-            timer.visit((stageName, stopped, totalDurationMs) -> {
-                if (stopped) {
-                    PROCESSING_HISTOGRAM.labels(stageName)
-                            .observe((double)TimeUnit.MILLISECONDS.toSeconds(totalDurationMs));
-                }
-            });
             timer.info(String.format("Processed %s entities", successCount), Detail.STAGE_SUMMARY);
         }
 
@@ -199,15 +170,12 @@ public class TopologyEntitiesListener implements EntitiesListener {
             } catch (CommunicationException | TimeoutException e) {
                 logger.error("Error occurred while receiving topology " + topologyId
                         + " for context " + topologyContextId, e);
-                PROCESSING_ERRORS_CNT.labels("communication").increment();
             } catch (InterruptedException e) {
                 logger.error("Thread interrupted receiving topology " + topologyId
                         + " for context " + topologyContextId, e);
-                PROCESSING_ERRORS_CNT.labels("interrupted").increment();
             } catch (RuntimeException e) {
                 logger.error("Unexpected error occurred while receiving topology " + topologyId
                         + " for context " + topologyContextId, e);
-                PROCESSING_ERRORS_CNT.labels(e.getClass().getSimpleName()).increment();
                 throw e; // Re-throw the exception to abort reading the topology.
             }
             return entityCount;

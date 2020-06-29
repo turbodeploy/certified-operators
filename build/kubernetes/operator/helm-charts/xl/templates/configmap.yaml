@@ -429,10 +429,6 @@ data:
       extractor:
         dbHost: timescaledb
         dbPort: 5432
-{{- if eq (index .Values "grafana" "grafana.ini" "database" "type") "postgres"}}
-        grafanaDb:
-{{ toYaml (index .Values "grafana" "grafana.ini" "database") | indent 12 }}
-{{- end }}
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}

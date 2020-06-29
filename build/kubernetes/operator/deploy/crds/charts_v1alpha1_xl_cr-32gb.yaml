@@ -22,20 +22,6 @@ spec:
     externalDbIP: 10.0.2.15
     externalTimescaleDBIP: 10.0.2.15
 
-  grafana:
-    # Grafana is disabled by default. To enable it, uncomment:
-    #enabled: true
-    adminPassword: admin
-    grafana.ini:
-      database:
-        # Store data in sqlite3 (no persistence across restarts) by default. To persist, uncomment:
-        #type: postgres
-
-        # The password. TODO - figure out the correct/ideal way to deploy this without risking
-        # losing/resetting the password on upgrade.
-        # See: https://github.com/helm/charts/issues/5167
-        password: grafana
-
   # Component selector - Probes
   actionscript:
     enabled: true

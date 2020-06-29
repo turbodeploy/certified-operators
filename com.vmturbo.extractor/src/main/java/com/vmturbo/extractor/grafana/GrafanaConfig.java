@@ -59,7 +59,7 @@ public class GrafanaConfig {
      */
     @Bean
     public Grafanon grafanon() {
-        GrafanonConfig config = new GrafanonConfig(() -> extractorDbConfig.grafanaQueryEndpoint().getConfig())
+        GrafanonConfig config = new GrafanonConfig(() -> extractorDbConfig.ingesterEndpoint().getConfig())
                 .setTimescaleDisplayName(datasourceName)
                 .setErrorSleepInterval(grafanaErrorSleepIntervalSec, TimeUnit.SECONDS);
         return new Grafanon(config, dashboardsOnDisk(), grafanaClient());
