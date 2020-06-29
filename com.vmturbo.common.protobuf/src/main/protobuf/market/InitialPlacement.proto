@@ -12,7 +12,7 @@ message FindInitialPlacementRequest {
 }
 
 message InitialPlacementBuyer {
-    // Id of buyer.
+    // The id of reservation entity.
     optional int64 buyerId = 1;
 
     // A list of shopping lists.
@@ -25,6 +25,8 @@ message InitialPlacementBuyer {
         // list of commodities bought group
         optional .topology.TopologyEntityDTO.CommoditiesBoughtFromProvider commoditiesBoughtFromProvider = 2;
     }
+    // The reservation id, a reservation may contain many reservation entities.
+    optional int64 reservationId = 3;
 }
 
 message InitialPlacementBuyerPlacementInfo {

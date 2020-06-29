@@ -313,28 +313,25 @@ public class InitialPlacementFinder {
      */
     public void clearDeletedBuyersImpact(@Nonnull final Economy economy) {
         BiMap<Long, Trader> traderByOid = economy.getTopology().getTraderOids().inverse();
-        Set<Trader> removeBuyers = new HashSet<>();
+        Set<Long> removeBuyers = new HashSet<>();
         for (long oid : buyersToBeDeleted) {
             Trader removeBuyer = traderByOid.get(oid);
             if (removeBuyer != null) {
-                removeBuyers.add(removeBuyer);
+                removeBuyers.add(oid);
             }
         }
-        for (Trader buyer : removeBuyers) {
-            for (ShoppingList sl : economy.getMarketsAsBuyer(buyer).keySet()) {
-                Trader supplier = sl.getSupplier();
-                if (supplier != null) { // get rid of the buyer's quantity from supplier
-                    Move.updateQuantities(economy, sl, supplier,
-                            FunctionalOperatorUtil.SUB_COMM);
-                }
-            }
+        rollbackPlacedTraders(economy, removeBuyers, traderByOid);
+        for (long removeOid : removeBuyers) {
+            Trader buyer = traderByOid.get(removeOid);
             // remove deleted reservation entities from economy and topology
             economy.removeTrader(buyer);
             economy.getTopology().getModifiableTraderOids().remove(buyer);
         }
-        logger.info("Removed reservation entities {}", removeBuyers.stream()
-                .map(Trader::getDebugInfoNeverUseInCode)
-                .collect(Collectors.toList()));
+
+        if (!removeBuyers.isEmpty()) {
+            logger.info("Removed reservation entities oid {}", removeBuyers.stream()
+                    .collect(Collectors.toList()));
+        }
     }
 
     /**
@@ -345,14 +342,20 @@ public class InitialPlacementFinder {
      * is the {@link InitialPlacementFinderResult}
      */
     public Table<Long, Long, InitialPlacementFinderResult> findPlacement(@Nonnull final List<InitialPlacementBuyer> buyers) {
+        if (buyers.isEmpty()) {
+            return HashBasedTable.create();
+        }
         synchronized (economyLock) {
             // <BuyerId - ShoppingListId - ProviderId> Table
             Table<Long, Long, InitialPlacementFinderResult> reservationResult = HashBasedTable.create();
             if (state == PlacementFinderState.NOT_READY) {
                 // set result with global failure in response
+                logger.info("Market is not ready for reservation");
                 return reservationResult;
             }
 
+            Set<Long> reservationId = buyers.stream().map(InitialPlacementBuyer::getReservationId).collect(
+                    Collectors.toSet());
             List<TraderTO> reservationTraders = new ArrayList<>();
             cachedEconomy.resetMarketsPopulatedFlag();
             // buyers constructed using the cachedCommTypeMap, which has to be the same map for
@@ -367,18 +370,50 @@ public class InitialPlacementFinder {
             // NOTE: reservation id is not passed into traderTO
             reservationTraders.stream().forEach(
                     trader -> ProtobufToAnalysis.addTrader(cachedEconomy.getTopology(), trader));
+            logger.debug("Adding previous reservation entities {}", reservationTraders.stream()
+                    .map(TraderTO::getDebugInfoNeverUseInCode).collect(Collectors.toSet()));
 
             cachedEconomy.composeMarketSubsetForPlacement();
             cachedEconomy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
+            logger.info("Running placement for reservation {}", reservationId);
             PlacementResults placementResults = Placement.placementDecisions(cachedEconomy);
 
             final Map<Long, ShoppingList> slOidToSlMap =
                     cachedEconomy.getTopology().getShoppingListOids().inverse();
-            final Map<Trader, Long> traderToTraderOid = cachedEconomy.getTopology().getTraderOids();
+            final BiMap<Trader, Long> traderToTraderOid = cachedEconomy.getTopology().getTraderOids();
             final Map<Long, Map<ShoppingList, Long>> tIdToSL = new HashMap<>();
 
-            for (TraderTO trader : reservationTraders) {
+            logger.info("Start processing reservation {} result", reservationId);
+            // process failed placement and pass information to caller
+            if (!placementResults.getUnplacedTraders().isEmpty()) {
+                reservationResult = buildReservationFailureInfo(
+                        placementResults, cachedEconomy, traderToTraderOid, commTypeToSpecMap, reservationTraders);
+            }
+            // A set of traders that come from reservations that are not fully successful.
+            // This list contains all traders from partial successful reservation or traders from
+            // completely failed reservation.
+            Set<Long> tradersToBeRolledBack = new HashSet<>();
+            if (!reservationResult.isEmpty()) {
+                // find reservations that contain at least 1 failed buyer
+                Map<Long, List<InitialPlacementBuyer>> buyersByReservationId = buyers.stream().collect(
+                        Collectors.groupingBy(InitialPlacementBuyer::getReservationId));
+                Set<Long> failedBuyerOids = reservationResult.rowKeySet();
+                for (Map.Entry<Long, List<InitialPlacementBuyer>> reservationBuyers : buyersByReservationId.entrySet()) {
+                    // check for each reservation, if any buyer failed
+                    List<InitialPlacementBuyer> allBuyersPerReservation = reservationBuyers.getValue();
+                    if (allBuyersPerReservation.stream().anyMatch(b -> failedBuyerOids.contains(b.getBuyerId()))) {
+                        allBuyersPerReservation.forEach(b -> {
+                            tradersToBeRolledBack.add(b.getBuyerId());
+                        });
+                    }
+                }
+                rollbackPlacedTraders(cachedEconomy, tradersToBeRolledBack, traderToTraderOid.inverse());
+                logger.info("Rolled back placement for failed reservation {}", buyersByReservationId.keySet());
+            }
+            Set<TraderTO> traderInFullySuccessfulReservation = reservationTraders.stream()
+                    .filter(t -> !tradersToBeRolledBack.contains(t.getOid())).collect(Collectors.toSet());
+            for (TraderTO trader : traderInFullySuccessfulReservation) {
                 for (ShoppingListTO slTO : trader.getShoppingListsList()) {
                     if (slOidToSlMap.containsKey(slTO.getOid())) {
                         ShoppingList sl = slOidToSlMap.get(slTO.getOid());
@@ -401,15 +436,36 @@ public class InitialPlacementFinder {
                 }
             }
             reservationBuyerToShoppingLists.putAll(tIdToSL);
-            // process failed placement and pass information to caller
-            if (!placementResults.getUnplacedTraders().isEmpty()) {
-                Table<Long, Long, InitialPlacementFinderResult> failedResult = buildReservationFailureInfo(
-                        placementResults, cachedEconomy, traderToTraderOid, commTypeToSpecMap);
-                failedResult.cellSet().forEach(
-                        c -> reservationResult.put(c.getRowKey(), c.getColumnKey(), c.getValue()));
-            }
             return reservationResult;
         }
+    }
+
+    /**
+     * Check if traders are already placed in economy. If so, roll back shopping list to get rid of
+     * the utilization impact on providers.
+     *
+     * @param economy the economy
+     * @param rollBackTraders a set of trader oids
+     * @param traderByOid the trader by oid map in economy
+     */
+    private void rollbackPlacedTraders(@Nonnull Economy economy,
+                                       @Nonnull final Set<Long> rollBackTraders,
+                                       @Nonnull final Map<Long, Trader> traderByOid) {
+        for (long oid : rollBackTraders) {
+            Trader trader = traderByOid.get(oid);
+            if (trader != null) {
+                for (ShoppingList sl : economy.getMarketsAsBuyer(trader).keySet()) {
+                    // roll back the already placed shopping list
+                    Trader supplier = sl.getSupplier();
+                    if (supplier != null) {
+                        Move.updateQuantities(economy, sl, supplier, FunctionalOperatorUtil.SUB_COMM);
+                        sl.move(null);
+                        sl.setMovable(false);
+                    }
+                }
+            }
+        }
+        return;
     }
 
     /**
@@ -420,17 +476,24 @@ public class InitialPlacementFinder {
      * @param economy the reservation economy
      * @param traderToOid trader to its oid mapping
      * @param commTypeToSpecMap  a bidirectional map of TopologyDTO.CommodityType and CommoditySpecification's type
+     * @param reservationTraders a list of reservation traders
      * @return a table of buyer oid, shopping list oid and {@link InitialPlacementFinderResult}
      */
     public Table<Long, Long, InitialPlacementFinderResult> buildReservationFailureInfo(@Nonnull final PlacementResults result,
             @Nonnull final Economy economy,
             @Nonnull final Map<Trader, Long> traderToOid,
-            @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap) {
+            @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
+            @Nonnull final List<TraderTO> reservationTraders) {
         Table<Long, Long, InitialPlacementFinderResult> failureInfo = HashBasedTable.create();
+        Set<Long> reservationTraderOids = reservationTraders.stream().map(TraderTO::getOid).collect(Collectors.toSet());
         // iterate unplaced trader and its quote tracker collection to figure out the commodity that exceeds
         // the availability as well as its closest seller that can provide max quantity for that commodity
         for (Map.Entry<Trader, Collection<QuoteTracker>> entry : result.getUnplacedTraders().entrySet()) {
             Long unplacedTraderOid = traderToOid.get(entry.getKey());
+            // make sure the unplaced trader is indeed from reservation request
+            if (unplacedTraderOid == null || !reservationTraderOids.contains(unplacedTraderOid)) {
+                continue;
+            }
             for (QuoteTracker quoteTracker : entry.getValue()) {
                 // infiniteQuotesInfo contains the commodity specification to IndividualCommodityQuote mapping
                 // IndividualCommodityQuote is a wrapper for a shoppinglist's quote and max quantity

@@ -321,7 +321,7 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                 for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
                     long buyerId = reservationInstance.getEntityId();
                     InitialPlacementBuyer.Builder intialPlacementBuyerBuilder =
-                            InitialPlacementBuyer.newBuilder().setBuyerId(buyerId);
+                            InitialPlacementBuyer.newBuilder().setBuyerId(buyerId).setReservationId(reservation.getId());
                     for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
                         intialPlacementBuyerBuilder.addInitialPlacementCommoditiesBoughtFromProvider(
                                 InitialPlacementCommoditiesBoughtFromProvider.newBuilder()
@@ -391,8 +391,7 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                         .newBuilder().clearProviderId()
                         .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
                                 .CommodityType.STORAGE_PROVISIONED_VALUE, diskSize))
-                        .setProviderType(EntityType.STORAGE_VALUE)
-                        .setPlacementInfoId(IdentityGenerator.next()).build());
+                        .setProviderType(EntityType.STORAGE_VALUE).build());
             }
 
             PlacementInfo.Builder computePlacementInfo = PlacementInfo.newBuilder().clearProviderId()
@@ -400,8 +399,7 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                             .CommodityType.CPU_PROVISIONED_VALUE, numOfCpu * cpuSpeed))
                     .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
                             .CommodityType.MEM_PROVISIONED_VALUE, memorySize))
-                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .setPlacementInfoId(IdentityGenerator.next());
+                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE);
 
             for (ReservationConstraintInfo constraintInfo
                     : reservation.getConstraintInfoCollection()
@@ -438,7 +436,10 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                         .newBuilder().setEntityId(IdentityGenerator.next())
                         .setName(reservation.getName() + "_" + entityNameSuffix);
                 entityNameSuffix++;
-                reservationInstanceBuilder.addAllPlacementInfo(placementInfos);
+                placementInfos.forEach(p -> {
+                    reservationInstanceBuilder.addPlacementInfo(p.toBuilder()
+                            .setPlacementInfoId(IdentityGenerator.next()).build());
+                });
                 reservationTemplateBuilder.addReservationInstance(ReservationInstance
                         .newBuilder(reservationInstanceBuilder.build()));
             }
