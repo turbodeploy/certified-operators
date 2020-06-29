@@ -192,7 +192,7 @@ public class SdkToTopologyEntityConverterTest {
             if (c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
                 assertEquals(10000, c.getMaxAmountForConsumer(), DELTA);
                 assertEquals(100, c.getMinAmountForConsumer(), DELTA);
-                assertEquals(3, c.getRatioDependency().getMaxRatio(), DELTA);
+                assertEquals(3, c.getRatioDependency().getRatio(), DELTA);
             }
         });
         // check for storageTier storageAmount checkMin true constraint
