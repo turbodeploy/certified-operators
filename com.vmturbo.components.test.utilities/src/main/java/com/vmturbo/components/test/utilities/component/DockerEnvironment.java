@@ -173,6 +173,8 @@ public class DockerEnvironment {
             .put("MEDIATION_VCD_DEBUG_PORT", "8000")
             .put("MEDIATION_MSSQL_PORT", "8080")
             .put("MEDIATION_MSSQL_DEBUG_PORT", "8000")
+            .put("MEDIATION_UDT_PORT", "8080")
+            .put("MEDIATION_UDT_DEBUG_PORT", "8000")
             .put("MEDIATION_ACTIONSCRIPT_PORT", "8080")
             .put("MEDIATION_ACTIONSCRIPT_DEBUG_PORT", "8000")
             .put("MEDIATION_WMI_PORT", "8080")

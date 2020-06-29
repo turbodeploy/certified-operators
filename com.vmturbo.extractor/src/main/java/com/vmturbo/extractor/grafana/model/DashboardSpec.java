@@ -105,7 +105,7 @@ public class DashboardSpec {
         private JsonObject dashboard;
 
         @SerializedName("folderId")
-        private long folderId = 1;
+        private Long folderId = null;
 
         // Overwrite false by default - we will set the latest version explicitly.
         @SerializedName("overwrite")
