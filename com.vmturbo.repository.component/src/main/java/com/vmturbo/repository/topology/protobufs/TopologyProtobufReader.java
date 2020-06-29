@@ -83,6 +83,11 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
                 if (areProjectedEntities.get()) {
                     try {
                         parsedEntity = GSON.fromJson((String)jsonObj, ProjectedTopologyEntity.class);
+                        if (parsedEntity.equals(ProjectedTopologyEntity.getDefaultInstance())) {
+                            // Try parsing the old format - simple TopologyEntityDTOs.
+                            areProjectedEntities.set(false);
+                            logger.warn("Likely reading projected topology {} stored in older format (without price index)!", topologyId);
+                        }
                     } catch (JsonParseException e) {
                         // Try parsing the old format - simple TopologyEntityDTOs.
                         areProjectedEntities.set(false);
