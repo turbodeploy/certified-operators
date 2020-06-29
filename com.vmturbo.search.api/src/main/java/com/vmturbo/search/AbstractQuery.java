@@ -1,5 +1,6 @@
 package com.vmturbo.search;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -26,6 +27,7 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.GroupField;
+import org.jooq.OrderField;
 import org.jooq.Record;
 import org.jooq.RecordMapper;
 import org.jooq.Result;
@@ -61,7 +63,7 @@ import com.vmturbo.search.mappers.EntitySeverityMapper;
 import com.vmturbo.search.mappers.EntityStateMapper;
 import com.vmturbo.search.mappers.EntityTypeMapper;
 import com.vmturbo.search.mappers.EnvironmentTypeMapper;
-import com.vmturbo.search.mappers.GroupTypeMapper;
+import com.vmturbo.search.metadata.SearchEntityMetadata;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
@@ -75,11 +77,6 @@ public abstract class AbstractQuery {
         searchEntityTable = SearchEntity.SEARCH_ENTITY;
 
     /**
-     * String representing request type {@link com.vmturbo.api.enums.GroupType} or {@link com.vmturbo.api.enums.EntityType}.
-     */
-    private String type;
-
-    /**
      * Mapping of common dtos to database columns.
      *
      * <p>TODO: Seems like this mapping should ideally be part of the search metadata.
@@ -89,26 +86,24 @@ public abstract class AbstractQuery {
         new HashMap<FieldApiDTO, Field>() {{
             put(PrimitiveFieldApiDTO.oid(), SearchEntity.SEARCH_ENTITY.OID);
             put(PrimitiveFieldApiDTO.entityType(), SearchEntity.SEARCH_ENTITY.TYPE);
-            put(PrimitiveFieldApiDTO.groupType(), SearchEntity.SEARCH_ENTITY.TYPE);
             put(PrimitiveFieldApiDTO.name(), SearchEntity.SEARCH_ENTITY.NAME);
-            put(PrimitiveFieldApiDTO.severity(), SearchEntity.SEARCH_ENTITY.SEVERITY);
+            put(PrimitiveFieldApiDTO.entitySeverity(), SearchEntity.SEARCH_ENTITY.SEVERITY);
             put(PrimitiveFieldApiDTO.entityState(), SearchEntity.SEARCH_ENTITY.STATE);
             put(PrimitiveFieldApiDTO.environmentType(), SearchEntity.SEARCH_ENTITY.ENVIRONMENT);
             put(RelatedActionFieldApiDTO.actionCount(), SearchEntity.SEARCH_ENTITY.NUM_ACTIONS);
         }};
 
-
-    private static final Set<PrimitiveFieldApiDTO> ENUMERATED_PRIMITIVE_FIELDS = new HashSet<PrimitiveFieldApiDTO>(){{
-        add(PrimitiveFieldApiDTO.entityType());
-        add(PrimitiveFieldApiDTO.severity());
-        add(PrimitiveFieldApiDTO.entityState());
-        add(PrimitiveFieldApiDTO.environmentType());
-    }};
-
     /**
      * Provides functionality for reading Json.
      */
     private static ObjectMapper objectMapper = new ObjectMapper();
+
+
+    /**
+     * Provides a mapping from String -> SearchEntityMetadata.
+     */
+    public static final EnumMapper<SearchEntityMetadata> SEARCH_ENTITY_METADATA_ENUM_MAPPER =
+        new EnumMapper<>(SearchEntityMetadata.class);
 
     /**
      * A context for making read-only database queries.
@@ -126,8 +121,8 @@ public abstract class AbstractQuery {
      */
     private Map<SearchMetadataMapping, FieldApiDTO> requestedColumns = new HashMap<>();
 
-    protected AbstractQuery(@NonNull final DSLContext readOnlyDSLContext) {
-        this.readOnlyDSLContext = Objects.requireNonNull(readOnlyDSLContext);
+    protected AbstractQuery(final DSLContext readOnlyDSLContext) {
+        this.readOnlyDSLContext = readOnlyDSLContext;
     }
 
     private Map<FieldApiDTO, SearchMetadataMapping> getMetadataMapping() {
@@ -138,11 +133,25 @@ public abstract class AbstractQuery {
     }
 
     /**
+     * Get a metadata key, representing the entity type or group type being requested.
+     *
+     * @return a metadata key, representing the entity type or group type being requested.
+     */
+    protected abstract String getMetadataKey();
+
+    /**
      * Retrieves a metadata mapping based on a metadata key from the API request.
      *
      * @return a mapping of FieldApiDTO -> metadata mapping describing that field
      */
-    protected abstract Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping();
+    @VisibleForTesting
+    Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping() {
+        String metadataMappingKey = getMetadataKey();
+        return SEARCH_ENTITY_METADATA_ENUM_MAPPER.valueOf(metadataMappingKey)
+            .map(SearchEntityMetadata::getMetadataMappingMap)
+            .orElseThrow(() -> new IllegalArgumentException(
+                "No data for metadataMappingKey: " + metadataMappingKey));
+    }
 
     protected SearchQueryPaginationResponse<SearchQueryRecordApiDTO> readQueryAndExecute() {
         logger.info("SearchQueryRecordApiDTO QUERYING");
@@ -248,10 +257,11 @@ public abstract class AbstractQuery {
                 fieldValue = fieldApiDto.value((String)value);
                 break;
             case ENUM:
+                // TODO: Update with group types
                 if (fieldApiDto.equals(PrimitiveFieldApiDTO.environmentType())) {
                     fieldValue = fieldApiDto.enumValue(
                         readEnumRecordAndMap(record, columnAlias, EnvironmentTypeMapper.fromSearchSchemaToApiFunction));
-                } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.severity())) {
+                } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entitySeverity())) {
                     fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
                         columnAlias,
                         EntitySeverityMapper.fromSearchSchemaToApiFunction));
@@ -263,10 +273,6 @@ public abstract class AbstractQuery {
                     fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
                         columnAlias,
                         EntityTypeMapper.fromSearchSchemaToApiFunction));
-                } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.groupType())) {
-                    fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
-                            columnAlias,
-                            GroupTypeMapper.fromSearchSchemaToApiFunction));
                 } else {
                     fieldValue = fieldApiDto.value((String)value);
                 }
@@ -330,6 +336,7 @@ public abstract class AbstractQuery {
     Set<Field> buildNonCommonFields() {
         return getSelectedFields()
             .stream()
+            .filter(entityField -> getMetadataMapping().containsKey(entityField))
             .map(entityField -> this.buildAndTrackSelectFieldFromEntityType(entityField) )
             .collect(Collectors.toSet());
     }
@@ -345,6 +352,7 @@ public abstract class AbstractQuery {
         return new HashSet<Field>() {{
             add(buildAndTrackSelectFieldFromEntityType(PrimitiveFieldApiDTO.oid()));
             add(buildAndTrackSelectFieldFromEntityType(PrimitiveFieldApiDTO.name()));
+            add(buildAndTrackSelectFieldFromEntityType(PrimitiveFieldApiDTO.environmentType()));
         }};
     }
 
@@ -382,10 +390,6 @@ public abstract class AbstractQuery {
     @VisibleForTesting
     Field buildFieldForEntityField(@Nonnull FieldApiDTO apiField, @Nonnull boolean aliasColumn) {
         final SearchMetadataMapping mapping = getMetadataMapping().get(apiField);
-        if (mapping == null) {
-            throw new IllegalArgumentException("Field " + apiField.toString()
-                    + " does not apply to selected type " + this.type );
-        }
         final String columnName = mapping.getColumnName();
         final String jsonKey = mapping.getJsonKeyName();
         final String columnAlias = getColumnAlias(columnName, jsonKey);
@@ -452,7 +456,7 @@ public abstract class AbstractQuery {
 
         if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityType())) {
             throw new IllegalArgumentException("EntityType condition should only exist on Select Query");
-        } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.severity())) {
+        } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entitySeverity())) {
             apiEnumMapper = new EnumMapper(EntitySeverity.class);
             enumMappingFunction = EntitySeverityMapper.fromApiToSearchSchemaFunction;
         } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityState())) {
@@ -497,6 +501,7 @@ public abstract class AbstractQuery {
             }
         }
         return conditions;
+
     }
 
     /**
@@ -508,14 +513,10 @@ public abstract class AbstractQuery {
      */
     private Condition parseCondition(@Nonnull TextConditionApiDTO entityCondition, @Nonnull Field field) {
         String value = entityCondition.getValue();
-        FieldApiDTO fieldApiDTO = entityCondition.getField();
-        List<String> parsedValues = parseTextAndInclusionConditions(fieldApiDTO, Collections.singletonList(value));
-        String caseInsensitiveRegex = "(?i)";
-        return isEnumeratedField(fieldApiDTO) ? field.eq(parsedValues.get(0)) : field.likeRegex(caseInsensitiveRegex.concat(parsedValues.get(0)));
-    }
+        List<String> parsedValues = parseTextAndInclusionConditions(entityCondition.getField(), Collections.singletonList(value));
 
-    private boolean isEnumeratedField(FieldApiDTO field) {
-        return ENUMERATED_PRIMITIVE_FIELDS.contains(field);
+        String caseInsensitiveRegex = "(?i)";
+        return field.likeRegex(caseInsensitiveRegex.concat(parsedValues.get(0)));
     }
 
     /**
@@ -592,15 +593,11 @@ public abstract class AbstractQuery {
         return condition;
     }
 
-    private List<GroupField> buildGroupByClauses() {
+    private Collection<? extends OrderField<?>> buildOrderByClauses() {
         return Collections.emptyList();
     }
 
-    protected String getType() {
-        return type;
-    }
-
-    protected void setType(String type) {
-        this.type = type;
+    private List<GroupField> buildGroupByClauses() {
+        return Collections.emptyList();
     }
 }

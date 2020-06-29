@@ -565,7 +565,7 @@ public enum SearchEntityMetadata {
                         .put(PrimitiveFieldApiDTO.oid(), SearchMetadataMapping.PRIMITIVE_OID)
                         .put(PrimitiveFieldApiDTO.entityType(), SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE)
                         .put(PrimitiveFieldApiDTO.name(), SearchMetadataMapping.PRIMITIVE_NAME)
-                        .put(PrimitiveFieldApiDTO.severity(), SearchMetadataMapping.PRIMITIVE_SEVERITY)
+                        .put(PrimitiveFieldApiDTO.entitySeverity(), SearchMetadataMapping.PRIMITIVE_SEVERITY)
                         .put(PrimitiveFieldApiDTO.entityState(), SearchMetadataMapping.PRIMITIVE_STATE)
                         .put(PrimitiveFieldApiDTO.environmentType(), SearchMetadataMapping.PRIMITIVE_ENVIRONMENT_TYPE)
                         // RELATED ACTION
