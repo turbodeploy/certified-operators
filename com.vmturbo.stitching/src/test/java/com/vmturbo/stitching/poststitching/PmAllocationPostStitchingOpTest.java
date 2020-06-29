@@ -135,7 +135,7 @@ public class PmAllocationPostStitchingOpTest {
 
         final TopologyEntity testTE = makeTopologyEntity(requiredCommodities);
         operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        assertTrue(resultBuilder.getChanges().isEmpty());
+        assertTrue(resultBuilder.getChanges().size() == 1);
     }
 
     @Test

@@ -17,7 +17,7 @@ import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.enums.GroupType;
 
 /**
- * Unit tests verify that all fields in SearchEntityMetadataMapping for different field types
+ * Unit tests verify that all fields in {@link SearchMetadataMapping} for different field types
  * are set as expected. This is needed to ensure correct data ingestion and search query.
  */
 public class SearchGroupMetadataTest {

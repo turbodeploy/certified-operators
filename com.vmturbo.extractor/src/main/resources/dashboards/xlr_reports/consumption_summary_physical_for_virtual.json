@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592517894707,
+  "iteration": 1593178456812,
   "links": [],
   "panels": [
     {
@@ -613,16 +613,30 @@
   "templating": {
     "list": [
       {
+        "hide": 2,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "DB",
+        "options": [],
+        "query": "postgres",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
         "allValue": "'0'",
-        "datasource": "PostgreSQL-fico",
-        "definition": "select name as __text, oid as __value from entity where entity.type = 'GROUP' and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) and $__timeTo() >= first_seen group by name, oid order by 1",
+        "datasource": "$DB",
+        "definition": "select name as __text, oid as __value from entity where entity.type = 'GROUP' and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) group by name, oid order by 1",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "Group",
         "options": [],
-        "query": "select name as __text, oid as __value from entity where entity.type = 'GROUP' and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) and $__timeTo() >= first_seen group by name, oid order by 1",
+        "query": "select name as __text, oid as __value from entity where entity.type = 'GROUP' and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) group by name, oid order by 1",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
@@ -632,19 +646,6 @@
         "tagsQuery": "",
         "type": "query",
         "useTags": false
-      },
-      {
-        "hide": 2,
-        "includeAll": false,
-        "label": null,
-        "multi": false,
-        "name": "DB",
-        "options": [],
-        "query": "postgres",
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "type": "datasource"
       }
     ]
   },

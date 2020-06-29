@@ -182,7 +182,7 @@ public class PlanActionStore implements ActionStore {
         this.actionPlanIdByActionPlanType = Maps.newHashMap();
         this.recommendationTimeByActionPlanId = Maps.newHashMap();
         this.topologyContextId = topologyContextId;
-        this.severityCache = new EntitySeverityCache(supplyChainService, repositoryService, false);
+        this.severityCache = new EntitySeverityCache(repositoryService, false);
         this.entitySettingsCache = entitySettingsCache;
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;

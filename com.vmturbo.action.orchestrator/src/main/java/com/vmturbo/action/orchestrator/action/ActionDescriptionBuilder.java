@@ -7,7 +7,10 @@ import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyEntityTyp
 import java.text.CharacterIterator;
 import java.text.MessageFormat;
 import java.text.StringCharacterIterator;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -25,6 +28,7 @@ import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -36,6 +40,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -90,6 +95,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_DELETE("Delete wasted file ''{0}'' from {1} to free up {2}"),
         ACTION_DESCRIPTION_DELETE_CLOUD_NO_ACCOUNT("Delete Unattached {0} Volume {1}"),
         ACTION_DESCRIPTION_DELETE_CLOUD("Delete Unattached {0} Volume {1} from {2}"),
+        ACTION_DESCRIPTION_ATOMIC_RESIZE("Resize on {0} for {1}"),
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RESIZE_TRIGGER_TRADER("Resize {0} {1} for {2} from {3} to {4} due to {5} {6}"),
@@ -153,6 +159,8 @@ public class ActionDescriptionBuilder {
                 return getReconfigureActionDescription(entitiesSnapshot, recommendation);
             case PROVISION:
                 return getProvisionActionDescription(entitiesSnapshot, recommendation);
+            case ATOMICRESIZE:
+                return getAtomicResizeActionDescription(entitiesSnapshot, recommendation);
             case RESIZE:
                 return getResizeActionDescription(entitiesSnapshot, recommendation);
             case ACTIVATE:
@@ -166,6 +174,62 @@ public class ActionDescriptionBuilder {
             default:
                 throw new UnsupportedActionException(recommendation);
         }
+    }
+
+    /**
+     * Builds the description for a Atomic Resize action.
+     *
+     * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
+     *                                                      information.
+     * @param recommendation the Action DTO
+     * @return The Atomic Resize action description.
+     */
+    private static String getAtomicResizeActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                           @Nonnull final ActionDTO.Action recommendation) {
+        AtomicResize atomicResize = recommendation.getInfo().getAtomicResize();
+
+        // Target entity for the resize
+        long entityId = atomicResize.getExecutionTarget().getId();
+        Optional<ActionPartialEntity> optEntity = entitiesSnapshot.getEntityFromOid(entityId);
+        if (!optEntity.isPresent()) {
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getAtomicResizeActionDescription ", "entityId", entityId);
+            return "";
+        }
+
+        ActionPartialEntity targetEntity = optEntity.get();
+
+        List<ResizeInfo> resizeInfos = atomicResize.getResizesList();
+
+        StringBuilder formattedSourceEntities = new StringBuilder();
+        StringBuilder formattedCommodityTypes = new StringBuilder();
+
+        Set<TopologyDTO.CommodityType> commodityTypes = new HashSet<>();
+        for (ResizeInfo resize : resizeInfos) {
+            commodityTypes.add(resize.getCommodityType());
+
+            // target entity in the resize
+            Optional<ActionPartialEntity> sourceEntity =
+                        entitiesSnapshot.getEntityFromOid(resize.getTarget().getId());
+            if (sourceEntity.isPresent()) {
+                if (formattedSourceEntities.length() > 0) {
+                        formattedSourceEntities.append(',');
+                }
+                formattedSourceEntities.append(beautifyEntityTypeAndName(sourceEntity.get()));
+            }
+        }
+
+        for (TopologyDTO.CommodityType commType : commodityTypes) {
+            if (formattedCommodityTypes.length() > 0) {
+                formattedCommodityTypes.append(',');
+            }
+            formattedCommodityTypes.append(beautifyCommodityType(commType));
+        }
+
+        ActionMessageFormat messageFormat = ActionMessageFormat.ACTION_DESCRIPTION_ATOMIC_RESIZE;
+        return messageFormat.format(
+                beautifyEntityTypeAndName(targetEntity),
+                formattedCommodityTypes.toString()
+        );
     }
 
     /**
@@ -642,7 +706,7 @@ public class ActionDescriptionBuilder {
      * @param capacity commodity capacity which needs to format.
      * @return a string after format.
      */
-    private static String formatResizeActionCommodityValue(
+    static String formatResizeActionCommodityValue(
             @Nonnull final CommodityDTO.CommodityType commodityType,
             final int entityType, final double capacity) {
         // Convert capacity of the commodities in this map into human readable format and round the number

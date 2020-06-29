@@ -14,6 +14,7 @@ import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
@@ -70,6 +71,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadActionConstraintsStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadAtomicActionSpecsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadCloudCostDataStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
@@ -141,6 +143,8 @@ public class LivePipelineFactory {
 
     private final ActionConstraintsUploader actionConstraintsUploader;
 
+    private final ActionMergeSpecsUploader actionMergeSpecsUploader;
+
     private final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector;
 
     private final EphemeralEntityEditor ephemeralEntityEditor;
@@ -175,6 +179,7 @@ public class LivePipelineFactory {
                                @Nonnull final LicenseCheckClient licenseCheckClient,
                                @Nonnull final ConsistentScalingManager consistentScalingManager,
                                @Nonnull final ActionConstraintsUploader actionConstraintsUploader,
+                               @Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader,
                                @Nonnull final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector,
                                @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
                                @Nonnull final ReservationServiceBlockingStub reservationService) {
@@ -207,6 +212,7 @@ public class LivePipelineFactory {
         this.consistentScalingManager = Objects.requireNonNull(consistentScalingManager);
         this.actionConstraintsUploader = actionConstraintsUploader;
         this.requestCommodityThresholdsInjector = Objects.requireNonNull(requestCommodityThresholdsInjector);
+        this.actionMergeSpecsUploader = actionMergeSpecsUploader;
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
         this.reservationService = Objects.requireNonNull(reservationService);
     }
@@ -271,6 +277,7 @@ public class LivePipelineFactory {
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                         discoveredGroupUploader))
                 .addStage(new UploadActionConstraintsStage(actionConstraintsUploader))
+
                 .addStage(new CacheWritingConstructTopologyFromStitchingContextStage(constructTopologyStageCache))
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new UploadWorkflowsStage(discoveredWorkflowUploader))
@@ -296,6 +303,7 @@ public class LivePipelineFactory {
                 .addStage(new RequestCommodityThresholdsStage(requestCommodityThresholdsInjector))
                 .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
+                .addStage(new UploadAtomicActionSpecsStage(actionMergeSpecsUploader))
                 .addStage(new TopSortStage())
                 .addStage(new BroadcastStage(managers, mi))
                 .build();

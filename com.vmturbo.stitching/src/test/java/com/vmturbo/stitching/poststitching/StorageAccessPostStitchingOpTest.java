@@ -154,7 +154,7 @@ public class StorageAccessPostStitchingOpTest {
         final TopologyEntity te =
             TopologyEntityBuilder.newBuilder().withCommoditiesSold(emptyCommodity).build();
         diskArrayOp.performOperation(Stream.of(te), settingsMock, resultBuilder);
-        assertTrue(resultBuilder.getChanges().isEmpty());
+        assertTrue(resultBuilder.getChanges().size() == 1);
     }
 
     @Test

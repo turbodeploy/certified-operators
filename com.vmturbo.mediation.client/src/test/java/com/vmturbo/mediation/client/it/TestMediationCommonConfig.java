@@ -16,16 +16,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
-import com.vmturbo.common.protobuf.cluster.ComponentStatus.ComponentStatusNotification;
 import com.vmturbo.communication.WebsocketServerTransportManager;
 import com.vmturbo.communication.WebsocketServerTransportManager.TransportHandler;
-import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
 import com.vmturbo.sdk.server.common.SdkWebsocketServerTransportHandler;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
@@ -89,7 +88,7 @@ public class TestMediationCommonConfig {
     @Bean
     public ProbeStore probeStore() {
         return new RemoteProbeStore(keyValueStore(), identityProvider(),
-            stitchingOperationStore());
+            stitchingOperationStore(), new ActionMergeSpecsRepository());
     }
 
     @Bean

@@ -12,7 +12,6 @@ import static org.junit.Assert.assertThat;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -22,8 +21,6 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -238,55 +235,6 @@ public class TopologyGraphTest {
             graph.getProviders(1L).collect(Collectors.toList()),
             is(empty())
         );
-    }
-
-    /**
-     *
-     * <p>Build graph like below to test getting all consumers recursively.</p>
-     *
-     * <p>Graph:
-     *        App1 (6)
-     *        |
-     * VM2(5) VM1(4)
-     *   \    |  \
-     *    \   |   \
-     *     St1(2)  St2(3)
-     *     |       \
-     * Storage Controller (1)
-     * </p>
-     */
-    @Test
-    public void testGetAllConsumersRecursively() {
-        final TestGraphEntity.Builder onPremSC = TestGraphEntity.newBuilder(1L, ApiEntityType.STORAGECONTROLLER);
-        final TestGraphEntity.Builder onPremST1 =
-            TestGraphEntity.newBuilder(2L, ApiEntityType.STORAGE)
-                .addProviderId(1L);
-        final TestGraphEntity.Builder onPremST2 =
-            TestGraphEntity.newBuilder(3L, ApiEntityType.STORAGE)
-                .addProviderId(1L);
-        final TestGraphEntity.Builder onPremVM1 =
-            TestGraphEntity.newBuilder(4L, ApiEntityType.VIRTUAL_MACHINE)
-                .addProviderId(2L).addProviderId(3L);
-        final TestGraphEntity.Builder onPremVM2 =
-            TestGraphEntity.newBuilder(5L, ApiEntityType.VIRTUAL_MACHINE)
-                .addProviderId(2L);
-        final TestGraphEntity.Builder onPremApp1 =
-            TestGraphEntity.newBuilder(6L, ApiEntityType.APPLICATION)
-                .addProviderId(4L);
-        final Long2ObjectMap<TestGraphEntity.Builder> onPremTopologyMap = new Long2ObjectOpenHashMap<>();
-        onPremTopologyMap.put(1L, onPremSC);
-        onPremTopologyMap.put(2L, onPremST1);
-        onPremTopologyMap.put(3L, onPremST2);
-        onPremTopologyMap.put(4L, onPremVM1);
-        onPremTopologyMap.put(5L, onPremVM2);
-        onPremTopologyMap.put(6L, onPremApp1);
-
-        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(onPremTopologyMap);
-
-        Set<TestGraphEntity> expectedConsumers = Sets.newHashSet(
-            onPremST1.build(), onPremST2.build(), onPremVM1.build(), onPremVM2.build(), onPremApp1.build());
-        assertEquals(expectedConsumers, graph.getAllConsumersRecursively(
-            onPremSC.getOid()).collect(Collectors.toSet()));
     }
 
     @Test

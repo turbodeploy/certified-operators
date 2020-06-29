@@ -259,6 +259,7 @@ public class TopologyConfig {
                 licenseCheckClientConfig.licenseCheckClient(),
                 consistentScalingConfig.consistentScalingManager(),
                 actionsConfig.actionConstraintsUploader(),
+                actionsConfig.actionMergeSpecsUploader(),
                 requestCommodityThresholdsInjector(),
                 ephemeralEntityEditor(),
                 ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel())

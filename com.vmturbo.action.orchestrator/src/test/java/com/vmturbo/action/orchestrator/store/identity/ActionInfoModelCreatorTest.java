@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
@@ -29,6 +30,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -94,6 +96,7 @@ public class ActionInfoModelCreatorTest {
         actions.add(createBuyRi());
         actions.add(createDelete());
         actions.add(createScale());
+        actions.add(createAtomicResize());
         final Set<ActionTypeCase> uncoveredActionTypes = EnumSet.allOf(ActionTypeCase.class);
         for (ActionInfo action : actions) {
             uncoveredActionTypes.remove(action.getActionTypeCase());
@@ -190,6 +193,22 @@ public class ActionInfoModelCreatorTest {
                         .setCommodityAttribute(CommodityAttribute.CAPACITY)
                         .setOldCapacity(124)
                         .setNewCapacity(456))
+                .build();
+    }
+
+    @Nonnull
+    private ActionInfo createAtomicResize() {
+        return ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(ResizeInfo.newBuilder()
+                                    .setTarget(createActionEntity(2))
+                                    .setCommodityType(CommodityType.newBuilder().setType(1))
+                                    .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                    .setOldCapacity(124)
+                                    .setNewCapacity(456)
+                        )
+                        .build())
                 .build();
     }
 

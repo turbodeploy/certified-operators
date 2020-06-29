@@ -2337,6 +2337,8 @@ public class GroupMapperTest {
          * As a result, the final member count should be 1.
          */
         Assert.assertEquals(Integer.valueOf(1), billingFamilyApiDTO.getMembersCount());
+        Assert.assertEquals(Integer.valueOf(1), billingFamilyApiDTO.getEntitiesCount());
+        Assert.assertTrue(billingFamilyApiDTO.getMemberUuidList().contains("2"));
     }
 
     /**

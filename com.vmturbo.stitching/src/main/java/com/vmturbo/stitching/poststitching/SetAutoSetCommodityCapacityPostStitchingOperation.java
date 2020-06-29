@@ -157,14 +157,20 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                 .forEachRemaining(response -> {
                     if (response.getEntitiesToCommodityTypeCapacityList() != null) {
                         response.getEntitiesToCommodityTypeCapacityList().forEach(entityToCommodity -> {
-                            resultBuilder.queueUpdateEntityAlone(oidToEntities.get(entityToCommodity.getEntityUuid()),
-                                entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
-                                    .getCommoditySoldListBuilderList().stream()
-                                    .filter(this::commodityTypeMatches)
-                                    .forEach(commSold -> // updating the capacity from the response
-                                        setValidCapacity(commSold, entityToCommodity, entityToUpdate)
-                                    ));
-                            oidToEntities.remove(entityToCommodity.getEntityUuid());
+                            final TopologyEntity topologyEntity = oidToEntities.get(entityToCommodity.getEntityUuid());
+                            if (topologyEntity != null) {
+                                    resultBuilder.queueUpdateEntityAlone(topologyEntity,
+                                        entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
+                                            .getCommoditySoldListBuilderList().stream()
+                                            .filter(this::commodityTypeMatches)
+                                            .forEach(commSold -> // updating the capacity from the response
+                                                setValidCapacity(commSold, entityToCommodity, entityToUpdate)
+                                            ));
+                                    oidToEntities.remove(entityToCommodity.getEntityUuid());
+                                } else {
+                                    logger.error("Was not able to find matching entity for {}",
+                                        entityToCommodity.getEntityUuid());
+                                }
                             }
                         );
                     }

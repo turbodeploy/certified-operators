@@ -61,6 +61,7 @@ import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
@@ -446,6 +447,26 @@ public class Stages {
         @Override
         public Status passthrough(@Nonnull final StitchingContext stitchingContext) {
             actionConstraintsUploader.uploadActionConstraintInfo(stitchingContext);
+            return Status.success();
+        }
+    }
+
+    /**
+     * This stage uploads action merge specs to the action orchestrator component.
+     * We only do this for the live topology.
+     */
+    public static class UploadAtomicActionSpecsStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
+
+        private final ActionMergeSpecsUploader actionMergeSpecsUploader;
+
+        UploadAtomicActionSpecsStage(@Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader) {
+            this.actionMergeSpecsUploader = actionMergeSpecsUploader;
+        }
+
+        @Nonnull
+        @Override
+        public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
+            actionMergeSpecsUploader.uploadAtomicActionSpecsInfo(topologyGraph);
             return Status.success();
         }
     }

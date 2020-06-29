@@ -14,6 +14,10 @@ import junit.framework.TestCase;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
@@ -151,5 +155,67 @@ public class GroupProtoUtilTest {
                 .build();
         Assert.assertEquals(GroupType.RESOURCE_VALUE + "-foo",
                 GroupProtoUtil.createIdentifyingKey(group));
+    }
+
+    /**
+     * Test that when isGroupOfClusters is called with a dto that doesn't have a definition, an
+     * IllegalArgumentException is being thrown.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testIsGroupOfClustersWithoutDefinition() {
+        // GIVEN
+        final Grouping grouping = Grouping.newBuilder().build();
+
+        // WHEN
+        GroupProtoUtil.isGroupOfClusters(grouping);
+
+        // THEN
+        //exception is being thrown
+    }
+
+    /**
+     * Test that when isGroupOfClusters is called with a dto that contains a group of clusters, it
+     * returns true.
+     */
+    @Test
+    public void testIsGroupOfClustersForGroupOfClusters() {
+        // GIVEN
+        final Grouping grouping = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setGroup(GroupType.COMPUTE_HOST_CLUSTER)
+                                                .build())
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+
+        // THEN
+        assertTrue(GroupProtoUtil.isGroupOfClusters(grouping));
+    }
+
+    /**
+     * Test that when isGroupOfClusters is called with a dto that contains a cluster, it
+     * returns false.
+     */
+    @Test
+    public void testIsGroupOfClustersForCluster() {
+        // GIVEN
+        final Grouping grouping = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(14)
+                                                .build())
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+
+        // THEN
+        assertFalse(GroupProtoUtil.isGroupOfClusters(grouping));
     }
 }

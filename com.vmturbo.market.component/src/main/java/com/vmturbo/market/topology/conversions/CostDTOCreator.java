@@ -39,6 +39,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.RangeTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -461,13 +462,20 @@ public class CostDTOCreator {
             }
             // populates the ratio dependency between max this commodity and its base commodity
             if (c.hasRatioDependency()) {
-                storageDTO.addStorageResourceRatioDependency(StorageTierCostDTO
+                StorageResourceRatioDependency.Builder ratioBuilder = StorageTierCostDTO
                         .StorageResourceRatioDependency.newBuilder()
                         .setBaseResourceType(commodityConverter
                                 .commoditySpecification(c.getRatioDependency().getBaseCommodity()))
                         .setDependentResourceType(commodityConverter.commoditySpecification(commType))
-                        .setRatio(c.getRatioDependency().getRatio())
-                        .build());
+                        .setMaxRatio(c.getRatioDependency().getMaxRatio());
+                if (c.getRatioDependency().hasMinRatio()) {
+                    ratioBuilder.setMinRatio(c.getRatioDependency().getMinRatio());
+                }
+                if (c.getRatioDependency().hasIncreaseBaseAmountDefaultSupported()) {
+                    ratioBuilder.setIncreaseBaseDefaultSupported(
+                            c.getRatioDependency().getIncreaseBaseAmountDefaultSupported());
+                }
+                storageDTO.addStorageResourceRatioDependency(ratioBuilder.build());
             }
             // populates the ranged capacity which is dependent on base commodity
             if (c.hasRangeDependency()) {

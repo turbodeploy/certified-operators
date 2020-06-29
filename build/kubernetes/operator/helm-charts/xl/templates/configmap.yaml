@@ -60,8 +60,6 @@ data:
         # string, with individual settings separated by "&". No initial "&" or "?" should appear
         mariadbDriverProperties: useServerPrepStmts=true
         mysqlDriverProperties:
-        # OM-58310: Improve handling partially discovered cloud environment feature flag.
-        riSupportInPartialCloudEnvironment: false
       action-orchestrator:
         identityGeneratorPrefix: 9
         actionPaginationDefaultLimit: 100

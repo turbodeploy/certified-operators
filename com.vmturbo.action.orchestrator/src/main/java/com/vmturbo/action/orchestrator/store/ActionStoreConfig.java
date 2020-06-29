@@ -20,6 +20,7 @@ import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
+import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.approval.ApprovalCommunicationConfig;
 import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
@@ -37,6 +38,7 @@ import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
@@ -132,6 +134,26 @@ public class ActionStoreConfig {
         return new ActionFactory(actionModeCalculator());
     }
 
+    /**
+     * Class with the {@link AtomicActionSpec} received from the topology processor.
+     *
+     * @return {@link AtomicActionSpecsCache}
+     */
+    @Bean
+    public AtomicActionSpecsCache actionMergeSpecsCache() {
+        return new AtomicActionSpecsCache();
+    }
+
+    /**
+     * Create atomic action factory.
+     *
+     * @return @link AtomicActionFactory}
+     */
+    @Bean
+    public AtomicActionFactory atomicActionFactory() {
+        return new AtomicActionFactory(actionMergeSpecsCache());
+    }
+
     @Bean
     public EntitiesAndSettingsSnapshotFactory entitySettingsCache() {
         return new EntitiesAndSettingsSnapshotFactory(
@@ -200,6 +222,7 @@ public class ActionStoreConfig {
             .withEntitySettingsCache(entitySettingsCache())
             .withActionsStatistician(actionStatsConfig.actionsStatistician())
             .withActionTranslator(actionTranslationConfig.actionTranslator())
+            .withAtomicActionFactory(atomicActionFactory())
             .withClock(actionOrchestratorGlobalConfig.actionOrchestratorClock())
             .withUserSessionContext(userSessionConfig.userSessionContext())
             .withSupplyChainService(SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))

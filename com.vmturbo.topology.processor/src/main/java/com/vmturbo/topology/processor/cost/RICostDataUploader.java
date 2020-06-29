@@ -265,7 +265,7 @@ public class RICostDataUploader {
 
         stitchingContext.getEntitiesOfType(EntityType.RESERVED_INSTANCE).forEach(ri -> {
             final ReservedInstanceData riData = ri.getEntityBuilder().getReservedInstanceData();
-            final Long purchasingAccountOId;
+            Long purchasingAccountOId = null;
             if (riData.hasPurchasingAccountId()) {
                 purchasingAccountOId = cloudEntitiesMap.get(riData.getPurchasingAccountId());
                 if (purchasingAccountOId != null) {
@@ -280,17 +280,9 @@ public class RICostDataUploader {
                     logger.warn(
                             "Could not find purchasing account oid by id {} for reserved instance {}.",
                             riData.getPurchasingAccountId(), ri.getLocalId());
-                    if (discardRIsWithoutPurchasingAccountData) {
-                        logger.info(
-                                "Ignoring RI {} because could not find purchasing account oid by id {}.",
-                                ri.getLocalId(), riData.getPurchasingAccountId());
-                        return;
-                    }
                 }
             } else {
-                logger.info("Ignoring RI {} because no purchasing account specified.",
-                        ri.getLocalId());
-                return;
+                logger.warn("RI {} does not have a purchasing account.", ri.getLocalId());
             }
 
             // We skip partial term Reserved Instances ie RI's whose term is not 1 or 3 years

@@ -28,7 +28,6 @@ import com.google.gson.Gson;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -37,7 +36,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 /**
  * An implementation of {@link CloudScopeStore}, backed by a SQL table.
  */
-public class SQLCloudScopeStore implements CloudScopeStore, DiagsRestorable {
+public class SQLCloudScopeStore implements CloudScopeStore {
 
     /**
      * A summary metric collecting the total duration in cleaning up cloud scope records.

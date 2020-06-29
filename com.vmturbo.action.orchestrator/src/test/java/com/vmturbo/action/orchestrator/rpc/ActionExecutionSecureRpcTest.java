@@ -43,6 +43,7 @@ import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
+import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -58,6 +59,7 @@ import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
@@ -128,6 +130,8 @@ public class ActionExecutionSecureRpcTest {
 
     // Have the translator pass-through translate all actions.
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
+    final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
+    final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
@@ -273,7 +277,8 @@ public class ActionExecutionSecureRpcTest {
             SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-            actionHistoryDao, actionsStatistician, actionTranslator, clock, userSessionContext,
+            actionHistoryDao, actionsStatistician, actionTranslator, atomicActionFactory,
+            clock, userSessionContext,
             licenseCheckClient, acceptedActionsStore, actionIdentityService,
             involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class)));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
