@@ -137,7 +137,7 @@ public class UtilizationCountStore {
         if (clear) {
             full.clear();
         }
-        full.deserialize(record, fieldReference.toString());
+        full.deserialize(record, fieldReference.toString(), clear);
     }
 
     /**
