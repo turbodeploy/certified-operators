@@ -7,22 +7,19 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationStore;
-import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
-import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriterImpl;
+import com.vmturbo.cloud.commitment.analysis.writer.CloudCommitmentDemandWriter;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
-import com.vmturbo.cost.component.entity.scope.CloudScopeStore;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
 import com.vmturbo.cost.component.stats.CostStatsConfig;
 
 /**
- * The Cloud Commitment Demand Stats Config class.
+ * The Cloud Commitment Even Demand Stats Config class.
  */
 @Import({CostDBConfig.class,
         TopologyProcessorListenerConfig.class,
         CostStatsConfig.class})
-public class CloudCommitmentAnalysisStoreConfig {
+public class CloudCommitmentEventDemandStatsConfig {
 
     @Autowired
     private CostDBConfig dbConfig;
@@ -47,18 +44,16 @@ public class CloudCommitmentAnalysisStoreConfig {
 
     @Bean
     public CloudCommitmentDemandWriter cloudCommitmentDemandWriter() {
-        return new CloudCommitmentDemandWriterImpl(computeTierAllocationStore(), recordAllocationData);
+        return new CloudCommitmentEventDemandWriterImpl(sqlComputeTierAllocationStore(), recordAllocationData);
     }
 
-    @Bean
-    public ComputeTierAllocationStore computeTierAllocationStore() {
+    public SQLComputeTierAllocationStore sqlComputeTierAllocationStore() {
         return new SQLComputeTierAllocationStore(dbConfig.dsl(), topologyProcessorListenerConfig.liveTopologyInfoTracker(),
                 statsRecordsBatchUpdateSize,
                 statsRecordsCommitBatchSize);
     }
 
-    @Bean
-    public CloudScopeStore cloudScopeStore() {
+    public SQLCloudScopeStore sqlCloudScopeStore() {
         return new SQLCloudScopeStore(dbConfig.dsl(), costStatsConfig.taskScheduler(),
                 Duration.ofSeconds(cleanupSchedulerPeriod),
                 statsRecordsCommitBatchSize);

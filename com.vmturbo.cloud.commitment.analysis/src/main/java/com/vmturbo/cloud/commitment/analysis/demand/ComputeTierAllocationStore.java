@@ -6,7 +6,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 
 /**
  * Stores the per-entity allocations on compute tier. The allocations represent the time during which an
@@ -14,7 +13,7 @@ import com.vmturbo.components.common.diagnostics.DiagsRestorable;
  * does not contain the allocated demand for a compute tier while the associated entity is powered off.
  *
  */
-public interface ComputeTierAllocationStore extends DiagsRestorable {
+public interface ComputeTierAllocationStore {
 
 
     /**

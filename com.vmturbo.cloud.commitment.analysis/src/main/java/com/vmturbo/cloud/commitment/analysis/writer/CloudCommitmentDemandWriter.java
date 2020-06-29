@@ -1,8 +1,5 @@
-package com.vmturbo.cloud.commitment.analysis.persistence;
+package com.vmturbo.cloud.commitment.analysis.writer;
 
-import javax.annotation.Nonnull;
-
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 
@@ -17,6 +14,5 @@ public interface CloudCommitmentDemandWriter {
      * @param cloudTopology The cloud topology.
      * @param topologyInfo The topology information.
      */
-    void writeAllocationDemand(@Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                               @Nonnull TopologyInfo topologyInfo);
+    void writeAllocationDemand(CloudTopology cloudTopology, TopologyInfo topologyInfo);
 }

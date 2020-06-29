@@ -368,7 +368,7 @@ message CloudCommitmentAnalysisInfo {
     // The OID of the analysis, assigned by the CCA in handling a start request.
     required int64 oid = 1;
 
-    optional string analysis_tag = 2 [default = ""];
+    required string analysis_tag = 2 [default = ""];
 
     required int64 creation_time = 3;
 

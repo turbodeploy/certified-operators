@@ -25,7 +25,7 @@ import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
-import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.cost.component.cca.CloudCommitmentEventDemandStatsConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
@@ -59,7 +59,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         CostDBConfig.class,
         SupplyChainServiceConfig.class,
         GroupClientConfig.class,
-        CloudCommitmentAnalysisStoreConfig.class})
+        CloudCommitmentEventDemandStatsConfig.class})
 public class TopologyListenerConfig {
     private static final Logger logger = LogManager.getLogger();
 
@@ -106,7 +106,7 @@ public class TopologyListenerConfig {
     private GroupClientConfig groupClientConfig;
 
     @Autowired
-    private CloudCommitmentAnalysisStoreConfig cloudCommitmentAnalysisStoreConfig;
+    private CloudCommitmentEventDemandStatsConfig cloudCommitmentEventDemandStatsConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -126,7 +126,7 @@ public class TopologyListenerConfig {
                         costJournalRecorder(),
                         buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(),
                         topologyProcessorListenerConfig.liveTopologyInfoTracker(),
-                        cloudCommitmentAnalysisStoreConfig.cloudCommitmentDemandWriter());
+                        cloudCommitmentEventDemandStatsConfig.cloudCommitmentDemandWriter());
 
         topologyProcessorListenerConfig.topologyProcessor()
                 .addLiveTopologyListener(entitiesListener);
