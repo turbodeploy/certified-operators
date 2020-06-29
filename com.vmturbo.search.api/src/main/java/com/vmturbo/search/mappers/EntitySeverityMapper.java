@@ -23,7 +23,6 @@ public class EntitySeverityMapper {
             .put(EntitySeverity.MAJOR, com.vmturbo.api.enums.EntitySeverity.MAJOR )
             .put(EntitySeverity.MINOR, com.vmturbo.api.enums.EntitySeverity.MINOR )
             .put(EntitySeverity.NORMAL, com.vmturbo.api.enums.EntitySeverity.NORMAL )
-//                    .put(EntitySeverity.NORMAL, com.vmturbo.api.enums.EntitySeverity.UNKNOWN )
             .build();
 
     /**

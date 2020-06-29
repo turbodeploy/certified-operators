@@ -64,8 +64,7 @@ public class SearchQueryService implements ISearchQueryService {
     @Nonnull
     public SearchQueryPaginationResponse<SearchQueryRecordApiDTO> searchGroups(
             @Nonnull GroupQueryApiDTO input) throws Exception {
-        // TODO
-        throw ApiUtils.notImplementedInXL();
+        return apiQueryEngine.processGroupQuery(input);
     }
 
     /**
