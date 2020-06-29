@@ -31,6 +31,7 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -709,36 +710,35 @@ public class GroupMapper {
          outputDTO.setIsStatic(groupDefinition.hasStaticGroupMembers());
          outputDTO.setTemporary(groupDefinition.getIsTemporary());
 
-         boolean memberUuidListSet = false;
          switch (groupDefinition.getSelectionCriteriaCase()) {
              case STATIC_GROUP_MEMBERS:
-                 List<Long> groupMembers = GroupProtoUtil.getStaticMembers(group);
-                 if (GroupProtoUtil.isNestedGroup(groupAndMembers.group())) {
-                     outputDTO.setMemberUuidList(groupMembers
-                             .stream()
-                             .map(String::valueOf)
-                             .collect(Collectors.toList()));
-                     memberUuidListSet = true;
-                 } else {
-                     // Retain valid entities of group members/entities.
-                     Set<Long> groupValidEntities = Sets.newHashSet(groupMembers);
-                     Set<Long> validEntities = conversionContext.getValidEntities();
-                     groupValidEntities.retainAll(validEntities);
-                     final int missingEntities = groupMembers.size() - groupValidEntities.size();
-                     if (missingEntities > 0) {
-                         logger.warn("{} members for static group {} not found in repository.",
-                                 missingEntities, groupDefinition.getDisplayName());
-                     }
-                     outputDTO.setMemberUuidList(groupValidEntities
-                             .stream()
-                             .map(String::valueOf)
-                             .collect(Collectors.toList()));
-                     memberUuidListSet = true;
-                     outputDTO.setEntitiesCount(groupValidEntities.size());
+                 if (outputDTO.getMemberUuidList().isEmpty()) {
+                     List<Long> groupMembers = GroupProtoUtil.getStaticMembers(group);
+                     if (GroupProtoUtil.isNestedGroup(groupAndMembers.group())) {
+                         outputDTO.setMemberUuidList(groupMembers
+                                 .stream()
+                                 .map(String::valueOf)
+                                 .collect(Collectors.toList()));
+                     } else {
+                         // Retain valid entities of group members/entities.
+                         Set<Long> groupValidEntities = Sets.newHashSet(groupMembers);
+                         Set<Long> validEntities = conversionContext.getValidEntities();
+                         groupValidEntities.retainAll(validEntities);
+                         final int missingEntities = groupMembers.size() - groupValidEntities.size();
+                         if (missingEntities > 0) {
+                             logger.warn("{} members for static group {} not found in repository.",
+                                     missingEntities, groupDefinition.getDisplayName());
+                         }
+                         outputDTO.setMemberUuidList(groupValidEntities
+                                 .stream()
+                                 .map(String::valueOf)
+                                 .collect(Collectors.toList()));
+                         outputDTO.setEntitiesCount(groupValidEntities.size());
 
-                     Set<Long> membersConsideredInMembersCount = getMembersConsideredInMembersCount(groupAndMembers);
-                     membersConsideredInMembersCount.retainAll(validEntities);
-                     outputDTO.setMembersCount(membersConsideredInMembersCount.size());
+                         Set<Long> membersConsideredInMembersCount = getMembersConsideredInMembersCount(groupAndMembers);
+                         membersConsideredInMembersCount.retainAll(validEntities);
+                         outputDTO.setMembersCount(membersConsideredInMembersCount.size());
+                     }
                  }
                  break;
 
@@ -785,7 +785,7 @@ public class GroupMapper {
          if (outputDTO.getMembersCount() == null) {
              outputDTO.setMembersCount(getMembersConsideredInMembersCount(groupAndMembers).size());
          }
-         if (!memberUuidListSet) {
+        if (outputDTO.getMemberUuidList().isEmpty()) {
              outputDTO.setMemberUuidList(groupAndMembers.members().stream()
                      .map(oid -> Long.toString(oid))
                      .collect(Collectors.toList()));
@@ -860,7 +860,7 @@ public class GroupMapper {
         Map<String, String> uuidToDisplayNameMap = new HashMap<>();
         float cost = 0f;
         boolean hasCost = false;
-        int discoveredAccounts = 0;
+        List<String> discoveredAccountUuids = Lists.newArrayList();
 
         for (BusinessUnitApiDTO businessUnit : businessAccountRetriever.getBusinessAccounts(oidsToQuery)) {
             Float businessUnitCost = businessUnit.getCostPrice();
@@ -876,7 +876,6 @@ public class GroupMapper {
             String displayName = businessUnit.getDisplayName();
             uuidToDisplayNameMap.put(businessUnit.getUuid(), displayName);
 
-            String accountId = businessUnit.getAccountId();
             if (businessUnit.isMaster()) {
                 billingFamilyApiDTO.setMasterAccountUuid(businessUnit.getUuid());
             }
@@ -886,7 +885,7 @@ public class GroupMapper {
             // OM-53266: Member count should only consider accounts that are monitored by a probe.
             // Accounts that are only submitted as a member of a BillingFamily should not be counted.
             if (businessUnit.getAssociatedTargetId() != null) {
-                discoveredAccounts++;
+                discoveredAccountUuids.add(businessUnit.getUuid());
             }
         }
 
@@ -895,7 +894,10 @@ public class GroupMapper {
         }
         billingFamilyApiDTO.setUuidToNameMap(uuidToDisplayNameMap);
         billingFamilyApiDTO.setBusinessUnitApiDTOList(businessUnitApiDTOList);
-        billingFamilyApiDTO.setMembersCount(discoveredAccounts);
+        billingFamilyApiDTO.setMembersCount(discoveredAccountUuids.size());
+        billingFamilyApiDTO.setEntitiesCount(discoveredAccountUuids.size());
+        billingFamilyApiDTO.setMemberUuidList(discoveredAccountUuids);
+
         return billingFamilyApiDTO;
     }
 
