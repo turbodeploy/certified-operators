@@ -13,16 +13,16 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable
 import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
-import com.vmturbo.cost.component.cca.CloudCommitmentEventDemandStatsConfig;
+import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 
 /**
  * Class for handling cost diagnostics export and import.
  */
-@Import({CloudCommitmentEventDemandStatsConfig.class})
+@Import({CloudCommitmentAnalysisStoreConfig.class})
 public class CostDiagnonsticsConfig {
 
     @Autowired
-    public CloudCommitmentEventDemandStatsConfig cloudCommitmentEventDemandStatsConfig;
+    public CloudCommitmentAnalysisStoreConfig cloudCommitmentAnalysisStoreConfig;
 
     @Value("${saveAllocationDemandStores: true}")
     private boolean saveHistoricalDiags;
@@ -52,8 +52,8 @@ public class CostDiagnonsticsConfig {
     private Collection<Diagnosable> getAllocationDemandStores() {
         Collection<Diagnosable> storesToSave = new ArrayList<>();
         if (saveHistoricalDiags) {
-            storesToSave.add(cloudCommitmentEventDemandStatsConfig.sqlComputeTierAllocationStore());
-            storesToSave.add(cloudCommitmentEventDemandStatsConfig.sqlCloudScopeStore());
+            storesToSave.add(cloudCommitmentAnalysisStoreConfig.computeTierAllocationStore());
+            storesToSave.add(cloudCommitmentAnalysisStoreConfig.cloudScopeStore());
         }
         return storesToSave;
     }

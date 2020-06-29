@@ -32,6 +32,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAl
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
@@ -336,6 +337,7 @@ public class SQLComputeTierAllocationStoreTest {
                 .startTime(startTime)
                 .endTime(endTime)
                 .cloudTierDemand(allocationDatapoint.cloudTierDemand())
+                .cloudTierType(CloudTierType.COMPUTE_TIER)
                 .build();
 
     }

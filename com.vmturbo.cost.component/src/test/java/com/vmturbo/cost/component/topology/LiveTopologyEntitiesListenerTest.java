@@ -12,7 +12,7 @@ import java.util.Collections;
 
 import org.junit.Test;
 
-import com.vmturbo.cloud.commitment.analysis.writer.CloudCommitmentDemandWriter;
+import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
