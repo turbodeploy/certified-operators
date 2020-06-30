@@ -226,8 +226,12 @@ public class ColTypeTest {
      */
     @Test
     public void testTimestampColTypes() {
-        for (Timestamp value : new Timestamp[]{new Timestamp(0L), new Timestamp(Long.MAX_VALUE),
-                Timestamp.from(Instant.now())}) {
+        for (Timestamp value : new Timestamp[]{new Timestamp(0L),
+                                               new Timestamp(Long.MAX_VALUE),
+                                               Timestamp.from(Instant.EPOCH),
+                                               Timestamp.from(Instant.MAX),
+                                               Timestamp.from(Instant.MIN),
+                                               Timestamp.from(Instant.now()) }) {
             assertThat(ColType.TIMESTAMP.fromBytes(ColType.TIMESTAMP.toBytes(value)), is(value));
         }
         assertThat(ColType.TIMESTAMP.toCsv(new Timestamp(0L)), is(new Timestamp(0L).toString()));
