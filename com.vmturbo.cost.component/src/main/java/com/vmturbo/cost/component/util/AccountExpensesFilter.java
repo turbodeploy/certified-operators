@@ -57,7 +57,7 @@ public class AccountExpensesFilter extends CostFilter {
                           @Nullable final Set<Long> accountIds,
                           final boolean latestTimeStampRequested) {
         super(entityFilter, entityTypeFilter, startDateMillis, endDateMillis, timeFrame,
-                EXPENSE_DATE, latestTimeStampRequested);
+                EXPENSE_DATE, latestTimeStampRequested, null);
         this.accountIds = accountIds;
         this.conditions = generateConditions();
         this.costGroupBy = createGroupByFieldString(groupByFields);
