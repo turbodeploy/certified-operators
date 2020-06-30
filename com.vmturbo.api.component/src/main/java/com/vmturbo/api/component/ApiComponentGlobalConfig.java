@@ -97,6 +97,7 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
             .excludePathPatterns("/cluster/isXLEnabled")
             .excludePathPatterns("/admin/versions")
             .excludePathPatterns("/admin/productcapabilities")
+            .excludePathPatterns("/admin/telemetry")
             .excludePathPatterns("/users/me")
             .excludePathPatterns("/users/saml")
             .excludePathPatterns("/health")

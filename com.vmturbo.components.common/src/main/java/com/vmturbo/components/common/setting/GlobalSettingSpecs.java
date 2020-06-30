@@ -263,6 +263,10 @@ public enum GlobalSettingSpecs {
      */
     TelemetryEnabled("telemetryEnabled", "Enable Telemetry and Analytics",
             new BooleanSettingDataType(false),
+            Collections.emptyList()),
+
+    TelemetryTermsAccepted("telemetryTermsAccepted", "Determine whether user has accepted the use of Telemetry",
+            new BooleanSettingDataType(false),
             Collections.emptyList());
     /**
      * A list of global settings that are visible to the UI.

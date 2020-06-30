@@ -235,7 +235,7 @@ public class ServiceConfig {
         return new AdminService(clusterService(), keyValueStoreConfig.keyValueStore(),
             communicationConfig.clusterMgr(), communicationConfig.serviceRestTemplate(),
             websocketConfig.websocketHandler(), BuildProperties.get(), this.deploymentMode,
-                this.enableReporting);
+                this.enableReporting, this.settingsService());
     }
 
     @Bean
