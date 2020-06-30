@@ -24,12 +24,15 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.DataType;
 import org.jooq.Field;
 import org.jooq.GroupField;
 import org.jooq.Record;
 import org.jooq.RecordMapper;
 import org.jooq.Result;
 import org.jooq.Select;
+import org.jooq.SortField;
+import org.jooq.SortOrder;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.impl.DSL;
@@ -45,6 +48,8 @@ import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 import com.vmturbo.api.dto.searchquery.InclusionConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.IntegerConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.NumberConditionApiDTO;
+import com.vmturbo.api.dto.searchquery.OrderByApiDTO;
+import com.vmturbo.api.dto.searchquery.PaginationApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.RelatedActionFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
@@ -145,18 +150,15 @@ public abstract class AbstractQuery {
     protected abstract Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping();
 
     protected SearchQueryPaginationResponse<SearchQueryRecordApiDTO> readQueryAndExecute() {
-        logger.info("SearchQueryRecordApiDTO QUERYING");
         Select<Record> query = this.readOnlyDSLContext
             .select(this.buildSelectFields())
             .from(searchEntityTable)
             .where(this.buildWhereClauses())
+            .orderBy(this.buildOrderByFields())
             .limit(20);
 
         //Decouple fetch from query chain for testing purposes
         Result<Record> records = this.readOnlyDSLContext.fetch(query);
-
-        logger.info("SEARCHDB  4 \n" + records.formatCSV());
-
         List<SearchQueryRecordApiDTO> results = records.map(this.recordMapper());
 
         final int totalRecordCount = 0; // Adding mock data
@@ -272,18 +274,17 @@ public abstract class AbstractQuery {
                 }
                 break;
             case NUMBER:
-                fieldValue = fieldApiDto.value(Double.valueOf((String)value), columnMetadata.getUnitsString());
+                fieldValue = fieldApiDto.value((double)value, columnMetadata.getUnitsString());
                 break;
             case INTEGER:
                 if (fieldApiDto.equals(RelatedActionFieldApiDTO.actionCount())) {
-                    fieldValue = fieldApiDto.value((Integer)value);
+                    fieldValue = fieldApiDto.value((int)value);
                 } else {
-                    fieldValue = fieldApiDto.value(Integer.valueOf((String)value), columnMetadata.getUnitsString());
+                    fieldValue = fieldApiDto.value((Long)value, columnMetadata.getUnitsString());
                 }
-
                 break;
             case BOOLEAN:
-                fieldValue = fieldApiDto.value(Boolean.valueOf((String)value));
+                fieldValue = fieldApiDto.value((boolean)value);
                 break;
             case MULTI_TEXT:
                 try {
@@ -368,7 +369,7 @@ public abstract class AbstractQuery {
      * @return Field
      */
     @VisibleForTesting
-    Field buildFieldForEntityField(@Nonnull FieldApiDTO apiField) {
+    Field<?> buildFieldForEntityField(@Nonnull FieldApiDTO apiField) {
         return buildFieldForEntityField(apiField, false);
     }
 
@@ -380,7 +381,7 @@ public abstract class AbstractQuery {
      * @return Field
      */
     @VisibleForTesting
-    Field buildFieldForEntityField(@Nonnull FieldApiDTO apiField, @Nonnull boolean aliasColumn) {
+    Field<?> buildFieldForEntityField(@Nonnull FieldApiDTO apiField, @Nonnull boolean aliasColumn) {
         final SearchMetadataMapping mapping = getMetadataMapping().get(apiField);
         if (mapping == null) {
             throw new IllegalArgumentException("Field " + apiField.toString()
@@ -389,15 +390,33 @@ public abstract class AbstractQuery {
         final String columnName = mapping.getColumnName();
         final String jsonKey = mapping.getJsonKeyName();
         final String columnAlias = getColumnAlias(columnName, jsonKey);
-        final Field field;
+        final Field<?> field;
         if (this.primaryTableColumns.containsKey(apiField)) {
             //For Primary Columns we use the jooq generated Fields
             field = this.primaryTableColumns.get(apiField);
         } else {
-            field = Objects.isNull(jsonKey) ? DSL.field(columnName) : DSL.field(buildSqlStringForJsonBColumns(columnName, jsonKey));
+            DataType dataType = getColumnDataType(mapping);
+            final Field unCastfield = Objects.isNull(jsonKey) ? DSL.field(columnName, getColumnDataType(mapping)) : DSL.field(buildSqlStringForJsonBColumns(columnName, jsonKey), getColumnDataType(mapping));
+            field = unCastfield.cast(dataType); //Required for proper handling of where and sorting
         }
 
         return aliasColumn ? field.as(columnAlias) : field;
+    }
+
+    private DataType<?> getColumnDataType(SearchMetadataMapping columnMapping) {
+        switch (columnMapping.getApiDatatype()) {
+            case NUMBER:
+                return SQLDataType.DOUBLE;
+            case INTEGER:
+                return SQLDataType.BIGINT;
+            case BOOLEAN:
+                return SQLDataType.BOOLEAN;
+            case TEXT:
+            case ENUM:
+            case MULTI_TEXT:
+            default:
+                return SQLDataType.LONGNVARCHAR;
+        }
     }
 
     private String buildSqlStringForJsonBColumns(@Nonnull String columnName, @Nonnull String jsonKey) {
@@ -430,6 +449,30 @@ public abstract class AbstractQuery {
         conditions.addAll(buildTypeSpecificConditions());
         conditions.addAll(buildGenericConditions());
         return conditions;
+    }
+
+    @VisibleForTesting
+    List<SortField<?>> buildOrderByFields() {
+        List<OrderByApiDTO> orderBys = getOrderBy();
+        if (orderBys.isEmpty()) {
+            return Collections.singletonList(defaultOrderByName());
+        }
+
+        return orderBys.stream()
+                .map(orderby -> {
+                    Field<?> field = buildFieldForEntityField(orderby.getField());
+                    return orderby.isAscending() ? field.sort(SortOrder.ASC) : field.sort(SortOrder.DESC);
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns default sort order by name.
+     *
+     * @return {@link SortField} by name
+     */
+    private SortField<String> defaultOrderByName() {
+        return SearchEntity.SEARCH_ENTITY.NAME.desc();
     }
 
     /**
@@ -474,6 +517,11 @@ public abstract class AbstractQuery {
     protected abstract List<FieldApiDTO> getSelectedFields();
 
     protected abstract WhereApiDTO getWhere();
+
+    @Nullable
+    protected abstract PaginationApiDTO getPaginationApiDto();
+
+    protected abstract List<OrderByApiDTO> getOrderBy();
 
     private List<Condition> buildGenericConditions() {
         final WhereApiDTO whereEntity = getWhere();
@@ -542,7 +590,6 @@ public abstract class AbstractQuery {
     @Nonnull
     private Condition parseCondition(@Nonnull NumberConditionApiDTO entityCondition, @Nonnull Field field) {
         Double value = entityCondition.getValue();
-        field = field.cast(SQLDataType.DECIMAL);
         return applyNumericOperators(field, entityCondition.getOperator(), value);
     }
 
@@ -556,7 +603,6 @@ public abstract class AbstractQuery {
     @NonNull
     private Condition parseCondition(@Nonnull IntegerConditionApiDTO entityCondition, @Nonnull Field field) {
         Long value = entityCondition.getValue();
-        field = field.cast(SQLDataType.BIGINT);
         return applyNumericOperators(field, entityCondition.getOperator(), value);
     }
 
@@ -569,7 +615,7 @@ public abstract class AbstractQuery {
      */
     private Condition parseCondition(@Nonnull BooleanConditionApiDTO entityCondition, @Nonnull Field field) {
         boolean value = entityCondition.getValue();
-        return field.cast(SQLDataType.BOOLEAN).eq(value);
+        return field.eq(value);
     }
 
     @Nonnull

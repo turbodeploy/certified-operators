@@ -28,6 +28,7 @@ import org.jooq.Record4;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.jooq.Select;
+import org.jooq.SortField;
 import org.jooq.impl.DSL;
 import org.junit.Assert;
 import org.junit.Before;
@@ -44,8 +45,9 @@ import com.vmturbo.api.dto.searchquery.IntegerConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.MultiTextFieldValueApiDTO;
 import com.vmturbo.api.dto.searchquery.NumberConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.NumberFieldValueApiDTO;
+import com.vmturbo.api.dto.searchquery.OrderByApiDTO;
+import com.vmturbo.api.dto.searchquery.PaginationApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
-import com.vmturbo.api.dto.searchquery.RelatedActionFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.RelatedEntityFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SelectEntityApiDTO;
@@ -410,7 +412,7 @@ public class EntityQueryTest {
         //THEN
         assertTrue(conditions.size() == 2);
         // Case-insensitive regex search
-        String expectedCondition = "(attrs->>'guest_os_type' like_regex '(?i)foobar')";
+        String expectedCondition = "(cast(attrs->>'guest_os_type' as longnvarchar) like_regex '(?i)foobar')";
         assertTrue(containsCondition(conditions, expectedCondition));
     }
 
@@ -465,7 +467,7 @@ public class EntityQueryTest {
 
         //THEN
         assertTrue(conditions.size() == 2);
-        String expectedCondition = "cast(attrs->>'vcpu_used' as decimal) = 98.89";
+        String expectedCondition = "cast(attrs->>'vcpu_used' as double) = 98.89";
         assertTrue(containsCondition(conditions, expectedCondition));
     }
 
@@ -475,8 +477,8 @@ public class EntityQueryTest {
     @Test
     public void buildWhereClauseIntegerCondition() {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
-        final FieldApiDTO commodityField = RelatedActionFieldApiDTO.actionCount();
+        final EntityType type = EntityType.PHYSICAL_MACHINE;
+        final FieldApiDTO commodityField = RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE);
         Long longValue = 98L;
         IntegerConditionApiDTO integerConditionApiDTO = commodityField.eq(longValue);
         final WhereApiDTO where = WhereApiDTO.where().and(integerConditionApiDTO).build();
@@ -491,13 +493,17 @@ public class EntityQueryTest {
 
         //THEN
         assertTrue(conditions.size() == 2);
-        String expectedCondition =
-                "cast(\"extractor\".\"search_entity\".\"num_actions\" as bigint) = 98";
+
+        String expectedCondition = "cast(attrs->>'num_vms' as bigint) = 98";
         assertTrue(containsCondition(conditions, expectedCondition));
     }
 
     private boolean containsCondition(final List<Condition> conditions, final String expectedCondition) {
         return conditions.stream().map(Object::toString).anyMatch(s -> expectedCondition.equals(s));
+    }
+
+    private boolean containsSort(final List<SortField<?>> sortFields, final String expectedSort) {
+        return sortFields.stream().map(Object::toString).anyMatch(s -> expectedSort.equals(s));
     }
 
     /**
@@ -551,9 +557,9 @@ public class EntityQueryTest {
     public void testErrorThrownOnInvalidWhereFieldDtoRequest() {
         //GIVEN
         final EntityType type = EntityType.VIRTUAL_MACHINE;
-        final TextConditionApiDTO invlaidTextCondition =
+        final TextConditionApiDTO invalidTextCondition =
                 PrimitiveFieldApiDTO.primitive("Cant touch this").like("foo");
-        final WhereApiDTO whereEntity = WhereApiDTO.where().and(invlaidTextCondition).build();
+        final WhereApiDTO whereEntity = WhereApiDTO.where().and(invalidTextCondition).build();
         final EntityQueryApiDTO request =
                 EntityQueryApiDTO.queryEntity(SelectEntityApiDTO.selectEntity(type).build(),
                         whereEntity);
@@ -583,5 +589,58 @@ public class EntityQueryTest {
 
         //THEN
         assertTrue(value.getValue().equals(EntityTypeMapper.fromSearchSchemaToApi(recordValue).toString()));
+    }
+
+    /**
+     * Tests defaultSorting on name applied when no sort order given/
+     */
+    @Test
+    public void defaultSortApplied() {
+        //GIVEN
+        SelectEntityApiDTO selectEntity =
+                SelectEntityApiDTO.selectEntity(EntityType.PHYSICAL_MACHINE).build();
+
+        final EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity);
+
+        EntityQuery query = entityQuery(request);
+
+        //WHEN
+        List<SortField<?>> sortFields = query.buildOrderByFields();
+
+        //THEN
+        assertTrue(sortFields.size() == 1);
+        final String nameSort = "\"extractor\".\"search_entity\".\"name\" desc";
+        assertTrue(containsSort(sortFields, nameSort));
+
+    }
+
+    /**
+     * Creates and applies sortBy Fields with proper dataType casting.
+     */
+    @Test
+    public void sortFieldsAppliedAndCast() {
+        //GIVEN
+        SelectEntityApiDTO selectEntity =
+                SelectEntityApiDTO.selectEntity(EntityType.PHYSICAL_MACHINE).build();
+
+        FieldApiDTO integerFieldApiDTO = RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE);
+        FieldApiDTO doubleFieldApiDTO = CommodityFieldApiDTO.utilization(CommodityType.MEM);
+        OrderByApiDTO orderByIntegerField = OrderByApiDTO.asc(integerFieldApiDTO);
+        OrderByApiDTO orderByDoubleField = OrderByApiDTO.desc(doubleFieldApiDTO);
+
+        PaginationApiDTO pagination = PaginationApiDTO.orderBy(orderByIntegerField, orderByDoubleField).build();
+        final EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity, pagination);
+
+        EntityQuery query = entityQuery(request);
+
+        //WHEN
+        List<SortField<?>> sortFields = query.buildOrderByFields();
+
+        //THEN
+        assertTrue(sortFields.size() == 2);
+        final String integerSort = "cast(attrs->>'num_vms' as bigint) asc";
+        final String doubleSort = "cast(attrs->>'mem_utilization' as double) desc";
+        assertTrue(containsSort(sortFields, integerSort));
+        assertTrue(containsSort(sortFields, doubleSort));
     }
 }
