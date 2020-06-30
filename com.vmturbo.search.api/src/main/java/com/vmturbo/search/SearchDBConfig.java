@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.extractor.schema.ExtractorDbConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
  * Configuration of {@link DbEndpoint} needed for component.
@@ -17,7 +16,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig2;
  * Initialization occurs in ApiComponent.onStartComponent()</p>
  */
 @Configuration
-@Import({SQLDatabaseConfig2.class, ExtractorDbConfig.class})
+@Import({ExtractorDbConfig.class})
 public class SearchDBConfig {
 
     @Autowired

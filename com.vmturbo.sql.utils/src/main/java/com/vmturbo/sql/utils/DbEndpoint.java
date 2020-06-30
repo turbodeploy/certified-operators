@@ -2,7 +2,6 @@ package com.vmturbo.sql.utils;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -11,7 +10,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.UnaryOperator;
 
-import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
 import org.apache.logging.log4j.LogManager;
@@ -26,28 +24,28 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.DataSourceConnectionProvider;
 import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultExecuteListenerProvider;
+import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
+import org.springframework.web.context.ConfigurableWebApplicationContext;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.Operation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
+import com.vmturbo.components.api.ServerStartedNotifier;
+import com.vmturbo.components.api.ServerStartedNotifier.ServerStartedListener;
 
 /**
  * This class manages access to a database, including initializing the database on first use,
  * applying migrations during restarts, and providing access in the form of JDBC connections and
  * data sources, and jOOQ DSL contexts.
  *
- * <p>Normally, a component should create db endpoints with the assistance of the {@link
- * SQLDatabaseConfig2} class, which constructs a context for resolving the config objects that apply
- * to each endpoint.</p>
- *
  * <p>A given endpoint may be defined with a tag, in which case config property names are all
  * prefixed with the tag name and an underscore, e.g. "xxx_dbPort" instead of just "dbPort". A
- * component may define (at least through {@link SQLDatabaseConfig2} at most one untagged endpoint,
- * and for that component, config properties are un-prefixed.</p>
+ * component may define at most one untagged endpoint, and for that component,
+ * config properties are un-prefixed.</p>
  *
  * <p>Each endpoint is defined with a {@link SQLDialect} value that identifies the type of database
  * server accessed by the endpoint. Some config property defaults are based on this value. Defaults
@@ -187,8 +185,8 @@ public class DbEndpoint {
      * @throws InterruptedException        if interrupted
      */
     public DSLContext dslContext() throws UnsupportedDialectException, SQLException, InterruptedException {
+        awaitCompletion(config.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
         if (config.getDbEndpointEnabled()) {
-            awaitCompletion();
             return DSL.using(getConfiguration());
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
@@ -204,8 +202,8 @@ public class DbEndpoint {
      * @throws InterruptedException        if interrupted
      */
     public DataSource datasource() throws UnsupportedDialectException, SQLException, InterruptedException {
+        awaitCompletion(config.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
         if (config.getDbEndpointEnabled()) {
-            awaitCompletion();
             return adapter.getDataSource();
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
@@ -257,7 +255,7 @@ public class DbEndpoint {
      * @throws InterruptedException if interrupted
      */
     public DbAdapter getAdapter() throws InterruptedException {
-        awaitCompletion();
+        awaitCompletion(config.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
         return adapter;
     }
 
@@ -296,9 +294,11 @@ public class DbEndpoint {
      * <p>TODO: Try to determine cases where the reason is unrepairable, and don't perform
      * additional retries.</p>
      *
+     * @param timeout The time to wait for completion to be finished.
+     * @param timeUnit The time unit for the completion wait time.
      * @throws InterruptedException if interrupted
      */
-    public synchronized void awaitCompletion() throws InterruptedException {
+    public synchronized void awaitCompletion(long timeout, TimeUnit timeUnit) throws InterruptedException {
         try {
             if (isReady()) {
                 if (!retriesCompleted) {
@@ -310,7 +310,6 @@ public class DbEndpoint {
                         "DB endpoint %s failed initialization including attempted retries", this),
                         failureCause);
             }
-            Iterator<Long> backoffIterator = getBackoffIterator();
             // true output means retry
             final Operation<Boolean> op = () -> {
                 if (future.isDone()) {
@@ -321,7 +320,7 @@ public class DbEndpoint {
                     } catch (ExecutionException e) {
                         // prior attempt failed... try again with a fresh future
                         this.future = new CompletableFuture<>();
-                        DbEndpointCompleter.completeEndpoint(this);
+                        DbEndpointCompleter.get().completeEndpoint(this);
                         // we'll get the last of these handed back to us if we ultimately give up
                         throw new RetriableOperationFailedException(e);
                     } catch (InterruptedException e) {
@@ -334,13 +333,12 @@ public class DbEndpoint {
                 }
             };
             RetriableOperation.newOperation(op)
-                    .backoffStrategy(backoffIterator)
                     .retryOnOutput(Boolean::booleanValue)
                     // we retry after anything but a wrapped InterruptedException
                     .retryOnException(e ->
                             !(e instanceof RetriableOperationFailedException
                                     && e.getCause() instanceof InterruptedException))
-                    .run(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
+                    .run(timeout, timeUnit);
             // exited non-exceptionally means we succeeded
             logger.info("{} completed initialization successfully", this);
         } catch (RetriableOperationFailedException wrapped) {
@@ -359,41 +357,6 @@ public class DbEndpoint {
     }
 
     /**
-     * Create an iterator that will yield the full sequence of backoff times between endpoint
-     * completion retries.
-     *
-     * <p>If the last entry in the configured retry schedule
-     * ({@link DbEndpointResolver#DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY}) ends with -1, then the prior
-     * entry is repeated forever, else the list represents the complete, finite schedule.</p>
-     *
-     * @return iterator that will successive backoff intervals as milliseconds
-     */
-    @Nonnull
-    private Iterator<Long> getBackoffIterator() {
-        final DbEndpoint endpoint = this;
-        return new Iterator<Long>() {
-            final int[] backoffs = config.getDbRetryBackoffTimesSec();
-            int i = 0;
-
-            @Override
-            public boolean hasNext() {
-                return i < backoffs.length;
-            }
-
-            @Override
-            public Long next() {
-                // don't advance beyond penultimate entry if we're repeating
-                if (i == backoffs.length - 1 && backoffs[i] == -1) {
-                    i = i - 1;
-                }
-                logger.info("Retrying initialization of {} in {} seconds; retry # {}",
-                        endpoint, backoffs[i], i + 1);
-                return TimeUnit.SECONDS.toMillis(backoffs[i++]);
-            }
-        };
-    }
-
-    /**
      * Reset the internal endpoint registry to its initial state, as if no endpoints have been
      * created since startup.
      *
@@ -404,7 +367,7 @@ public class DbEndpoint {
      * which it appears.</p>
      */
     static void resetAll() {
-        DbEndpointCompleter.resetAll();
+        DbEndpointCompleter.get().resetAll();
     }
 
     @Override
@@ -424,15 +387,26 @@ public class DbEndpoint {
      * Class to manage the initialization of endpoint, resulting in completion of the {@link
      * Future}s created during endpoint registration.
      */
-    public static class DbEndpointCompleter {
+    public static class DbEndpointCompleter implements ServerStartedListener {
+        private static final DbEndpointCompleter INSTANCE = new DbEndpointCompleter();
         private DbEndpointCompleter() {
+            ServerStartedNotifier.get().registerListener(this);
         }
 
-        static final List<DbEndpoint> pendingEndpoints = new ArrayList<>();
+        final List<DbEndpoint> pendingEndpoints = new ArrayList<>();
         static UnaryOperator<String> resolver;
         private static DBPasswordUtil dbPasswordUtil;
 
-        static DbEndpoint register(DbEndpointConfig config) {
+        /**
+         * Get the singleton instance of the {@link DbEndpointCompleter}.
+         *
+         * @return The {@link DbEndpointCompleter} instance.
+         */
+        public static DbEndpointCompleter get() {
+            return INSTANCE;
+        }
+
+        DbEndpoint register(DbEndpointConfig config) {
             final DbEndpoint endpoint = new DbEndpoint(config);
             synchronized (pendingEndpoints) {
                 if (resolver == null) {
@@ -444,7 +418,19 @@ public class DbEndpoint {
             return endpoint;
         }
 
-        static void setResolver(UnaryOperator<String> resolver, DBPasswordUtil dbPasswordUtil,
+        @Override
+        public void onServerStarted(ConfigurableWebApplicationContext serverContext) {
+            ConfigurableEnvironment environment = serverContext.getEnvironment();
+            String authHost = environment.getProperty("authHost");
+            String authRoute = environment.getProperty("authRoute");
+            int serverHttpPort = Integer.parseInt(environment.getProperty("serverHttpPort"));
+            int authRetryDelaySec = Integer.parseInt(environment.getProperty("authRetryDelaySecs"));
+            DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, serverHttpPort, authRoute, authRetryDelaySec);
+            setResolver(environment::getProperty, dbPasswordUtil, true);
+
+        }
+
+        void setResolver(UnaryOperator<String> resolver, DBPasswordUtil dbPasswordUtil,
                 boolean completePending) {
             synchronized (pendingEndpoints) {
                 DbEndpointCompleter.resolver = resolver;
@@ -455,13 +441,13 @@ public class DbEndpoint {
             }
         }
 
-        private static void completePendingEndpoints() {
+        private void completePendingEndpoints() {
             for (DbEndpoint endpoint : pendingEndpoints) {
                 completeEndpoint(endpoint);
             }
         }
 
-        static void completePendingEndpoint(DbEndpoint endpoint) {
+        void completePendingEndpoint(DbEndpoint endpoint) {
             if (endpoint.future.isDone()) {
                 return;
             }
@@ -474,12 +460,12 @@ public class DbEndpoint {
                         .filter(endpoint::equals)
                         .peek(endpointsToRemove::add)
                         .findFirst()
-                        .ifPresent(DbEndpointCompleter::completeEndpoint);
+                        .ifPresent(this::completeEndpoint);
                 pendingEndpoints.removeAll(endpointsToRemove);
             }
         }
 
-        static void completeEndpoint(DbEndpoint endpoint) {
+        void completeEndpoint(DbEndpoint endpoint) {
             if (endpoint.isReady()) {
                 return;
             }
@@ -496,12 +482,12 @@ public class DbEndpoint {
             }
         }
 
-        private static void resolveConfig(DbEndpointConfig config)
+        private void resolveConfig(DbEndpointConfig config)
                 throws UnsupportedDialectException {
             new DbEndpointResolver(config, resolver, dbPasswordUtil).resolve();
         }
 
-        private static void resetAll() {
+        private void resetAll() {
             synchronized (pendingEndpoints) {
                 pendingEndpoints.clear();
                 resolver = null;

@@ -56,6 +56,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import com.vmturbo.components.api.ServerStartedNotifier;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.RequiresDataInitialization.InitializationException;
@@ -695,7 +696,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
         // The starting of the component should add the gRPC services defined in the spring
         // context to the gRPC server.
-        ComponentGrpcServer.get().start(context.getEnvironment());
+        ServerStartedNotifier.get().notifyServerStarted(context);
         return context;
     }
 

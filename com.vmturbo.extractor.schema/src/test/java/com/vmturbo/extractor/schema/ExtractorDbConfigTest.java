@@ -19,9 +19,9 @@ import com.vmturbo.sql.utils.DbEndpointTestRule;
  * Test that DbEndpoints can be activated and provide proper DB access.
  */
 public class ExtractorDbConfigTest extends ApplicationObjectSupport {
-    private static final ExtractorDbConfig extractorDbConfig = new ExtractorDbConfig();
-    private static final DbEndpoint ingesterEndpoint = extractorDbConfig.ingesterEndpoint();
-    private static final DbEndpoint queryEndpoint = extractorDbConfig.queryEndpoint();
+    private static final ExtractorDbConfig EXTRACTOR_SCHEMA_CONFIG = new ExtractorDbConfig();
+    private static final DbEndpoint ingesterEndpoint = EXTRACTOR_SCHEMA_CONFIG.ingesterEndpoint();
+    private static final DbEndpoint queryEndpoint = EXTRACTOR_SCHEMA_CONFIG.queryEndpoint();
 
     /**
      * Rule to manage configured endpoints for tests.

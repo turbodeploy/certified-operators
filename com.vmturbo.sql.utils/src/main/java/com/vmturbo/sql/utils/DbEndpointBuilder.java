@@ -3,6 +3,7 @@ package com.vmturbo.sql.utils;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
@@ -58,7 +59,7 @@ public class DbEndpointBuilder {
      * @return a {@link Supplier} that can be used to obtain the fully initialized endpoint
      */
     public DbEndpoint build() {
-        return DbEndpointCompleter.register(config);
+        return DbEndpointCompleter.get().register(config);
     }
 
     /**
@@ -241,6 +242,18 @@ public class DbEndpointBuilder {
      */
     public DbEndpointBuilder withDbEndpointEnabled(boolean dbEndpointEnabled) {
         config.setDbEndpointEnabled(dbEndpointEnabled);
+        return this;
+    }
+
+    /**
+     * Specify how long to wait for "completion" (i.e. for all property values to be available).
+     *
+     * @param maxAwaitCompletion The duration to wait.
+     * @param timeUnit The time unit for the duration.
+     * @return this endpoint.
+     */
+    public DbEndpointBuilder withMaxAwaitCompletion(long maxAwaitCompletion, TimeUnit timeUnit) {
+        config.setMaxAwaitCompletion(maxAwaitCompletion, timeUnit);
         return this;
     }
 
