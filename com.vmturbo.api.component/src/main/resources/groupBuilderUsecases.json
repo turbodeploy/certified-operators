@@ -27,7 +27,8 @@
             {"inputType": "*", "elements": "AvailabilityZone:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByAvailabilityZoneName"},
             {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByRegionName"},
             {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "vmsByCloudProvider", "loadOptions": true},
-            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "vmsByK8sCluster"}
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "vmsByK8sCluster"},
+            {"inputType": "s", "elements": "activeSessions", "filterCategory": "property", "filterType": "vmsByActiveSessions"}
         ]
     },
 

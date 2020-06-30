@@ -69,6 +69,15 @@ public class ThickSearchableProps implements SearchableProps {
             .findFirst().orElse(-1);
     }
 
+    @Override
+    public float getCommodityUsed(final int type) {
+        return (float)entityOrBldr.getCommoditySoldListList().stream()
+            .filter(comm -> comm.getCommodityType().getType() == type)
+            .filter(CommoditySoldDTO::hasUsed)
+            .mapToDouble(CommoditySoldDTO::getUsed)
+            .findFirst().orElse(-1);
+    }
+
     /**
      * Physical machine properties.
      */

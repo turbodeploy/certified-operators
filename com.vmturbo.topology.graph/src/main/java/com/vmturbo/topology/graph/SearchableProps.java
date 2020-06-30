@@ -25,7 +25,8 @@ public interface SearchableProps {
      * <p/>Implementations may or may not persist additional commodities.
      */
     Set<Integer> SEARCHABLE_COMM_TYPES =
-            ImmutableSet.of(CommodityType.VMEM_VALUE, CommodityType.MEM_VALUE);
+            ImmutableSet.of(CommodityType.VMEM_VALUE, CommodityType.MEM_VALUE,
+                CommodityType.ACTIVE_SESSIONS_VALUE, CommodityType.TOTAL_SESSIONS_VALUE);
 
     /**
      * Get the {@link TagIndex} for the topology graph. We do not expose tags on a per-entity basis
@@ -35,6 +36,16 @@ public interface SearchableProps {
      */
     @Nonnull
     TagIndex getTagIndex();
+
+    /**
+     * Get the used value of a particular commodity type. We do not return a "commodity" object to
+     * reduce the amount of objects we need to create for "thinner" implementations of searchable
+     * properties.
+     *
+     * @param type The commodity type.
+     * @return The used value or -1 if there is no commodity of this type.
+     */
+    float getCommodityUsed(int type);
 
     /**
      * Get the capacity of a particular commodity type. We do not return a "commodity" object to

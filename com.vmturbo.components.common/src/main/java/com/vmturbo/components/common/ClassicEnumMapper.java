@@ -5,11 +5,11 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
@@ -246,6 +246,7 @@ public class ClassicEnumMapper {
         VDC("VDCCommodity", ""),
         VMPM_ACCESS("VMPMAccessCommodity", ""),
         HOST_LUN_ACCESS("HOST_LUN_ACCESS", ""),
+        TOTAL_SESSIONS("TotalSessions", ""),
         // End of Access Commodities
         UNKNOWN("Unknown", "");
 
