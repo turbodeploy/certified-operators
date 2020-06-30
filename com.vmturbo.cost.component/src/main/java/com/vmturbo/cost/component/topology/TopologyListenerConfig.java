@@ -134,6 +134,22 @@ public class TopologyListenerConfig {
     }
 
     @Bean
+    public PlanTopologyEntitiesListener planTopologyEntitiesListener() {
+        final PlanTopologyEntitiesListener entitiesListener =
+                new PlanTopologyEntitiesListener(realtimeTopologyContextId,
+                        computeTierDemandStatsConfig.riDemandStatsWriter(),
+                        cloudTopologyFactory(), topologyCostCalculatorFactory(),
+                        entityCostConfig.entityCostStore(),
+                        reservedInstanceConfig.reservedInstanceCoverageUpload(),
+                        costConfig.businessAccountHelper(),
+                        buyRIAnalysisConfig.reservedInstanceAnalysisInvoker());
+
+        topologyProcessorListenerConfig.topologyProcessor()
+                .addPlanTopologyListener(entitiesListener);
+        return entitiesListener;
+    }
+
+    @Bean
     public TopologyProcessorNotificationListener topologyProcessorNotificationListener() {
         final TopologyProcessorNotificationListener targetListener =
                 new TopologyProcessorNotificationListener(

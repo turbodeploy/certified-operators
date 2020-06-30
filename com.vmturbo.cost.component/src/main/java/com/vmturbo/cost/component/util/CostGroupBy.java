@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.util;
 
 import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
+import static com.vmturbo.cost.component.db.Tables.PLAN_ENTITY_COST;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -10,6 +11,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
 
@@ -28,19 +30,20 @@ public class CostGroupBy {
      * {@link Tables#ENTITY_COST #CREATED_TIME} constant used in DB.
      */
     public static final String CREATED_TIME = ENTITY_COST.CREATED_TIME.getName();
+    public static final String ENTITY = ENTITY_COST.ASSOCIATED_ENTITY_ID.getName();
+    public static final String ENTITY_TYPE = ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName();
 
     private final Collection<String> groupByFields;
     private final TimeFrame timeFrame;
+    private Long topologyContextId = null;
 
     private static final TreeMap<String, String> GROUP_FIELD_CONVERTER = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 
     static {
         GROUP_FIELD_CONVERTER.put(GroupBy.COST_CATEGORY.getValueDescriptor().getName(),
                 ENTITY_COST.COST_TYPE.getName());
-        GROUP_FIELD_CONVERTER.put(GroupBy.ENTITY_TYPE.getValueDescriptor().getName(),
-                ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName());
-        GROUP_FIELD_CONVERTER.put(GroupBy.ENTITY.getValueDescriptor().getName(),
-                ENTITY_COST.ASSOCIATED_ENTITY_ID.getName());
+        GROUP_FIELD_CONVERTER.put(GroupBy.ENTITY_TYPE.getValueDescriptor().getName(), ENTITY_TYPE);
+        GROUP_FIELD_CONVERTER.put(GroupBy.ENTITY.getValueDescriptor().getName(), ENTITY);
     }
 
     /**
@@ -55,6 +58,19 @@ public class CostGroupBy {
         groupByFields = listOfFields.stream().map(field -> GROUP_FIELD_CONVERTER.getOrDefault(field, field))
                 .collect(Collectors.toSet());
         this.timeFrame = timeFrame;
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param items     items to group By. See {@link com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy}.
+     * @param timeFrame {@link TimeFrame}.
+     * @param topologyContextId If non-null, the topology context ID.
+     */
+    public CostGroupBy(@Nonnull final Set<String> items, @Nonnull final TimeFrame timeFrame,
+                       @Nullable Long topologyContextId) {
+        this(items, timeFrame);
+        this.topologyContextId = topologyContextId;
     }
 
     /**
@@ -82,7 +98,9 @@ public class CostGroupBy {
      * @return Table to be used for storing and querying.
      */
     public Table<?> getTable() {
-        if (this.timeFrame == null || this.timeFrame.equals(TimeFrame.LATEST)) {
+        if (this.topologyContextId != null) {
+            return PLAN_ENTITY_COST;
+        } else if (this.timeFrame == null || this.timeFrame.equals(TimeFrame.LATEST)) {
             return ENTITY_COST;
         } else if (this.timeFrame.equals(TimeFrame.HOUR)) {
             return Tables.ENTITY_COST_BY_HOUR;

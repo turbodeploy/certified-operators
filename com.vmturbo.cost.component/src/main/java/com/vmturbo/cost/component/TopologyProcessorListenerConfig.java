@@ -27,6 +27,8 @@ public class TopologyProcessorListenerConfig {
                 TopologyProcessorSubscription.forTopic(Topic.LiveTopologies),
                 // used by ReservedInstanceConfig::thinTargetCache
                 TopologyProcessorSubscription.forTopic(Topic.Notifications),
+                // used for snapshotting plan data
+                TopologyProcessorSubscription.forTopic(Topic.PlanTopologies),
                 // used by TopologyInforTracker
                 TopologyProcessorSubscription.forTopic(Topic.TopologySummaries));
     }

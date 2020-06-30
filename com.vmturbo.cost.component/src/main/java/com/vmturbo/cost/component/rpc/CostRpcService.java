@@ -748,6 +748,10 @@ public class CostRpcService extends CostServiceImplBase {
                 .latestTimestampRequested(true);
         }
 
+        if (request.hasTopologyContextId()) {
+            filterBuilder.topologyContextId(request.getTopologyContextId());
+        }
+
         if (request.hasEntityFilter()) {
             filterBuilder.entityIds(request.getEntityFilter().getEntityIdList());
         }

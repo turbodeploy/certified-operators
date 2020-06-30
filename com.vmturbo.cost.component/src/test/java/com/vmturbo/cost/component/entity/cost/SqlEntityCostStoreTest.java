@@ -345,6 +345,26 @@ public class SqlEntityCostStoreTest {
     }
 
     @Test
+    public void testGetPlanEntityCost()
+            throws DbException, InvalidEntityCostsException, InterruptedException {
+
+        // insert
+        saveCosts();
+
+        // get by date
+        final LocalDateTime now = LocalDateTime.now(clock);
+        final Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                        .topologyContextId(2116L)
+                        .build());
+        validateResults(results, 1, 2, 2);
+
+        // clean up
+        store.cleanEntityCosts(now);
+        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+    }
+
+    @Test
     public void testGetLatestEntityCostWithOidFilter()
             throws DbException, InvalidEntityCostsException, InterruptedException {
 
@@ -430,7 +450,7 @@ public class SqlEntityCostStoreTest {
                 .thenReturn(Optional.empty());
         Mockito.when(topology.getConnectedRegion(org.mockito.Matchers.anyLong()))
                 .thenReturn(Optional.empty());
-        store.persistEntityCost(ImmutableMap.of(ID1, journal1), topology, clock.millis());
+        store.persistEntityCost(ImmutableMap.of(ID1, journal1), topology, clock.millis(), false);
 
         final Map<Long, Map<Long, EntityCost>> costs = store.getEntityCosts(
                 EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
@@ -654,7 +674,8 @@ public class SqlEntityCostStoreTest {
         final HashMap<Long, CostJournal<TopologyEntityDTO>> costJournal = new HashMap<>();
         costJournal.put(entityCost.getAssociatedEntityId(), mockCostJournal(entityCost));
         costJournal.put(entityCost1.getAssociatedEntityId(), mockCostJournal(entityCost1));
-        store.persistEntityCost(costJournal, topology, clock.millis());
+        store.persistEntityCost(costJournal, topology, clock.millis(), false);
+        store.persistEntityCost(costJournal, topology, 2116L, true);
     }
 
     private void saveCostsWithTwoTimeStamps() throws DbException {
@@ -668,8 +689,8 @@ public class SqlEntityCostStoreTest {
         final HashMap<Long, CostJournal<TopologyEntityDTO>> costJournal = new HashMap<>();
         costJournal.put(entityCost.getAssociatedEntityId(), mockCostJournal(entityCost));
         costJournal.put(entityCost1.getAssociatedEntityId(), mockCostJournal(entityCost1));
-        store.persistEntityCost(costJournal, topology, clock.millis());
+        store.persistEntityCost(costJournal, topology, clock.millis(), false);
         clock.changeInstant(clock.instant().plusMillis(1000));
-        store.persistEntityCost(costJournal, topology, clock.millis());
+        store.persistEntityCost(costJournal, topology, clock.millis(), false);
     }
 }

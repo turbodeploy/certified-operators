@@ -34,6 +34,7 @@ public abstract class CostFilter {
     protected final TimeFrame timeFrame;
     protected final String snapshotTime;
     protected final boolean latestTimeStampRequested;
+    protected final Long topologyContextId;
 
 
     CostFilter(@Nullable final Set<Long> entityFilters,
@@ -42,7 +43,8 @@ public abstract class CostFilter {
                @Nullable final Long endDateMillis,
                @Nullable final TimeFrame timeFrame,
                @Nonnull final String snapshotTime,
-               final boolean latestTimeStampRequested) {
+               final boolean latestTimeStampRequested,
+               @Nullable final Long topologyContextId) {
         this.startDateMillis = startDateMillis;
         this.endDateMillis = endDateMillis;
         this.timeFrame = timeFrame;
@@ -50,6 +52,7 @@ public abstract class CostFilter {
         this.entityFilters = entityFilters;
         this.entityTypeFilters = entityTypeFilters;
         this.latestTimeStampRequested = latestTimeStampRequested;
+        this.topologyContextId = topologyContextId;
     }
 
     /**
@@ -111,7 +114,8 @@ public abstract class CostFilter {
             && Objects.equals(entityFilters, other.entityFilters)
             && Objects.equals(timeFrame, other.timeFrame)
             && Objects.equals(snapshotTime, other.snapshotTime)
-            && (latestTimeStampRequested == other.latestTimeStampRequested);
+            && (latestTimeStampRequested == other.latestTimeStampRequested)
+            && topologyContextId == other.topologyContextId;
     }
 
     @Override
@@ -146,6 +150,14 @@ public abstract class CostFilter {
         builder.append(snapshotTime);
 
         return builder.toString();
+    }
+
+    /**
+     * Checks whether the query is for a specific topology context ID
+     * @return true if a topology context ID is present in the query.
+     */
+    public boolean hasTopologyContextId() {
+        return topologyContextId != null;
     }
 
     /**
