@@ -130,6 +130,7 @@ public class ClassicEnumMapper {
             .put("VStorage",                    CommodityType.VSTORAGE)
             .put("Unknown",                     CommodityType.UNKNOWN)
             .put("Zone",                        CommodityType.ZONE)
+            .put("KPI",                         CommodityType.KPI)
             .build();
 
     /**
@@ -245,6 +246,7 @@ public class ClassicEnumMapper {
         VDC("VDCCommodity", ""),
         VMPM_ACCESS("VMPMAccessCommodity", ""),
         HOST_LUN_ACCESS("HOST_LUN_ACCESS", ""),
+        TOTAL_SESSIONS("TotalSessions", ""),
         // End of Access Commodities
         UNKNOWN("Unknown", "");
 

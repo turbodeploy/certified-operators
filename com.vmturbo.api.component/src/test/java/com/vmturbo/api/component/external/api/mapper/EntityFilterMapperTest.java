@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -41,18 +42,36 @@ import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * This class tests the functionality of {@link EntityFilterMapper} class.
  */
 public class EntityFilterMapperTest {
+
+    private static final Long UDT_ID = 123L;
+
+    private static final String UDT_PROBE_TYPE = "User-Defined-Topology";
+
+    private static final String USER_DEFINED_ENTITY_SERVICE_FILTER_NAME =
+            "serviceByUserDefinedEntity";
+
+    private static final ThinTargetInfo TARGET_INFO = mock(ThinTargetInfo.class);
+
+    private static final ThinProbeInfo PROBE_INFO = mock(ThinProbeInfo.class);
+
+    private final ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
+
     private final String groupUseCaseFileName = "groupBuilderUsecases.json";
 
     private final GroupUseCaseParser groupUseCaseParser =
                     Mockito.spy(new GroupUseCaseParser(groupUseCaseFileName));
 
+
     private final EntityFilterMapper entityFilterMapper =
-                    new EntityFilterMapper(groupUseCaseParser);
+                    new EntityFilterMapper(groupUseCaseParser, thinTargetCache);
 
     /**
      * Junit rule.
@@ -64,6 +83,7 @@ public class EntityFilterMapperTest {
     private static final String FOO = "foo";
     private static final String BAR = "bar";
     private static final String VM_TYPE = "VirtualMachine";
+    private static final String SERVICE_TYPE = "ServiceType";
     private static final String PM_TYPE = "PhysicalMachine";
     private static final String DS_TYPE = "Storage";
     private static final String DISK_ARRAY_TYPE = "DiskArray";
@@ -72,6 +92,8 @@ public class EntityFilterMapperTest {
                     SearchProtoUtil.searchFilterProperty(SearchProtoUtil.nameFilterExact(FOO));
     private static final SearchFilter DISPLAYNAME_IS_BAR =
                     SearchProtoUtil.searchFilterProperty(SearchProtoUtil.nameFilterExact(BAR));
+    private static final PropertyFilter TYPE_IS_SERVICE =
+            SearchProtoUtil.entityTypeFilter(SERVICE_TYPE);
     private static final PropertyFilter TYPE_IS_VM = SearchProtoUtil.entityTypeFilter(VM_TYPE);
     private static final PropertyFilter TYPE_IS_PM = SearchProtoUtil.entityTypeFilter(PM_TYPE);
     private static final PropertyFilter TYPE_IS_DS = SearchProtoUtil.entityTypeFilter(DS_TYPE);
@@ -304,6 +326,77 @@ public class EntityFilterMapperTest {
         Assert.assertEquals(TYPE_IS_PM, parameters.get(0).getStartingFilter());
         Assert.assertEquals("state", propertyFilter.getPropertyName());
         Assert.assertEquals("ACTIVE", propertyFilter.getStringFilter().getOptions(0));
+    }
+
+    /**
+     * register UDT Probe in {@link ThinTargetCache} for test requirements.
+     */
+    private void registerUserDefinedTopologyProbe() {
+        Mockito.when(thinTargetCache.getAllTargets()).thenReturn(Lists.newArrayList(TARGET_INFO));
+        Mockito.when(TARGET_INFO.probeInfo()).thenReturn(PROBE_INFO);
+        Mockito.when(TARGET_INFO.oid()).thenReturn(UDT_ID);
+        Mockito.when(PROBE_INFO.type()).thenReturn(UDT_PROBE_TYPE);
+    }
+
+    /**
+     * Verify correctness of User Defined Entity filter's parameters.
+     *
+     * @param searchParameters filter's {@link SearchParameters}.
+     * @param propertyFilter filter's {@link PropertyFilter}.
+     */
+    private void verifyUserDefinedEntityFilterParameters(List<SearchParameters> searchParameters,
+                                                                PropertyFilter propertyFilter) {
+        Assert.assertEquals(1, searchParameters.size());
+        Assert.assertEquals(TYPE_IS_SERVICE, searchParameters.get(0).getStartingFilter());
+        Assert.assertEquals(
+            SearchableProperties.EXCLUSIVE_DISCOVERING_TARGET, propertyFilter.getPropertyName());
+        Assert.assertEquals(1, propertyFilter.getStringFilter().getOptionsCount());
+        Assert.assertEquals(
+                String.valueOf(UDT_ID), propertyFilter.getStringFilter().getOptions(0));
+    }
+
+    @Test
+    public void testByUserDefinedEntityEqual() {
+        registerUserDefinedTopologyProbe();
+        GroupApiDTO inputDTO = groupApiDTO(AND, SERVICE_TYPE, filterDTO(EntityFilterMapper.EQUAL,
+                "True", USER_DEFINED_ENTITY_SERVICE_FILTER_NAME));
+
+        final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+                inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+
+        final PropertyFilter propertyFilter =
+                parameters.get(0).getSearchFilter(0).getPropertyFilter();
+
+        verifyUserDefinedEntityFilterParameters(parameters, propertyFilter);
+        Assert.assertEquals(true, propertyFilter.getStringFilter().getPositiveMatch());
+    }
+
+    @Test
+    public void testByUserDefinedEntityNotEqual() {
+        registerUserDefinedTopologyProbe();
+        GroupApiDTO inputDTO = groupApiDTO(AND, SERVICE_TYPE, filterDTO(EntityFilterMapper.EQUAL,
+                "False", USER_DEFINED_ENTITY_SERVICE_FILTER_NAME));
+
+        final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+                inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+
+        final PropertyFilter propertyFilter =
+                parameters.get(0).getSearchFilter(0).getPropertyFilter();
+        verifyUserDefinedEntityFilterParameters(parameters, propertyFilter);
+        Assert.assertFalse(propertyFilter.getStringFilter().getPositiveMatch());
+    }
+
+    @Test
+    public void testUserDefinedTopologyProbeNotRegistered() {
+        Mockito.when(thinTargetCache.getAllTargets()).thenReturn(Lists.newArrayList());
+        GroupApiDTO inputDTO = groupApiDTO(AND, SERVICE_TYPE, filterDTO(EntityFilterMapper.EQUAL,
+                "True", USER_DEFINED_ENTITY_SERVICE_FILTER_NAME));
+
+        final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+                inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+        final PropertyFilter propertyFilter =
+                parameters.get(0).getSearchFilter(0).getPropertyFilter();
+        Assert.assertEquals(0, propertyFilter.getStringFilter().getOptionsCount());
     }
 
     /**

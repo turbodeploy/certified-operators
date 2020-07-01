@@ -65,9 +65,11 @@ public class ActionApprovalSender {
                     final ActionDTO.Action recommendation = recommendationOptional.get();
                     final Optional<WorkflowDTO.Workflow> workflowOpt = action.getWorkflow(
                             workflowStore);
+
                     // It does not matter which target this action is expected to face.
                     final ExecuteActionRequest request = ActionExecutor.createRequest(-1,
-                            recommendation, workflowOpt);
+                            recommendation, workflowOpt,
+                            action.getDescription());
                     builder.addActions(request);
                 }
             }

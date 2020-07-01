@@ -1,7 +1,11 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.UsersService.HTTP_ACCEPT;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -15,8 +19,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
-import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
+import com.google.common.collect.ImmutableList;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -41,12 +45,12 @@ import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.google.common.collect.ImmutableList;
-
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
+import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
+import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 
@@ -132,6 +136,16 @@ public class UserServiceTest {
         verifyAdResponse(responseDto);
     }
 
+    /**
+     * Test convert AD info to AuthDTO. If domain name or server is null, the corresponding AuthDTO
+     * will have null value, instead of "".
+     */
+    @Test
+    public void testConvertADInfoToAuth() {
+        ActiveDirectoryApiDTO inputDto = new ActiveDirectoryApiDTO();
+        assertNull(usersService.convertADInfoToAuth(inputDto).getLoginProviderURI());
+        assertNull(usersService.convertADInfoToAuth(inputDto).getDomainName());
+    }
     /**
      * Test delete active directory group.
      *

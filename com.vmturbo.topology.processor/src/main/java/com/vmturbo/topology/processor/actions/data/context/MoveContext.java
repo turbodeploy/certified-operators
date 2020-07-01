@@ -112,7 +112,7 @@ public class MoveContext extends ChangeProviderContext {
      */
     @Nullable
     @Override
-    public Long getSecondaryTargetId() throws TargetNotFoundException {
+    public Long getSecondaryTargetId() throws ContextCreationException {
         // Search for a secondary target only if the move is cross-target
         if (isCrossTargetMove()) {
             // Determine the target ID for the destination entity
@@ -136,14 +136,18 @@ public class MoveContext extends ChangeProviderContext {
 
             // First try to find a destination target with the same target type as the primary
             // target
-            SDKProbeType primaryTargetType = getTargetType(getTargetId());
-            final Optional<Long> matchingSecondaryTargetId = destinationTargetIds.stream()
-                    .filter(targetId -> targetMatchesType(targetId, primaryTargetType))
-                    .findFirst();
-            if (matchingSecondaryTargetId.isPresent()) {
-                return matchingSecondaryTargetId.get();
+            final SDKProbeType primaryTargetType;
+            try {
+                primaryTargetType = getTargetType(getTargetId());
+            } catch (TargetNotFoundException e) {
+                throw new ContextCreationException(
+                        "Could not determine main target type by id " + getTargetId(), e);
             }
-
+            for (Long targetId: destinationTargetIds) {
+                if (targetMatchesType(targetId, primaryTargetType)) {
+                    return targetId;
+                }
+            }
             // If no target of the same type is found, just return the first secondary target found
             return destinationTargetIds.stream()
                     .findFirst()
@@ -176,7 +180,7 @@ public class MoveContext extends ChangeProviderContext {
         return getActionInfo().getMove();
     }
 
-    private long getDestinationEntityId() {
+    private long getDestinationEntityId() throws ContextCreationException {
         return getPrimaryChange().getDestination().getId();
     }
 
@@ -185,8 +189,9 @@ public class MoveContext extends ChangeProviderContext {
      * is a cross-target move.
      *
      * @return the first ChangeProvider in the list for this move action
+     * @throws ContextCreationException if changes not found
      */
-    private ChangeProvider getPrimaryChange() {
+    private ChangeProvider getPrimaryChange() throws ContextCreationException {
         return getMoveInfo().getChangesList().stream()
                 .findFirst()
                 .orElseThrow(() -> new ContextCreationException("No changes found. "
@@ -272,7 +277,8 @@ public class MoveContext extends ChangeProviderContext {
                 .orElseThrow(() -> new TargetNotFoundException(targetId));
     }
 
-    private boolean targetMatchesType(long targetId, SDKProbeType targetTypeToMatch) {
+    private boolean targetMatchesType(long targetId, SDKProbeType targetTypeToMatch)
+            throws ContextCreationException {
         try {
             return targetTypeToMatch.equals(getTargetType(targetId));
         } catch (TargetNotFoundException e) {

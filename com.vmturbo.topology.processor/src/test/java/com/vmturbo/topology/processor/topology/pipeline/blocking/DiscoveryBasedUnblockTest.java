@@ -195,6 +195,7 @@ public class DiscoveryBasedUnblockTest {
 
         // Probe still not registered. We ignore that target from now on.
         assertTrue(unblock.runIteration());
+
     }
 
     /**

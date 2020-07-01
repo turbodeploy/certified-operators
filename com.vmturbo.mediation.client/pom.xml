@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>com.vmturbo</groupId>
 		<artifactId>com.vmturbo.components</artifactId>
-		<version>7.22.100-MPC-SNAPSHOT</version>
+		<version>7.22.5-SNAPSHOT</version>
 		<relativePath>../com.vmturbo.components</relativePath>
 	</parent>
 
@@ -45,6 +45,73 @@
 				</plugin>
             </plugins>
 		</pluginManagement>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>copy-mediation-bootstrap</id>
+						<goals>
+							<goal>copy</goal>
+						</goals>
+						<phase>prepare-package</phase>
+						<configuration>
+							<outputDirectory>${project.build.directory}/bootstrap</outputDirectory>
+							<useBaseVersion>false</useBaseVersion>
+							<stripVersion>true</stripVersion>
+							<artifactItems>
+								<artifactItem>
+									<groupId>com.vmturbo</groupId>
+									<artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
+									<version>${project.version}</version>
+								</artifactItem>
+							</artifactItems>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>com.spotify</groupId>
+				<artifactId>docker-maven-plugin</artifactId>
+				<configuration>
+					<entryPoint>["/entrypoint.sh", "bootstrap/com.vmturbo.mediation.client.bootstrap.jar"]</entryPoint>
+					<resources>
+						<resource>
+							<targetPath>/lib</targetPath>
+							<directory>${project.build.directory}</directory>
+						</resource>
+						<resource>
+							<targetPath>/lib</targetPath>
+							<directory>${project.build.directory}/lib</directory>
+						</resource>
+						<resource>
+							<targetPath>/bootstrap</targetPath>
+							<directory>${project.build.directory}/bootstrap</directory>
+						</resource>
+						<resource>
+							<targetPath>/swagger</targetPath>
+							<directory>${project.build.directory}/generated-docs/swagger</directory>
+						</resource>
+					</resources>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>com.github.kongchen</groupId>
+				<artifactId>swagger-maven-plugin</artifactId>
+				<configuration>
+					<apiSources>
+						<apiSource>
+							<locations>
+								<location>com.vmturbo.common.protobuf.logging</location>
+								<location>com.vmturbo.components.common</location>
+							</locations>
+						</apiSource>
+					</apiSources>
+				</configuration>
+			</plugin>
+
+		</plugins>
 	</build>
 
 	<dependencies>

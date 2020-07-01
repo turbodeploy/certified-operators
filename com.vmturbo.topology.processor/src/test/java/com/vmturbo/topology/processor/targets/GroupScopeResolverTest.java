@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import io.grpc.stub.StreamObserver;
 
 import org.junit.Before;
@@ -114,7 +115,11 @@ public class GroupScopeResolverTest {
 
     private static SDKProbeType validProbeType = SDKProbeType.AWS;
 
+    private static ProbeCategory validProbeCategory = ProbeCategory.CLOUD_MANAGEMENT;
+
     private static SDKProbeType invalidProbeType = SDKProbeType.SNMP;
+
+    private static ProbeCategory invalidProbeCategory = ProbeCategory.GUEST_OS_PROCESSES;
 
     private static AccountDefEntry addressAccountDefEntry = AccountDefEntry.newBuilder()
             .setCustomDefinition(
@@ -334,6 +339,8 @@ public class GroupScopeResolverTest {
                 repositoryServer.getChannel(), targetStore, entityStore);
         Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(validProbeType));
+        Mockito.when(targetStore.getProbeCategoryForTarget(Mockito.anyLong()))
+                .thenReturn(Optional.of(validProbeCategory));
         Mockito.when(targetStore.getTargetDisplayName(Mockito.anyLong())).thenReturn(Optional.of(TARGET_ADDRESS));
         Mockito.when(entityStore.chooseEntityDTO(2)).thenReturn(EntityDTO.newBuilder()
             .setId("fakeId1")
@@ -374,6 +381,7 @@ public class GroupScopeResolverTest {
 
         ProbeInfo pi = ProbeInfo.newBuilder()
                 .setProbeCategory("test")
+                .setUiProbeCategory("test")
                 .setProbeType("VCENTER")
                 .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
                 .addAccountDefinition(addressAccountDefEntry)
@@ -409,6 +417,8 @@ public class GroupScopeResolverTest {
     public void testGroupScopeInvalidProbeType() throws Exception {
         Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(invalidProbeType));
+        Mockito.when(targetStore.getProbeCategoryForTarget(Mockito.anyLong()))
+                .thenReturn(Optional.of(invalidProbeCategory));
         acctDefEntryTester(groupScopeMissingNonMandatory, false, 0);
     }
 
@@ -416,6 +426,7 @@ public class GroupScopeResolverTest {
     public void testEmptyGroupScope() {
         ProbeInfo pi = ProbeInfo.newBuilder()
             .setProbeCategory("testCategory")
+            .setUiProbeCategory("testCategory")
             .setProbeType("testProbeType")
             .addAccountDefinition(groupScopeAccountDefEntry)
             .build();
@@ -498,6 +509,7 @@ public class GroupScopeResolverTest {
             throws Exception {
         ProbeInfo pi = ProbeInfo.newBuilder()
                 .setProbeCategory("test")
+                .setUiProbeCategory("test")
                 .setProbeType("VCENTER")
                 .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
                 .addAccountDefinition(addressAccountDefEntry)
@@ -543,6 +555,7 @@ public class GroupScopeResolverTest {
                                      String subscriptionId) {
         ProbeInfo pi = ProbeInfo.newBuilder()
             .setProbeCategory("test")
+            .setUiProbeCategory("test")
             .setProbeType(SDKProbeType.AZURE.getProbeType())
             .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
             .addAccountDefinition(addressAccountDefEntry)

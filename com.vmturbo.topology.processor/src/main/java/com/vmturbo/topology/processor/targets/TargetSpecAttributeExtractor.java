@@ -14,6 +14,7 @@ import com.vmturbo.identity.attributes.AttributeExtractor;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.attributes.SimpleMatchingAttributes;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.AccountDefEntryConstants;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 
@@ -48,7 +49,15 @@ public class TargetSpecAttributeExtractor implements AttributeExtractor<TargetSp
             final Set<String> identifierFields = new HashSet<>(targetRelatedProbe.getTargetIdentifierFieldList());
             targetSpecItem.getAccountValueList().forEach(av -> {
                 if (identifierFields.contains(av.getKey())) {
-                    simpleMatchingAttributes.addAttribute(av.getKey(), av.getStringValue());
+                    // for address fields, always use lowercase so that we don't allow the same
+                    // target to be added multiple times with different cases
+                    if (AccountDefEntryConstants.ADDRESS_FIELD.equals(av.getKey())
+                            || AccountDefEntryConstants.NAME_OR_ADDRESS_FIELD.equals(av.getKey())) {
+                        simpleMatchingAttributes.addAttribute(av.getKey(),
+                                av.getStringValue().toLowerCase());
+                    } else {
+                        simpleMatchingAttributes.addAttribute(av.getKey(), av.getStringValue());
+                    }
                 }
             });
             // Targets are uniquely identified by their id plus the probe type that discovered

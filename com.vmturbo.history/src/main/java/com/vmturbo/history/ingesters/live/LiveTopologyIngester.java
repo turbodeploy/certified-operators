@@ -29,15 +29,16 @@ public class LiveTopologyIngester extends TopologyIngesterBase<Topology.DataSegm
      * @param loaderFactorySupplier   supplier of new bulk loader factories
      */
     public LiveTopologyIngester(
-            @Nonnull final Collection<IChunkProcessorFactory
-                    <Topology.DataSegment, TopologyInfo, SimpleBulkLoaderFactory>>
-                    chunkProcessorFactories,
-            ExecutorService threadPool,
-            @Nonnull final TopologyIngesterConfig topologyIngesterConfig,
-            @Nonnull final Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier) {
+        @Nonnull final Collection<IChunkProcessorFactory
+            <Topology.DataSegment, TopologyInfo, SimpleBulkLoaderFactory>>
+            chunkProcessorFactories,
+        ExecutorService threadPool,
+        @Nonnull final TopologyIngesterConfig topologyIngesterConfig,
+        @Nonnull final Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier) {
         super(chunkProcessorFactories, topologyIngesterConfig, loaderFactorySupplier,
-                TOPOLOGY_TYPE);
+            TOPOLOGY_TYPE);
     }
+
 
     /**
      * We only want to count the entities appearing in a chunk, not extension data.
@@ -48,8 +49,8 @@ public class LiveTopologyIngester extends TopologyIngesterBase<Topology.DataSegm
     @Override
     protected int getChunkObjectCount(final Collection<Topology.DataSegment> chunk) {
         final long count = chunk.stream()
-                .filter(item -> item.hasEntity())
-                .count();
-        return (int)count;
+            .filter(item -> item.hasEntity())
+            .count();
+        return (int) count;
     }
 }

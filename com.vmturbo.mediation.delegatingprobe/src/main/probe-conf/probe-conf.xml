@@ -3,5 +3,6 @@
     <full-class-name>com.vmturbo.mediation.delegatingprobe.DelegatingProbe</full-class-name>
     <type>Delegating-Probe</type>
     <category>HYPERVISOR</category>
+    <ui-category>HYPERVISOR</ui-category>
     <version>1.0.0</version>
 </probe>

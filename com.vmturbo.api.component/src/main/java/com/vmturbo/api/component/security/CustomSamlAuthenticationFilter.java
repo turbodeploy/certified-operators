@@ -21,6 +21,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 public class CustomSamlAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String UNKNOWN_IP = "Unknown IP";
+    private static final String SAML2_SERVLET_PATH = "/vmturbo/saml2";
 
     /**
      * Constructor.
@@ -31,13 +32,13 @@ public class CustomSamlAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-
-        final String remoteIpAddress = ApiUtils.getClientIp(request).orElse(UNKNOWN_IP);
         SecurityContext context = SecurityContextHolder.getContext();
-        if (context != null) {
+        final String servletPath = request.getServletPath();
+        if (context != null && servletPath != null && servletPath.contains(SAML2_SERVLET_PATH)) {
             Authentication authenticationToken = context.getAuthentication();
             // If it's not authenticated, store request IP to token.
             if (authenticationToken == null) {
+                final String remoteIpAddress = ApiUtils.getClientIp(request).orElse(UNKNOWN_IP);
                 CustomSamlAuthenticationToken customSamlAuthenticationToken =
                         new CustomSamlAuthenticationToken(remoteIpAddress);
                 SecurityContextHolder.getContext().setAuthentication(customSamlAuthenticationToken);

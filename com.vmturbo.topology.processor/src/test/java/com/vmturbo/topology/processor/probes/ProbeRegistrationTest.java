@@ -23,6 +23,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.communication.ProbeContainerChooserImpl;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -68,7 +69,7 @@ public class ProbeRegistrationTest {
                         new HeuristicsMatcher()),
                 new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
         ProbeStore probeStore = new RemoteProbeStore(keyValueStore,
-            identityProvider, stitchingOperationStore);
+            identityProvider, stitchingOperationStore,  new ActionMergeSpecsRepository());
         remoteMediation = new RemoteMediationServer(probeStore,
             Mockito.mock(ProbePropertyStore.class), new ProbeContainerChooserImpl(probeStore));
         probeInfoBuilder = ProbeInfo.newBuilder(Probes.defaultProbe);
@@ -130,7 +131,7 @@ public class ProbeRegistrationTest {
     @Test
     public void testInvalidProbesRegistration() {
         final ProbeInfo probeInfo1 = probeInfoBuilder.build();
-        probeInfoBuilder.setProbeCategory("Another category");
+        probeInfoBuilder.setProbeCategory("Another category").setUiProbeCategory("uiProbeCat");
         final ProbeInfo probeInfo2 = probeInfoBuilder.build();
         final ContainerInfo containerInfo =
                         ContainerInfo.newBuilder().addProbes(probeInfo1).addProbes(probeInfo2)

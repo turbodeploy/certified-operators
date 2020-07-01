@@ -30,6 +30,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -82,12 +83,19 @@ public class RemoteProbeStore implements ProbeStore {
 
     private final ProbeOrdering probeOrdering;
 
+    /**
+     * The action merge policy/specs conversion repository.
+     */
+    private final ActionMergeSpecsRepository actionMergeSpecsRepository;
+
     public RemoteProbeStore(@Nonnull final KeyValueStore keyValueStore,
                             @Nonnull IdentityProvider identityProvider,
-                            @Nonnull final StitchingOperationStore stitchingOperationStore) {
+                            @Nonnull final StitchingOperationStore stitchingOperationStore,
+                            final @Nonnull ActionMergeSpecsRepository actionSpecsRepository) {
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         identityProvider_ = Objects.requireNonNull(identityProvider);
         this.stitchingOperationStore = Objects.requireNonNull(stitchingOperationStore);
+        this.actionMergeSpecsRepository = actionSpecsRepository;
 
         this.probeInfos = new HashMap<>();
         this.probeOrdering = new StandardProbeOrdering(this);
@@ -168,6 +176,8 @@ public class RemoteProbeStore implements ProbeStore {
             // If we successfully got an ID it means we passed the compatibility check.
             probeInfos.put(probeId, probeInfo);
             stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
+            // Save the action merge policies
+            actionMergeSpecsRepository.setPoliciesForProbe(probeId, probeInfo);
 
             if (probeExists) {
                 logger.info("Connected probe " + probeId +

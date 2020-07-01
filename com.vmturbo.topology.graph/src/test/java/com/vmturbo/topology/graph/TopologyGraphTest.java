@@ -20,12 +20,14 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -57,12 +59,8 @@ public class TopologyGraphTest {
     private final TestGraphEntity.Builder onPremVM2 =
             TestGraphEntity.newBuilder(5L, ApiEntityType.VIRTUAL_MACHINE)
                 .addProviderId(2L);
-    private final Map<Long, TestGraphEntity.Builder> onPremTopologyMap = ImmutableMap.of(
-        1L, onPremDC,
-        2L, onPremPM1,
-        3L, onPremPM2,
-        4L, onPremVM1,
-        5L, onPremVM2);
+    private Long2ObjectMap<TestGraphEntity.Builder> onPremTopologyMap =
+            newTopologyMap(onPremDC, onPremPM1, onPremPM2, onPremVM1, onPremVM2);
 
 
     private static final ImmutableList<TopsortEdgeSupplier<TestGraphEntity>> BY_PROVIDERS_EDGE_SUPPLIERS
@@ -105,9 +103,17 @@ public class TopologyGraphTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    private Long2ObjectMap<TestGraphEntity.Builder> newTopologyMap(TestGraphEntity.Builder... entities) {
+        Long2ObjectMap<TestGraphEntity.Builder> bldr = new Long2ObjectOpenHashMap<>();
+        for (TestGraphEntity.Builder e : entities) {
+            bldr.put(e.getOid(), e);
+        }
+        return bldr;
+    }
+
     @Test
     public void testBuildConstructionEmptyMap() {
-        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(Collections.emptyMap());
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(new Long2ObjectOpenHashMap<>());
         assertEquals(0, graph.size());
         assertEquals(0, producerCount(graph));
         assertEquals(0, consumerCount(graph));
@@ -126,13 +132,9 @@ public class TopologyGraphTest {
         final TestGraphEntity.Builder entity4Duplicate = TestGraphEntity.newBuilder(4L, ApiEntityType.VIRTUAL_MACHINE)
             .addProviderId(2L);
 
-        final Map<Long, TestGraphEntity.Builder> topologyMap = ImmutableMap.of(
-            1L, onPremDC,
-            2L, onPremPM1,
-            3L, onPremPM2,
-            4L, onPremVM1,
-            5L, entity4Duplicate
-        );
+        final Long2ObjectMap<TestGraphEntity.Builder> topologyMap = newTopologyMap(
+            onPremDC, onPremPM1, onPremPM2, onPremVM1);
+        topologyMap.put(50L, entity4Duplicate);
 
         expectedException.expect(IllegalArgumentException.class);
         TestGraphEntity.newGraph(topologyMap);
@@ -140,13 +142,8 @@ public class TopologyGraphTest {
 
     @Test
     public void testEntitiesInReverseOrder() {
-        final Map<Long, TestGraphEntity.Builder> topologyMap = ImmutableMap.of(
-            5L, onPremVM2,
-            4L, onPremVM1,
-            3L, onPremPM2,
-            2L, onPremPM1,
-            1L, onPremDC
-        );
+        final Long2ObjectMap<TestGraphEntity.Builder> topologyMap = newTopologyMap(
+            onPremVM2, onPremVM1, onPremPM2, onPremPM1, onPremDC);
 
         // Verify that scanning an entity that links to an entity not yet seen
         // does not result in an error.
@@ -222,7 +219,7 @@ public class TopologyGraphTest {
 
     @Test
     public void testGetConsumersNotInGraph() {
-        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(Collections.emptyMap());
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(new Long2ObjectOpenHashMap<>());
 
         assertThat(
             graph.getConsumers(1L).collect(Collectors.toList()),
@@ -232,7 +229,7 @@ public class TopologyGraphTest {
 
     @Test
     public void testGetProducersNotInGraph() {
-        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(Collections.emptyMap());
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(new Long2ObjectOpenHashMap<>());
 
         assertThat(
             graph.getProviders(1L).collect(Collectors.toList()),
@@ -249,7 +246,7 @@ public class TopologyGraphTest {
 
     @Test
     public void testGetEntityNotInGraph() {
-        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(Collections.emptyMap());
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(new Long2ObjectOpenHashMap<>());
 
         assertFalse(graph.getEntity(1L).isPresent());
     }
@@ -285,10 +282,8 @@ public class TopologyGraphTest {
             .addProviderId(1L)
             .addProviderId(2L);
 
-        final Map<Long, TestGraphEntity.Builder> topologyMap = ImmutableMap.of(
-            1L, entity1,
-            2L, entity2,
-            3L, entity3);
+        final Long2ObjectMap<TestGraphEntity.Builder> topologyMap =
+                newTopologyMap(entity1, entity2, entity3);
 
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(topologyMap);
 

@@ -24,7 +24,7 @@ public abstract class PropertyType {
      * for a given property type name.
      */
     private static Map<String, PropertyType> nameToTypeMap =
-            Collections.synchronizedMap(new HashMap<>());
+        Collections.synchronizedMap(new HashMap<>());
 
     /**
      * Obtain an instance for the given property name.

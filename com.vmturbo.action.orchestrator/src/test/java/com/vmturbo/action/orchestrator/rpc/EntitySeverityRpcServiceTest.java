@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyList;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -41,6 +42,10 @@ import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse.Builder;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
@@ -49,10 +54,12 @@ import com.vmturbo.components.api.test.GrpcTestServer;
  */
 public class EntitySeverityRpcServiceTest {
     private EntitySeverityServiceBlockingStub severityServiceClient;
+    private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
+
+    private EntitySeverityCache severityCache;
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
 
-    private final EntitySeverityCache severityCache = Mockito.spy(EntitySeverityCache.class);
     private final long topologyContextId = 3;
 
     private final EntitySeverityRpcService entitySeverityRpcService =
@@ -60,13 +67,18 @@ public class EntitySeverityRpcServiceTest {
                     100, 500, 5000);
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(entitySeverityRpcService);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(
+        entitySeverityRpcService,
+        repositoryServiceMole);
 
     @Before
     public void setup() throws IOException {
         IdentityGenerator.initPrefix(0);
 
         severityServiceClient = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        severityCache = Mockito.spy(new EntitySeverityCache(
+            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            true));
     }
 
     @Test
@@ -145,6 +157,64 @@ public class EntitySeverityRpcServiceTest {
 
         // All should be missing severity.
         assertFalse(severities.values().stream().anyMatch(Optional::isPresent));
+
+        // without an action store, all EntitySeverities should have empty severity breakdown map
+        assertEquals(0, severitiesList.stream()
+            .filter(entitySeverity -> !entitySeverity.getSeverityBreakdownMap().isEmpty())
+            .count());
+    }
+
+    /**
+     * GetEntitySeverities should take the severity counts from the cache and places them in the severity
+     * breakdown field.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetEntitySeveritiesWithSeverityBreakdown() throws Exception {
+        EntitySeverityCache.SeverityCount severityCount = new EntitySeverityCache.SeverityCount();
+        severityCount.addSeverity(Severity.CRITICAL);
+        severityCount.addSeverity(Severity.CRITICAL);
+        severityCount.addSeverity(Severity.MAJOR);
+        when(severityCache.getSeverityBreakdown(1234L)).thenReturn(Optional.of(severityCount));
+
+        MultiEntityRequest severityContext = MultiEntityRequest.newBuilder()
+            .setTopologyContextId(topologyContextId)
+            .addEntityIds(1234L)
+            .build();
+
+        when(actionStorehouse.getSeverityCache(topologyContextId)).thenReturn(Optional.of(severityCache));
+        Iterable<EntitySeveritiesResponse> response =
+            () -> severityServiceClient.getEntitySeverities(severityContext);
+        EntitySeverity severity = processEntitySeverityStream(response).get(0);
+        assertFalse(severity.hasSeverity());
+        assertEquals(1234L, severity.getEntityId());
+        assertEquals(2, severity.getSeverityBreakdownMap().size());
+        assertEquals(2L, severity.getSeverityBreakdownMap().get(Severity.CRITICAL.getNumber()).longValue());
+        assertEquals(1L, severity.getSeverityBreakdownMap().get(Severity.MAJOR.getNumber()).longValue());
+    }
+
+    /**
+     * GetEntitySeverities should have an empty severity breakdown map when the cache returns Optional.empty().
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetEntitySeveritiesWithEmptySeverityBreakdown() throws Exception {
+        when(severityCache.getSeverityBreakdown(1234L)).thenReturn(Optional.empty());
+
+        MultiEntityRequest severityContext = MultiEntityRequest.newBuilder()
+            .setTopologyContextId(topologyContextId)
+            .addEntityIds(1234L)
+            .build();
+
+        when(actionStorehouse.getSeverityCache(topologyContextId)).thenReturn(Optional.of(severityCache));
+        Iterable<EntitySeveritiesResponse> response =
+            () -> severityServiceClient.getEntitySeverities(severityContext);
+        EntitySeverity severity = processEntitySeverityStream(response).get(0);
+        assertFalse(severity.hasSeverity());
+        assertEquals(1234L, severity.getEntityId());
+        assertTrue(severity.getSeverityBreakdownMap().isEmpty());
     }
 
     @Test

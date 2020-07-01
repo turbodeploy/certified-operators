@@ -8,6 +8,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -44,6 +45,7 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Configuration;
@@ -56,6 +58,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import com.vmturbo.components.api.ServerStartedNotifier;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.RequiresDataInitialization.InitializationException;
@@ -67,6 +70,8 @@ import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
+import com.vmturbo.components.common.metrics.MemoryMetricsManager;
+import com.vmturbo.components.common.metrics.MemoryMetricsManager.ManagedRoot;
 import com.vmturbo.components.common.metrics.ScheduledMetrics;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
@@ -571,6 +576,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         final List<BindableService> services = Lists.newArrayList(getGrpcServices());
         services.add(baseVmtComponentConfig.logConfigurationService());
         services.add(baseVmtComponentConfig.tracingConfigurationRpcService());
+        services.add(baseVmtComponentConfig.memoryMetricsRpcService());
         ComponentGrpcServer.get().addServices(services, getServerInterceptors());
     }
 
@@ -578,6 +584,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     public void onApplicationEvent(ContextRefreshedEvent event) {
         if (!startFired.getAndSet(true)) {
             startComponent(event.getApplicationContext());
+            configureMemoryManager(event.getApplicationContext());
         }
     }
 
@@ -695,7 +702,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
         // The starting of the component should add the gRPC services defined in the spring
         // context to the gRPC server.
-        ComponentGrpcServer.get().start(context.getEnvironment());
+        ServerStartedNotifier.get().notifyServerStarted(context);
         return context;
     }
 
@@ -738,6 +745,58 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             } else {
                 logger.error("Could not get Specification-Version for component class {}", getClass());
             }
+        }
+    }
+
+    /**
+     * Configure {@code MemoryMetricsManager} with the objects managed by the given
+     * spring application context.
+     *
+     * @param applicationContext The application context managing spring objects.
+     */
+    private void configureMemoryManager(ApplicationContext applicationContext) {
+        if (applicationContext instanceof AnnotationConfigWebApplicationContext) {
+            // Clear out any old configured roots for this component. This will usually be called
+            // at component startup, but if called due to a spring context refresh we want
+            // to be sure to clear out any old component roots to prevent leaking them.
+            final String componentName = getComponentName();
+            MemoryMetricsManager.clearComponentRoots(componentName);
+
+            final AnnotationConfigWebApplicationContext context =
+                (AnnotationConfigWebApplicationContext)applicationContext;
+            final ConfigurableListableBeanFactory clbf = context.getBeanFactory();
+            final List<ManagedRoot> springBeans = new ArrayList<>(applicationContext.getBeanDefinitionCount());
+
+            // Make the base spring context object a root object.
+            springBeans.add(new ManagedRoot(componentName + "-context", context, componentName));
+
+            // The Spring Context bean factory manages created spring beans. We want the memory
+            // manager to be able to reach all objects reachable from the bean factory.
+            springBeans.add(new ManagedRoot(componentName + "-bean-factory", clbf, componentName));
+
+            // Lots and lots of code retain references to logger objects, all of which refer
+            // back to the static LogManager context. Make this context known to the
+            // MemoryMetricsManager too.
+            springBeans.add(new ManagedRoot(componentName + "-log-manager-context",
+                LogManager.getContext(), getComponentName()));
+
+            // The most important of a components objects tend to be the objects created via
+            // Spring beans. Make these beans directly known to the MemoryMetricsManager.
+            for (String name : clbf.getSingletonNames()) {
+                Object singletonBean = clbf.getSingleton(name);
+                if (singletonBean != null) {
+                    springBeans.add(new ManagedRoot(name, singletonBean, componentName));
+                }
+            }
+
+            MemoryMetricsManager.addToManagedRootSet(springBeans);
+            logger.info("Added {} managed root objects {} to memory manager. {} total roots under management.",
+                springBeans.size(),
+                getClass().getSimpleName(),
+                MemoryMetricsManager.managedRootCount());
+        } else {
+            logger.warn("{} is a {} and not an AnnotationConfigWebApplicationContext. "
+                + "Skipping its beans while configuring memory manager.");
         }
     }
 

@@ -274,11 +274,11 @@ public class BusinessUnitsServiceTest {
     public void testGetBusinessUnitsWithDiscoveredTypeAndCloudType() throws Exception {
         final TargetApiDTO awsTarget = new TargetApiDTO();
         awsTarget.setUuid("11");
-        awsTarget.setCategory(ProbeCategory.CLOUD_MANAGEMENT.getCategory());
+        awsTarget.setCategory(ProbeCategory.PUBLIC_CLOUD.getCategory());
         awsTarget.setType(SDKProbeType.AWS.getProbeType());
         final TargetApiDTO azureTarget = new TargetApiDTO();
         azureTarget.setUuid("22");
-        azureTarget.setCategory(ProbeCategory.CLOUD_MANAGEMENT.getCategory());
+        azureTarget.setCategory(ProbeCategory.PUBLIC_CLOUD.getCategory());
         azureTarget.setType(SDKProbeType.AZURE.getProbeType());
         final ThinProbeInfo awsProbeInfo = Mockito.mock(ThinProbeInfo.class);
         final ThinProbeInfo azureProbeInfo = Mockito.mock(ThinProbeInfo.class);

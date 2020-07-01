@@ -18,7 +18,7 @@ export HOST_IP=$(/sbin/ip route get 1 | awk '{print $NF;exit}')
 # list of "component" images to start (not including support containers). "api" should be last on this list
 #    so that other components will all be running before the user-facing UI comes up
 XL_COMPONENTS="auth topology-processor market repository plan-orchestrator action-orchestrator group \
-        history cost mediation-hyperv mediation-vcenter mediation-netapp mediation-ucs \
+        history cost mediation-hyperv mediation-vcenter mediation-netapp mediation-ucs mediation-udt \
         mediation-vmax mediation-vmm mediation-hpe3par mediation-pure mediation-oneview api"
 # list of "support" containers to start
 BASE_IMAGES="nginx rsyslog consul clustermgr db arangodb"

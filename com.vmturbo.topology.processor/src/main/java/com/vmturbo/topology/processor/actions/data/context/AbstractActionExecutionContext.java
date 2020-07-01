@@ -102,6 +102,9 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
 
     protected ActionDTO.ActionType actionType;
 
+    @Nullable
+    protected final String explanation;
+
     protected AbstractActionExecutionContext(@Nonnull final ExecuteActionRequest request,
                                              @Nonnull final ActionDataManager dataManager,
                                              @Nonnull final EntityStore entityStore,
@@ -115,6 +118,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
         this.actionType = Objects.requireNonNull(request.getActionType());
+        this.explanation = request.getExplanation();
     }
 
     @Nonnull
@@ -173,12 +177,13 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     }
 
     /**
-     * Get all of the action item DTOs associated with executing this action
+     * Get all of the action item DTOs associated with executing this action.
      *
      * @return all of the action item DTOs associated with executing this action
+     * @throws ContextCreationException if failure occurred while constructing context
      */
     @Override
-    public List<ActionItemDTO> getActionItems() {
+    public List<ActionItemDTO> getActionItems() throws ContextCreationException {
         if (actionItems == null) {
             buildActionItems();
         }
@@ -206,7 +211,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      */
     @Nullable
     @Override
-    public Long getSecondaryTargetId() throws TargetNotFoundException {
+    public Long getSecondaryTargetId() throws ContextCreationException {
         return null;
     }
 
@@ -222,9 +227,11 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      *
      * @param actionItemBuilders the full list of action items, from which the primary one will be extracted
      * @return the primary {@link ActionItemDTO.Builder} for this action
+     * @throws ContextCreationException if failure occurred while constructing context
      */
     protected ActionItemDTO.Builder getPrimaryActionItemBuilder(
-            @Nonnull List<ActionItemDTO.Builder> actionItemBuilders) {
+            @Nonnull List<ActionItemDTO.Builder> actionItemBuilders)
+            throws ContextCreationException {
         return actionItemBuilders.stream()
                 .findFirst()
                 .orElseThrow(() -> new ContextCreationException("No action item builders found. "
@@ -259,8 +266,9 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * The default implementation creates a single {@link ActionItemDTO.Builder}
      *
      * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders}
+     * @throws ContextCreationException if failure occurred while constructing context
      */
-    protected List<ActionItemDTO.Builder> initActionItemBuilders() {
+    protected List<ActionItemDTO.Builder> initActionItemBuilders() throws ContextCreationException {
         // Get the full entity, including a combination of both stitched and raw data
         final EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
         return buildPrimaryActionItem(fullEntityDTO);
@@ -274,8 +282,11 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * @param fullEntityDTO a {@link EntityDTO} representing the primary entity for this action
      * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders} containing a single
      * item representing the primary actionItem for this action
+     * @throws ContextCreationException if failure occurred while constructing context
      */
-    protected List<ActionItemDTO.Builder> buildPrimaryActionItem(final EntityDTO fullEntityDTO) {
+    @Nonnull
+    protected List<ActionItemDTO.Builder> buildPrimaryActionItem(final EntityDTO fullEntityDTO)
+            throws ContextCreationException {
         final ActionItemDTO.Builder actionItemBuilder = ActionItemDTO.newBuilder();
         actionItemBuilder.setActionType(getSDKActionType());
         actionItemBuilder.setUuid(Long.toString(getActionId()));
@@ -295,7 +306,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         return builders;
     }
 
-    protected EntityDTO getFullEntityDTO(long entityId) {
+    protected EntityDTO getFullEntityDTO(long entityId) throws ContextCreationException {
         try {
             return entityRetriever.fetchAndConvertToEntityDTO(entityId);
         } catch (EntityRetrievalException e) {
@@ -304,9 +315,8 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         }
     }
 
-    protected PerTargetInfo getPerTargetInfo(final long targetId,
-                                             final long entityId,
-                                             final String entityType) {
+    private PerTargetInfo getPerTargetInfo(final long targetId, final long entityId,
+            final String entityType) throws ContextCreationException {
         return entityStore.getEntity(entityId)
                 .orElseThrow(() -> ContextCreationException.noEntity(entityType, entityId))
                 .getEntityInfo(targetId)
@@ -314,7 +324,8 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
                         entityType, entityId, targetId));
     }
 
-    protected Optional<EntityDTO> getHost(final EntityDTO entity) {
+    @Nonnull
+    protected Optional<EntityDTO> getHost(final EntityDTO entity) throws ContextCreationException {
         // Right now hosted by only gets set for VM -> PM and Container -> Pod relationships.
         // Hosted by for VM -> PM relationships is most notably required by the HyperV probe.
         // TODO (roman, May 16 2017): Generalize to all entities where this is necessary.
@@ -349,11 +360,16 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
 
     @Override
     @Nonnull
-    public ActionExecutionDTO buildActionExecutionDto() {
+    public ActionExecutionDTO buildActionExecutionDto() throws ContextCreationException {
         final ActionExecutionDTO.Builder actionExecutionBuilder = ActionExecutionDTO.newBuilder()
                 .setActionOid(getActionId())
                 .setActionType(getSDKActionType())
                 .addAllActionItem(getActionItems());
+
+        if (explanation != null) {
+            actionExecutionBuilder.setExplanation(explanation);
+        }
+
         // if a WorkflowInfo action execution override is present, translate it to a NonMarketEntity
         // and include it in the ActionExecution to be sent to the target
         getWorkflow().ifPresent(actionExecutionBuilder::setWorkflow);

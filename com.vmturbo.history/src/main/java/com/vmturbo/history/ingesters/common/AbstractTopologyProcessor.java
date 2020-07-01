@@ -29,7 +29,7 @@ public abstract class AbstractTopologyProcessor<T, StateT, ResultT>
      * @param projectedTopology       Whether or not this processor is for a projected topology.
      */
     public AbstractTopologyProcessor(
-            @Nonnull final Collection<? extends IChunkProcessorFactory<T, TopologyInfo, StateT>>
+        @Nonnull final Collection<? extends IChunkProcessorFactory<T, TopologyInfo, StateT>>
                     chunkProcessorFactories, TopologyIngesterConfig config,
             boolean projectedTopology) {
         super(chunkProcessorFactories, config);

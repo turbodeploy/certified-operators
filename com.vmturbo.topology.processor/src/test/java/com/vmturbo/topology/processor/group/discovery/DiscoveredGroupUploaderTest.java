@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -62,6 +63,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
@@ -77,6 +79,9 @@ import com.vmturbo.topology.processor.util.GroupTestUtils;
 
 @ThreadSafe
 public class DiscoveredGroupUploaderTest {
+    private static final String VM_ASG_POLICY_NAME = "CSP:VMs_Accelerated Networking Enabled_EA - Development:1";
+    private static final String CONTAINER_ASG_POLICY_NAME = "CSP:Deployment::btc/kubeturbo-btc-Kubernetes-btc AWS[Container]:1";
+    private static final String VM_TEMPLATE_EXCLUSION_POLICY_NAME = "EXP:VMs_Accelerated Networking Enabled_EA - Development:1";
 
     private DiscoveredGroupUploader recorderSpy;
 
@@ -427,6 +432,11 @@ public class DiscoveredGroupUploaderTest {
         // Check for consistent scaling policies
         Assert.assertEquals(2, countPoliciesWithSetting(policies,
                 EntitySettingSpecs.EnableConsistentResizing));
+
+        Set<String> policyNames = policies.stream().map(DiscoveredSettingPolicyInfo::getName)
+            .collect(Collectors.toSet());
+        Assert.assertThat(policyNames, containsInAnyOrder(VM_ASG_POLICY_NAME,
+            CONTAINER_ASG_POLICY_NAME, VM_TEMPLATE_EXCLUSION_POLICY_NAME));
     }
 
     /**
@@ -468,7 +478,7 @@ public class DiscoveredGroupUploaderTest {
     }
 
     private String readResourceFileAsString(String fileName) throws IOException {
-        String path = getClass().getClassLoader().getResource(fileName).getFile();
-        return Files.asCharSource(new File(path), Charset.defaultCharset()).read();
+        File file = ResourcePath.getTestResource(getClass(), fileName).toFile();
+        return Files.asCharSource(file, Charset.defaultCharset()).read();
     }
 }

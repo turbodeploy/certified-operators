@@ -199,7 +199,7 @@ public enum GlobalSettingSpecs {
      * Max observation period for VM growth.
      */
     MaxVMGrowthObservationPeriod("maxVMGrowthObservationPeriod",
-        "VM Growth Observation (months)",
+        "VM Growth Observation Period (in month)",
         numeric(1, 24, 1), Collections.emptyList()),
 
     /**
@@ -262,6 +262,10 @@ public enum GlobalSettingSpecs {
      * Setting for Analytics and Telemetry
      */
     TelemetryEnabled("telemetryEnabled", "Enable Telemetry and Analytics",
+            new BooleanSettingDataType(false),
+            Collections.emptyList()),
+
+    TelemetryTermsAccepted("telemetryTermsAccepted", "Determine whether user has accepted the use of Telemetry",
             new BooleanSettingDataType(false),
             Collections.emptyList());
     /**

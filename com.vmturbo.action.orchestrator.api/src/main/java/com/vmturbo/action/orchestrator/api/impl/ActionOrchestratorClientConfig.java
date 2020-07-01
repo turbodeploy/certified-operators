@@ -17,11 +17,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
+import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 
 /**
@@ -118,9 +118,9 @@ public class ActionOrchestratorClientConfig {
      */
     @Bean
     @Lazy
-    public IMessageReceiver<ActionEventDTO> createActionEventsListener() {
+    public IMessageReceiver<ActionEvent> createActionEventsListener() {
         return baseKafkaConsumerConfig.kafkaConsumer().messageReceiver(ACTION_AUDIT_TOPIC,
-                ActionEventDTO::parseFrom);
+                ActionEvent::parseFrom);
     }
 
     /**

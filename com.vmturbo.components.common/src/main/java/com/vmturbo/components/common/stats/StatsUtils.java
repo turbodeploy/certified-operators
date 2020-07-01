@@ -49,8 +49,8 @@ public class StatsUtils {
             .put(StringConstants.NUM_DAS, ApiEntityType.DISKARRAY)
             .put(StringConstants.NUM_LOADBALANCERS, ApiEntityType.LOAD_BALANCER)
             .put(StringConstants.NUM_DCS, ApiEntityType.DATACENTER)
-            .put(StringConstants.NUM_APPS, ApiEntityType.APPLICATION)
-            .put(StringConstants.NUM_VAPPS, ApiEntityType.VIRTUAL_APPLICATION)
+            .put(StringConstants.NUM_APPS, ApiEntityType.APPLICATION_COMPONENT)
+            .put(StringConstants.NUM_SERVICES, ApiEntityType.SERVICE)
             .put(StringConstants.NUM_NETWORKS, ApiEntityType.NETWORK)
             .build();
 

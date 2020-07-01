@@ -267,6 +267,13 @@ services:
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
+  mediation-udt:
+      extends:
+        file: prod-services.yml
+        service: mediation-udt-prod
+      mem_limit: 4096M
+      depends_on: *clustermgrdep
+
   mediation-vmax:
     extends:
       file: prod-services.yml

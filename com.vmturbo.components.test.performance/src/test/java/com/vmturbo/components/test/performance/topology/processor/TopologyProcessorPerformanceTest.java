@@ -226,7 +226,7 @@ public class TopologyProcessorPerformanceTest {
                     new TestAccountValue("targetId", "stress"),
                     new TestAccountValue("hostCount", String.valueOf(account.getHostCount())),
                     new TestAccountValue("vmCount", String.valueOf(account.getVmCount())),
-                    new TestAccountValue("appCount", String.valueOf(account.getAppCount())),
+                    new TestAccountValue("appCount", String.valueOf(account.getAppCompCount())),
                     new TestAccountValue("storageCount", String.valueOf(account.getStorageCount())),
                     new TestAccountValue("clusterCount", String.valueOf(account.getClusterCount())),
                     new TestAccountValue("dcCount", String.valueOf(account.getDcCount())),

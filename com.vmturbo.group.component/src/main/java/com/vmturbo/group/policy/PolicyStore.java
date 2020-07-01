@@ -233,12 +233,12 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
                                 + " of groups {} they are create on top of: [{}]", groupIds,
                         userPolicies);
             }
-            final int rowsDeleeted = dslContext.deleteFrom(Tables.POLICY)
+            final int rowsDeleted = dslContext.deleteFrom(Tables.POLICY)
                     .where(Tables.POLICY.ID.in(dslContext.select(Tables.POLICY_GROUP.POLICY_ID)
                             .from(Tables.POLICY_GROUP)
                             .where(Tables.POLICY_GROUP.GROUP_ID.in(groupIds))))
                     .execute();
-            logger.debug("Removed {} placement policies associated with groups {}", rowsDeleeted,
+            logger.debug("Removed {} placement policies associated with groups {}", rowsDeleted,
                     groupIds);
         } catch (RuntimeException e) {
             POLICY_STORE_ERROR_COUNT.labels(DELETE_LABEL).increment();

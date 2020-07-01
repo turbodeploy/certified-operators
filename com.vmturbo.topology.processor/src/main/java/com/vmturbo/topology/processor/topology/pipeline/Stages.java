@@ -19,6 +19,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 import com.google.protobuf.AbstractMessage;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
@@ -59,6 +60,7 @@ import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
@@ -419,6 +421,26 @@ public class Stages {
     }
 
     /**
+     * This stage uploads action merge specs to the action orchestrator component.
+     * We only do this for the live topology.
+     */
+    public static class UploadAtomicActionSpecsStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
+
+        private final ActionMergeSpecsUploader actionMergeSpecsUploader;
+
+        UploadAtomicActionSpecsStage(@Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader) {
+            this.actionMergeSpecsUploader = actionMergeSpecsUploader;
+        }
+
+        @Nonnull
+        @Override
+        public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
+            actionMergeSpecsUploader.uploadAtomicActionSpecsInfo(topologyGraph);
+            return Status.success();
+        }
+    }
+
+    /**
      * This stage construct a topology map (ie OID -> TopologyEntity.Builder) from a {@Link StitchingContext}.
      */
     public static class ConstructTopologyFromStitchingContextStage
@@ -490,7 +512,10 @@ public class Stages {
         @Nonnull
         @Override
         public StageResult<Map<Long, Builder>> execute(@Nonnull final EntityStore entityStore) {
-            final CachedTopologyResult result = resultCache.getTopology(getContext().getTopologyInfo());
+            final CachedTopologyResult result = resultCache.getTopology(
+                    getContext().getTopologyInfo().hasPlanInfo()
+                            ? getContext().getTopologyInfo().getPlanInfo().getPlanProjectType()
+                            : null);
             return StageResult.withResult(result.getEntities())
                 .andStatus(Status.success(result.toString()));
         }
@@ -1175,7 +1200,7 @@ public class Stages {
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             try {
-                entityValidator.validateTopologyEntities(input.getTopologyGraph().entities(), isPlan);
+                entityValidator.validateTopologyEntities(input.getTopologyGraph(), isPlan);
                 return Status.success();
             } catch (EntitiesValidationException e) {
                 throw new PipelineStageException(e);

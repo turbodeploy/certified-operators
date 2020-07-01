@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingTo
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.service.StoreOperationException;
@@ -113,6 +114,9 @@ public class EntitySettingStore {
             EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingName(),
             EntitySettingSpecs.ExcludedTemplates.getSettingName());
 
+    private static final Set<String> settingSpecsWithUnionTireBreaker =
+        EntitySettingSpecs.getEntitySettingSpecByTierBreaker(SettingTiebreaker.UNION)
+            .map(EntitySettingSpecs::getSettingName).collect(Collectors.toSet());
 
     public EntitySettingStore(final long realtimeTopologyContextId,
                               @Nonnull final SettingStore settingStore) {
@@ -541,7 +545,9 @@ public class EntitySettingStore {
                 getDefaultSettingPolicySettings(userSettings.getDefaultSettingPolicyId())
                     .filter(namePredicate)
                     // Check to make sure we don't override the one from user settings.
-                    .filter(settingToPolicyId -> !specsPresent.contains(settingToPolicyId.getSetting().getSettingSpecName()))
+                    .filter(settingToPolicyId ->
+                        settingSpecsWithUnionTireBreaker.contains(settingToPolicyId.getSetting().getSettingSpecName()) ||
+                        !specsPresent.contains(settingToPolicyId.getSetting().getSettingSpecName()))
                     .forEach(settings::add);
             }
 

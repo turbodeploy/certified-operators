@@ -47,6 +47,9 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessor
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.OperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
@@ -97,6 +100,12 @@ public class TopologyProcessorNotificationSender
                         operation -> notifyDiscoveryState((Discovery)operation));
         // TODO (roman, Aug 2016): Add notifications for actions.
         operationsListeners.put(Action.class, operation -> notifyActionState((Action)operation));
+
+        // No-ops because we do not need notifications, but we also do not want getOperationListener
+        // to fail when these operations finish.
+        operationsListeners.put(ActionApproval.class, operation -> { });
+        operationsListeners.put(ActionAudit.class, operation -> { });
+        operationsListeners.put(GetActionState.class, operation -> { });
     }
 
     /**

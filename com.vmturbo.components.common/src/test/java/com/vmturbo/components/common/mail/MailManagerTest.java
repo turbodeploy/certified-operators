@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.ResourcePath;
 
 /**
  * Test sending emails with the MailManager class with different SMTP settings.
@@ -104,8 +105,7 @@ public class MailManagerTest {
         mailManager.sendMail(Arrays.asList("testeamil@turbonomic.com"),
                 "Test SSL",
                 "Test body",
-                Arrays.asList(getClass().getClassLoader()
-                        .getResource("emailAttachment.txt").getFile()));
+                Arrays.asList(ResourcePath.getTestResource(getClass(), "emailAttachment.txt").toString()));
     }
 
     /**
@@ -122,10 +122,9 @@ public class MailManagerTest {
                 .thenReturn(getSettingListGoogleTLS());
 
         mailManager.sendMail(Arrays.asList("testemail@turbonomic.com"),
-                "Test TLS",
-                "Test body",
-                Arrays.asList(getClass().getClassLoader()
-                        .getResource("emailAttachment.txt").getFile()));
+            "Test TLS",
+            "Test body",
+            Arrays.asList(ResourcePath.getTestResource(getClass(), "emailAttachment.txt").toString()));
     }
 
     /**

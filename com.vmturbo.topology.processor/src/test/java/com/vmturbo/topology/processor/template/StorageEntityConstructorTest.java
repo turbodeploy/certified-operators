@@ -41,6 +41,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
 
 /**
  * Unit tests for {@link StorageEntityConstructor}.
@@ -136,7 +137,7 @@ public class StorageEntityConstructorTest {
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(10L);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
-                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, null, false,
+                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, null, TemplateActionType.CLONE,
                         identityProvider, null);
 
         // 6 commodities sold: storage latency, provisioned, amount, access and 2 DSPM_ACCESS
@@ -191,7 +192,7 @@ public class StorageEntityConstructorTest {
                 .addAllCommoditiesBoughtFromProviders(stCommodityBoughtFromProvider);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
-                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, builder, false,
+                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, builder, TemplateActionType.CLONE,
                         identityProvider, null);
         // 7 commodities sold: storage latency, provisioned, amount and access
         // storage cluster commodity and two dspm access commodities

@@ -39,6 +39,7 @@ import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
@@ -110,7 +111,11 @@ public class TargetController {
             if (probeInfo.isPresent()) {
                 final CreationMode creationMode = probeInfo.get().getCreationMode();
                 if (TargetOperation.ADD.isValidTargetOperation(creationMode)) {
-                    final Target target = targetStore.createTarget(targetSpec.toDto());
+                    TopologyProcessorDTO.TargetSpec targetDto
+                            = probeInfo.get().getCreationMode() == CreationMode.INTERNAL
+                            ? targetSpec.toDto().toBuilder().setIsHidden(true).build()
+                            : targetSpec.toDto();
+                    final Target target = targetStore.createTarget(targetDto);
                     final TargetInfo targetInfo = targetToTargetInfo(target);
                     return new ResponseEntity<>(targetInfo, HttpStatus.OK);
                 } else {

@@ -1,0 +1,44 @@
+manual_entity_definition {
+  entity_type: BUSINESS_APPLICATION
+  entity_name: "BA_Combined"
+  associated_entities {
+    associated_group {
+    }
+    connected_entity_type: CONTAINER_POD
+  }
+  associated_entities {
+    static_associated_entities {
+      members_by_type {
+        type: {
+          entity: 3
+        }
+        members: 74412384495333
+        members: 74412384495332
+      }
+    }
+    connected_entity_type: SERVICE
+  }
+  associated_entities {
+    associated_group {
+      id: 123434550
+    }
+    connected_entity_type: CONTAINER
+  }
+  associated_entities {
+    dynamic_connection_filters {
+      entity_filters {
+        expression_type: "RXEQ"
+        expression_value: "*-vm"
+        filter_type: "virtualMachinesByName"
+        is_case_sensitive: false
+      }
+      entity_filters {
+        expression_type: "RXNEQ"
+        expression_value: "vm-*"
+        filter_type: "virtualMachinesByName"
+        is_case_sensitive: true
+      }
+    }
+    connected_entity_type: VIRTUAL_MACHINE
+  }
+}

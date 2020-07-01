@@ -80,6 +80,7 @@ public class DeleteContextTest {
             SdkActionPolicyBuilder.build(ActionCapability.SUPPORTED, EntityType.VIRTUAL_VOLUME, ActionType.DELETE);
         final ProbeInfo awsProbeInfo = ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.CLOUD_MANAGEMENT.toString()).setProbeType(SDKProbeType.AWS.toString())
+                .setUiProbeCategory(ProbeCategory.PUBLIC_CLOUD.toString())
             .addActionPolicy(deleteActionPolicy)
             .build();
         when(probeStoreMock.getProbe(targetStoreMock.getTarget(awsTargetId).get().getProbeId()))
@@ -89,10 +90,10 @@ public class DeleteContextTest {
     /**
      * Test Delete Action on {@link ActionExecutionContext} to ensure DeleteContext is being triggered.
      *
-     * @throws EntityRetrievalException when entity is not being able to be retrieved.
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testDeleteContext() throws EntityRetrievalException {
+    public void testDeleteContext() throws Exception {
         final long destinationEntityId = 333333L;
         final EntityType destinationEntityType = EntityType.VIRTUAL_VOLUME;
         final long sourceEntityId = 44444L;

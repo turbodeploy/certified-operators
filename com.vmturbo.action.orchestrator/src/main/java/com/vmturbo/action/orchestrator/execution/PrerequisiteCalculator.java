@@ -12,9 +12,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.StringUtils;
-
 import com.google.common.collect.ImmutableList;
+
+import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStore;
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
@@ -27,10 +27,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -96,8 +96,8 @@ class PrerequisiteCalculator {
          * @param settingsForTargetEntity settings for the target entity
          * @return a {@link Prerequisite} if there's any
          */
-        Optional<Prerequisite> calculate(VirtualMachineInfo virtualMachineInfo,
-                                         ComputeTierInfo computeTierInfo,
+        Optional<Prerequisite> calculate(ActionVirtualMachineInfo virtualMachineInfo,
+                                         ActionComputeTierInfo computeTierInfo,
                                          Map<String, Setting> settingsForTargetEntity);
     }
 
@@ -171,8 +171,8 @@ class PrerequisiteCalculator {
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateEnaPrerequisite(
-        @Nonnull final VirtualMachineInfo virtualMachineInfo,
-        @Nonnull final ComputeTierInfo computeTierInfo,
+        @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
+        @Nonnull final ActionComputeTierInfo computeTierInfo,
         @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier supports only Ena vms.
         final boolean computeTierSupportsOnlyEnaVms = computeTierInfo.hasSupportedCustomerInfo() &&
@@ -200,8 +200,8 @@ class PrerequisiteCalculator {
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateNVMePrerequisite(
-            @Nonnull final VirtualMachineInfo virtualMachineInfo,
-            @Nonnull final ComputeTierInfo computeTierInfo,
+            @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
+            @Nonnull final ActionComputeTierInfo computeTierInfo,
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         Setting ignoreNvmeSetting = settingsForTargetEntity.get(IgnoreNvmePreRequisite.getSettingName());
         boolean ignoreNvme = ignoreNvmeSetting != null &&
@@ -235,8 +235,8 @@ class PrerequisiteCalculator {
      * @return Prerequisite if there is a valid read-only lock, or empty.
      */
     private static Optional<Prerequisite> calculateLockPrerequisite(
-            @Nonnull final VirtualMachineInfo virtualMachineInfo,
-            @Nonnull final ComputeTierInfo computeTierInfo,
+            @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
+            @Nonnull final ActionComputeTierInfo computeTierInfo,
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         if (!virtualMachineInfo.hasLocks() ||
                 StringUtils.isBlank(virtualMachineInfo.getLocks())) {
@@ -257,8 +257,8 @@ class PrerequisiteCalculator {
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateArchitecturePrerequisite(
-        @Nonnull final VirtualMachineInfo virtualMachineInfo,
-        @Nonnull final ComputeTierInfo computeTierInfo,
+        @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
+        @Nonnull final ActionComputeTierInfo computeTierInfo,
         @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier has supported architectures.
         final boolean computeTierHasSupportedArchitectures =
@@ -286,8 +286,8 @@ class PrerequisiteCalculator {
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateVirtualizationTypePrerequisite(
-            @Nonnull final VirtualMachineInfo virtualMachineInfo,
-            @Nonnull final ComputeTierInfo computeTierInfo,
+            @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
+            @Nonnull final ActionComputeTierInfo computeTierInfo,
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier has supported virtualization types.
         final boolean computeTierHasSupportedVirtualizationTypes =
@@ -357,12 +357,12 @@ class PrerequisiteCalculator {
                     destinationOptional.isPresent() &&
                     destinationOptional.get().getTypeSpecificInfo().hasComputeTier()) {
 
-                    final ComputeTierInfo sourceComputeTierInfo =
+                    final ActionComputeTierInfo sourceComputeTierInfo =
                         sourceOptional.get().getTypeSpecificInfo().getComputeTier();
                     final String sourceFamily = sourceComputeTierInfo.getQuotaFamily();
                     final int sourceNumCores = sourceComputeTierInfo.getNumCores();
 
-                    final ComputeTierInfo destinationComputeTierInfo =
+                    final ActionComputeTierInfo destinationComputeTierInfo =
                         destinationOptional.get().getTypeSpecificInfo().getComputeTier();
                     final String destinationFamily = destinationComputeTierInfo.getQuotaFamily();
                     final int destinationNumCores = destinationComputeTierInfo.getNumCores();

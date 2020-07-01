@@ -50,6 +50,7 @@ defaultProperties:
     extractor:
         dbHost: timescaledb
         dbPort: 5432
+        dbRootUserName: postgres
     action-orchestrator:
         identityGeneratorPrefix: 9
         actionPaginationDefaultLimit: 100
@@ -93,6 +94,15 @@ defaultProperties:
         externalApiFileSystemBase: file:/swagger/
         cpuInfoCacheLifetimeHours: 8
         sessionTimeoutSeconds: 1800
+        dbHost: 10.10.170.248
+        dbPort: 5432
+        dbDatabaseName: extractor
+        dbSchemaName: extractor
+        dbUserName: extractor
+        dbPassword: vmturbo
+        enableSearchApi: true
+        postgresMigrationLocations: " " #Prevents migration problem on startup with identical
+        #migration versions from extractor-schema and history
     auth:
         dbSchemaName: auth
         identityGeneratorPrefix: 7

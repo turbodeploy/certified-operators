@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>7.22.100-MPC-SNAPSHOT</version>
+        <version>7.22.5-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
 
@@ -15,36 +15,17 @@
 
     <properties>
         <swagger.component.name>Extractor</swagger.component.name>
-        <db.url>jdbc:postgresql://localhost:5432/</db.url>
-        <db.username>postgres</db.username>
-        <db.password>vmturbo</db.password>
-        <target.db.schema>extractor</target.db.schema>
-        <db.driver>org.postgresql.Driver</db.driver>
+        <postgresHost>localhost</postgresHost>
+        <!--This doesn't work here since it has to not be set in the case that we launch a
+            postgres container instead of relying on a separate postgres service being available.
+            See the no-run-postgres-container profile below
+        <postgresPort>5432</postgresPort>
+        -->
+        <postgresUserName>postgres</postgresUserName>
+        <postgresPassword>vmturbo</postgresPassword>
     </properties>
-
     <build>
         <plugins>
-
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <!-- generate a unique schema name for this build -->
-                        <id>set-db-name</id>
-                        <phase>initialize</phase>
-                        <goals>
-                            <goal>timestamp-property</goal>
-                        </goals>
-                        <configuration>
-                            <name>db.schema</name>
-                            <pattern>'${project.name}'-yyyyMMddHHmmssSS</pattern>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- See comment from michael-simons at https://github.com/spring-projects/spring-boot/issues/6975
-     on recommended configuration for a Spring Boot + Flyway + jOOQ setup-->
             <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
@@ -104,8 +85,121 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <dbHost>${postgresHost}</dbHost>
+                        <dbPort>${postgresPort}</dbPort>
+                        <dbUserName>${postgresUserName}</dbUserName>
+                        <dbPassword>${postgresPassword}</dbPassword>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>no-run-postgres-container</id>
+            <!-- set default for postgres port only if we're not going to spin up a postgres container -->
+            <activation>
+                <property>
+                    <name>postgresContainer.skip</name>
+                </property>
+            </activation>
+            <properties>
+                <postgresPort>5432</postgresPort>
+            </properties>
+        </profile>
+        <profile>
+            <id>run-postgres-container</id>
+            <!--
+                If you don't want a postgres container to be spun up during the build in order to
+                perform live DB tests, specify -DpostgresContainer.skip` on maven command line. In
+                that case you will need to have a postgres server available in your environment,
+                and the postgresHost and postgresPort properties can be used to configure access
+                if they're differnet from lcoalhost and 5432, respectively.
+            -->
+            <activation>
+                <property>
+                    <name>!postgresContainer.skip</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>io.fabric8</groupId>
+                        <artifactId>docker-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>start-tsdb</id>
+                                <phase>process-test-classes</phase>
+                                <goals>
+                                    <goal>start</goal>
+                                </goals>
+                                <configuration>
+                                    <dockerHost>${dockerHost}</dockerHost>
+                                    <showLogs>true</showLogs>
+                                    <images>
+                                        <image>
+                                            <alias>tsdb</alias>
+                                            <name>timescale/timescaledb:latest-pg12</name>
+                                            <run>
+                                                <!--
+                                                pattern needs to start with "maven-" so jenkins builds
+                                                will properly clean up leaked contianers
+                                                -->
+                                                <containerNamePattern>maven-%a-%i
+                                                </containerNamePattern>
+                                                <ports>
+                                                    <port>postgresPort:5432</port>
+                                                </ports>
+                                                <env>
+                                                    <POSTGRES_USER>${postgresUserName}</POSTGRES_USER>
+                                                    <POSTGRES_PASSWORD>${postgresPassword}</POSTGRES_PASSWORD>
+                                                </env>
+                                                <wait>
+                                                    <log>
+                                                        <!--
+                                                        CDATA prevents intellij from wrapping the search
+                                                        string, which would break things.
+                                                        We wait for a message that shows that timescale
+                                                        is ready, and we wait to see it twice, since the
+                                                        container's entry-point script includes an internal
+                                                        restart.
+                                                        -->
+                                                        <![CDATA[(?s)TimescaleDB background worker launcher connected to shared catalogs.*TimescaleDB background worker launcher connected to shared catalogs]]>
+                                                    </log>
+                                                    <time>30000</time>
+                                                </wait>
+                                            </run>
+                                        </image>
+                                    </images>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>stop-tsdb</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>stop</goal>
+                                </goals>
+                                <configuration>
+                                    <dockerHost>${dockerHost}</dockerHost>
+                                    <images>
+                                        <image>
+                                            <name>timescale/timescaledb:latest-pg12</name>
+                                        </image>
+                                    </images>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
     <dependencies>
         <dependency>
@@ -126,6 +220,10 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>action-orchestrator-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>auth-api</artifactId>
         </dependency>
         <dependency>
@@ -139,6 +237,10 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>topology-graph</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>search-metadata</artifactId>
         </dependency>
         <dependency>
             <groupId>org.jooq</groupId>
@@ -166,7 +268,28 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>components-test-utilities</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-testing</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.group.api</artifactId>
         </dependency>
     </dependencies>
 </project>

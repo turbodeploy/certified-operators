@@ -1,16 +1,15 @@
 package com.vmturbo.extractor.models;
 
-import static com.vmturbo.extractor.models.HashUtil.XXHASH_FACTORY;
-import static com.vmturbo.extractor.models.HashUtil.XXHASH_SEED;
-
-import java.nio.ByteBuffer;
-import java.nio.LongBuffer;
 import java.sql.Timestamp;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.extractor.models.Column.JsonString;
+import com.vmturbo.extractor.schema.enums.EntitySeverity;
+import com.vmturbo.extractor.schema.enums.EntityState;
+import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.schema.enums.EnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -22,46 +21,45 @@ public class ModelDefinitions {
     }
 
     /** TIME column. */
-    public static final Column<Timestamp> TIME = Column.timestampColumn("time").build();
+    public static final Column<Timestamp> TIME = Column.timestampColumn("time");
     /** ENTITY_OID column. */
-    public static final Column<Long> ENTITY_OID = Column.longColumn("entity_oid").build();
+    public static final Column<Long> ENTITY_OID = Column.longColumn("entity_oid");
     /** ENTITY_OID, named just "oid". */
-    public static final Column<Long> ENTITY_OID_AS_OID = Column.longColumn("oid").build();
+    public static final Column<Long> ENTITY_OID_AS_OID = Column.longColumn("oid");
     /** ENTITY_HASH column. */
-    public static final Column<Long> ENTITY_HASH = Column.longColumn("entity_hash").build();
+    public static final Column<Long> ENTITY_HASH = Column.longColumn("entity_hash");
     /** ENTITY_HASH column, named just "hash". */
-    public static final Column<Long> ENTITY_HASH_AS_HASH = Column.longColumn("hash").build();
+    public static final Column<Long> ENTITY_HASH_AS_HASH = Column.longColumn("hash");
     /** ENTITY_NAME column. */
-    public static final Column<String> ENTITY_NAME = Column.stringColumn("name").build();
+    public static final Column<String> ENTITY_NAME = Column.stringColumn("name");
     /** ENTITY_TYPE column. */
-    static final Column<String> ENTITY_TYPE = Column.stringColumn("entity_type").build();
+    static final Column<String> ENTITY_TYPE = Column.stringColumn("entity_type");
     /** ENTITY_TYPE column, named just "type". */
-    public static final Column<String> ENTITY_TYPE_AS_TYPE = Column.stringColumn("type").build();
+    public static final Column<String> ENTITY_TYPE_AS_TYPE = Column.stringColumn("type");
     /** ENTITY_STATE column. */
-    public static final Column<String> ENTITY_STATE = Column.stringColumn("state").build();
+    public static final Column<String> ENTITY_STATE = Column.stringColumn("state");
     /** ENVIRONMENT_TYPE column. */
-    public static final Column<String> ENVIRONMENT_TYPE = Column.stringColumn("environment").build();
+    public static final Column<String> ENVIRONMENT_TYPE = Column.stringColumn("environment");
     /** ATTRS column. */
-    public static final Column<JsonString> ATTRS = Column.jsonColumn("attrs").build();
+    public static final Column<JsonString> ATTRS = Column.jsonColumn("attrs");
     /** SCOPED_OIDS column. */
-    public static final Column<Long[]> SCOPED_OIDS = Column.longArrayColumn("scoped_oids")
-            .withHashFunc(scope -> scopeHash((Long[])scope)).build();
+    public static final Column<Long[]> SCOPED_OIDS = Column.longSetColumn("scoped_oids");
     /** FIRST_SEEN column. */
-    public static final Column<Timestamp> FIRST_SEEN = Column.timestampColumn("first_seen").build();
+    public static final Column<Timestamp> FIRST_SEEN = Column.timestampColumn("first_seen");
     /** LAST_SEEN column. */
-    public static final Column<Timestamp> LAST_SEEN = Column.timestampColumn("last_seen").build();
+    public static final Column<Timestamp> LAST_SEEN = Column.timestampColumn("last_seen");
     /** COMMODITY_TYPE column. */
-    public static final Column<String> COMMODITY_TYPE = Column.stringColumn("type").build();
+    public static final Column<String> COMMODITY_TYPE = Column.stringColumn("type");
     /** COMMODITY_CURRENT column. */
-    public static final Column<Double> COMMODITY_CURRENT = Column.doubleColumn("current").build();
+    public static final Column<Double> COMMODITY_CURRENT = Column.doubleColumn("current");
     /** COMMODITY_CAPACITY column. */
-    public static final Column<Double> COMMODITY_CAPACITY = Column.doubleColumn("capacity").build();
+    public static final Column<Double> COMMODITY_CAPACITY = Column.doubleColumn("capacity");
     /** COMMODITY_UTILIZATION column. */
-    public static final Column<Double> COMMODITY_UTILIZATION = Column.doubleColumn("utilization").build();
+    public static final Column<Double> COMMODITY_UTILIZATION = Column.doubleColumn("utilization");
     /** COMMODITY_CONSUMED column. */
-    public static final Column<Double> COMMODITY_CONSUMED = Column.doubleColumn("consumed").build();
+    public static final Column<Double> COMMODITY_CONSUMED = Column.doubleColumn("consumed");
     /** COMMODITY_PROVIDER column. */
-    public static final Column<Long> COMMODITY_PROVIDER = Column.longColumn("provider_oid").build();
+    public static final Column<Long> COMMODITY_PROVIDER = Column.longColumn("provider_oid");
 
     /** ENTITY_TABLE. */
     public static final Table ENTITY_TABLE = Table.named("entity")
@@ -75,7 +73,6 @@ public class ModelDefinitions {
                     COMMODITY_CURRENT, COMMODITY_CAPACITY, COMMODITY_UTILIZATION, COMMODITY_CONSUMED,
                     COMMODITY_PROVIDER)
             .build();
-
 
     /** REPORTING_MODEL. */
     public static final Model REPORTING_MODEL = Model.named("reporting")
@@ -150,31 +147,28 @@ public class ModelDefinitions {
                     .add(CommodityType.VMEM_REQUEST)
                     .add(CommodityType.VMEM_REQUEST_QUOTA)
                     .add(CommodityType.VSTORAGE)
+                    .add(CommodityType.TOTAL_SESSIONS)
                     .build();
 
-    private static final ByteBuffer longBytes = ByteBuffer.allocate(Long.BYTES);
-    private static final LongBuffer longBuffer = longBytes.asLongBuffer();
+    /** ENTITY STATE enum column. */
+    public static final Column<EntityState> ENTITY_STATE_ENUM = Column.entityStateColumn("state");
+    /** ENVIRONMENT TYPE enum column. */
+    public static final Column<EnvironmentType> ENVIRONMENT_TYPE_ENUM = Column.environmentTypeColumn("environment");
+    /** ENTITY TYPE enum column. */
+    public static final Column<EntityType> ENTITY_TYPE_ENUM = Column.entityTypeColumn("type");
+    /** ENTITY SEVERITY enum column. */
+    public static final Column<EntitySeverity> ENTITY_SEVERITY_ENUM = Column.entitySeverityColumn("severity");
+    /** ACTIONS COUNT enum column. */
+    public static final Column<Integer> NUM_ACTIONS = Column.intColumn("num_actions");
 
-    /**
-     * Method to compute a hash value for an entity scope value.
-     *
-     * <p>A scope value is an array of longs, and we want the hash to be order-independent. So we
-     * compute individual hash values for the elements (to get good dispersion), and then XOR those
-     * hash values ot arrive at an overall hash for the scope.</p>
-     *
-     * @param scope oids of entities/groups in this entity's scope scope
-     * @return hash value
-     */
-    private static byte[] scopeHash(Long[] scope) {
-        long hash = 0L;
-        for (final Long oid : scope) {
-            if (oid != null) {
-                longBuffer.put(0, oid);
-                final long oidHash = XXHASH_FACTORY.hash64().hash(
-                        longBytes, 0, Long.BYTES, XXHASH_SEED);
-                hash = hash ^ oidHash;
-            }
-        }
-        return Column.toBytes(hash);
-    }
+    /** SEARCH_ENTITY_TABLE. */
+    public static final Table SEARCH_ENTITY_TABLE = Table.named("search_entity")
+            .withColumns(ENTITY_OID_AS_OID, ENTITY_TYPE_ENUM, ENTITY_NAME, ENVIRONMENT_TYPE_ENUM,
+                    ENTITY_STATE_ENUM, ENTITY_SEVERITY_ENUM, NUM_ACTIONS, ATTRS)
+            .build();
+
+    /** SEARCH_MODEL. */
+    public static final Model SEARCH_MODEL = Model.named("search")
+            .withTables(SEARCH_ENTITY_TABLE)
+            .build();
 }

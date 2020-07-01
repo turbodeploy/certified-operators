@@ -60,7 +60,8 @@ public class V1_22__ChangeVStorageIncrementDefault implements JdbcMigration, Mig
                             "UPDATE setting_policy SET setting_policy_data=? WHERE id=?");
                         stmt.setBytes(1, settingPolicyInfo.build().toByteArray());
                         stmt.setLong(2, oid);
-                        stmt.execute();
+                        stmt.addBatch();
+                        stmt.executeBatch();
                         logger.info("Successfully updated default value of VStorage Increment in Virtual Machine defaults");
                     }
                 }

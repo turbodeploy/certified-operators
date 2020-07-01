@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -25,6 +24,7 @@ import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Validates {@link TopologyEntity}s during topology pipeline.
@@ -58,10 +58,8 @@ public class EntityValidator {
                                      @Nonnull final CommoditySoldDTO.Builder original,
                                      @Nonnull final String property,
                                      final double illegalAmount) {
-        // TODO changed from warn to trace to reduce logging load - does it need more visibility?
-        // yes it needs more visibility, this has to be reverted back to warn
-        // and root causes of missing capacities investigated instead
-        logger.trace("Entity {} with name {} of type {} is selling {} commodity {} with illegal {} {}",
+        // This has to be at warning level so that the root causes of missing capacities can be investigated.
+        logger.warn("Entity {} with name {} of type {} is selling {} commodity {} with illegal {} {}",
                 entityId,
                 entityName,
                 EntityType.forNumber(entityType),
@@ -98,10 +96,12 @@ public class EntityValidator {
      *
      * @param entity the topology entity DTO builder to modify
      * @param clonedFrom the source entity for the plan clone
+     * @param entityGraph entity graph
      */
     @VisibleForTesting
     void processIllegalCommodityValues(@Nonnull final TopologyEntityDTO.Builder entity,
-                    Optional<TopologyEntityDTO.Builder> clonedFrom) {
+                                       @Nonnull final Optional<TopologyEntityDTO.Builder> clonedFrom,
+                                       @Nonnull final TopologyGraph<TopologyEntity> entityGraph) {
         final long id = entity.getOid();
         final String name = entity.getDisplayName();
         final int type = entity.getEntityType();
@@ -148,6 +148,32 @@ public class EntityValidator {
                     logCommoditySoldInvalid(id, name, type, commoditySold, "capacity", 0);
                     commoditySold.clearCapacity();
                     entity.getAnalysisSettingsBuilder().setControllable(false);
+                    StringBuilder controllableFalseEntities = new StringBuilder();
+                    entityGraph.getConsumers(entity.getOid()).forEach(consumer -> {
+                        boolean shouldMarkConsumerControllableFalse  =
+                            consumer.getTopologyEntityDtoBuilder()
+                                .getCommoditiesBoughtFromProvidersList()
+                                .stream()
+                                .filter(grouping -> grouping.getProviderId() == entity.getOid())
+                                .filter(grouping -> grouping.getCommodityBoughtList().stream()
+                                    .map(CommodityBoughtDTO::getCommodityType)
+                                    .anyMatch(boughtCommType -> boughtCommType.equals(commoditySold.getCommodityType()))
+                                )
+                                .findFirst().isPresent();
+                        if (shouldMarkConsumerControllableFalse) {
+                            consumer.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
+                            if (logger.isTraceEnabled()) {
+                                controllableFalseEntities.append(consumer.toString()).append(", ");
+                            }
+                        }
+                    });
+                    controllableFalseEntities.setLength(Math.max(controllableFalseEntities.length() - 2, 0));
+                    logger.warn("Setting controllable false on {}|{} and its consumers which buy {}|{} from it because of "
+                        + "illegal capacity on the comm sold.", id, name,
+                        CommodityType.forNumber(commoditySold.getCommodityType().getType()),
+                        commoditySold.getCommodityType().getKey());
+                    logger.trace("The consumers of {}|{} for which controllable was set to false are - {}.",
+                        id, name, controllableFalseEntities.toString());
                 } else {
                     logger.warn("Setting capacity value for oid " + id
                                     + ", commodity "
@@ -305,20 +331,20 @@ public class EntityValidator {
     /**
      * Validates a stream of entities from a topology graph.
      *
-     * @param entities the stream of entities to validate
+     * @param entityGraph the graph of entities to validate
      * @param isPlan whether validation happens for live or plan topology
      * @throws EntitiesValidationException if an entity is invalid and illegal values cannot be replaced
      */
-    public void validateTopologyEntities(@Nonnull final Stream<TopologyEntity> entities, boolean isPlan)
+    public void validateTopologyEntities(@Nonnull final TopologyGraph<TopologyEntity> entityGraph, boolean isPlan)
                                                             throws EntitiesValidationException {
         final List<EntityValidationFailure> validationFailures = new ArrayList<>();
         Map<SoldCommodityReference, Double> newCapacities = isPlan || !oldValuesCacheEnabled ? null : new HashMap<>();
-
-        entities.forEach(entity -> {
+        entityGraph.entities().forEach(entity -> {
             final Optional<EntityValidationFailure> error =
                 validateSingleEntity(entity.getTopologyEntityDtoBuilder(), true);
             if (error.isPresent()) {
-                processIllegalCommodityValues(entity.getTopologyEntityDtoBuilder(), entity.getClonedFromEntity());
+                processIllegalCommodityValues(entity.getTopologyEntityDtoBuilder(),
+                    entity.getClonedFromEntity(), entityGraph);
 
                 final Optional<EntityValidationFailure> errorAfterReplacement =
                     validateSingleEntity(entity.getTopologyEntityDtoBuilder(), false);

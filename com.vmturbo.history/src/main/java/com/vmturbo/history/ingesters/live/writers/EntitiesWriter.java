@@ -35,7 +35,6 @@ public class EntitiesWriter extends TopologyWriterBase {
     private static Logger logger = LogManager.getLogger(EntitiesWriter.class);
 
     static final int ENTITY_DISPLAY_NAME_MAX_LENGTH = Entities.ENTITIES.DISPLAY_NAME.getDataType().length();
-
     private final TopologyInfo topologyInfo;
     private final HistorydbIO historydbIO;
     private final BulkLoader<EntitiesRecord> entitiesLoader;
@@ -57,13 +56,13 @@ public class EntitiesWriter extends TopologyWriterBase {
 
     @Override
     public ChunkDisposition processEntities(@Nonnull final Collection<TopologyEntityDTO> entities,
-            @Nonnull final String infoSummary)
-            throws InterruptedException {
+                                            @Nonnull final String infoSummary)
+        throws InterruptedException {
 
         final List<String> entityOids = entities.stream()
-                .map(TopologyEntityDTO::getOid)
-                .map(String::valueOf)
-                .collect(Collectors.toList());
+            .map(TopologyEntityDTO::getOid)
+            .map(String::valueOf)
+            .collect(Collectors.toList());
 
         // get current saved info for each of these entities
         final Map<Long, EntitiesRecord> knownChunkEntities;
@@ -71,8 +70,8 @@ public class EntitiesWriter extends TopologyWriterBase {
             knownChunkEntities = new HashMap<>(historydbIO.getEntities(entityOids));
         } catch (VmtDbException e) {
             logger.warn("Failed to retrieve known entities from topology broadcast chunk; " +
-                            "will discontinue writing entities for broadcast {}",
-                    infoSummary);
+                    "will discontinue writing entities for broadcast {}",
+                infoSummary);
             return ChunkDisposition.DISCONTINUE;
         }
 
@@ -81,10 +80,10 @@ public class EntitiesWriter extends TopologyWriterBase {
         // new records for the rest
         final long snapshotTime = topologyInfo.getCreationTime();
         final List<EntitiesRecord> entityRecordsToPersist = entities.stream().map(entity ->
-                createRecord(entity.getOid(), snapshotTime, entity, knownChunkEntities))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList());
+            createRecord(entity.getOid(), snapshotTime, entity, knownChunkEntities))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
 
         // persist this chunk's entities
         entitiesLoader.insertAll(entityRecordsToPersist);
@@ -123,8 +122,10 @@ public class EntitiesWriter extends TopologyWriterBase {
             historydbIO.getEntityType(entityDTO.getEntityType());
         if (entityDBInfo.map(EntityType::persistsEntity).orElse(false)) {
             // entity type was found, and it has persistEntity use case
-            final String entityType = entityDBInfo.get().getName();
-            final long entityOid = entityDTO.getOid();
+
+        final String entityType = entityDBInfo.get().getName();
+        final long entityOid = entityDTO.getOid();
+
             final String truncatedDisplayName =
                     Strings.truncate(entityDTO.getDisplayName(), ENTITY_DISPLAY_NAME_MAX_LENGTH);
             if (!truncatedDisplayName.equals(entityDTO.getDisplayName())) {
@@ -133,30 +134,30 @@ public class EntitiesWriter extends TopologyWriterBase {
                         entityOid, entityType, "[" + truncatedDisplayName + "]"
                                 + entityDTO.getDisplayName().substring(ENTITY_DISPLAY_NAME_MAX_LENGTH));
             }
-            final EntitiesRecord record;
-            EntitiesRecord existingRecord = existingRecords.get(oid);
-            if (existingRecord == null) {
-                record = new EntitiesRecord();
-                record.setId(entityOid);
-            } else {
+        final EntitiesRecord record;
+        EntitiesRecord existingRecord = existingRecords.get(oid);
+        if (existingRecord == null) {
+            record = new EntitiesRecord();
+            record.setId(entityOid);
+        } else {
                 if (existingRecord.getDisplayName().equals(truncatedDisplayName) &&
-                        existingRecord.getCreationClass().equals(entityType)) {
-                    return Optional.empty();
-                }
-                logger.warn("Name or type for existing entity with oid {} has been changed: " +
-                                "displayName >{}< -> >{}<" +
-                                " creationType >{}< -> >{}<; db updated.", entityDTO.getOid(),
-                        existingRecord.getDisplayName(), truncatedDisplayName,
-                        existingRecord.getCreationClass(), entityType);
-                record = existingRecord;
+                existingRecord.getCreationClass().equals(entityType)) {
+                return Optional.empty();
             }
+            logger.warn("Name or type for existing entity with oid {} has been changed: " +
+                    "displayName >{}< -> >{}<" +
+                    " creationType >{}< -> >{}<; db updated.", entityDTO.getOid(),
+                        existingRecord.getDisplayName(), truncatedDisplayName,
+                existingRecord.getCreationClass(), entityType);
+            record = existingRecord;
+        }
             // the table has a `name` column that is not used by anything, so we no longer
             // populate it, and we will likely drop it from the schema at some point
             record.setDisplayName(truncatedDisplayName);
-            record.setUuid(Long.toString(entityOid));
-            record.setCreationClass(entityType);
-            record.setCreatedAt(new Timestamp(snapshotTime));
-            return Optional.of(record);
+        record.setUuid(Long.toString(entityOid));
+        record.setCreationClass(entityType);
+        record.setCreatedAt(new Timestamp(snapshotTime));
+        return Optional.of(record);
         } else {
             // entity type not found, or found but not persisted
             return Optional.empty();

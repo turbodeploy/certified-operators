@@ -1,6 +1,8 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.TelemetryEnabled;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.TelemetryTermsAccepted;
 
 import java.text.MessageFormat;
 import java.util.HashMap;
@@ -42,7 +44,10 @@ import com.vmturbo.api.dto.admin.LoggingApiDTO;
 import com.vmturbo.api.dto.admin.ProductCapabilityDTO;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.admin.SystemStatusApiDTO;
+import com.vmturbo.api.dto.admin.TelemetryDTO;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
+import com.vmturbo.api.dto.setting.SettingApiDTO;
+import com.vmturbo.api.enums.DeploymentMode;
 import com.vmturbo.api.enums.ConfigurationType;
 import com.vmturbo.api.enums.DeploymentMode;
 import com.vmturbo.api.enums.LoggingLevel;
@@ -155,6 +160,7 @@ public class AdminService implements IAdminService {
 
     private final boolean enableReporting;
 
+    private final SettingsService settingsService;
 
     AdminService(@Nonnull final ClusterService clusterService,
                  @Nonnull final KeyValueStore keyValueStore,
@@ -162,8 +168,9 @@ public class AdminService implements IAdminService {
                  @Nonnull final RestTemplate restTemplate,
                  @Nonnull final ApiWebsocketHandler apiWebsocketHandler,
                  @Nonnull final BuildProperties buildProperties,
-                @Nonnull final DeploymentMode deploymentMode,
-            @Nonnull final boolean enableReporting) {
+                 @Nonnull final DeploymentMode deploymentMode,
+                 @Nonnull final boolean enableReporting,
+                 @Nonnull final SettingsService settingsService) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.clusterMgrApi = Objects.requireNonNull(clusterMgrApi);
@@ -172,6 +179,7 @@ public class AdminService implements IAdminService {
         this.buildProperties = buildProperties;
         this.deploymentMode = deploymentMode;
         this.enableReporting = enableReporting;
+        this.settingsService = settingsService;
     }
 
     @Override
@@ -479,6 +487,50 @@ public class AdminService implements IAdminService {
         productCapabilityDTO.setDeploymentMode(this.deploymentMode);
         productCapabilityDTO.setReportingEnabled(this.enableReporting);
         return productCapabilityDTO;
+    }
+
+    /**
+     * Get the status of Telemetry.
+     * <p>Returns the status of whether telemetry should be enabled,
+     * and whether the user should be shown an opt-in pop-up</p>
+     *
+     * @return the {@link TelemetryDTO}.
+     */
+    @Override
+    public TelemetryDTO getTelemetryStatus() throws Exception {
+        final SettingApiDTO<String> termsAcceptedSetting =
+                this.settingsService.getSettingByUuidAndName("telemetrymanager",
+                        TelemetryTermsAccepted.getSettingName());
+        final SettingApiDTO<String> enabledSetting =
+                this.settingsService.getSettingByUuidAndName("telemetrymanager",
+                        TelemetryEnabled.getSettingName());
+        return new TelemetryDTO().setTelemetryTermsViewed(Boolean.parseBoolean(termsAcceptedSetting.getValue()))
+                .setTelemetryEnabled(Boolean.parseBoolean(enabledSetting.getValue()));
+    }
+
+    /**
+     * Updates the settings for Telemetry.
+     *
+     * @param telemetryDTO From the api endpoint, a dto containing the settings to update
+     * @return the {@link TelemetryDTO} with updated settings.
+     */
+    @Override
+    public TelemetryDTO setTelemetryStatus(TelemetryDTO telemetryDTO) throws Exception {
+        SettingApiDTO<String> termsAcceptedSetting = new SettingApiDTO<>();
+        SettingApiDTO<String> enabledSetting = new SettingApiDTO<>();
+        termsAcceptedSetting.setUuid(TelemetryTermsAccepted.getSettingName());
+        termsAcceptedSetting.setValue(Boolean.toString(telemetryDTO.getTelemetryTermsViewed()));
+        enabledSetting.setUuid(TelemetryEnabled.getSettingName());
+        enabledSetting.setValue(Boolean.toString(telemetryDTO.getTelemetryEnabled()));
+        enabledSetting = this.settingsService.putSettingByUuidAndName(
+                "telemetrymanager", TelemetryEnabled.getSettingName(), enabledSetting
+        );
+        termsAcceptedSetting = this.settingsService.putSettingByUuidAndName(
+                "telemetrymanager", TelemetryTermsAccepted.getSettingName(), termsAcceptedSetting
+        );
+        return new TelemetryDTO()
+                .setTelemetryTermsViewed(Boolean.parseBoolean(termsAcceptedSetting.getValue()))
+                .setTelemetryEnabled(Boolean.parseBoolean(enabledSetting.getValue()));
     }
 
     private String getVersionInfoString() {

@@ -30,6 +30,7 @@ import com.vmturbo.platform.common.dto.NonMarketDTO.CostDataDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.NonMarketEntityType;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -150,12 +151,17 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable {
      * Set aside any cloud cost data contained in the discovery response for the given target.
      * We will use this data later, in the topology pipeline.
      *
-     * @param targetId
-     * @param discovery
-     * @param nonMarketEntityDTOS
+     * @param targetId target id
+     * @param optionalSDKProbeType probe type
+     * @param optionalProbeCategory probe category
+     * @param discovery discovery
+     * @param nonMarketEntityDTOS non market entity DTOs
+     * @param costDataDTOS cost data DTOs
+     * @param priceTable price table
      */
     public void recordTargetCostData(long targetId,
                                      @Nonnull final Optional<SDKProbeType> optionalSDKProbeType,
+                                     @Nonnull Optional<ProbeCategory> optionalProbeCategory,
                                      @Nonnull Discovery discovery,
                                      @Nonnull final List<NonMarketEntityDTO> nonMarketEntityDTOS,
                                      @Nonnull final List<CostDataDTO> costDataDTOS,
@@ -181,21 +187,24 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable {
         cacheCostData(costData);
 
         // the price table helper will cache it's own data
-        priceTableUploader.recordPriceTable(targetId, probeType, priceTable);
+        priceTableUploader.recordPriceTable(targetId, probeType, optionalProbeCategory, priceTable);
     }
 
     /**
      * When a target is removed, we will remove any cached cloud cost data associated with it.
      *
-     * @param targetId
+     * @param targetId target id
+     * @param probeCategoryForTarget probe category
      */
-    public void targetRemoved(long targetId) {
+    public void targetRemoved(long targetId, Optional<ProbeCategory> probeCategoryForTarget) {
         // Try to retrieve the probe type for the target that was just removed. This may be null--
         // if discovery has not completed for the removed target, it won't be in the map yet.
         // If the target is not in the probe type map yet, then no data will have been stored for it.
         final SDKProbeType probeType = probeTypesForTargetId.get(targetId);
         if (probeType != null) {
-            priceTableUploader.targetRemoved(targetId, probeType);
+            if (probeCategoryForTarget.isPresent() && probeCategoryForTarget.get() == ProbeCategory.COST) {
+                priceTableUploader.targetRemoved(targetId, probeType, probeCategoryForTarget.get());
+            }
             probeTypesForTargetId.remove(targetId);
             long stamp = targetCostDataCacheLock.readLock();
             try {

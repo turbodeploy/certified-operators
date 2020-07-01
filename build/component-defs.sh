@@ -149,6 +149,16 @@ function start_mediation-vcenter() {
     turbonomic/com.vmturbo.mediation.vcenter.component:latest
 }
 
+function start_mediation-udt() {
+    TARGET_NODE="$1"
+    docker service create --replicas 1 --name mediation-udt --network turbosecure --constraint "node.hostname == ${TARGET_NODE}" \
+    -e 'component_type=mediation-udt' \
+    -e 'instance_id=mediation-udt-1' \
+    -e 'consul_host=consul' \
+    --mount type=volume,src=mediation-udt,dst=/home/turbonomic/data,volume-driver=local \
+    turbonomic/com.vmturbo.mediation.udt.component:latest
+}
+
 # Starts the XL component and waits for it to fully initialize
 function start_xl_component() {
     COMPONENT="$1"

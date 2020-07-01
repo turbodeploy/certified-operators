@@ -101,13 +101,18 @@ public class EnvironmentTypeInjector {
             .collect(Collectors.toSet());
         final EnvironmentTypeCache cache = new EnvironmentTypeCache();
         topologyGraph.entities().forEach(topoEntity -> {
-            final EnvironmentType envType;
-            final boolean discoveredByAppOrContainer = topoEntity.getDiscoveringTargetIds()
-                .anyMatch(appContainerTargetIds::contains);
-            if (discoveredByAppOrContainer) {
-                envType = computeEnvironmentType(topoEntity, cloudTargetIds, cache, new HashSet<>());
+            EnvironmentType envType;
+            final boolean discoveredOnlyByAppOrContainer =
+                    topoEntity.getDiscoveringTargetIds().count() > 0
+                    && topoEntity.getDiscoveringTargetIds().allMatch(appContainerTargetIds::contains);
+            if (discoveredOnlyByAppOrContainer) {
+                envType = computeEnvironmentType(topoEntity, cloudTargetIds, appContainerTargetIds,
+                        cache, new HashSet<>());
+                if (envType == EnvironmentType.UNKNOWN_ENV) {
+                    envType = EnvironmentType.HYBRID;
+                }
             } else {
-                envType = getEnvironmentType(topoEntity, cloudTargetIds);
+                envType = getEnvironmentType(topoEntity, cloudTargetIds, appContainerTargetIds);
             }
             // We shouldn't have entities with env type already set
             // unless we're in plan-over-plan.
@@ -155,7 +160,8 @@ public class EnvironmentTypeInjector {
 
     @Nonnull
     private EnvironmentType getEnvironmentType(@Nonnull final TopologyEntity entity,
-                                               @Nonnull final Set<Long> cloudTargetIds) {
+                                               @Nonnull final Set<Long> cloudTargetIds,
+                                               @Nonnull final Set<Long> appContainerTargetIds) {
         final Optional<Origin> originOpt = entity.getOrigin();
         if (!originOpt.isPresent()) {
             // We expect origin to be set in the input entities by the time they make it
@@ -166,12 +172,21 @@ public class EnvironmentTypeInjector {
         final Origin origin = originOpt.get();
         switch (origin.getOriginTypeCase()) {
             case DISCOVERY_ORIGIN:
-                final boolean discoveredByCloud = entity.getDiscoveringTargetIds()
-                    .anyMatch(cloudTargetIds::contains);
+                final boolean discoveredByCloud = entity.getDiscoveringTargetIds().count() > 0
+                        && entity.getDiscoveringTargetIds().anyMatch(cloudTargetIds::contains);
                 if (discoveredByCloud) {
                     return EnvironmentType.CLOUD;
                 } else {
-                    return EnvironmentType.ON_PREM;
+                    final boolean discoveredOnlyByAppOrContainer =
+                            entity.getDiscoveringTargetIds().count() > 0
+                            && entity.getDiscoveringTargetIds().allMatch(appContainerTargetIds::contains);
+                    if (discoveredOnlyByAppOrContainer) {
+                        // Set as UNKNOWN for now so. If later there will be no CLOUD/ON_PREM connected
+                        // entities - we will set this to HYBRID.
+                        return EnvironmentType.UNKNOWN_ENV;
+                    } else {
+                        return EnvironmentType.ON_PREM;
+                    }
                 }
             case RESERVATION_ORIGIN:
                 // It's not clear if we ever need reservations in the cloud.
@@ -206,15 +221,17 @@ public class EnvironmentTypeInjector {
      *   the ALTERNATE_TRAVERSAL_MAP. We skip traversing connections from entity types outside the
      *   ALTERNATE_TRAVERSAL_MAP to inside the ALTERNATE_TRAVERSAL_MAP to prevent infinite traversal.
      *
-     * @param entity - target entity
-     * @param cloudTargetIds - a set of targets IDs, that considered as cloud-based.
-     * @param cache - Cache to avoid multiple traversals of the same connections.
-     * @param traversed - The set of entities traversed so far during the environment type computation.
+     * @param entity target entity
+     * @param cloudTargetIds a set of targets IDs, that considered as cloud-based.
+     * @param appContainerTargetIds a set of targets IDs, that considered as APM / container targets.
+     * @param cache Cache to avoid multiple traversals of the same connections.
+     * @param traversed The set of entities traversed so far during the environment type computation.
      * @return an environment type of the target entity.
      */
     @Nonnull
     private EnvironmentType computeEnvironmentType(@Nonnull TopologyEntity entity,
                                                    @Nonnull Set<Long> cloudTargetIds,
+                                                   @Nonnull Set<Long> appContainerTargetIds,
                                                    @Nonnull EnvironmentTypeCache cache,
                                                    @Nonnull Set<Long> traversed) {
         return cache.computeIfAbsent(entity.getOid(), () -> {
@@ -222,7 +239,7 @@ public class EnvironmentTypeInjector {
                 logger.error("Cycle detected at entity {} of type {} during "
                     + "computeEnvironmentType traversal. Ending this leg of traversal.",
                     entity.getOid(), EntityType.forNumber(entity.getEntityType()));
-                return getEnvironmentType(entity, cloudTargetIds);
+                return getEnvironmentType(entity, cloudTargetIds, appContainerTargetIds);
             }
 
             traversed.add(entity.getOid());
@@ -237,7 +254,7 @@ public class EnvironmentTypeInjector {
                 }
 
                 final EnvironmentType connectedEnvType =
-                    computeEnvironmentType(connection, cloudTargetIds, cache, traversed);
+                    computeEnvironmentType(connection, cloudTargetIds, appContainerTargetIds, cache, traversed);
                 if (combinedType == null || combinedType == EnvironmentType.UNKNOWN_ENV) {
                     // If the combined type is unset or UNKNOWN, override it completely.
                     combinedType = connectedEnvType;
@@ -252,7 +269,7 @@ public class EnvironmentTypeInjector {
 
             // We failed to determine environment type through any connections, so perform lookup on ourselves.
             if (combinedType == null) {
-                combinedType = getEnvironmentType(entity, cloudTargetIds);
+                combinedType = getEnvironmentType(entity, cloudTargetIds, appContainerTargetIds);
             }
             return combinedType;
         });
@@ -289,7 +306,7 @@ public class EnvironmentTypeInjector {
      * A cache for already-computed environment types.
      * We use this to avoid repeating traversals when recursively traversing providers to calculate
      * an entity's environment type
-     * (see {@link EnvironmentTypeInjector#computeEnvironmentType(TopologyEntity, Set, EnvironmentTypeCache, Set)}.
+     * (see {@link EnvironmentTypeInjector#computeEnvironmentType(TopologyEntity, Set, Set, EnvironmentTypeCache, Set)}.
      */
     private static class EnvironmentTypeCache {
 

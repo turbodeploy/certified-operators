@@ -222,7 +222,7 @@ public class SchedulerTest {
             false);
 
         // Triggering the TargetNotFoundException should cause the removal of the scheduled discovery
-        OperationTestUtilities.waitForEvent(scheduler, scheduler ->
+        OperationTestUtilities.waitForEvent(() ->
             !scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
     }
 
@@ -233,7 +233,7 @@ public class SchedulerTest {
             false);
 
         // Triggering the InterruptedException should cause the removal of the scheduled discovery
-        OperationTestUtilities.waitForEvent(scheduler, scheduler ->
+        OperationTestUtilities.waitForEvent(() ->
             !scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
     }
 
@@ -697,6 +697,7 @@ public class SchedulerTest {
         ProbeInfo standardProbeInfo = ProbeInfo.newBuilder()
                 .setProbeType("TestProbe")
                 .setProbeCategory("Test")
+                .setUiProbeCategory("Test")
                 .build();
         Assert.assertEquals(60000, scheduler.getFullDiscoveryInterval(standardProbeInfo, true));
 

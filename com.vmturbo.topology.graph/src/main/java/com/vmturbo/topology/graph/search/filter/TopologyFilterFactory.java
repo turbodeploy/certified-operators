@@ -6,6 +6,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
@@ -16,7 +17,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
@@ -32,15 +32,18 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.graph.SearchableProps;
+import com.vmturbo.topology.graph.SearchableProps.BusinessAccountProps;
+import com.vmturbo.topology.graph.SearchableProps.PmProps;
+import com.vmturbo.topology.graph.SearchableProps.StorageProps;
+import com.vmturbo.topology.graph.SearchableProps.VmProps;
+import com.vmturbo.topology.graph.SearchableProps.VolumeProps;
+import com.vmturbo.topology.graph.SearchableProps.WorkloadControllerProps;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
+import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
 import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToPropertyFilter;
 
@@ -50,7 +53,7 @@ import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToPrope
  * @param <E> The type of {@link TopologyGraphEntity} the filters produced by this factory work with.
  */
 @ThreadSafe
-public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
+public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
 
     public TopologyFilterFactory() {
         // Nothing to do
@@ -151,18 +154,8 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                         entity -> entity.getEntityState().getNumber()
                 ));
             case SearchableProperties.ASSOCIATED_TARGET_ID:
-                return new PropertyFilter<>(entity -> {
-                    if (entity.getEntityType() != EntityType.BUSINESS_ACCOUNT_VALUE) {
-                        throw new IllegalArgumentException(
-                                "Numeric filter for property " + propertyName +
-                                        " is not supported for entity type - " +
-                                        entity.getEntityType());
-                    }
-                    return entity.getTypeSpecificInfo().hasBusinessAccount() &&
-                            entity.getTypeSpecificInfo()
-                                    .getBusinessAccount()
-                                    .hasAssociatedTargetId();
-                });
+                return PropertyFilter.typeSpecificFilter(
+                        BusinessAccountProps::hasAssociatedTargetId, BusinessAccountProps.class);
             default:
                 throw new IllegalArgumentException("Unknown numeric property named: " + propertyName);
         }
@@ -171,50 +164,23 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
     @Nonnull
     private PropertyFilter<E> stringFilter(@Nonnull final String propertyName,
                                         @Nonnull final Search.PropertyFilter.StringFilter stringCriteria) {
+        Predicate<String> stringPredicate = stringPredicate(stringCriteria);
         switch (propertyName) {
             case SearchableProperties.DISPLAY_NAME:
-                if (!StringUtils.isEmpty(stringCriteria.getStringPropertyRegex())) {
-                    return new PropertyFilter<>(stringPredicate(
-                        stringCriteria.getStringPropertyRegex(),
-                        TopologyGraphEntity::getDisplayName,
-                        !stringCriteria.getPositiveMatch(),
-                        stringCriteria.getCaseSensitive()
-                    ));
-                } else {
-                    return new PropertyFilter<>(stringOptionsPredicate(
-                        stringCriteria.getOptionsList(),
-                        TopologyGraphEntity::getDisplayName,
-                        !stringCriteria.getPositiveMatch(),
-                        stringCriteria.getCaseSensitive()
-                    ));
-                }
+                return new PropertyFilter<>(e -> stringPredicate.test(e.getDisplayName()));
             // Support oid either as a string or as a numeric filter.
             case SearchableProperties.OID:
                 if (StringUtils.isNumeric(stringCriteria.getStringPropertyRegex())) {
                     // the string regex is an oid and can be represented as a numeric equals filter.
-                    return new PropertyFilter<>(longPredicate(
-                        Long.valueOf(stringCriteria.getStringPropertyRegex()),
-                        stringCriteria.getPositiveMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
-                        TopologyGraphEntity::getOid
-                    ));
-                } else if (!StringUtils.isEmpty(stringCriteria.getStringPropertyRegex())) {
-                    // the string regex is really a regex instead of a string-encoded long -- create
-                    // a string predicate to handle the oid matching.
-                    return new PropertyFilter<>(stringPredicate(
-                        stringCriteria.getStringPropertyRegex(),
-                        entity -> String.valueOf(entity.getOid()),
-                        !stringCriteria.getPositiveMatch(),
-                        stringCriteria.getCaseSensitive()
-                    ));
+                    return new PropertyFilter<>(longPredicate(Long.parseLong(stringCriteria.getStringPropertyRegex()),
+                            stringCriteria.getPositiveMatch()
+                                ? ComparisonOperator.EQ : ComparisonOperator.NE,
+                            TopologyGraphEntity::getOid));
                 } else {
-                    // TODO (roman, May 16 2019): Should be able to convert to numeric.
+                    // TODO (roman, May 16 2019): In the options case, we should be able to
+                    // the options to numbers.
                     // However, we already optimize it in the starting filter so this might be okay.
-                    return new PropertyFilter<>(stringOptionsPredicate(
-                        stringCriteria.getOptionsList(),
-                        entity -> String.valueOf(entity.getOid()),
-                        !stringCriteria.getPositiveMatch(),
-                        stringCriteria.getCaseSensitive()
-                    ));
+                    return new PropertyFilter<>(e -> stringPredicate.test(String.valueOf(e.getOid())));
                 }
             case SearchableProperties.ENTITY_STATE: {
                 final boolean regex = !StringUtils.isEmpty(stringCriteria.getStringPropertyRegex());
@@ -304,22 +270,25 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
             }
             case SearchableProperties.ENCRYPTED: {
                 if (stringCriteria.getOptionsCount() == 1) {
-                    return new PropertyFilter<>(
-                                    stringOptionsPredicate(stringCriteria.getOptionsList(),
-                                                    vmToVolumeInfoPropertyLookup(
-                                                                    v -> v.hasEncryption() && v
-                                                                                    .getEncryption()),
-                                                    false, false));
+                    final boolean targetBool = Boolean.parseBoolean(stringCriteria.getOptions(0));
+                    return PropertyFilter.typeSpecificFilter(v -> v.isEncrypted() == targetBool, VolumeProps.class);
                 }
             }
             case SearchableProperties.EPHEMERAL: {
                 if (stringCriteria.getOptionsCount() == 1) {
-                    return new PropertyFilter<>(
-                                    stringOptionsPredicate(stringCriteria.getOptionsList(),
-                                                    vmToVolumeInfoPropertyLookup(
-                                                                    v -> v.hasIsEphemeral() && v
-                                                                                    .getIsEphemeral()),
-                                                    false, false));
+                    final boolean targetEphemeral = Boolean.parseBoolean(stringCriteria.getOptions(0));
+                    return PropertyFilter.typeSpecificFilter(v -> v.isEphemeral() == targetEphemeral, VolumeProps.class);
+                }
+            }
+            case SearchableProperties.VM_DESKTOP_POOL_ACTIVE_SESSIONS: {
+                if (stringCriteria.getOptionsCount() == 1) {
+                    final boolean targetActiveSessions =
+                        Boolean.parseBoolean(stringCriteria.getOptions(0));
+                    final Predicate<SearchableProps> propsTest =
+                        targetActiveSessions
+                            ? e -> (long)e.getCommodityUsed(CommodityType.ACTIVE_SESSIONS_VALUE) == 1L
+                            : e -> (long)e.getCommodityUsed(CommodityType.ACTIVE_SESSIONS_VALUE) < 1L;
+                        return PropertyFilter.typeSpecificFilter(propsTest, SearchableProps.class);
                 }
             }
             case SearchableProperties.DELETABLE:
@@ -329,23 +298,24 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                 if (stringCriteria.getOptionsCount() == 1) {
                     boolean optionValue =
                             Boolean.parseBoolean(stringCriteria.getOptionsList().get(0)) == stringCriteria.getPositiveMatch();
-                    return new PropertyFilter<>(entity -> entity.getDeletable() == optionValue);
+                    return PropertyFilter.typeSpecificFilter(v -> v.isDeletable() == optionValue, VolumeProps.class);
                 } else {
                     return new PropertyFilter<>(entity -> true);
                 }
+            case SearchableProperties.EXCLUSIVE_DISCOVERING_TARGET: {
+                final List<Long> targetIds = stringCriteria.getOptionsList()
+                        .stream()
+                        .map(Long::valueOf)
+                        .collect(Collectors.toList());
+                final boolean positive = stringCriteria.getPositiveMatch();
+                return new PropertyFilter<>(e ->
+                    (e.getDiscoveringTargetIds().collect(Collectors.toList()).equals(targetIds))
+                            == positive);
+            }
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
                         + " with criteria: " + stringCriteria);
         }
-    }
-
-    private Function<E, String> vmToVolumeInfoPropertyLookup(
-                    Predicate<VirtualVolumeInfo> volumeInfoPredicate) {
-        return entity -> Boolean.toString(entity.getAllConnectedEntities().stream()
-                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
-                        .map(TopologyGraphEntity::getTypeSpecificInfo)
-                        .filter(TypeSpecificInfo::hasVirtualVolume)
-                        .map(TypeSpecificInfo::getVirtualVolume).anyMatch(volumeInfoPredicate));
     }
 
     @Nonnull
@@ -354,39 +324,14 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
             @Nonnull final Search.PropertyFilter.MapFilter mapCriteria) {
         final Predicate<Entry<String, List<String>>> entryFilter;
 
-        if (StringUtils.isEmpty(mapCriteria.getKey())) {
-            // key is not present in the filter
-            // string key=value must match the regex
-            final Pattern pattern = Pattern.compile(mapCriteria.getRegex());
-            entryFilter = e -> e.getValue().stream()
-                            .anyMatch(v -> pattern.matcher(e.getKey() + "=" + v).matches());
-        } else {
-            // key is present in the filter
-            // key must match and value must satisfy a specific predicate
-            final Predicate<String> valueFilter;
-            if (!StringUtils.isEmpty(mapCriteria.getRegex())) {
-                // value must match regex
-                final Pattern pattern = Pattern.compile(mapCriteria.getRegex());
-                valueFilter = v -> pattern.matcher(v).matches();
-            } else if (!mapCriteria.getValuesList().isEmpty()) {
-                // value must match one of the options given in the filter
-                valueFilter = v -> mapCriteria.getValuesList().contains(v);
-            } else {
-                // regex and options are empty
-                // no requirements for value
-                valueFilter = v -> true;
-            }
-            entryFilter = e -> e.getKey().equals(mapCriteria.getKey())
-                            && e.getValue().stream().anyMatch(valueFilter);
-        }
 
         // currently only entity tags is a property of type map
         if (propertyName.equals(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)) {
             return new PropertyFilter<>(te ->
                 // Check tags for the match, and negate the result if we're not actually looking
                 // for a positive match.
-                mapCriteria.getPositiveMatch() == te.getTags().entrySet().stream()
-                                                    .anyMatch(entryFilter));
+                mapCriteria.getPositiveMatch() == te.getSearchableProps(SearchableProps.class)
+                        .getTagIndex().isMatchingEntity(te.getOid(), mapCriteria));
         } else {
             throw new IllegalArgumentException("Unknown map property named: " + propertyName);
         }
@@ -431,11 +376,27 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                         if (commTypeRegex.matcher(UICommodityType.VMEM.apiStr()).matches()) {
                             return new PropertyFilter<>(longPredicate(valueFilter.getValue(),
                                 valueFilter.getComparisonOperator(),
-                                entity -> getLongCapacity(entity, CommodityType.VMEM)));
+                                entity -> {
+                                    SearchableProps props = entity.getSearchableProps(SearchableProps.class);
+                                    if (props == null) {
+                                        return -1L;
+                                    } else {
+                                        return (long)props.getCommodityCapacity(CommodityType.VMEM.getNumber());
+                                    }
+                                }
+                            ));
                         } else if (commTypeRegex.matcher(UICommodityType.MEM.apiStr()).matches()) {
                             return new PropertyFilter<>(longPredicate(valueFilter.getValue(),
                                 valueFilter.getComparisonOperator(),
-                                entity -> getLongCapacity(entity, CommodityType.MEM)));
+                                    entity -> {
+                                        SearchableProps props = entity.getSearchableProps(SearchableProps.class);
+                                        if (props == null) {
+                                            return -1L;
+                                        } else {
+                                            return (long)props.getCommodityCapacity(CommodityType.MEM.getNumber());
+                                        }
+                                    }
+                            ));
                         } else {
                             throw new IllegalArgumentException("Unsupported commodity type for search: " + commodityType);
                         }
@@ -463,22 +424,10 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                                      makeCaseSensitivePredicate(listCriteria.getStringFilter())::test));
             }
         } else if (propertyName.equals(SearchableProperties.VM_CONNECTED_NETWORKS)) {
-            if (listCriteria.hasStringFilter() && listCriteria.getStringFilter().hasStringPropertyRegex()) {
-                final String regex = listCriteria.getStringFilter().getStringPropertyRegex();
-                final boolean positiveMatch = listCriteria.getStringFilter().getPositiveMatch();
-                final boolean caseSensitive = listCriteria.getStringFilter().getCaseSensitive();
-                final Pattern pattern = Pattern.compile(regex, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE);
-                return new PropertyFilter<E>(entity -> {
-                        if (entity.getTypeSpecificInfo() == null ||
-                                entity.getTypeSpecificInfo().getVirtualMachine() == null) {
-                            return false;
-                        }
-                        final Collection<String> connectedNetworks =
-                                entity.getTypeSpecificInfo().getVirtualMachine().getConnectedNetworksList();
-                        return
-                            connectedNetworks.stream().anyMatch(network -> pattern.matcher(network).find())
-                                == positiveMatch;
-                    });
+            if (listCriteria.hasStringFilter()) {
+                final Predicate<String> str = stringPredicate(listCriteria.getStringFilter());
+                return PropertyFilter.typeSpecificFilter(vmProps ->
+                        vmProps.getConnectedNetworkNames().stream().anyMatch(str), VmProps.class);
             }
         } else if (propertyName.equals(SearchableProperties.VENDOR_ID)) {
             if (listCriteria.hasStringFilter() && listCriteria.getStringFilter().hasStringPropertyRegex()) {
@@ -493,19 +442,6 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
 
         throw new IllegalArgumentException("Unknown property: " + propertyName + " for ListFilter "
                 + listCriteria);
-    }
-
-    private long getLongCapacity(TopologyGraphEntity<E> entity, CommodityType commType) {
-        List<CommoditySoldDTO> soldOfType = entity.soldCommoditiesByType().get(commType.getNumber());
-        // We expect at most one
-        // By the way why do we expect at most one? VStorages will have different keys
-        if (!CollectionUtils.isEmpty(soldOfType)) {
-            CommoditySoldDTO sold = soldOfType.get(0);
-            if (sold.hasCapacity()) {
-                return (long)sold.getCapacity();
-            }
-        }
-        return -1L;
     }
 
     @Nonnull
@@ -526,23 +462,17 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                             throw new IllegalArgumentException("Expecting StringFilter for " +
                                     filter.getPropertyName() + ", but got " + filter);
                         }
-                        StringFilter stringFilter = filter.getStringFilter();
-                        return new PropertyFilter<>(entity -> hasVirtualMachineInfoPredicate().test(entity) &&
-                                stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
-                                                topologyEntity.getTypeSpecificInfo()
-                                                        .getVirtualMachine().getGuestOsInfo().getGuestOsName(),
-                                !stringFilter.getPositiveMatch(),
-                                stringFilter.getCaseSensitive()).test(entity));
+                        final Predicate<String> str = stringPredicate(filter.getStringFilter());
+                        return PropertyFilter.typeSpecificFilter(vmProps ->
+                                str.test(vmProps.getGuestOsName()), VmProps.class);
                     case SearchableProperties.VM_INFO_NUM_CPUS:
                         if (filter.getPropertyTypeCase() != PropertyTypeCase.NUMERIC_FILTER) {
                             throw new IllegalArgumentException("Expecting NumericFilter for " +
                                     filter.getPropertyName() + ", but got " + filter);
                         }
-                        return new PropertyFilter<>(entity -> hasVirtualMachineInfoPredicate().test(entity) &&
-                                intPredicate((int) filter.getNumericFilter().getValue(),
-                                        filter.getNumericFilter().getComparisonOperator(), topologyEntity ->
-                                                topologyEntity.getTypeSpecificInfo()
-                                                        .getVirtualMachine().getNumCpus()).test(entity));
+                        IntPredicate predicate = intPredicate(filter.getNumericFilter());
+                        return PropertyFilter.typeSpecificFilter(vmProps ->
+                                predicate.test(vmProps.getNumCpus()), VmProps.class);
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                                 filter.getPropertyName() + " on " + propertyName);
@@ -557,68 +487,50 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
 
                 filter = objectCriteria.getFilters(0);
                 switch (filter.getPropertyName()) {
-                    case SearchableProperties.PM_INFO_NUM_CPUS:
+                    case SearchableProperties.PM_INFO_NUM_CPUS: {
                         if (filter.getPropertyTypeCase() != PropertyTypeCase.NUMERIC_FILTER) {
-                            throw new IllegalArgumentException("Expecting NumericFilter for " +
-                                    filter.getPropertyName() + ", but got " + filter);
+                            throw new IllegalArgumentException(
+                                    "Expecting NumericFilter for " + filter.getPropertyName() + ", but got " + filter);
                         }
-                        return new PropertyFilter<>(entity -> hasPhysicalMachineInfoPredicate().test(entity) &&
-                                intPredicate((int) filter.getNumericFilter().getValue(),
-                                        filter.getNumericFilter().getComparisonOperator(), topologyEntity ->
-                                                topologyEntity.getTypeSpecificInfo()
-                                                        .getPhysicalMachine().getNumCpus()).test(entity));
-                    case SearchableProperties.PM_INFO_VENDOR:
+                        IntPredicate predicate = intPredicate(filter.getNumericFilter());
+                        return PropertyFilter.typeSpecificFilter(pmProps -> predicate.test(pmProps.getNumCpus()), PmProps.class);
+                    }
+                    case SearchableProperties.PM_INFO_VENDOR: {
                         if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
                             throw new IllegalArgumentException("Expecting StringFilter for " +
                                     filter.getPropertyName() + ", but got " + filter);
                         }
-                        StringFilter stringFilter = filter.getStringFilter();
-                        return new PropertyFilter<>(entity -> hasPhysicalMachineInfoPredicate().test(entity) &&
-                                stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
-                                                topologyEntity.getTypeSpecificInfo()
-                                                        .getPhysicalMachine().getVendor(),
-                                        !stringFilter.getPositiveMatch(),
-                                        stringFilter.getCaseSensitive()).test(entity));
-
-                    case SearchableProperties.PM_INFO_CPU_MODEL:
+                        Predicate<String> predicate = stringPredicate(filter.getStringFilter());
+                        return PropertyFilter.typeSpecificFilter(pmProps ->
+                                predicate.test(pmProps.getVendor()), PmProps.class);
+                    }
+                    case SearchableProperties.PM_INFO_CPU_MODEL: {
                         if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
-                            throw new IllegalArgumentException("Expecting StringFilter for " +
-                                    filter.getPropertyName() + ", but got " + filter);
+                            throw new IllegalArgumentException(
+                                    "Expecting StringFilter for " + filter.getPropertyName() + ", but got " + filter);
                         }
-                        stringFilter = filter.getStringFilter();
-                        return new PropertyFilter<>(entity -> hasPhysicalMachineInfoPredicate().test(entity) &&
-                                stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
-                                                topologyEntity.getTypeSpecificInfo()
-                                                        .getPhysicalMachine().getCpuModel(),
-                                        !stringFilter.getPositiveMatch(),
-                                        stringFilter.getCaseSensitive()).test(entity));
-
-                    case SearchableProperties.PM_INFO_MODEL:
+                        Predicate<String> predicate = stringPredicate(filter.getStringFilter());
+                        return PropertyFilter.typeSpecificFilter(pmProps ->
+                                predicate.test(pmProps.getCpuModel()), PmProps.class);
+                    }
+                    case SearchableProperties.PM_INFO_MODEL: {
                         if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
-                            throw new IllegalArgumentException("Expecting StringFilter for " +
-                                    filter.getPropertyName() + ", but got " + filter);
+                            throw new IllegalArgumentException(
+                                    "Expecting StringFilter for " + filter.getPropertyName() + ", but got " + filter);
                         }
-                        stringFilter = filter.getStringFilter();
-                        return new PropertyFilter<>(entity -> hasPhysicalMachineInfoPredicate().test(entity) &&
-                                stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
-                                                topologyEntity.getTypeSpecificInfo()
-                                                        .getPhysicalMachine().getModel(),
-                                        !stringFilter.getPositiveMatch(),
-                                        stringFilter.getCaseSensitive()).test(entity));
-
-                    case SearchableProperties.PM_INFO_TIMEZONE:
+                        Predicate<String> predicate = stringPredicate(filter.getStringFilter());
+                        return PropertyFilter.typeSpecificFilter(pmProps ->
+                                predicate.test(pmProps.getModel()), PmProps.class);
+                    }
+                    case SearchableProperties.PM_INFO_TIMEZONE: {
                         if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
-                            throw new IllegalArgumentException("Expecting StringFilter for " +
-                                    filter.getPropertyName() + ", but got " + filter);
+                            throw new IllegalArgumentException(
+                                    "Expecting StringFilter for " + filter.getPropertyName() + ", but got " + filter);
                         }
-                        stringFilter = filter.getStringFilter();
-                        return new PropertyFilter<>(entity -> hasPhysicalMachineInfoPredicate().test(entity) &&
-                                stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
-                                                topologyEntity.getTypeSpecificInfo()
-                                                        .getPhysicalMachine().getTimezone(),
-                                        !stringFilter.getPositiveMatch(),
-                                        stringFilter.getCaseSensitive()).test(entity));
-
+                        Predicate<String> predicate = stringPredicate(filter.getStringFilter());
+                        return PropertyFilter.typeSpecificFilter(pmProps
+                                -> predicate.test(pmProps.getTimezone()), PmProps.class);
+                    }
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                                 filter.getPropertyName() + " on " + propertyName);
@@ -638,13 +550,12 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                             throw new IllegalArgumentException("Expecting StringFilter for " +
                                 filter.getPropertyName() + ", but got " + filter);
                         }
-                        StringFilter stringFilter = filter.getStringFilter();
-                        return new PropertyFilter<>(entity -> hasStorageInfoPredicate().test(entity) &&
-                            stringPredicate(stringFilter.getStringPropertyRegex(), topologyEntity ->
-                                    String.valueOf(topologyEntity.getTypeSpecificInfo()
-                                        .getStorage().getIsLocal()),
-                                !stringFilter.getPositiveMatch(),
-                                stringFilter.getCaseSensitive()).test(entity));
+
+                        // TODO (roman, May 22 2020): We should check if it's a boolean encoded as
+                        // a string, and optimize that case.
+                        Predicate<String> predicate = stringPredicate(filter.getStringFilter());
+                        return PropertyFilter.typeSpecificFilter(stProps
+                                -> predicate.test(Boolean.toString(stProps.isLocal())), StorageProps.class);
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                             filter.getPropertyName() + " on " + propertyName);
@@ -664,13 +575,10 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                             throw new IllegalArgumentException("Expecting StringFilter for " +
                                 filter.getPropertyName() + ", but got " + filter);
                         }
-                        StringFilter stringFilter = filter.getStringFilter();
-                        return new PropertyFilter<>(entity -> hasBusinessAccountInfoPredicate().test(entity) &&
-                            stringOptionsPredicate(stringFilter.getOptionsList(), topologyEntity ->
-                                    topologyEntity.getTypeSpecificInfo()
-                                        .getBusinessAccount().getAccountId(),
-                                !stringFilter.getPositiveMatch(),
-                                stringFilter.getCaseSensitive()).test(entity));
+
+                        Predicate<String> predicate = stringPredicate(filter.getStringFilter());
+                        return PropertyFilter.typeSpecificFilter(baProps
+                                -> predicate.test(baProps.getAccountId()), BusinessAccountProps.class);
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                             filter.getPropertyName() + " on " + propertyName);
@@ -688,14 +596,10 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                             throw new IllegalArgumentException("Expecting StringFilter for " +
                                 filter.getPropertyName() + ", but got " + filter);
                         }
-                        StringFilter stringFilter = filter.getStringFilter();
-
-                        return new PropertyFilter<>(entity -> hasVolumeInfoPredicate().test(entity) &&
-                            stringOptionsPredicate(stringFilter.getOptionsList(), topologyEntity ->
-                                    topologyEntity.getTypeSpecificInfo()
-                                        .getVirtualVolume().getAttachmentState().name(),
-                                !stringFilter.getPositiveMatch(),
-                                stringFilter.getCaseSensitive()).test(entity));
+                        final StringFilter stringFilter = filter.getStringFilter();
+                        final Predicate<String> stringPredicate = stringPredicate(stringFilter);
+                        return PropertyFilter.typeSpecificFilter(vol ->
+                            stringPredicate.test(vol.attachmentState().name()), VolumeProps.class);
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                             filter.getPropertyName() + " on " + propertyName);
@@ -720,26 +624,37 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
      */
     @Nonnull
     private Predicate<E> intPredicate(final int comparisonValue,
-                                                 @Nonnull final ComparisonOperator operator,
-                                                 @Nonnull final ToIntFunction<E> propertyLookup) {
+                                      @Nonnull final ComparisonOperator operator,
+                                      @Nonnull final ToIntFunction<E> propertyLookup) {
         Objects.requireNonNull(propertyLookup);
+        IntPredicate intPredicate = intPredicate(comparisonValue, operator);
+        return entity -> intPredicate.test(propertyLookup.applyAsInt(entity));
+    }
 
-        switch (operator) {
-            case EQ:
-                return entity -> propertyLookup.applyAsInt(entity) == comparisonValue;
-            case NE:
-                return entity -> propertyLookup.applyAsInt(entity) != comparisonValue;
-            case GT:
-                return entity -> propertyLookup.applyAsInt(entity) > comparisonValue;
-            case GTE:
-                return entity -> propertyLookup.applyAsInt(entity) >= comparisonValue;
-            case LT:
-                return entity -> propertyLookup.applyAsInt(entity) < comparisonValue;
-            case LTE:
-                return entity -> propertyLookup.applyAsInt(entity) <= comparisonValue;
-            default:
-                throw new IllegalArgumentException("Unknown operator type: " + operator);
-        }
+    private IntPredicate intPredicate(NumericFilter numericFilter) {
+        return intPredicate((int)numericFilter.getValue(), numericFilter.getComparisonOperator());
+    }
+
+    private IntPredicate intPredicate(final int comparisonValue,
+                                      @Nonnull final ComparisonOperator comparisonOperator) {
+        return value -> {
+            switch (comparisonOperator) {
+                case EQ:
+                    return value == comparisonValue;
+                case NE:
+                    return value != comparisonValue;
+                case GT:
+                    return value > comparisonValue;
+                case GTE:
+                    return value >= comparisonValue;
+                case LT:
+                    return value < comparisonValue;
+                case LTE:
+                    return value <= comparisonValue;
+                default:
+                    throw new IllegalArgumentException("Unknown operator type: " + comparisonOperator);
+            }
+        };
     }
 
     /**
@@ -799,28 +714,6 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
     }
 
     /**
-     * Compose a string-based predicate for use in a string filter that filters based on a regex.
-     *
-     * @param regex The regular expression to use when filtering entities.
-     * @param propertyLookup The function to use to lookup a string value
-     *                       from a given {@link TopologyGraphEntity}.
-     * @param negate If true, return the opposite of the match. That is, if true return false
-     *               if the match succeeds. If false, return the same as the match.
-     * @param caseSensitive If true, match the case of the regex. If false, do a case-insensitive comparison.
-     * @return A predicate.
-     */
-    @Nonnull
-    private Predicate<E> stringPredicate(final String regex,
-                                         @Nonnull final Function<E, String> propertyLookup,
-                                         final boolean negate,
-                                         final boolean caseSensitive) {
-        final Pattern pattern = Pattern.compile(regex, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE);
-        return negate ?
-            entity -> !pattern.matcher(propertyLookup.apply(entity)).find() :
-            entity -> pattern.matcher(propertyLookup.apply(entity)).find();
-    }
-
-    /**
      * Compose a string-based predicate for use in a string filter that filters based on options.
      *
      * @param options The options for the string.
@@ -866,71 +759,45 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                 + propertyName + ", but got " + filters.size() + ": " + filters);
         }
         Search.PropertyFilter filter = objectCriteria.getFilters(0);
-        switch (filter.getPropertyName()) {
-            case SearchableProperties.CONTROLLER_TYPE:
-                if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
-                    throw new IllegalArgumentException("Expecting StringFilter for "
-                        + filter.getPropertyName() + ", but got " + filter);
-                }
-                StringFilter stringFilter = filter.getStringFilter();
-                final Function<E, String> controllerTypeFunc = topologyEntity -> {
-                    WorkloadControllerInfo wcInfo = topologyEntity.getTypeSpecificInfo().getWorkloadController();
-                    // If wcInfo has custom controller info, then use the customControllerType
-                    // for searching.
-                    if (wcInfo.hasCustomControllerInfo()) {
-                        return wcInfo.getCustomControllerInfo().getCustomControllerType();
-                    }
-                    return wcInfo.getControllerTypeCase().name();
-                };
-                // If stringPropertyRegex is not empty, search by regex
-                if (!StringUtils.isEmpty(stringFilter.getStringPropertyRegex())) {
-                    return new PropertyFilter<>(entity -> hasWorkloadControllerInfoPredicate().test(entity)
-                        && stringPredicate(stringFilter.getStringPropertyRegex(), controllerTypeFunc,
-                        !stringFilter.getPositiveMatch(),
-                        stringFilter.getCaseSensitive()).test(entity));
+        if (filter.getPropertyName().equals(SearchableProperties.CONTROLLER_TYPE)) {
+            if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
+                throw new IllegalArgumentException(
+                        "Expecting StringFilter for " + filter.getPropertyName() + ", but got " + filter);
+            }
+
+            final StringFilter stringFilter = filter.getStringFilter();
+            // If stringFilter options list contains OTHER_CONTROLLER_TYPE, then we are searching
+            // for WorkloadController entities with customControllerInfo.
+            final boolean matchCustom = stringFilter.getOptionsList().stream()
+                    .anyMatch(option -> option.toLowerCase().equals(SearchableProperties.OTHER_CONTROLLER_TYPE.toLowerCase()));
+            Predicate<String> predicate = stringPredicate(stringFilter);
+            return PropertyFilter.typeSpecificFilter(wcProps -> {
+                if (matchCustom) {
+                    return wcProps.isCustom();
                 } else {
-                    // Else search by the given options
-                    Set<String> expectedSet = stringFilter.getOptionsList().stream()
-                        .map(String::toLowerCase)
-                        .collect(Collectors.toSet());
-                    // If stringFilter options list contains OTHER_CONTROLLER_TYPE, then we are searching
-                    // for WorkloadController entities with customControllerInfo.
-                    if (expectedSet.contains(SearchableProperties.OTHER_CONTROLLER_TYPE.toLowerCase())) {
-                        return new PropertyFilter<>(entity -> hasWorkloadControllerInfoPredicate().test(entity)
-                            && entity.getTypeSpecificInfo().getWorkloadController().hasCustomControllerInfo());
-                    }
-                    return new PropertyFilter<>(entity -> hasWorkloadControllerInfoPredicate().test(entity)
-                        && stringOptionsPredicate(stringFilter.getOptionsList(), controllerTypeFunc,
-                        !stringFilter.getPositiveMatch(),
-                        stringFilter.getCaseSensitive()).test(entity));
+                    return predicate.test(wcProps.getControllerType());
                 }
-            default:
-                throw new IllegalArgumentException("Unknown property: "
-                    + filter.getPropertyName() + " on " + propertyName);
+            }, WorkloadControllerProps.class);
+        } else {
+            throw new IllegalArgumentException("Unknown property: "
+                + filter.getPropertyName() + " on " + propertyName);
         }
     }
 
-    private Predicate<E> hasVirtualMachineInfoPredicate() {
-        return entity -> entity.getTypeSpecificInfo().hasVirtualMachine();
-    }
-
-    private Predicate<E> hasPhysicalMachineInfoPredicate() {
-        return entity -> entity.getTypeSpecificInfo().hasPhysicalMachine();
-    }
-
-    private Predicate<E> hasStorageInfoPredicate() {
-        return entity -> entity.getTypeSpecificInfo().hasStorage();
-    }
-
-    private Predicate<E> hasBusinessAccountInfoPredicate() {
-        return entity -> entity.getTypeSpecificInfo().hasBusinessAccount();
-    }
-
-    private Predicate<E> hasVolumeInfoPredicate() {
-        return entity -> entity.getTypeSpecificInfo().hasVirtualVolume();
-    }
-
-    private Predicate<E> hasWorkloadControllerInfoPredicate() {
-        return entity -> entity.getTypeSpecificInfo().hasWorkloadController();
+    private Predicate<String> stringPredicate(StringFilter filter) {
+        // Use options.
+        final Set<String> expectedSet = filter.getOptionsList().stream()
+                .map(option -> filter.getCaseSensitive() ? option : option.toLowerCase())
+                .collect(Collectors.toSet());
+        // Use regex.
+        final Pattern pattern = Pattern.compile(filter.getStringPropertyRegex(),
+                filter.getCaseSensitive() ? 0 : Pattern.CASE_INSENSITIVE);
+        return str -> {
+            if (!StringUtils.isEmpty(filter.getStringPropertyRegex())) {
+                return filter.getPositiveMatch() == pattern.matcher(str).find();
+            } else {
+                return filter.getPositiveMatch() == expectedSet.contains(filter.getCaseSensitive() ? str : str.toLowerCase());
+            }
+        };
     }
 }

@@ -37,7 +37,6 @@ import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
-import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
 import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.PlanPipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
@@ -214,11 +213,6 @@ public class TopologyConfig {
         return matrixConfig.matrixInterface();
     }
 
-    @Bean
-    public CachedTopology cachedTopology() {
-        return new CachedTopology();
-    }
-
     /**
      * Helper for cloud migration stage.
      *
@@ -258,12 +252,13 @@ public class TopologyConfig {
                 controllableConfig.controllableManager(),
                 historicalEditor(),
                 matrixInterface(),
-                cachedTopology(),
+                actionsConfig.cachedTopology(),
                 probeActionCapabilitiesApplicatorEditor(),
                 historyAggregationConfig.historyAggregationStage(),
                 licenseCheckClientConfig.licenseCheckClient(),
                 consistentScalingConfig.consistentScalingManager(),
                 actionsConfig.actionConstraintsUploader(),
+                actionsConfig.actionMergeSpecsUploader(),
                 requestCommodityThresholdsInjector(),
                 ephemeralEntityEditor()
         );
@@ -295,7 +290,7 @@ public class TopologyConfig {
                 probeActionCapabilitiesApplicatorEditor(),
                 historicalEditor(),
                 matrixInterface(),
-                cachedTopology(),
+                actionsConfig.cachedTopology(),
                 historyAggregationConfig.historyAggregationStage(),
                 dmandOverriddenCommodityEditor(),
                 consistentScalingConfig.consistentScalingManager(),

@@ -516,12 +516,12 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
                     .from(RESERVED_INSTANCE_BOUGHT)
                     .join(RESERVED_INSTANCE_SPEC)
                     .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID.eq(RESERVED_INSTANCE_SPEC.ID))
-                    .where(filter.generateConditions())
+                    .where(filter.generateConditions(context))
                     .fetch()
                     .into(RESERVED_INSTANCE_BOUGHT);
         } else {
             return context.selectFrom(RESERVED_INSTANCE_BOUGHT)
-                    .where(filter.generateConditions())
+                    .where(filter.generateConditions(context))
                     .fetch();
         }
     }

@@ -37,7 +37,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.web.context.ConfigurableWebApplicationContext;
 
+import com.vmturbo.components.api.ServerStartedNotifier;
+import com.vmturbo.components.api.ServerStartedNotifier.ServerStartedListener;
 import com.vmturbo.components.api.tracing.Tracing;
 
 /**
@@ -53,7 +56,7 @@ import com.vmturbo.components.api.tracing.Tracing;
  * {@link ComponentGrpcServer#stop()}.
  */
 @ThreadSafe
-public class ComponentGrpcServer {
+public class ComponentGrpcServer implements ServerStartedListener {
 
     /**
      * The default interval for keep-alives for the channel.
@@ -138,6 +141,8 @@ public class ComponentGrpcServer {
             // Last, so that it gets called first, and catches any unhandled exceptions from the
             // call or any of the other interceptors.
             new GrpcCatchExceptionInterceptor());
+        // Register to listen for notification when the server/component starts.
+        ServerStartedNotifier.get().registerListener(this);
     }
 
     /**
@@ -312,5 +317,10 @@ public class ComponentGrpcServer {
     private static boolean useInProcess() {
         // Controlled via system property, false by default. Should only be used in development/test.
         return Boolean.getBoolean("useInProcess");
+    }
+
+    @Override
+    public void onServerStarted(ConfigurableWebApplicationContext serverContext) {
+        start(serverContext.getEnvironment());
     }
 }

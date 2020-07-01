@@ -48,12 +48,12 @@ public class ActionSettingSpecsTest {
                     entitySettingSpecs.getSettingName()));
                 Assert.assertEquals(
                     executionScheduleName,
-                    ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                        entitySettingSpecs.getSettingName()));
+                    ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                        entitySettingSpecs.getSettingName(), ActionSettingType.SCHEDULE));
                 Assert.assertEquals(
                     executionScheduleName,
-                    ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                        entitySettingSpecs));
+                    ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                        entitySettingSpecs, ActionSettingType.SCHEDULE));
                 Assert.assertEquals(
                     entitySettingSpecs.getSettingName(),
                     ActionSettingSpecs.getActionModeSettingFromExecutionScheduleSetting(
@@ -91,11 +91,11 @@ public class ActionSettingSpecsTest {
             EntitySettingSpecs.CpuUtilization));
         Assert.assertFalse(ActionSettingSpecs.isActionModeSetting(expectedNotFoundSetting));
         Assert.assertNull(
-            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                expectedNotFoundSetting));
+            ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                expectedNotFoundSetting, ActionSettingType.SCHEDULE));
         Assert.assertNull(
-            ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                EntitySettingSpecs.CpuUtilization));
+            ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                EntitySettingSpecs.CpuUtilization, ActionSettingType.SCHEDULE));
         Assert.assertNull(
             ActionSettingSpecs.getActionModeSettingFromExecutionScheduleSetting(
                 expectedNotFoundSetting));

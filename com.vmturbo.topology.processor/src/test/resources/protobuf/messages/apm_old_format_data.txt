@@ -1,0 +1,451 @@
+entityDTO {
+  entityType: APPLICATION_SERVER
+  id: "Iremel-SpringBoot-App [spring_boot_test_app, iremel-test-vm]"
+  commoditiesSold {
+    commodityType: TRANSACTION
+    used: 0.12
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: RESPONSE_TIME
+    used: 1000.625
+    peak: 2001.0
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: SLA_COMMODITY
+    used: 1000.625
+    peak: 2001.0
+  }
+  commoditiesBought {
+    providerId: "ProxyVM-For-13.69.85.248"
+    bought {
+      commodityType: APPLICATION
+      key: "ApplicationCommodity::ProxyVM-For-13.69.85.248::Iremel-SpringBoot-App [spring_boot_test_app, iremel-test-vm]"
+      used: 1.0
+    }
+    bought {
+      commodityType: VCPU
+      used: 2.773191291766539
+      peak: 3.9189415508290066
+      isUsedPct: true
+      vcpu_data {
+      }
+    }
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_owner"
+    value: "robert.clark@turbonomic.com"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "AutoSuspend"
+    value: "False"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "Turbonomic-Host-Name"
+    value: "iremel-test-vm.westeurope.cloudapp.azure.com"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_comment"
+    value: "This is part of the default test environment and stays up full time"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_lifetime"
+    value: "1000"
+  }
+  application_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "ProxyVM-For-13.69.85.248"
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "ApplicationCommodity::ProxyVM-For-13.69.85.248::Iremel-SpringBoot-App [spring_boot_test_app, iremel-test-vm]"
+    capacity: 100000.0
+  }
+  commoditiesSold {
+    commodityType: VCPU
+    used: 2.773191291766539
+    peak: 3.9189415508290066
+    isUsedPct: true
+    vcpu_data {
+    }
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    ipAddress: "13.69.85.248"
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "ProxyVM-For-13.69.85.188"
+  commoditiesSold {
+    commodityType: VCPU
+    used: 2.70722266605922
+    peak: 8.07196521759033
+    isUsedPct: true
+    vcpu_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "ApplicationCommodity::ProxyVM-For-13.69.85.188::Iremel-Win-App [-, iremel-test-win]"
+    capacity: 100000.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    ipAddress: "13.69.85.188"
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: APPLICATION
+  id: "Iremel-Win-App [-, iremel-test-win]"
+  commoditiesSold {
+    commodityType: TRANSACTION
+    used: 0.055
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: RESPONSE_TIME
+    used: 0.4546030303030304
+    peak: 2.0157000000000003
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: SLA_COMMODITY
+    used: 0.4546030303030304
+    peak: 2.0157000000000003
+  }
+  commoditiesBought {
+    providerId: "ProxyVM-For-13.69.85.188"
+    bought {
+      commodityType: VCPU
+      used: 2.70722266605922
+      peak: 8.07196521759033
+      isUsedPct: true
+      vcpu_data {
+      }
+    }
+    bought {
+      commodityType: APPLICATION
+      key: "ApplicationCommodity::ProxyVM-For-13.69.85.188::Iremel-Win-App [-, iremel-test-win]"
+      used: 1.0
+    }
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_owner"
+    value: "robert.clark@turbonomic.com"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "AutoSuspend"
+    value: "False"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "Turbonomic-Host-Name"
+    value: "iremel-test-win.westeurope.cloudapp.azure.com"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_comment"
+    value: "This is part of the default test environment and stays up full time"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_lifetime"
+    value: "1000"
+  }
+  application_data {
+  }
+}
+entityDTO {
+  entityType: APPLICATION_SERVER
+  id: "Iremel-Cluster-App [Iremel-Other-App, appinsights-cluster-a]"
+  commoditiesSold {
+    commodityType: TRANSACTION
+    used: 0.05333333333333334
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: RESPONSE_TIME
+    used: 1.78125
+    peak: 8.0
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: SLA_COMMODITY
+    used: 1.78125
+    peak: 8.0
+  }
+  commoditiesBought {
+    providerId: "ProxyVM-For-10.10.168.63"
+    bought {
+      commodityType: VCPU
+      used: 0.550381177813883
+      peak: 0.6529382219989954
+      isUsedPct: true
+      vcpu_data {
+      }
+    }
+    bought {
+      commodityType: APPLICATION
+      key: "ApplicationCommodity::ProxyVM-For-10.10.168.63::Iremel-Cluster-App [Iremel-Other-App, appinsights-cluster-a]"
+      used: 1.0
+    }
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_owner"
+    value: "robert.clark@turbonomic.com"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "Turbonomic-Host-Name"
+    value: "appinsights-cluster-a=10.10.168.63;appinsights-cluster-b=10.10.168.110"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_comment"
+    value: "This is part of the default test environment and stays up full time"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_lifetime"
+    value: "1000"
+  }
+  application_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "ProxyVM-For-10.10.168.63"
+  commoditiesSold {
+    commodityType: VCPU
+    used: 0.550381177813883
+    peak: 0.6529382219989954
+    isUsedPct: true
+    vcpu_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "ApplicationCommodity::ProxyVM-For-10.10.168.63::Iremel-Cluster-App [Iremel-Other-App, appinsights-cluster-a]"
+    capacity: 100000.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    ipAddress: "10.10.168.63"
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "ProxyVM-For-10.10.168.63"
+  commoditiesSold {
+    commodityType: VCPU
+    used: 0.552232733910538
+    peak: 0.6530475552578701
+    isUsedPct: true
+    vcpu_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "ApplicationCommodity::ProxyVM-For-10.10.168.63::Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-a]"
+    capacity: 100000.0
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    ipAddress: "10.10.168.63"
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: APPLICATION_SERVER
+  id: "Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-a]"
+  commoditiesSold {
+    commodityType: TRANSACTION
+    used: 0.05333333333333334
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: RESPONSE_TIME
+    used: 1.40625
+    peak: 11.0
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: SLA_COMMODITY
+    used: 1.40625
+    peak: 11.0
+  }
+  commoditiesBought {
+    providerId: "ProxyVM-For-10.10.168.63"
+    bought {
+      commodityType: VCPU
+      used: 0.552232733910538
+      peak: 0.6530475552578701
+      isUsedPct: true
+      vcpu_data {
+      }
+    }
+    bought {
+      commodityType: APPLICATION
+      key: "ApplicationCommodity::ProxyVM-For-10.10.168.63::Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-a]"
+      used: 1.0
+    }
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_owner"
+    value: "robert.clark@turbonomic.com"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "Turbonomic-Host-Name"
+    value: "appinsights-cluster-a=10.10.168.63;appinsights-cluster-b=10.10.168.110"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_comment"
+    value: "This is part of the default test environment and stays up full time"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_lifetime"
+    value: "1000"
+  }
+  application_data {
+  }
+}
+entityDTO {
+  entityType: APPLICATION_SERVER
+  id: "Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-b]"
+  commoditiesSold {
+    commodityType: TRANSACTION
+    used: 0.05333333333333334
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: RESPONSE_TIME
+    used: 1.75
+    peak: 4.0
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: SLA_COMMODITY
+    used: 1.75
+    peak: 4.0
+  }
+  commoditiesBought {
+    providerId: "ProxyVM-For-10.10.168.110"
+    bought {
+      commodityType: APPLICATION
+      key: "ApplicationCommodity::ProxyVM-For-10.10.168.110::Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-b]"
+      used: 1.0
+    }
+    bought {
+      commodityType: VCPU
+      used: 0.4201306416139343
+      peak: 0.6858481097356975
+      isUsedPct: true
+      vcpu_data {
+      }
+    }
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_owner"
+    value: "robert.clark@turbonomic.com"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "Turbonomic-Host-Name"
+    value: "appinsights-cluster-a=10.10.168.63;appinsights-cluster-b=10.10.168.110"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_comment"
+    value: "This is part of the default test environment and stays up full time"
+  }
+  entityProperties {
+    namespace: "VCTAGS"
+    name: "turbo_lifetime"
+    value: "1000"
+  }
+  application_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "ProxyVM-For-10.10.168.110"
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "ApplicationCommodity::ProxyVM-For-10.10.168.110::Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-b]"
+    capacity: 100000.0
+  }
+  commoditiesSold {
+    commodityType: VCPU
+    used: 0.4201306416139343
+    peak: 0.6858481097356975
+    isUsedPct: true
+    vcpu_data {
+    }
+  }
+  origin: PROXY
+  keepStandalone: false
+  virtual_machine_data {
+    ipAddress: "10.10.168.110"
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: BUSINESS_ACCOUNT
+  id: "758ad253-cbf5-4b18-8863-3eed0825bf07"
+  business_account_data {
+    account_id: "758ad253-cbf5-4b18-8863-3eed0825bf07"
+  }
+}
+discoveredGroup {
+  entity_type: UNKNOWN
+  display_name: "APMInstances"
+  group_name: "/subscriptions/758ad253-cbf5-4b18-8863-3eed0825bf07/resourceGroups/APMInstances"
+  member_list {
+    member: "Iremel-Cluster-App [Iremel-Other-App, appinsights-cluster-a]"
+    member: "Iremel-Win-App [-, iremel-test-win]"
+    member: "Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-a]"
+    member: "Iremel-SpringBoot-App [spring_boot_test_app, iremel-test-vm]"
+    member: "Iremel-Cluster-App [Iremel-Cluster-App, appinsights-cluster-b]"
+  }
+  groupType: RESOURCE
+  owner: "758ad253-cbf5-4b18-8863-3eed0825bf07"
+}

@@ -43,4 +43,10 @@ public class ActionAudit extends Operation {
     protected DataMetricCounter getStatusCounter() {
         return ACTION_AUDIT_COUNTER;
     }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + " " + getId() + " on target " + getTargetId()
+                + " status: " + getStatus();
+    }
 }

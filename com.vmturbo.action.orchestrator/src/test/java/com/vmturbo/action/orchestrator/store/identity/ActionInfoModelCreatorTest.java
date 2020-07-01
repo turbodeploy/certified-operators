@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
@@ -29,6 +30,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -94,6 +96,7 @@ public class ActionInfoModelCreatorTest {
         actions.add(createBuyRi());
         actions.add(createDelete());
         actions.add(createScale());
+        actions.add(createAtomicResize());
         final Set<ActionTypeCase> uncoveredActionTypes = EnumSet.allOf(ActionTypeCase.class);
         for (ActionInfo action : actions) {
             uncoveredActionTypes.remove(action.getActionTypeCase());
@@ -117,6 +120,38 @@ public class ActionInfoModelCreatorTest {
         expectedException.expect(IllegalArgumentException.class);
         expectedException.expectMessage("Could not find a suitable field extractor");
         modelCreator.apply(ActionInfo.newBuilder().build());
+    }
+
+    /**
+     * Tests that infinite values are correctly converted to JSON (without any errors).
+     */
+    @Test
+    public void testInfiniteResizeCommodity() {
+        final ActionInfo infoFin = createResize();
+        final ActionInfo infoInf = ActionInfo.newBuilder(infoFin)
+                .setResize(Resize.newBuilder()
+                        .setNewCapacity(Float.NEGATIVE_INFINITY)
+                        .setOldCapacity(Float.POSITIVE_INFINITY)
+                        .setTarget(createActionEntity(1))
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(1))
+                        .setCommodityAttribute(CommodityAttribute.CAPACITY))
+                .build();
+        final ActionInfo infoNan = ActionInfo.newBuilder(infoFin)
+                .setResize(Resize.newBuilder()
+                        .setNewCapacity(Float.NaN)
+                        .setOldCapacity(5)
+                        .setTarget(createActionEntity(1))
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(1))
+                        .setCommodityAttribute(CommodityAttribute.CAPACITY))
+                .build();
+        final ActionInfoModel modelInf = modelCreator.apply(infoInf);
+        final ActionInfoModel modelFin = modelCreator.apply(infoFin);
+        final ActionInfoModel modelNan = modelCreator.apply(infoNan);
+        Assert.assertNotEquals(modelInf, modelFin);
+        Assert.assertNotEquals(modelNan, modelFin);
+        Assert.assertNotEquals(modelInf, modelNan);
     }
 
     @Nonnull
@@ -155,7 +190,25 @@ public class ActionInfoModelCreatorTest {
                         .setTarget(createActionEntity(1))
                         .setCommodityType(CommodityType.newBuilder()
                                 .setType(1))
-                        .setCommodityAttribute(CommodityAttribute.CAPACITY))
+                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                        .setOldCapacity(124)
+                        .setNewCapacity(456))
+                .build();
+    }
+
+    @Nonnull
+    private ActionInfo createAtomicResize() {
+        return ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(ResizeInfo.newBuilder()
+                                    .setTarget(createActionEntity(2))
+                                    .setCommodityType(CommodityType.newBuilder().setType(1))
+                                    .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                    .setOldCapacity(124)
+                                    .setNewCapacity(456)
+                        )
+                        .build())
                 .build();
     }
 

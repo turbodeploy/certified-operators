@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -109,14 +110,20 @@ public class ActionApprovalServiceTest {
         MockitoAnnotations.initMocks(this);
         final ActionDataManager actionDataManagerMock = Mockito.mock(ActionDataManager.class);
         final EntityStore entityStoreMock = Mockito.mock(EntityStore.class);
-        final EntityRetriever entityRetrieverMock = Mockito.mock(EntityRetriever.class);
+        final EntityRetriever entityRetriever = Mockito.mock(EntityRetriever.class);
+        final TopologyEntityDTO vmTopology = TopologyEntityDTO.newBuilder()
+                .setOid(ENTITY_ID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("vm-1")
+                .build();
         final EntityDTO vm = EntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE)
                 .setDisplayName("vm-1")
                 .setId("vm-1")
                 .build();
-        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(ENTITY_ID))
-                .thenReturn(vm);
+        Mockito.when(entityRetriever.retrieveTopologyEntities(Collections.singletonList(ENTITY_ID)))
+                .thenReturn(Collections.singletonList(vmTopology));
+        Mockito.when(entityRetriever.fetchAndConvertToEntityDTO(ENTITY_ID)).thenReturn(vm);
         final Entity vmEntity = new Entity(ENTITY_ID, EntityType.VIRTUAL_MACHINE);
         vmEntity.addTargetInfo(TGT_ID, vm);
         Mockito.when(entityStoreMock.getEntity(ENTITY_ID)).thenReturn(Optional.of(vmEntity));
@@ -157,7 +164,7 @@ public class ActionApprovalServiceTest {
                 invocation -> new GetActionState(PROBE_ID, TGT_ID, identityProvider));
 
         this.contextFactory = new ActionExecutionContextFactory(actionDataManagerMock,
-                entityStoreMock, entityRetrieverMock, targetStore, probeStoreMock);
+                entityStoreMock, entityRetriever, targetStore, probeStoreMock);
         final ActionApprovalService svc = new ActionApprovalService(actionApprovalRequests,
                 actionStateSender, approvalResponseSender, operationManager, contextFactory,
                 targetStore, scheduledService, 10);

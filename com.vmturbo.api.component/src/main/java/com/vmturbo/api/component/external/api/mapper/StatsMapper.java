@@ -47,6 +47,7 @@ import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityFilter;
@@ -295,13 +296,22 @@ public class StatsMapper {
         statApiDTO.setUnits(statRecord.getUnits());
 
         final StatValueApiDTO converted = new StatValueApiDTO();
-        converted.setAvg(statRecord.getValues().getAvg());
-        converted.setMax(statRecord.getValues().getMax());
-        converted.setMin(statRecord.getValues().getMin());
-        converted.setTotal(statRecord.getValues().getTotal());
+        CloudCostStatRecord.StatRecord.StatValue value = statRecord.getValues();
+        if (value.hasAvg()) {
+            converted.setAvg(value.getAvg());
+        }
+        if (value.hasMax()) {
+            converted.setMax(value.getMax());
+        }
+        if (value.hasMin()) {
+            converted.setMin(value.getMin());
+        }
+        if (value.hasTotal()) {
+            converted.setTotal(value.getTotal());
+        }
 
         statApiDTO.setValues(converted);
-        statApiDTO.setValue(statRecord.getValues().getAvg());
+        statApiDTO.setValue(value.getAvg());
 
 
         final BaseApiDTO provider = new BaseApiDTO();
@@ -515,12 +525,18 @@ public class StatsMapper {
     @Nonnull
     private StatValueApiDTO toStatValueApiDTO(@Nonnull final StatValue statValue) {
         final StatValueApiDTO converted = new StatValueApiDTO();
-        converted.setAvg(statValue.getAvg());
-        converted.setMax(statValue.getMax());
-        converted.setMin(statValue.getMin());
-        converted.setTotal(statValue.getTotal());
-        converted.setTotalMax(statValue.getTotalMax());
-        converted.setTotalMin(statValue.getTotalMin());
+        if (statValue.hasAvg()) {
+            converted.setAvg(statValue.getAvg());
+            converted.setTotal(statValue.getTotal());
+        }
+        if (statValue.hasMax()) {
+            converted.setMax(statValue.getMax());
+            converted.setTotalMax(statValue.getTotalMax());
+        }
+        if (statValue.hasMin()) {
+            converted.setMin(statValue.getMin());
+            converted.setTotalMin(statValue.getTotalMin());
+        }
         return converted;
     }
 
@@ -893,13 +909,21 @@ public class StatsMapper {
                     statApiDTO.setUnits(statRecord.getUnits());
 
                     final StatValueApiDTO converted = new StatValueApiDTO();
-                    converted.setAvg(statRecord.getValues().getAvg());
-                    converted.setMax(statRecord.getValues().getMax());
-                    converted.setMin(statRecord.getValues().getMin());
-                    converted.setTotal(statRecord.getValues().getTotal());
-
+                    CloudCostStatRecord.StatRecord.StatValue value = statRecord.getValues();
+                    if (value.hasAvg()) {
+                        converted.setAvg(value.getAvg());
+                    }
+                    if (value.hasMax()) {
+                        converted.setMax(statRecord.getValues().getMax());
+                    }
+                    if (value.hasMin()) {
+                        converted.setMin(statRecord.getValues().getMin());
+                    }
+                    if (value.hasTotal()) {
+                        converted.setTotal(statRecord.getValues().getTotal());
+                    }
                     statApiDTO.setValues(converted);
-                    statApiDTO.setValue(statRecord.getValues().getAvg());
+                    statApiDTO.setValue(value.getAvg());
 
                     if (statRecord.hasCategory()) {
                         // Build filters

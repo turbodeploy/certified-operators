@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>protoc-grpc-moles-test</artifactId>
-        <version>7.22.100-MPC-SNAPSHOT</version>
+        <version>7.22.5-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>

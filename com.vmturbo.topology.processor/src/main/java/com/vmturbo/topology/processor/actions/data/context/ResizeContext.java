@@ -59,9 +59,10 @@ public class ResizeContext extends AbstractActionExecutionContext {
      * This implementation additionally sets commodity data needed for resize action execution.
      *
      * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders}
+     * @throws ContextCreationException if exception faced while building action
      */
     @Override
-    protected List<ActionItemDTO.Builder> initActionItemBuilders() {
+    protected List<ActionItemDTO.Builder> initActionItemBuilders() throws ContextCreationException {
         List<ActionItemDTO.Builder> builders = super.initActionItemBuilders();
         ActionItemDTO.Builder actionItemBuilder = getPrimaryActionItemBuilder(builders);
         Resize resizeInfo = getActionInfo().getResize();

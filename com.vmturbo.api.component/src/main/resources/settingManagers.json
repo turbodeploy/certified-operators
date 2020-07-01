@@ -44,7 +44,12 @@
         "enforceNonDisruptive",
         "useHypervisorMetricsForResizing",
         "disableAllActions",
-        "shopTogether"
+        "shopTogether",
+        "resizeUpHeap",
+        "resizeDownHeap",
+        "scalingPolicy",
+        "resizeUpDBMem",
+        "resizeDownDBMem"
       ],
       // Automation settings are pretty specific in the API/UI,
       // and the design is not finalized. So we put them in
@@ -108,6 +113,7 @@
       "settings": [
         "cpuUtilization",
         "memoryUtilization",
+        "dbmemUtilization",
         "ioThroughput",
         "netThroughput",
         "swappingUtilization",
@@ -127,6 +133,7 @@
         "usedIncrement_StAmt",
         "excludedTemplatesOids",
         "responseTimeCapacity",
+        "autoSetResponseTimeCapacity",
         "slaCapacity",
         "transactionsCapacity",
         "autoSetTransactionsCapacity",
@@ -163,6 +170,8 @@
         "poolStorageUtilizationThreshold",
         "viewPodActiveSessionCapacity",
         "dailyObservationWindowDesktopPool",
+        "appHeapScalingIncrement",
+        "dbMemScalingIncrement",
         "resizeVStorage"
       ]
     },
@@ -273,7 +282,8 @@
     "telemetrymanager": {
       "displayName": "Telemetry Manager",
       "settings": [
-        "telemetryEnabled"
+        "telemetryEnabled",
+        "telemetryTermsAccepted"
       ]
     }
   }

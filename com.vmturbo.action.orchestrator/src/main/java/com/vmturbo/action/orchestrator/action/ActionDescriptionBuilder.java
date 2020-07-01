@@ -7,7 +7,10 @@ import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyEntityTyp
 import java.text.CharacterIterator;
 import java.text.MessageFormat;
 import java.text.StringCharacterIterator;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -25,6 +28,7 @@ import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -32,20 +36,26 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 
 public class ActionDescriptionBuilder {
 
@@ -78,13 +88,14 @@ public class ActionDescriptionBuilder {
     // gives each thread access to it's own MessageFormat instances.
     //
     private enum ActionMessageFormat {
-        ACTION_DESCRIPTION_PROVISION_BY_SUPPLY("Provision {0}"),
+        ACTION_DESCRIPTION_PROVISION_BY_SUPPLY("Provision {0}{1}"),
         ACTION_DESCRIPTION_PROVISION_BY_DEMAND("Provision {0} similar to {1} with scaled up {2} due to {3}"),
         ACTION_DESCRIPTION_ACTIVATE("Start {0} due to increased demand for resources"),
         ACTION_DESCRIPTION_DEACTIVATE("{0} {1}"),
         ACTION_DESCRIPTION_DELETE("Delete wasted file ''{0}'' from {1} to free up {2}"),
         ACTION_DESCRIPTION_DELETE_CLOUD_NO_ACCOUNT("Delete Unattached {0} Volume {1}"),
         ACTION_DESCRIPTION_DELETE_CLOUD("Delete Unattached {0} Volume {1} from {2}"),
+        ACTION_DESCRIPTION_ATOMIC_RESIZE("Resize on {0} for {1}"),
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RESIZE_TRIGGER_TRADER("Resize {0} {1} for {2} from {3} to {4} due to {5} {6}"),
@@ -148,6 +159,8 @@ public class ActionDescriptionBuilder {
                 return getReconfigureActionDescription(entitiesSnapshot, recommendation);
             case PROVISION:
                 return getProvisionActionDescription(entitiesSnapshot, recommendation);
+            case ATOMICRESIZE:
+                return getAtomicResizeActionDescription(entitiesSnapshot, recommendation);
             case RESIZE:
                 return getResizeActionDescription(entitiesSnapshot, recommendation);
             case ACTIVATE:
@@ -161,6 +174,62 @@ public class ActionDescriptionBuilder {
             default:
                 throw new UnsupportedActionException(recommendation);
         }
+    }
+
+    /**
+     * Builds the description for a Atomic Resize action.
+     *
+     * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
+     *                                                      information.
+     * @param recommendation the Action DTO
+     * @return The Atomic Resize action description.
+     */
+    private static String getAtomicResizeActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                           @Nonnull final ActionDTO.Action recommendation) {
+        AtomicResize atomicResize = recommendation.getInfo().getAtomicResize();
+
+        // Target entity for the resize
+        long entityId = atomicResize.getExecutionTarget().getId();
+        Optional<ActionPartialEntity> optEntity = entitiesSnapshot.getEntityFromOid(entityId);
+        if (!optEntity.isPresent()) {
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getAtomicResizeActionDescription ", "entityId", entityId);
+            return "";
+        }
+
+        ActionPartialEntity targetEntity = optEntity.get();
+
+        List<ResizeInfo> resizeInfos = atomicResize.getResizesList();
+
+        StringBuilder formattedSourceEntities = new StringBuilder();
+        StringBuilder formattedCommodityTypes = new StringBuilder();
+
+        Set<TopologyDTO.CommodityType> commodityTypes = new HashSet<>();
+        for (ResizeInfo resize : resizeInfos) {
+            commodityTypes.add(resize.getCommodityType());
+
+            // target entity in the resize
+            Optional<ActionPartialEntity> sourceEntity =
+                        entitiesSnapshot.getEntityFromOid(resize.getTarget().getId());
+            if (sourceEntity.isPresent()) {
+                if (formattedSourceEntities.length() > 0) {
+                        formattedSourceEntities.append(',');
+                }
+                formattedSourceEntities.append(beautifyEntityTypeAndName(sourceEntity.get()));
+            }
+        }
+
+        for (TopologyDTO.CommodityType commType : commodityTypes) {
+            if (formattedCommodityTypes.length() > 0) {
+                formattedCommodityTypes.append(',');
+            }
+            formattedCommodityTypes.append(beautifyCommodityType(commType));
+        }
+
+        ActionMessageFormat messageFormat = ActionMessageFormat.ACTION_DESCRIPTION_ATOMIC_RESIZE;
+        return messageFormat.format(
+                beautifyEntityTypeAndName(targetEntity),
+                formattedCommodityTypes.toString()
+        );
     }
 
     /**
@@ -442,8 +511,13 @@ public class ActionDescriptionBuilder {
         final ActionPartialEntity entityDTO = entitiesSnapshot.getEntityFromOid(entityId).get();
         if (explanation.getProvisionExplanationTypeCase().getNumber() ==
                         ProvisionExplanation.PROVISION_BY_SUPPLY_EXPLANATION_FIELD_NUMBER) {
-            return ActionMessageFormat.ACTION_DESCRIPTION_PROVISION_BY_SUPPLY.format(
-                beautifyEntityTypeAndName(entityDTO));
+            String provisionedEntity = new StringBuilder()
+                 .append(ApiEntityType.fromType(entityDTO.getEntityType()).displayName())
+                 .append(" similar to ").append(entityDTO.getDisplayName())
+                 .toString();
+            return ActionMessageFormat.ACTION_DESCRIPTION_PROVISION_BY_SUPPLY
+                .format(provisionedEntity, getProvisionedForVSANSuffix(
+                    entityDTO, explanation.getProvisionBySupplyExplanation(), entitiesSnapshot));
         } else {
             final ProvisionByDemandExplanation provisionByDemandExplanation =
                 explanation.getProvisionByDemandExplanation();
@@ -458,6 +532,65 @@ public class ActionDescriptionBuilder {
                 entitiesSnapshot.getEntityFromOid(provisionByDemandExplanation.getBuyerId())
                     .map(ActionPartialEntity::getDisplayName).orElse("high demand"));
         }
+    }
+
+    /**
+     * Check whether scaling up a vSAN storage is the reason and if yes then make a suffix for description.
+     * @param entityDTO the entity for which the description is created.
+     * @param explanation   action explanation.
+     * @param entitiesSnapshot  all the entities for which actions have been generated.
+     * @return  suffix with the name of vSAN or empty string if this has nothing to do with vSAN.
+     */
+    private static String getProvisionedForVSANSuffix(@Nonnull ActionPartialEntity entityDTO,
+                    @Nonnull ProvisionBySupplyExplanation explanation,
+                    @Nonnull EntitiesAndSettingsSnapshot entitiesSnapshot)  {
+        if (entityDTO.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE
+                        || !explanation.hasMostExpensiveCommodityInfo()
+                        || !explanation.getMostExpensiveCommodityInfo().hasCommodityType()
+                        || !explanation.getMostExpensiveCommodityInfo().getCommodityType().hasType()
+                        || entityDTO.getConnectedEntitiesCount() == 0) {
+            return "";
+        }
+        int actionCommodityType = explanation.getMostExpensiveCommodityInfo().getCommodityType().getType();
+        if (!isVSANRelatedCommodity(actionCommodityType)) {
+            return "";
+        }
+        for (ConnectedEntity connected : entityDTO.getConnectedEntitiesList())  {
+            if (connected.hasConnectedEntityType() && connected.hasConnectedEntityId()
+                            && connected.getConnectedEntityType() == EntityType.STORAGE_VALUE) {
+                Optional<ActionPartialEntity> optionalEntity = entitiesSnapshot
+                                .getEntityFromOid(connected.getConnectedEntityId());
+                if (isVSAN(optionalEntity))    {
+                    return " to scale Storage " + optionalEntity.get().getDisplayName();
+                }
+            }
+        }
+        return "";
+    }
+
+    /**
+     * Checks whether the commodity type is of a vSAN storage commodity.
+     * @param commodityType integer value for the commodity type
+     * @return true if the commodity type is related to vSAN storage
+     */
+    private static boolean isVSANRelatedCommodity(int commodityType) {
+        return commodityType == CommodityType.STORAGE_AMOUNT_VALUE
+                        || commodityType == CommodityType.STORAGE_PROVISIONED_VALUE
+                        || commodityType == CommodityType.STORAGE_ACCESS_VALUE
+                        || commodityType == CommodityType.STORAGE_LATENCY_VALUE;
+    }
+
+    /**
+     * Checks whether Optional<{@link ActionPartialEntity}> is a vSAN entity.
+     * @param optionalEntity    the entity we check
+     * @return true if is vSAN
+     */
+    private static boolean isVSAN(Optional<ActionPartialEntity> optionalEntity) {
+        return optionalEntity.isPresent() && optionalEntity.get().hasTypeSpecificInfo()
+                        && optionalEntity.get().getTypeSpecificInfo().hasStorage()
+                        && optionalEntity.get().getTypeSpecificInfo().getStorage().hasStorageType()
+                        && optionalEntity.get().getTypeSpecificInfo().getStorage().getStorageType()
+                            == StorageType.VSAN;
     }
 
     /**
@@ -573,7 +706,7 @@ public class ActionDescriptionBuilder {
      * @param capacity commodity capacity which needs to format.
      * @return a string after format.
      */
-    private static String formatResizeActionCommodityValue(
+    static String formatResizeActionCommodityValue(
             @Nonnull final CommodityDTO.CommodityType commodityType,
             final int entityType, final double capacity) {
         // Convert capacity of the commodities in this map into human readable format and round the number

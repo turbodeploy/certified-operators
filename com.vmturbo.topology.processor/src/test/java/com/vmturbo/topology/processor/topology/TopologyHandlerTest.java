@@ -72,6 +72,7 @@ public class TopologyHandlerTest {
     private final ProbeInfo awsProbeInfo = ProbeInfo.newBuilder()
         .setProbeType(SDKProbeType.AWS.getProbeType())
         .setProbeCategory(ProbeCategory.CLOUD_MANAGEMENT.getCategory())
+        .setUiProbeCategory(ProbeCategory.CLOUD_MANAGEMENT.getCategory())
         .build();
 
     @Before

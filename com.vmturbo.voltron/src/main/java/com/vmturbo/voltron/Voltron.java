@@ -2,9 +2,11 @@ package com.vmturbo.voltron;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -31,6 +33,7 @@ import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.websocket.jsr356.server.deploy.WebSocketServerContainerInitializer;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -172,7 +175,12 @@ public class Voltron extends BaseVmtComponent {
     }
 
     static String getAbsolutePath(String pathInXl) {
-        Path path = Paths.get(Voltron.class.getProtectionDomain().getCodeSource().getLocation().getFile());
+        Path path = null;
+        try {
+            path = Paths.get(new File(Voltron.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getAbsolutePath());
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException("Unable to get absolute path at runtime.", e);
+        }
 
         // Climb up to "com.vmturbo.voltron".
         while (!path.endsWith("com.vmturbo.voltron")) {
@@ -194,6 +202,35 @@ public class Voltron extends BaseVmtComponent {
         Optional.ofNullable(context.getComponents().get(Component.CLUSTERMGR)).ifPresent(clustermgr ->
             clustermgr.getBean(ClusterMgrService.class)
                 .setClusterKvStoreInitialized(true));
+    }
+
+    static void configureMemUsageCalculator(@Nonnull final VoltronContext context) {
+        logger.info("Starting...");
+        final List<Object> springManagedObjects =
+            new ArrayList<>(context.getRootContext().getBeanDefinitionCount());
+        ConfigurableListableBeanFactory clbf = context.getRootContext().getBeanFactory();
+        for (String name : clbf.getSingletonNames()) {
+            Object singletonBean = clbf.getSingleton(name);
+            if (singletonBean != null) {
+                springManagedObjects.add(singletonBean);
+            } else {
+                logger.info("Null bean: {}", name);
+            }
+        }
+
+        context.getComponents().values().forEach(ctx -> {
+            final ConfigurableListableBeanFactory beanFactory = ctx.getBeanFactory();
+            for (String name : beanFactory.getSingletonNames()) {
+                Object singletonBean = beanFactory.getSingleton(name);
+                if (singletonBean != null) {
+                    springManagedObjects.add(singletonBean);
+                } else {
+                    logger.info("Null bean: {}", name);
+                }
+            }
+        });
+
+        logger.info("Done {}!", springManagedObjects.size());
     }
 
     /**
@@ -261,11 +298,13 @@ public class Voltron extends BaseVmtComponent {
 
         String image;
         try {
-            image = new String(Files.readAllBytes(Paths.get(
-                    Voltron.class.getClassLoader().getResource("config/img").getPath())));
-        } catch (IOException | RuntimeException e) {
+            // This won't work if Voltron is packaged in a JAR.
+            image = new String(Files.readAllBytes(
+                Paths.get(Voltron.class.getClassLoader()
+                    .getResource("config/img").toURI())));
+        } catch (IOException | RuntimeException | URISyntaxException e) {
             // No big deal if we can't print the image, although it's a bid sad.
-            image = "";
+            image = ":(";
         }
 
         logger.info("Welcome to Velocity-Oriented Lightweight Turbo Running On Native!\n{}\nVOLTRON came up in {}",

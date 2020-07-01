@@ -34,6 +34,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData.StoragePo
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageRedundancyMethod;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
 
 /**
  * Construct HCI host and HCI storage out of the HCI template.
@@ -44,21 +45,16 @@ public class HCIPhysicalMachineEntityConstructor {
 
     private final Template template;
     private final Map<Long, TopologyEntity.Builder> topology;
-    private final Collection<TopologyEntity.Builder> hostsToReplace;
-    private final boolean isReplaced;
     private final IdentityProvider identityProvider;
     private final SettingPolicyServiceBlockingStub settingPolicyService;
     private final Map<String, String> templateValues;
 
     public HCIPhysicalMachineEntityConstructor(@Nonnull Template template,
             @Nonnull Map<Long, TopologyEntity.Builder> topology,
-            @Nonnull Collection<TopologyEntity.Builder> hostsToReplace, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider,
             @Nonnull SettingPolicyServiceBlockingStub settingPolicyService) {
         this.template = template;
         this.topology = topology;
-        this.hostsToReplace = hostsToReplace;
-        this.isReplaced = isReplaced;
         this.identityProvider = identityProvider;
         this.templateValues = TopologyEntityConstructor.createFieldNameValueMap(template,
                 ResourcesCategoryName.Storage);
@@ -68,11 +64,13 @@ public class HCIPhysicalMachineEntityConstructor {
     /**
      * Create the topology entities from the HCI template.
      *
+     * @param hostsToReplace hosts to replace
      * @return created entities
      * @throws TopologyEntityConstructorException error creating entities
      */
     @Nonnull
-    public Collection<TopologyEntityDTO.Builder> createTopologyEntitiesFromTemplate()
+    public Collection<TopologyEntityDTO.Builder> replaceEntitiesFromTemplate(
+            @Nonnull Collection<TopologyEntity.Builder> hostsToReplace)
             throws TopologyEntityConstructorException {
         List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
@@ -88,9 +86,9 @@ public class HCIPhysicalMachineEntityConstructor {
 
         // Create new storage
         TopologyEntityDTO.Builder newStorage = new StorageEntityConstructor()
-                .createTopologyEntityFromTemplate(template, topology, oldStorage, isReplaced,
-                        identityProvider, null);
-        setClusterCommodities(newStorage);
+                .createTopologyEntityFromTemplate(template, topology, oldStorage,
+                        TemplateActionType.REPLACE, identityProvider, null);
+        setClusterCommodities(hostsToReplace, newStorage);
         setResizable(newStorage, CommodityType.STORAGE_AMOUNT);
         setResizable(newStorage, CommodityType.STORAGE_PROVISIONED);
         long planId = anyHost.getEntityBuilder().getEdit().getReplaced().getPlanId();
@@ -110,7 +108,8 @@ public class HCIPhysicalMachineEntityConstructor {
             // Create new host
             TopologyEntityDTO.Builder newHost = new PhysicalMachineEntityConstructor()
                     .createTopologyEntityFromTemplate(template, topology,
-                            anyHost.getEntityBuilder(), isReplaced, identityProvider, nameSuffix);
+                            anyHost.getEntityBuilder(), TemplateActionType.REPLACE,
+                            identityProvider, nameSuffix);
             result.add(newHost);
             logger.info("Replacing HCI host '{}' with '{}'", anyHost.getDisplayName(),
                     newHost.getDisplayName());
@@ -223,12 +222,16 @@ public class HCIPhysicalMachineEntityConstructor {
      * Set Cluster commodity key for the VMs and the related non-vSAN storages
      * to the vSAN cluster key.
      *
+     * @param hostsToReplace hosts to replace
      * @param newStorage new vSAN storage
      * @throws TopologyEntityConstructorException error setting the commodities
      */
-    private void setClusterCommodities(@Nonnull TopologyEntityDTO.Builder newStorage)
+    private void setClusterCommodities(@Nonnull Collection<TopologyEntity.Builder> hostsToReplace,
+            @Nonnull TopologyEntityDTO.Builder newStorage)
             throws TopologyEntityConstructorException {
-        String clusterKey = getStorageClusterKey(newStorage);
+        CommoditySoldDTO.Builder clusterSoldComm = getSoldCommodity(newStorage,
+                CommodityType.STORAGE_CLUSTER);
+        String clusterKey = clusterSoldComm.getCommodityType().getKey();
         TopologyDTO.CommodityType clusterTypeWithKey = TopologyDTO.CommodityType.newBuilder()
                 .setType(CommodityType.STORAGE_CLUSTER_VALUE).setKey(clusterKey).build();
 
@@ -241,8 +244,14 @@ public class HCIPhysicalMachineEntityConstructor {
 
             for (Long providerId : host.getProviderIds()) {
                 TopologyEntity.Builder provider = topology.get(providerId);
+
+                if (provider == null) {
+                    throw new TopologyEntityConstructorException("Cannot find  provider "
+                            + providerId + " for host " + host.getDisplayName());
+                }
+
                 if (provider.getEntityType() == EntityType.STORAGE_VALUE) {
-                    setClusterKeyForStorage(provider.build(), clusterTypeWithKey);
+                    provider.getEntityBuilder().addCommoditySoldList(clusterSoldComm);
                 }
             }
         }
@@ -268,24 +277,6 @@ public class HCIPhysicalMachineEntityConstructor {
                 }
             }
         }
-    }
-
-    private void setClusterKeyForStorage(@Nonnull TopologyEntity storage,
-            @Nonnull TopologyDTO.CommodityType clusterTypeWithKey)
-            throws TopologyEntityConstructorException {
-        CommoditySoldDTO.Builder clusterComm = getSoldCommodity(
-                storage.getTopologyEntityDtoBuilder(), CommodityType.STORAGE_CLUSTER);
-
-        clusterComm.setCommodityType(clusterTypeWithKey);
-    }
-
-    @Nonnull
-    private String getStorageClusterKey(@Nonnull TopologyEntityDTO.Builder newStorage)
-            throws TopologyEntityConstructorException {
-        CommoditySoldDTO.Builder clusterComm = getSoldCommodity(newStorage,
-                CommodityType.STORAGE_CLUSTER);
-
-        return clusterComm.getCommodityType().getKey();
     }
 
     private CommoditySoldDTO.Builder getSoldCommodity(TopologyEntityDTO.Builder entity,

@@ -52,7 +52,6 @@ public class EntitiesWriterTest {
     private static final EntityType COMPUTE_TIER_ENTITY_TYPE = EntityType.get(COMPUTE_TIER);
     private static final EntityType NETWORK_ENTITY_TYPE = EntityType.get(NETWORK);
     private static final EntityType VM_ENTITY_TYPE = EntityType.get(StringConstants.VIRTUAL_MACHINE);
-
     private HistorydbIO historydbIO;
     private TopologyInfo topologyInfo;
     private DbMock dbMock = new DbMock();
@@ -75,16 +74,16 @@ public class EntitiesWriterTest {
             final List<String> oidStrings = (List<String>)arg0;
             final Object[] oidsForVarargs = oidStrings.stream().map(Long::valueOf).toArray();
             return dbMock.getRecords(ENTITIES, oidsForVarargs).stream()
-                    .collect(Collectors.toMap(EntitiesRecord::getId, Functions.identity()));
+                .collect(Collectors.toMap(EntitiesRecord::getId, Functions.identity()));
         }).when(historydbIO).getEntities(anyListOf(String.class));
 
         topologyInfo = TopologyInfo.newBuilder()
-                .setCreationTime(System.currentTimeMillis())
-                .build();
+            .setCreationTime(System.currentTimeMillis())
+            .build();
         writer = new EntitiesWriter.Factory(historydbIO)
-                .getChunkProcessor(topologyInfo, loaders)
-                // null can't happen in this test, but just using get() causes compiler warning
-                .orElse(null);
+            .getChunkProcessor(topologyInfo, loaders)
+            // null can't happen in this test, but just using get() causes compiler warning
+            .orElse(null);
     }
 
     /**
@@ -114,18 +113,18 @@ public class EntitiesWriterTest {
         writer.processChunk(firstBroadcast.get(0), TOPOLOGY_SUMMARY);
         writer.finish(2, false, "test topology");
         final Set<Integer> initialRecordIds = dbMock.getRecords(ENTITIES).stream()
-                .map(System::identityHashCode)
-                .collect(Collectors.toSet());
+            .map(System::identityHashCode)
+            .collect(Collectors.toSet());
         writer = new EntitiesWriter.Factory(historydbIO)
-                .getChunkProcessor(topologyInfo, loaders).orElse(null);
+            .getChunkProcessor(topologyInfo, loaders).orElse(null);
         List<List<Topology.DataSegment>> secondBroadcast = createChunks(100, 10, 3);
         for (List<Topology.DataSegment> chunk : secondBroadcast) {
             writer.processChunk(chunk, TOPOLOGY_SUMMARY);
         }
         writer.finish(10, false, "test topology");
         final Set<Integer> allRecordIds = dbMock.getRecords(ENTITIES).stream()
-                .map(System::identityHashCode)
-                .collect(Collectors.toSet());
+            .map(System::identityHashCode)
+            .collect(Collectors.toSet());
         assertTrue(allRecordIds.containsAll(initialRecordIds));
     }
 
@@ -147,15 +146,15 @@ public class EntitiesWriterTest {
 
         // second has oids 100 through 109; 100 is changed 101 is not
         writer = new EntitiesWriter.Factory(historydbIO)
-                .getChunkProcessor(topologyInfo, loaders).orElse(null);
+            .getChunkProcessor(topologyInfo, loaders).orElse(null);
         List<List<Topology.DataSegment>> secondBroadcast = createChunks(100, 10, 3);
         // make a change to entity100
         final TopologyEntityDTO altered100 = TopologyEntityDTO.newBuilder()
-                .mergeFrom(secondBroadcast.get(0).get(0).getEntity())
-                .setDisplayName("altered")
-                .build();
+            .mergeFrom(secondBroadcast.get(0).get(0).getEntity())
+            .setDisplayName("altered")
+            .build();
         secondBroadcast.get(0).set(0,
-                Topology.DataSegment.newBuilder().setEntity(altered100).build());
+            Topology.DataSegment.newBuilder().setEntity(altered100).build());
         for (List<Topology.DataSegment> chunk : secondBroadcast) {
             writer.processChunk(chunk, TOPOLOGY_SUMMARY);
         }
@@ -206,9 +205,8 @@ public class EntitiesWriterTest {
         assertEquals(tooLongName.substring(0, EntitiesWriter.ENTITY_DISPLAY_NAME_MAX_LENGTH),
                 dbMock.getRecord(ENTITIES, 2L).getDisplayName());
     }
-
     private List<List<Topology.DataSegment>> createChunks(
-            final int startId, final int n, int chunkSize) {
+        final int startId, final int n, int chunkSize) {
         List<List<Topology.DataSegment>> chunks = new ArrayList<>();
         List<Topology.DataSegment> currentChunk = null;
         for (int i = 0; i < n; i++) {
@@ -217,15 +215,14 @@ public class EntitiesWriterTest {
                 chunks.add(currentChunk);
             }
             final TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
-                    .setOid(startId + i)
-                    .setDisplayName("entity #" + (startId + i))
+                .setOid(startId + i)
+                .setDisplayName("entity #" + (startId + i))
                     .setEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
-                    .build();
+                .build();
             currentChunk.add(Topology.DataSegment.newBuilder().setEntity(entity).build());
         }
         return chunks;
     }
-
     private Collection<DataSegment> makeSingletonChunk(
             final EntityType entityType, final long oid, final String name) {
         final TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
@@ -235,5 +232,4 @@ public class EntitiesWriterTest {
                 .build();
         return ImmutableList.of(DataSegment.newBuilder().setEntity(entity).build());
     }
-
 }

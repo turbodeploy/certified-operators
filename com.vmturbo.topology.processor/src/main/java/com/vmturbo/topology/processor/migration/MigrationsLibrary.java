@@ -77,11 +77,16 @@ public class MigrationsLibrary {
                 new V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration(keyValueStore))
             .put("V_01_00_03__Target_Oid_Replace_Ip_With_Address",
                 new V_01_00_03__Target_Oid_Replace_Ip_With_Address(probeStore, targetStore,
-                    targetIdentityStore))
+                    targetIdentityStore, targetDao))
             .put("V_01_00_04__Remove_Orphaned_Targets_Migration",
                 new V_01_00_04__RemoveOrphanedTargetsMigration(targetStore, probeStore, targetDao))
             .put("V_01_00_05__Standalone_AWS_Billing",
-                new V_01_00_05__Standalone_AWS_Billing(keyValueStore, identityProvider));
+                new V_01_00_05__Standalone_AWS_Billing(keyValueStore, identityProvider))
+            .put("V_01_01_01__Add_UI_Category_and_license_To_Probes_Migration",
+                        new V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration(keyValueStore))
+            .put("V_01_01_02__Target_Oid_Fields_To_Lowercase",
+                new V_01_01_02__Target_Oid_Fields_To_Lowercase(probeStore, targetStore,
+                    targetIdentityStore, targetDao));
         return builder.build();
     }
 }

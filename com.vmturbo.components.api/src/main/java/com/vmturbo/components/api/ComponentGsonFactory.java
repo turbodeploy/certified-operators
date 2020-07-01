@@ -138,7 +138,7 @@ public class ComponentGsonFactory {
                 AbstractMessage.Builder<?> protoBuilder =
                         (AbstractMessage.Builder<?>)getCachedMethod(protoClass, "newBuilder").invoke(null);
 
-                JsonFormat.parser().merge(jsonStr, protoBuilder);
+                JsonFormat.parser().ignoringUnknownFields().merge(jsonStr, protoBuilder);
 
                 return AbstractMessage.class.cast(protoBuilder.build());
             } catch (Exception e) {

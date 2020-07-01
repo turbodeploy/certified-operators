@@ -127,7 +127,7 @@
 			},
 			{
 				"connectedEntityId": "73337015923097",
-				"connectedEntityType": 26,
+				"connectedEntityType": 3,
 				"connectionType": "OWNS_CONNECTION"
 			}
 		]
@@ -181,7 +181,7 @@
 		}]
 	},
 	{
-		"entityType": 26,
+		"entityType": 3,
 		"typeSpecificInfo": {},
 		"oid": "73337015923097",
 		"displayName": "cert1",
@@ -199,7 +199,7 @@
 		"commoditySoldList": [],
 		"commoditiesBoughtFromProviders": [{
 			"providerId": "73337015923097",
-			"providerEntityType": 26,
+			"providerEntityType": 3,
 			"commodityBought": [{
 				"commodityType": {
 					"type": 49,

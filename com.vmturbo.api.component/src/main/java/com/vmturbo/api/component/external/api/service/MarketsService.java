@@ -88,7 +88,6 @@ import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
@@ -163,6 +162,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
@@ -312,7 +312,7 @@ public class MarketsService implements IMarketsService {
     @Nonnull
     public List<MarketApiDTO> getMarkets(@Nullable List<String> scopeUuids)
             throws ConversionException, InterruptedException {
-        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         logger.debug("Get all markets in scopes: {}", scopeUuids);
         final Iterator<PlanInstance> plans =
                 planRpcService.getAllPlans(GetPlansOptions.getDefaultInstance());
@@ -354,8 +354,7 @@ public class MarketsService implements IMarketsService {
             throw new UnknownObjectException("The ID " + uuid
                     + " doesn't belong to a plan or a real-time market.");
         }
-        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
-        // Look up the plan instance.
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);        // Look up the plan instance.
         long planId = apiId.oid();
         final PlanInstance planInstance = getPlanInstance(planId);
 
@@ -438,7 +437,7 @@ public class MarketsService implements IMarketsService {
                                                 inputDto, Optional.empty(), apiId);
         if (apiId.isPlan()) {
             // require the "planner" license feature to get plan actions
-            licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         }
         return actionSearchUtil.callActionService(filter, paginationRequest, inputDto.getDetailLevel(),
                 apiId.getTopologyContextId());
@@ -461,7 +460,7 @@ public class MarketsService implements IMarketsService {
         logger.debug("Request to get action by market UUID: {}, action ID: {}", marketUuid, actionUuid);
         // require "planner" feature access to request plan market actions
         if (Long.valueOf(marketUuid) != realtimeTopologyContextId) {
-            licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         }
 
         ActionOrchestratorAction action = actionOrchestratorRpcService
@@ -505,7 +504,7 @@ public class MarketsService implements IMarketsService {
                 .orElseGet(() -> paginationRequest.finalPageResponse(nextPage, response.getPaginationResponse().getTotalRecordCount()));
         } else if (apiId.isPlan()) {
             // require the "planner" license feature to get plan actions
-            licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
             // In the plan case we do the pagination in the API component. The main reason is
             // that we need to use the repository service (instead of the search service), and that
@@ -810,7 +809,7 @@ public class MarketsService implements IMarketsService {
                         "Ignore Constraints: {}, Plan Market Name: {}",
                 marketUuid, scenarioId, ignoreConstraints, planMarketName);
         // this feature requires access to the "planner" feature in the license.
-        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         // note that, for XL, the "marketUuid" in the request is interpreted as the Plan Instance ID
         final ApiId sourceMarketId;
@@ -948,7 +947,7 @@ public class MarketsService implements IMarketsService {
     public List<StatSnapshotApiDTO> getActionCountStatsByUuid(String uuid, ActionApiInputDTO actionApiInputDTO) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isPlan()) {
-            licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         }
         try {
             final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
@@ -987,7 +986,7 @@ public class MarketsService implements IMarketsService {
         }
 
         // make sure the planner feature is available
-        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         final long planId = Long.parseLong(marketUuid);
         final PlanInstance planInstance = getPlanInstance(planId);
@@ -1019,7 +1018,7 @@ public class MarketsService implements IMarketsService {
 
         // if this is a plan, make sure the planner feature is available
         if (apiId.isPlan()) {
-            licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         }
         // if this is for a plan market, we will not check user scope.
         boolean enforceUserScope = !apiId.isPlan();
@@ -1054,7 +1053,7 @@ public class MarketsService implements IMarketsService {
     @Override
     public List<ServiceEntityApiDTO> getUnplacedEntitiesByMarketUuid(String uuid) throws Exception {
         // requires "planner" feature to access
-        licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         // get the topology id for the plan
         OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
@@ -1109,7 +1108,7 @@ public class MarketsService implements IMarketsService {
         // if the request is for a plan-related action, make sure the feature is available.
         ApiId apiId = uuidMapper.fromUuid(marketUuid);
         if (apiId.isPlan()) {
-            licenseCheckClient.checkFeatureAvailable(LicenseFeature.PLANNER);
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         }
         ActionOrchestratorAction action = actionOrchestratorRpcService
                 .getAction(actionRequest(marketUuid, actionuuid));

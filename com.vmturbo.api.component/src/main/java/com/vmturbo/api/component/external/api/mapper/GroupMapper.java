@@ -10,7 +10,6 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +31,7 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -39,6 +39,7 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -62,6 +63,7 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
@@ -681,7 +683,10 @@ public class GroupMapper {
 
          outputDTO.setClassName(convertGroupTypeToApiType(groupDefinition.getType()));
 
-         List<String> directMemberTypes = getDirectMemberTypes(groupDefinition);
+         List<String> directMemberTypes = GroupProtoUtil.getDirectMemberTypes(groupDefinition)
+                 .map(GroupMapper::convertMemberTypeToApiType)
+                 .filter(StringUtils::isNotEmpty)
+                 .collect(Collectors.toList());
 
          if (!directMemberTypes.isEmpty()) {
              if (groupDefinition.getType() == GroupType.RESOURCE) {
@@ -705,36 +710,35 @@ public class GroupMapper {
          outputDTO.setIsStatic(groupDefinition.hasStaticGroupMembers());
          outputDTO.setTemporary(groupDefinition.getIsTemporary());
 
-         boolean memberUuidListSet = false;
          switch (groupDefinition.getSelectionCriteriaCase()) {
              case STATIC_GROUP_MEMBERS:
-                 List<Long> groupMembers = GroupProtoUtil.getStaticMembers(group);
-                 if (GroupProtoUtil.isNestedGroup(groupAndMembers.group())) {
-                     outputDTO.setMemberUuidList(groupMembers
-                             .stream()
-                             .map(String::valueOf)
-                             .collect(Collectors.toList()));
-                     memberUuidListSet = true;
-                 } else {
-                     // Retain valid entities of group members/entities.
-                     Set<Long> groupValidEntities = Sets.newHashSet(groupMembers);
-                     Set<Long> validEntities = conversionContext.getValidEntities();
-                     groupValidEntities.retainAll(validEntities);
-                     final int missingEntities = groupMembers.size() - groupValidEntities.size();
-                     if (missingEntities > 0) {
-                         logger.warn("{} members for static group {} not found in repository.",
-                                 missingEntities, groupDefinition.getDisplayName());
-                     }
-                     outputDTO.setMemberUuidList(groupValidEntities
-                             .stream()
-                             .map(String::valueOf)
-                             .collect(Collectors.toList()));
-                     memberUuidListSet = true;
-                     outputDTO.setEntitiesCount(groupValidEntities.size());
+                 if (outputDTO.getMemberUuidList().isEmpty()) {
+                     List<Long> groupMembers = GroupProtoUtil.getStaticMembers(group);
+                     if (GroupProtoUtil.isNestedGroup(groupAndMembers.group())) {
+                         outputDTO.setMemberUuidList(groupMembers
+                                 .stream()
+                                 .map(String::valueOf)
+                                 .collect(Collectors.toList()));
+                     } else {
+                         // Retain valid entities of group members/entities.
+                         Set<Long> groupValidEntities = Sets.newHashSet(groupMembers);
+                         Set<Long> validEntities = conversionContext.getValidEntities();
+                         groupValidEntities.retainAll(validEntities);
+                         final int missingEntities = groupMembers.size() - groupValidEntities.size();
+                         if (missingEntities > 0) {
+                             logger.warn("{} members for static group {} not found in repository.",
+                                     missingEntities, groupDefinition.getDisplayName());
+                         }
+                         outputDTO.setMemberUuidList(groupValidEntities
+                                 .stream()
+                                 .map(String::valueOf)
+                                 .collect(Collectors.toList()));
+                         outputDTO.setEntitiesCount(groupValidEntities.size());
 
-                     Set<Long> membersConsideredInMembersCount = getMembersConsideredInMembersCount(groupAndMembers);
-                     membersConsideredInMembersCount.retainAll(validEntities);
-                     outputDTO.setMembersCount(membersConsideredInMembersCount.size());
+                         Set<Long> membersConsideredInMembersCount = getMembersConsideredInMembersCount(groupAndMembers);
+                         membersConsideredInMembersCount.retainAll(validEntities);
+                         outputDTO.setMembersCount(membersConsideredInMembersCount.size());
+                     }
                  }
                  break;
 
@@ -781,7 +785,7 @@ public class GroupMapper {
          if (outputDTO.getMembersCount() == null) {
              outputDTO.setMembersCount(getMembersConsideredInMembersCount(groupAndMembers).size());
          }
-         if (!memberUuidListSet) {
+        if (outputDTO.getMemberUuidList().isEmpty()) {
              outputDTO.setMemberUuidList(groupAndMembers.members().stream()
                      .map(oid -> Long.toString(oid))
                      .collect(Collectors.toList()));
@@ -856,7 +860,7 @@ public class GroupMapper {
         Map<String, String> uuidToDisplayNameMap = new HashMap<>();
         float cost = 0f;
         boolean hasCost = false;
-        int discoveredAccounts = 0;
+        List<String> discoveredAccountUuids = Lists.newArrayList();
 
         for (BusinessUnitApiDTO businessUnit : businessAccountRetriever.getBusinessAccounts(oidsToQuery)) {
             Float businessUnitCost = businessUnit.getCostPrice();
@@ -872,7 +876,6 @@ public class GroupMapper {
             String displayName = businessUnit.getDisplayName();
             uuidToDisplayNameMap.put(businessUnit.getUuid(), displayName);
 
-            String accountId = businessUnit.getAccountId();
             if (businessUnit.isMaster()) {
                 billingFamilyApiDTO.setMasterAccountUuid(businessUnit.getUuid());
             }
@@ -882,7 +885,7 @@ public class GroupMapper {
             // OM-53266: Member count should only consider accounts that are monitored by a probe.
             // Accounts that are only submitted as a member of a BillingFamily should not be counted.
             if (businessUnit.getAssociatedTargetId() != null) {
-                discoveredAccounts++;
+                discoveredAccountUuids.add(businessUnit.getUuid());
             }
         }
 
@@ -891,7 +894,10 @@ public class GroupMapper {
         }
         billingFamilyApiDTO.setUuidToNameMap(uuidToDisplayNameMap);
         billingFamilyApiDTO.setBusinessUnitApiDTOList(businessUnitApiDTOList);
-        billingFamilyApiDTO.setMembersCount(discoveredAccounts);
+        billingFamilyApiDTO.setMembersCount(discoveredAccountUuids.size());
+        billingFamilyApiDTO.setEntitiesCount(discoveredAccountUuids.size());
+        billingFamilyApiDTO.setMemberUuidList(discoveredAccountUuids);
+
         return billingFamilyApiDTO;
     }
 
@@ -965,53 +971,6 @@ public class GroupMapper {
                                 .addAllMembers(groupMembers)
                                 )
                 .build();
-    }
-
-    private List<String> getDirectMemberTypes(GroupDefinition groupDefinition) {
-
-        switch (groupDefinition.getSelectionCriteriaCase()) {
-            case STATIC_GROUP_MEMBERS:
-                return groupDefinition
-                                .getStaticGroupMembers()
-                                .getMembersByTypeList()
-                                .stream()
-                                .map(StaticMembersByType::getType)
-                                .map(GroupMapper::convertMemberTypeToApiType)
-                                .filter(Objects::nonNull)
-                                .distinct()
-                                .collect(Collectors.toList());
-            case ENTITY_FILTERS:
-                if (groupDefinition.getEntityFilters().getEntityFilterCount() == 0) {
-                    logger.error("The dynamic group does not have any filters. Group {}",
-                                    groupDefinition);
-
-                    return Collections.emptyList();
-                }
-                // currently API only supports homogeneous dynamic groups
-                return Collections.singletonList(ApiEntityType.fromType(groupDefinition
-                                    .getEntityFilters()
-                                    .getEntityFilter(0)
-                                    .getEntityType()
-                                )
-                                .apiStr());
-
-            case GROUP_FILTERS:
-                if (groupDefinition.getGroupFilters().getGroupFilterCount() == 0) {
-                    logger.error("The dynamic group of groups does not have any filters. Group {}",
-                                    groupDefinition);
-                    return Collections.emptyList();
-                }
-                 // currently API only supports dynamic groups of single group type
-                 return Collections.singletonList(API_GROUP_TYPE_TO_GROUP_TYPE.inverse().get(
-                     groupDefinition
-                                 .getGroupFilters()
-                                 .getGroupFilterList()
-                                 .get(0)
-                                 .getGroupType()));
-
-            default:
-                return Collections.emptyList();
-        }
     }
 
     @Nullable

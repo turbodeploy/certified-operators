@@ -5,7 +5,7 @@
     <parent>
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.22.100-MPC-SNAPSHOT</version>
+        <version>7.22.5-SNAPSHOT</version>
         <relativePath>../build/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -62,6 +62,14 @@
             <groupId>org.hamcrest</groupId>
             <artifactId>hamcrest-all</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jooq</groupId>
+            <artifactId>jooq</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>javax.persistence</groupId>
+            <artifactId>javax.persistence-api</artifactId>
         </dependency>
     </dependencies>
 

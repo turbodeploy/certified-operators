@@ -1,8 +1,8 @@
 package com.vmturbo.mediation.vmm;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.mediation.vmm.sdk.VmmAccount;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -20,9 +21,9 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
 public class VmmConversionProbeTest {
 
-    private static final String VMM_FILE_PATH = VmmConversionProbeTest.class.getClassLoader()
-        .getResource("data/VMM_hp_dl390.corp.vmturbo.com-2019.07.17.19.33.00.703-FULL.txt")
-        .getPath();
+    private static final Path VMM_FILE_PATH = ResourcePath.getTestResource(
+        VmmConversionProbeTest.class,
+        "data/VMM_hp_dl390.corp.vmturbo.com-2019.07.17.19.33.00.703-FULL.txt");
 
     private VmmAccount vmmAccount = Mockito.mock(VmmAccount.class);
 
@@ -31,7 +32,7 @@ public class VmmConversionProbeTest {
      */
     @Test
     public void testVmmConversionProbe() throws Exception {
-        DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(VMM_FILE_PATH);
+        DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(VMM_FILE_PATH.toString());
         VmmConversionProbe probe = Mockito.spy(new VmmConversionProbe());
         Mockito.doReturn(oldResponse).when(probe).getRawDiscoveryResponse(vmmAccount);
         DiscoveryResponse newResponse = probe.discoverTarget(vmmAccount);
@@ -44,7 +45,7 @@ public class VmmConversionProbeTest {
         assertEquals(10, entitiesByType.size());
 
         // check each changed entity
-        assertEquals(66, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(66, entitiesByType.get(EntityType.APPLICATION_COMPONENT).size());
         assertEquals(66, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(140, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
         assertEquals(17, entitiesByType.get(EntityType.STORAGE).size());

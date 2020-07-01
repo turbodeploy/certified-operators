@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -77,7 +78,32 @@ public enum EntitySettingSpecs {
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER,
                             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                            EntityType.APPLICATION_SERVER, EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
+                    EntityType.DATABASE_SERVER),
+            actionExecutionModeSetToManual(), true),
+
+    /**
+     * Resize Up Heap automation mode.
+     */
+    ResizeUpHeap("resizeUpHeap", "Resize Up Heap", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Resize Down Heap automation mode.
+     */
+    ResizeDownHeap("resizeDownHeap", "Resize Down Heap", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Resize Up DBMem automation mode.
+     */
+    ResizeUpDBMem("resizeUpDBMem", "Resize Up DBMem", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Resize Down DBMem automation mode.
+     */
+    ResizeDownDBMem("resizeDownDBMem", "Resize Down DBMem", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
 
     /**
      * Resize action automation mode for vcpu resize ups where the target capacity is between
@@ -161,6 +187,13 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000000, 131072), true),
 
     /**
+     * Scaling Policy.
+     */
+    ScalingPolicy("scalingPolicy", "Scaling Policy",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.APPLICATION_COMPONENT), scalingPolicy(), true),
+
+    /**
      * Whether allow resizing VMEM commodity when it is collected from hypervisors only (not from ACM, APM, etc)
      * If this setting is false, VMEMs collected from only hypervisors will not have RESIZE action.
      */
@@ -168,13 +201,15 @@ public enum EntitySettingSpecs {
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), new BooleanSettingDataType(true), true),
 
+
     /**
      * Suspend action automation mode.
      */
     Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
             EntityType.CONTAINER_POD, EntityType.CONTAINER,
-            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+            EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
 
     /**
      * For some types of entities Suspend actions are disabled by default.
@@ -194,7 +229,8 @@ public enum EntitySettingSpecs {
     Provision("provision", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
+                    EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
 
     /**
      * For some types of entities Suspend actions are disabled by default.
@@ -666,7 +702,8 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER),
+                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
+                    EntityType.APPLICATION_COMPONENT),
             string(), true),
 
     /**
@@ -678,7 +715,8 @@ public enum EntitySettingSpecs {
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER),
+                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
+                    EntityType.APPLICATION_COMPONENT),
         string(), true),
 
     /**
@@ -690,7 +728,8 @@ public enum EntitySettingSpecs {
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER),
+                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
+                    EntityType.APPLICATION_COMPONENT),
         string(), true),
 
     /**
@@ -702,7 +741,8 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.APPLICATION_SERVER, EntityType.DATABASE_SERVER),
+                    EntityType.APPLICATION_COMPONENT,
+                    EntityType.DATABASE_SERVER),
             string(), true),
 
     /**
@@ -714,7 +754,8 @@ public enum EntitySettingSpecs {
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.APPLICATION_SERVER, EntityType.DATABASE_SERVER),
+                    EntityType.APPLICATION_COMPONENT,
+                    EntityType.DATABASE_SERVER),
             string(), true),
 
     /**
@@ -726,7 +767,8 @@ public enum EntitySettingSpecs {
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.APPLICATION_SERVER, EntityType.DATABASE_SERVER),
+                    EntityType.APPLICATION_COMPONENT,
+                    EntityType.DATABASE_SERVER),
         string(), true),
 
     /**
@@ -738,7 +780,8 @@ public enum EntitySettingSpecs {
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+                    EntityType.APPLICATION_COMPONENT),
         string(), true),
 
     /**
@@ -750,7 +793,8 @@ public enum EntitySettingSpecs {
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+                    EntityType.APPLICATION_COMPONENT),
         string(), true),
 
     /**
@@ -762,7 +806,8 @@ public enum EntitySettingSpecs {
         SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+                    EntityType.APPLICATION_COMPONENT),
         string(), true),
 
     /**
@@ -796,37 +841,42 @@ public enum EntitySettingSpecs {
         string(), true),
 
     /**
-     * Response Time Capacity used by Application and Database.
+     * Response Time SLO used by Application and Database.
      */
-    ResponseTimeCapacity("responseTimeCapacity", "Response Time Capacity [ms]",
+    ResponseTimeCapacity("responseTimeCapacity", "Response Time SLO [ms]",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
+            EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
+                    EntityType.DATABASE_SERVER,  EntityType.APPLICATION_COMPONENT,
+                    EntityType.BUSINESS_TRANSACTION),
+            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 2000.0f/*default*/),
             true),
 
     /**
-     * SLA Capacity used by Application and Database.
+     * Indicates whether to auto set the response time SLO of an entity's commodity to the value
+     * of the ResponseTimeCapacity setting or to calculate it as the max of the commodity's capacity,
+     * used value, and the ResponseTimeCapacity setting.
+     * Used by Application and Database.
      */
-    SLACapacity("slaCapacity", "SLA Capacity",
+    AutoSetResponseTimeCapacity("autoSetResponseTimeCapacity", "Disable Response Time SLO",
             Collections.emptyList(),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
+            SettingTiebreaker.BIGGER,
+            EnumSet.of(EntityType.BUSINESS_APPLICATION, EntityType.APPLICATION_COMPONENT,
+                    EntityType.BUSINESS_TRANSACTION, EntityType.SERVICE,
+                    EntityType.DATABASE_SERVER),
+            new BooleanSettingDataType(false),
             true),
 
     /**
-     * Transactions Capacity used by Application and Database.
+     * Transaction SLO used by Application and Database.
      */
-    TransactionsCapacity("transactionsCapacity", "Transactions Capacity",
+    TransactionsCapacity("transactionsCapacity", "Transaction SLO",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER,
-                    EntityType.DATABASE),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 20.0f/*default*/),
+            EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
+                    EntityType.DATABASE_SERVER,
+                    EntityType.APPLICATION_COMPONENT, EntityType.BUSINESS_TRANSACTION),
+            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10.0f/*default*/),
             true),
 
     /**
@@ -835,12 +885,12 @@ public enum EntitySettingSpecs {
      * used value, and the TransactionsCapacity setting.
      * Used by Application and Database.
      */
-    AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Auto Set Transactions Capacity",
+    AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Disable Transaction SLO",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER,
-                    EntityType.DATABASE),
+            EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
+                    EntityType.BUSINESS_TRANSACTION, EntityType.DATABASE_SERVER,
+                    EntityType.APPLICATION_COMPONENT),
             new BooleanSettingDataType(false),
             true),
 
@@ -849,7 +899,25 @@ public enum EntitySettingSpecs {
      */
     HeapUtilization("heapUtilization", "Heap Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.APPLICATION_COMPONENT),
+            numeric(20f, 100f, 80f), true),
+
+    /**
+     * RemainingGcCapacity utilization threshold.
+     * This is not exposed to the user and has a fixed value. If we ever want to expose
+     * it then add it to settingManagers.json.
+     */
+    RemainingGcCapacityUtilization("remainingGcCapacityUtilization", "Remaining GC Capacity Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.APPLICATION_COMPONENT),
+            numeric(90f, 99f, 97f), true),
+
+    /**
+     * DBMem utilization threshold.
+     */
+    DBMemUtilization("dbmemUtilization", "DBMem Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DATABASE_SERVER),
             numeric(20f, 100f, 80f), true),
 
     IgnoreDirectories("ignoreDirectories", "Directories to ignore",
@@ -932,7 +1000,8 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.DISK_ARRAY,
                 EntityType.PHYSICAL_MACHINE,
                 EntityType.STORAGE,
-                EntityType.VIRTUAL_MACHINE),
+                EntityType.VIRTUAL_MACHINE,
+                EntityType.APPLICATION_COMPONENT),
             string(), true),
 
     /**
@@ -1009,7 +1078,23 @@ public enum EntitySettingSpecs {
                                       EnumSet.of(EntityType.DESKTOP_POOL),
                                       new EnumSettingDataType<>(DailyObservationWindowsCount.THREE,
                                                                 DailyObservationWindowsCount.class),
-            true),
+                                      true),
+
+    /**
+     * Heap scaling increment for applications.
+     */
+    ApplicationHeapScalingIncrement("appHeapScalingIncrement", "Heap Scaling Increment [MB]",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.APPLICATION_COMPONENT),
+            numeric(0.0f, 1000000.0f, 128.0f), true),
+
+    /**
+     * DBMem Scaling increment.
+     */
+    DBMemScalingIncrement("dbMemScalingIncrement", "DBMem Scaling Increment [MB]",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DATABASE_SERVER),
+            numeric(0.0f/*min*/, 1000000.0f/*max*/, 128.0f/*default*/), true),
     /**
      * Hyperconverged Infrastructure setting. Give the value of the uncompressed
      * amount divided by the compressed amount. A setting of 1 means no
@@ -1103,8 +1188,13 @@ public enum EntitySettingSpecs {
                     EntitySettingSpecs.ResizeVmemBelowMinThreshold.name,
                     EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name,
                     EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name,
-                    EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
                     EntitySettingSpecs.EnforceNonDisruptive.name,
+            EntitySettingSpecs.ResizeUpHeap.name,
+            EntitySettingSpecs.ResizeDownHeap.name,
+            EntitySettingSpecs.ScalingPolicy.name,
+            EntitySettingSpecs.ResizeUpDBMem.name,
+            EntitySettingSpecs.ResizeDownDBMem.name,
+            EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
                     EntitySettingSpecs.ShopTogether.name);
 
     /**
@@ -1264,6 +1354,17 @@ public enum EntitySettingSpecs {
     }
 
     /**
+     * Return {@link EntitySettingSpecs}s with given {@link SettingTiebreaker}.
+     *
+     * @param tieBreaker a {@link SettingTiebreaker}
+     * @return {@link EntitySettingSpecs}s with given {@link SettingTiebreaker}
+     */
+    public static Stream<EntitySettingSpecs> getEntitySettingSpecByTierBreaker(final SettingTiebreaker tieBreaker) {
+        return Stream.of(EntitySettingSpecs.values())
+            .filter(settingSpecs -> settingSpecs.getSettingSpec().getEntitySettingSpec().getTiebreaker() == tieBreaker);
+    }
+
+    /**
      * Extract the value from a setting.
      *
      * @param <T> type of a setting value
@@ -1328,6 +1429,11 @@ public enum EntitySettingSpecs {
     @Nonnull
     public boolean isAllowGlobalDefault() {
         return allowGlobalDefault;
+    }
+
+    @Nonnull
+    private static SettingDataStructure<?> scalingPolicy() {
+        return new EnumSettingDataType<>(ScalingPolicyEnum.RESIZE, ScalingPolicyEnum.class);
     }
 
     /**

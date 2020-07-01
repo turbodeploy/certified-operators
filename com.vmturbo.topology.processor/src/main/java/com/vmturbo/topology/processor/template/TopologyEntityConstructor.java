@@ -19,9 +19,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.ListMultimap;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -47,7 +44,35 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  */
 public class TopologyEntityConstructor {
 
-    private static final Logger logger = LogManager.getLogger();
+    /**
+     * Action type for creating entities from templates.
+     */
+    public enum TemplateActionType {
+        /**
+         * Replace the entity with the new entity created from the template
+         */
+        REPLACE("Replacing"),
+        /**
+         * Add the new entity created from the template
+         */
+        CLONE("Cloning");
+
+        private final String description;
+
+        TemplateActionType(@Nonnull String description) {
+            this.description = description;
+        }
+
+        /**
+         * Get action description.
+         *
+         * @return description
+         */
+        @Nonnull
+        public String getDescription() {
+            return description;
+        }
+    }
 
     /**
      * Create topology entities from a template. It modifies the original entity
@@ -55,7 +80,7 @@ public class TopologyEntityConstructor {
      *
      * @param template template
      * @param originalTopologyEntity original TopologyEntity
-     * @param isReplaced is replaced
+     * @param actionType action type
      * @param identityProvider identity provider
      * @param entityType entity type
      * @param nameSuffix suffix for the entity name
@@ -65,9 +90,9 @@ public class TopologyEntityConstructor {
      */
     @Nonnull
     public TopologyEntityDTO.Builder generateTopologyEntityBuilder(@Nonnull Template template,
-            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
-            @Nonnull IdentityProvider identityProvider, int entityType, @Nullable String nameSuffix)
-            throws TopologyEntityConstructorException {
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity,
+            @Nonnull TemplateActionType actionType, @Nonnull IdentityProvider identityProvider,
+            int entityType, @Nullable String nameSuffix) throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder result = TopologyEntityDTO.newBuilder()
                 .setEntityState(EntityState.POWERED_ON).setAnalysisSettings(AnalysisSettings
                         .newBuilder().setIsAvailableAsProvider(true).setShopTogether(true));
@@ -75,17 +100,17 @@ public class TopologyEntityConstructor {
         long oid = identityProvider.generateTopologyId();
         result.setOid(oid);
 
-        String actionName = isReplaced ? " - Replacing " : " - Cloning ";
-        String displayName = template.getTemplateInfo().getName() + actionName;
+        String displayName = template.getTemplateInfo().getName() + " - "
+                + actionType.getDescription();
 
         if (originalTopologyEntity != null) {
             // Modify original topology entity.
-            if (isReplaced) {
+            if (actionType == TemplateActionType.REPLACE) {
                 originalTopologyEntity.getEditBuilder()
                         .getReplacedBuilder().setReplacementId(oid);
             }
 
-            displayName += originalTopologyEntity.getDisplayName();
+            displayName += " " + originalTopologyEntity.getDisplayName();
         }
 
         if (nameSuffix != null) {

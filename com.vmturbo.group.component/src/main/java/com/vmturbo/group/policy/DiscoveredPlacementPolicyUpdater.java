@@ -5,19 +5,17 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Table;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.group.DiscoveredPolicyUpdater;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.service.StoreOperationException;
 
@@ -29,9 +27,8 @@ import com.vmturbo.group.service.StoreOperationException;
  * policies for every discovered target and recreate it back (preserving OIDs for existing
  * policies).
  */
-public class DiscoveredPlacementPolicyUpdater {
-    private final IdentityProvider identityProvider;
-    private final Logger logger = LogManager.getLogger(getClass());
+public class DiscoveredPlacementPolicyUpdater extends DiscoveredPolicyUpdater {
+    private static final String POLICY_TYPE_LOGGING = "Placement";
 
     /**
      * Constructs discovered placement policies updater.
@@ -39,7 +36,7 @@ public class DiscoveredPlacementPolicyUpdater {
      * @param identityProvider identity provider used to assign OIDs to new policies.
      */
     public DiscoveredPlacementPolicyUpdater(@Nonnull IdentityProvider identityProvider) {
-        this.identityProvider = Objects.requireNonNull(identityProvider);
+        super(identityProvider);
     }
 
     /**
@@ -50,17 +47,23 @@ public class DiscoveredPlacementPolicyUpdater {
      * @param discoveredPolicies discovered policies grouped by targets
      * @param groupOids A mapping from group display names to group OIDs. We need this
      *         mapping because discovered policies reference groups by display name.
+     * @param undiscoveredTargets the set of oids for targets that have been removed.
      * @throws StoreOperationException If there is an error interacting with the database.
      */
     public void updateDiscoveredPolicies(@Nonnull IPlacementPolicyStore store,
             @Nonnull Map<Long, ? extends Collection<DiscoveredPolicyInfo>> discoveredPolicies,
-            @Nonnull Table<Long, String, Long> groupOids) throws StoreOperationException {
+            @Nonnull Table<Long, String, Long> groupOids, Set<Long> undiscoveredTargets) throws StoreOperationException {
         final long startTime = System.currentTimeMillis();
-        logger.info("Updating discovered placement policies for {} targets: {}",
+        getLogger().info("Updating discovered placement policies for {} targets: {}",
                 discoveredPolicies.size(), discoveredPolicies.keySet());
         final Map<Long, Map<String, Long>> allExistingPolicies = store.getDiscoveredPolicies();
         final Collection<Policy> policiesToAdd = new ArrayList<>();
         final Collection<Long> policiesToRemove = new ArrayList<>();
+
+        // remove the policies associated to targets that are no longer around
+        policiesToRemove.addAll(findPoliciesAssociatedTargetsRemoved(allExistingPolicies,
+            discoveredPolicies.keySet(), undiscoveredTargets, POLICY_TYPE_LOGGING));
+
         for (Entry<Long, ? extends Collection<DiscoveredPolicyInfo>> policyEntry : discoveredPolicies
                 .entrySet()) {
             final long targetId = policyEntry.getKey();
@@ -76,7 +79,7 @@ public class DiscoveredPlacementPolicyUpdater {
                 final Long existingOid = existingPolicies.get(policyInfo.getPolicyName());
                 final long effectiveOid;
                 if (existingOid == null) {
-                    effectiveOid = identityProvider.next();
+                    effectiveOid = getIdentityProvider().next();
                 } else {
                     effectiveOid = existingOid;
                 }
@@ -93,17 +96,17 @@ public class DiscoveredPlacementPolicyUpdater {
                     skippedPolicies++;
                 }
             }
-            logger.info(
+            getLogger().info(
                     "For target {} {} placement policies will overwrite existing {} policies. {} skipped because of errors",
                     targetId, addedPolicies, existingPolicies.size(), skippedPolicies);
         }
-        logger.info("Removing {} discovered placement policies for {} targets",
+        getLogger().info("Removing {} discovered placement policies for {} targets",
                 policiesToRemove.size(), discoveredPolicies.size());
         store.deletePolicies(policiesToRemove);
-        logger.info("Adding (restoring) {} discovered placement policies for {} targets",
+        getLogger().info("Adding (restoring) {} discovered placement policies for {} targets",
                 policiesToAdd.size(), discoveredPolicies.size());
         store.createPolicies(policiesToAdd);
-        logger.info("Updating discovered placement policies finished. Took {} ms",
+        getLogger().info("Updating discovered placement policies finished. Took {} ms",
                 System.currentTimeMillis() - startTime);
     }
 }

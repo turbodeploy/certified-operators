@@ -6,26 +6,26 @@
 
     <groupId>com.vmturbo</groupId>
     <artifactId>Turbonomic-XL</artifactId>
-    <version>7.22.100-MPC-SNAPSHOT</version>
+    <version>7.22.5-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
-        <market.version>3.22.100-MCP-SNAPSHOT</market.version>
+        <market.version>3.22.5-SNAPSHOT</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>7.22.100-MPC-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>7.22.5-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
-        <apm.probes.branch.version>7.22.100-MPC-SNAPSHOT</apm.probes.branch.version>
+        <apm.probes.branch.version>7.22.5-SNAPSHOT</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>7.22.100-MPC-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>7.22.5-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.6-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.10-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -49,6 +49,7 @@
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
 
         <lz4.version>1.4</lz4.version>
+        <fastutil.version>8.3.1</fastutil.version>
 
         <!-- START Versions for the various opentracing libraries.
              Do not change them independently without verifying that they are compatible with
@@ -113,6 +114,7 @@
         <asciidoctor.plugin.version>1.5.3</asciidoctor.plugin.version>
         <swagger2markup.plugin.version>0.9.3</swagger2markup.plugin.version>
         <commons-validator.version>1.6</commons-validator.version>
+        <memory-metrics.version>0.3.3</memory-metrics.version>
         <!-- END swagger properties -->
 
         <docker.compose.rule.version>1.5.0</docker.compose.rule.version>
@@ -133,8 +135,8 @@
         <kafka.version>2.4.0</kafka.version>
 
         <st4.version>4.0.8</st4.version>
-        <failsafe.version>2.19.1</failsafe.version>
-        <surefire.version>2.20</surefire.version>
+        <failsafe.version>3.0.0-M4</failsafe.version>
+        <surefire.version>3.0.0-M4</surefire.version>
         <jetty.version>9.4.19.v20190610</jetty.version>
         <bouncycastle.version>1.60</bouncycastle.version>
         <JUnitParams.version>1.0.4</JUnitParams.version>
@@ -299,9 +301,12 @@
         <profile>
             <id>extractor</id>
             <modules>
+                <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.topology.graph</module>
+                <module>../com.vmturbo.search.metadata</module>
+                <module>../com.vmturbo.sql.utils</module>
             </modules>
         </profile>
 
@@ -330,6 +335,7 @@
             <id>group</id>
             <modules>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.identity</module>
                 <module>../com.vmturbo.group.component</module>
                 <module>../com.vmturbo.group.api</module>
             </modules>
@@ -354,6 +360,9 @@
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
                 <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.common.api</module>
+                <module>../com.vmturbo.search.metadata</module>
             </modules>
         </profile>
 
@@ -415,6 +424,8 @@
                 <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
                 <module>../com.vmturbo.mediation.servicenow.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
@@ -744,6 +755,14 @@
         </profile>
 
         <profile>
+            <id>mediation-udt</id>
+            <modules>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-baremetal</id>
             <modules>
                 <module>../com.vmturbo.mediation.baremetal.component</module>
@@ -869,6 +888,8 @@
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
+                <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
@@ -897,6 +918,7 @@
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -929,6 +951,8 @@
                 <module>../com.vmturbo.mediation.vcenter.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
@@ -952,6 +976,8 @@
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
+                <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
@@ -982,6 +1008,7 @@
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -1054,6 +1081,8 @@
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
+                <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
@@ -1085,6 +1114,7 @@
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -1139,6 +1169,8 @@
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.custom.data.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
@@ -1534,7 +1566,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-site-plugin</artifactId>
-                    <version>3.4</version>
+                    <version>3.9.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -1596,6 +1628,8 @@
                             <exclude>**/Abstract*.java</exclude>
                         </excludes>
                         <trimStackTrace>false</trimStackTrace>
+                        <!-- Required to deal properly with non-ASCII characters across platforms. -->
+                        <argLine>-Dfile.encoding=UTF-8</argLine>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -1837,6 +1871,21 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>extractor-schema</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>search-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>search-metadata</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>common-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -2179,6 +2228,32 @@
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.gcp</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java-util</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-netty</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-protobuf</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-stub</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-core</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
@@ -2825,6 +2900,11 @@
                 <version>${reactor.version}</version>
             </dependency>
             <dependency>
+                <groupId>it.unimi.dsi</groupId>
+                <artifactId>fastutil</artifactId>
+                <version>${fastutil.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.apache.tomcat</groupId>
                 <artifactId>tomcat-jdbc</artifactId>
                 <version>${tomcat.version}</version>
@@ -2899,6 +2979,11 @@
                 <groupId>commons-validator</groupId>
                 <artifactId>commons-validator</artifactId>
                 <version>${commons-validator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.jbellis</groupId>
+                <artifactId>jamm</artifactId>
+                <version>${memory-metrics.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.eclipse.jgit</groupId>

@@ -1,0 +1,395 @@
+syntax = "proto2";
+package cca;
+
+option java_package = "com.vmturbo.common.protobuf.cca";
+option java_outer_classname = "CloudCommitmentAnalysis";
+
+import "CloudCostDTO.proto";
+
+
+// An enum for the time of demand that is tracked and used as the basis for a recommendation
+enum HistoricalDemandType {
+    // The demand the entity is allocated on/using within the customer environment. For a compute tier/RI
+    // recommendation, this will be the instance size/compute tier a VM is using.
+    ALLOCATION = 1;
+    // The demand in the "projected" topology, based on market actions. In RI buy v1.0, this is the
+    // CONSUMPTION demand.
+    PROJECTION = 2;
+}
+
+// Demand classification based on the allocated compute tier of the entity
+enum AllocatedDemandClassification {
+
+    // The demand represents the current allocated tier of the represented entities.
+    ALLOCATED = 1;
+
+    // Demand for an entity, which is not the current/last allocated tier of the entity, but is
+    // within the same instance family.
+    FAMILY_ALLOCATED = 2;
+
+    // Demand for an entity that is not the current/last allocated tier of the entity and is not
+    // within the same instance family.
+    STALE_ALLOCATED = 3;
+}
+
+enum ProjectedDemandClassification {
+
+    // Represents demand for an entity where allocated = market derived demand for a configurable
+    // duration of time.
+    OPTIMIZED = 1;
+
+    // Represents demand where the market derived demand is consistent for a configurable duration
+    // of time. Essentially, this is an entity (VM, DB, etc) with a consistent recommendation to
+    // scale to a specific instance size.
+    STABLE = 2;
+
+    // Represents market derived demand in which the destination tier is not consistent for a single
+    // entity, but all demand tiers are withing a "familY'. For example, for VM demand, a VM may
+    // have scaling actions to scale to a t2.medium and t2.large. To be categorized as flexibly stable,
+    // the source tier of the entity must be in a different family from the destination.
+    FLEXIBLY_STABLE = 3;
+
+    // Represents market derived demand similar to flexibly stable demand. However, for flexibly optimized
+    // demand, the source and destination tiers of the entity must be in the same family.
+    FLEXIBLY_OPTIMIZED = 4;
+
+    // A market derived demand classification, in which the the demand does not fit any of the other market
+    // derived classifications. Unstable demand may be due to inconsistent scaling actions of an entity
+    // or a lack of sufficient demand to accurately classify the demand (e.g. if the workload recently
+    // launched).
+    UNSTABLE = 5;
+}
+
+// The scope of demand supported for an analysis.
+message DemandScope {
+
+    repeated int64 service_provider_oid = 1;
+
+    repeated int64 account_oid = 2;
+
+    repeated int64 region_oid = 3;
+
+    repeated int64 entity_oid = 4;
+
+    // For different types of demand (e.g. compute vs. database tiers), this is the tier-specific
+    // scoping supported by CCA.
+    oneof type_specific_scope {
+        ComputeTierDemandScope compute_tier_scope = 5;
+    }
+
+    // Scoping of compute tier demand, which allows filtering by the OS and tenancy of the demand.
+    message ComputeTierDemandScope {
+        repeated common_dto.OSType platform = 1;
+        repeated common_dto.Tenancy tenancy = 2;
+        repeated int64 compute_tier_oid = 3;
+    }
+}
+
+// The scope of a recommendation. The recommendation scope is the intersection of the entity
+message ClassifiedDemandScope {
+
+    repeated AllocatedDemandClassification allocated_demand_classification = 1;
+
+    repeated ProjectedDemandClassification projected_demand_classification = 2;
+
+    // If this is not specified, the demand considered for a potential recommendation will be
+    // the historical demand selection scope and the demand classification above.
+    optional DemandScope scope = 3;
+}
+
+// Contains info to resolve the topology to use during analysis
+message TopologyReference {
+
+    // If the topology context ID is not assigned, the realtime topology will be assumed.
+    optional int64 topology_context_id = 1;
+
+    // While the repository accepts a topology ID for realtime topologies, it is only used for plans
+    // to resolve the corresponding topology
+    optional int64 topology_id = 2;
+}
+
+// A configuration for a complete cloud commitment analysis.
+message CloudCommitmentAnalysisConfig {
+
+    // The topology associated with the analysis. This topology info will be used to verify
+    // entity termination and check the validity of cloud commitment specs against the existing
+    // cloud tiers. If the topology reference is not specified, the latest realtime topology will
+    // be used.
+    optional TopologyReference topology_reference = 1;
+
+    // A tag used by the analysis in any log messages. The contents of the tag have no impact on
+    // the analysis.
+    optional string analysis_tag = 2 [default = ""];
+
+    // The configuration for which demand should be considered by the entire analysis. This specifies
+    // which demand should be pulled from the database
+    required HistoricalDemandSelection demand_selection = 3;
+
+    // The configuration for how selected demand should be classified and which demand should be
+    // selected for analysis (uncovered demand calculations & recommendations). Generally, configuration
+    // provides a way for allocated recommendations to ignore stale demand,
+    required DemandClassification demand_classification = 4;
+
+    // The purchase profiles to recommend. The purchase profiles are scoped to demand so that a single
+    // analysis may recommend a certain RI configuration for AWS and another for Azure. The purchase
+    // profile will also indicates which demand classifications can drive the recommendations.
+    required CommitmentPurchaseProfile purchase_profile = 5;
+
+    // The cloud commitment (RI, savings plan, etc) inventory to consider in calculating uncovered
+    // demand from the total demand stored in the DB.
+    optional CloudCommitmentInventory cloud_commitment_inventory = 6;
+
+    optional DebugConfiguration debug_configuration = 7;
+}
+
+// The historical demand to select as the source of the analysis.
+message HistoricalDemandSelection {
+
+    // The type of demand to select (e.g. compute or DB server).
+    required CloudTierType cloud_tier_type = 1;
+
+    // The demand segments (scope + demand type)
+    repeated DemandSegment demand_segment = 2;
+
+    // The time (in UTC epoch millisecond) for which the analysis should filter an demand
+    // prior. If not specified, all recorded demand in scope is considered. Any demand in which the
+    // demand segment stretches across the look_back_start_time will be split.
+    optional int64 look_back_start_time = 3;
+
+    // If true, a detailed summary of historical demand is collected and logged. The detailed summary
+    // includes a breakdown of demand by cloud tier and day.
+    optional bool log_detailed_summary = 4 [default = false];
+
+
+    message DemandSegment {
+
+        required DemandScope scope = 1;
+
+        required HistoricalDemandType demand_type = 2;
+    }
+
+    enum CloudTierType {
+        COMPUTE_TIER = 1;
+    }
+}
+
+// Contains criteria for how selected demand should be classified and once classified, which demand
+// (based on the classifications) should be considered for analysis (calculating uncovered demand and
+// making recommendations).
+message DemandClassification {
+
+    // How to classify the selected allocated historical demand
+    optional AllocatedClassificationSettings allocated_classification_settings = 1;
+
+    // How to classify the selected projected historical demand
+    optional ProjectedClassificationSettings projected_classification_settings = 2;
+
+    // Once demand has been classified, this setting specifies demand should be selected for further
+    // analysis.
+    required ClassifiedDemandSelection demand_selection = 3;
+
+
+    message ClassifiedDemandSelection {
+
+        // (Scope + classification) tuples that meet the filtering of demand selection.
+        repeated ClassifiedDemandScope scope = 1;
+
+        // Whether terminated instances should be included in the analysis. Terminated entities are
+        // determined by the presence (or lack thereof) of the entity within the topology.
+        optional bool include_terminated_entities = 2 [default = true];
+
+        // Whether suspended instances should be included in the analysis. Suspended entities are
+        // determined by the state of the entity not being POWERED_ON
+        optional bool include_suspended_entities = 3 [default = true];
+
+        // The maximum demand percentage how much of the total demand will be selected for total analysis
+        // (uncovered demand calculations and recommendations). This setting is a way to specify the maximum
+        // coverage percentage to consider in justifying a recommendation.
+        //
+        // Note: If a recommendation is purchased, this setting does not guarantee the coverage percentage
+        // of the environment will not be above this maximum. It only indicates that the recommendation
+        // can be justified, based on the percentage of demand specified.
+        optional double max_demand_percent = 4 [default = 100.0];
+    }
+
+
+    message AllocatedClassificationSettings {
+        // Currently, there are no settings for allocated demand classification.
+    }
+
+    // Specifies how to classify projected demand, which is based on the scaling behavior
+    // of individual entities
+    message ProjectedClassificationSettings {
+
+        // The minimum total time required to classify an instance. Any instance with uptime less
+        // that the minimum observation time will be classified as UNSTABLE. The uptime of an entity
+        // is the aggregate uptime across the look back window. For example, if a VM is powered on
+        // from 9 am -> 5 pm every day, after 3 days it would have an aggregate observation time
+        // of 24 hours.
+        optional int64 min_observation_millis = 1 [default = 0];
+
+        // For the total observed time of an instance, how much of the observed time must the
+        // entity be in a consistent state in order to be classified as (flexibly) stable or optimized.
+        optional double scaling_consistency_percent = 2 [default = 100.0];
+
+        // Whether to only consider the latest classification of an entity. This setting will only tie
+        // in when the scaling_consistency_percent is less than 100%. For example, if the scaling
+        // consistency is 95% of an entities observed time and a VM is optimized for the first
+        // 95% and unstable for the remaining 5%, any demand outside the latest will be classified
+        // as unstable (if use_latest == true).
+        optional bool use_latest = 3 [default = false];
+    }
+}
+
+// The purchase profile to recommend.
+message CommitmentPurchaseProfile {
+
+    // The scope of demand considered for this purchase profile. The scope will indicate
+    // the entity demand which should be included, as well as the demand type. This allows for
+    // different purchase profiles (e.g. settings) for optimized vs. stable workloads.
+    repeated ClassifiedDemandScope scope = 1;
+
+    // The settings to use as part of the purchase profile, including the target savings over
+    // on-demand and whether terminated instance demand should be included in the recommendation.
+    required RecommendationSettings recommendation_settings = 2;
+
+    // The specific attributes of a purchase profile or a type of cloud commitment (e.g. RIs).
+    oneof commitment_specific_profile {
+        ReservedInstancePurchaseProfile ri_purchase_profile = 3;
+    }
+
+
+    // Settings beyond the purchase profile which will drive the recommendation analysis after
+    // uncovered demand is calculated
+    message RecommendationSettings {
+
+        // Indicates whether recommendations can be made for terminated instance demand. If the selected
+        // demand is based on projected data, the projected topology will be consulted. If the demand
+        // is based on allocation, the source topology will be used. Termination is determined by lack
+        // of the entity in the corresponding topology.
+        optional bool include_terminated_entities = 1 [default = true];
+
+        // Whether currently suspending VMs should be included in the recommendation. In the same way
+        // as determining termination, suspension will be derived from the corresponding topology for
+        // the historical demand type (i.e. source for allocated and projected topology for projected
+        // demand). Suspension will be determined by the entity being present in the topology and
+        // not currently powered on. Therefore, if this flag is false and the recommendation is based
+        // on projected demand, if the entity is either currently suspended or has a suspend action,
+        // it will be ignored.
+        optional bool include_suspended_entities = 2 [default = true];
+
+        // The minimum savings over on-demand is the minimum percentage (0.0 -> 100.0) expected
+        // from a potential CC buy recommendation, in order to generate a buy action.
+        optional double minimum_savings_over_on_demand_percent = 3 [default = 10.0];
+
+    }
+
+    // A purchase profile specific to buying a reserved instance.
+    message ReservedInstancePurchaseProfile {
+        map<int64, common_dto.ReservedInstanceType> ri_type_by_region_oid = 1;
+    }
+}
+
+message CloudCommitmentInventory {
+
+    // The individual cloud commitments (e.g. RIs) to be included in
+    // calculating uncovered demand.
+    repeated CloudCommitment cloud_commitment = 1;
+
+    message CloudCommitment {
+
+        optional CloudCommitmentType type = 1;
+        optional int64 oid = 2;
+
+        // Capacity indicates how much of the RI should be included in calculating uncovered demand.
+        // This is mainly applicable in plans, in which the plan scope may include a subset of the
+        // total workload demand within the billing family. If this is not specified, the full
+        // capacity of the CC is used.
+        optional CloudCommitmentCapacity capacity = 3;
+
+        enum CloudCommitmentType {
+            RESERVED_INSTANCE = 1;
+        }
+    }
+
+    // How to calculate the capacity of a cloud commitment. The calculation supports exclusion (taking
+    // the CC capacity minus some out of scope usage) or inclusion (basing CC on some historical usage).
+    message CloudCommitmentCapacity {
+
+        // Usage to ignore from the capacity_source. This can be used to simulate the removal
+        // of specific entities/accounts from the topology.
+        repeated CloudCommitmentUsage ignored_usage = 1;
+
+
+        oneof capacity_source {
+            ExclusionCapacitySource exclusion_capacity_source = 2;
+            InclusionCapacitySource inclusion_capacity_source = 3;
+        }
+
+        message CloudCommitmentUsage {
+            repeated int64 account_oid = 1;
+            repeated int64 entity_oid = 2;
+        }
+
+        // An exclusion source is based on taking the CC capacity and subtracting some usage, where
+        // the specified usage to exclude is expected to be out of scope of the analysis (e.g. in a plan
+        // the usage to exclude may represent accounts in the billing family that are not in the plan
+        // scope).
+        message ExclusionCapacitySource {
+            required CloudCommitmentUsage usage_to_exclude = 1;
+        }
+
+        // An inclusion source is based on taking historical usage in scope as the source of the CC
+        // capacity. This provides a way to specify that the capacity of a CC available to a plan
+        // or RT scope is the historical usage of the CCC by entities within the scope.
+        message InclusionCapacitySource {
+            required CloudCommitmentUsage usage_to_include = 1;
+
+            // Whether any free capacity of the CC should be included in the capacity calculation.
+            optional bool include_free_capacity = 2 [default = false];
+        }
+    }
+}
+
+message DebugConfiguration {
+
+    // Determines which entities should selected for debug logging
+    repeated DemandScope scope = 1;
+
+    // If true, the selection of demand for entities from the DB will include debug information
+    // for the entities above.
+    optional bool trace_demand_selection = 2 [default = true];
+
+}
+
+// A representation of an analysis invocation of CCA.
+message CloudCommitmentAnalysisInfo {
+
+    // The OID of the analysis, assigned by the CCA in handling a start request.
+    required int64 oid = 1;
+
+    required string analysis_tag = 2 [default = ""];
+
+    required int64 creation_time = 3;
+
+    optional TopologyReference topology_reference = 4;
+
+
+}
+
+
+// The status of an analysis
+message Status {
+
+    optional State state = 1;
+    optional string message = 2;
+
+    enum State {
+        READY = 0;
+        RUNNING = 1;
+        COMPLETED = 2;
+        FAILED = 3;
+    }
+}
+
+

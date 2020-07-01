@@ -96,7 +96,7 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
         when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.IOPSCapacity))
             .thenReturn(Optional.empty());
         op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
-        assertTrue(resultBuilder.getChanges().isEmpty());
+        assertTrue(resultBuilder.getChanges().size() == 1);
     }
 
     @Test

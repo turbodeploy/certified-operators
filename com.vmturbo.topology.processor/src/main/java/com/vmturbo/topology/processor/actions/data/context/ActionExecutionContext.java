@@ -93,16 +93,18 @@ public interface ActionExecutionContext {
      *
      * @return the secondary target involved in this action, or null if no secondary target is
      *         involved
+     * @throws ContextCreationException if error occurred while retrieving secondary target
      */
     @Nullable
-    Long getSecondaryTargetId() throws TargetNotFoundException;
+    Long getSecondaryTargetId() throws ContextCreationException;
 
     /**
      * Creates {@link ActionExecutionDTO} for this action in a form suitable for SDK probes to
      * work with.
      *
      * @return action execution DTO
+     * @throws ContextCreationException if failure occurred while constructing context
      */
     @Nonnull
-    ActionExecutionDTO buildActionExecutionDto();
+    ActionExecutionDTO buildActionExecutionDto() throws ContextCreationException;
 }

@@ -36,6 +36,7 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
+import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -74,10 +75,6 @@ public class ActionStateUpdaterTest {
     private final long realtimeTopologyContextId = 0;
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
-    private final ActionStateUpdater actionStateUpdater =
-            new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao,
-                    acceptedActionsStore, actionExecutorMock, workflowStoreMock,
-                    realtimeTopologyContextId, failedCloudVMGroupProcessor);
     private final long actionId1 = 123456;
     private final long actionId2 = 12345667;
     private final long notFoundId = 99999;
@@ -90,12 +87,24 @@ public class ActionStateUpdaterTest {
         .build();
 
     private final EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
+    private ActionAuditSender actionAuditSender;
+    private ActionStateUpdater actionStateUpdater;
 
     private Action testAction;
     private Action testAction2;
 
+    /**
+     * Sets up the tests.
+     *
+     * @throws UnsupportedActionException on exceptinos occurred
+     */
     @Before
     public void setup() throws UnsupportedActionException {
+        actionAuditSender = Mockito.mock(ActionAuditSender.class);
+        actionStateUpdater =
+                new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao,
+                        acceptedActionsStore, actionExecutorMock, workflowStoreMock,
+                        realtimeTopologyContextId, failedCloudVMGroupProcessor, actionAuditSender);
         when(entitySettingsCache.getSettingsForEntity(eq(3L)))
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
         when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
@@ -155,6 +164,11 @@ public class ActionStateUpdaterTest {
         verify(notificationSender, never()).notifyActionProgress(progress);
     }
 
+    /**
+     * Tests action success reported.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testOnActionSuccess() throws Exception {
         ActionSuccess success = ActionSuccess.newBuilder()
@@ -181,6 +195,7 @@ public class ActionStateUpdaterTest {
                 2244L);
         verify(acceptedActionsStore, Mockito.never()).deleteAcceptedAction(
                 testAction.getRecommendationOid());
+        Mockito.verify(actionAuditSender).sendActionEvents(Collections.singleton(testAction));
     }
 
     /**
@@ -241,6 +256,11 @@ public class ActionStateUpdaterTest {
         verify(notificationSender, never()).notifyActionSuccess(success);
     }
 
+    /**
+     * Tests action failure reported.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testOnActionFailed() throws Exception {
         ActionFailure failure = ActionFailure.newBuilder()
@@ -264,6 +284,7 @@ public class ActionStateUpdaterTest {
             serializedAction.getAssociatedAccountId(),
             serializedAction.getAssociatedResourceGroupId(),
                 2244L);
+        Mockito.verify(actionAuditSender).sendActionEvents(Collections.singleton(testAction));
     }
 
     /**

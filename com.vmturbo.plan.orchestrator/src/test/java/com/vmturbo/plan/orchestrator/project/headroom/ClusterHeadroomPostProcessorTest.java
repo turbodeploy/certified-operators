@@ -85,11 +85,11 @@ public class ClusterHeadroomPostProcessorTest {
     private static final long DAY_MILLI_SECS = TimeUnit.DAYS.toMillis(1);
 
     private static final Grouping CLUSTER = Grouping.newBuilder()
-            .setDefinition(GroupDefinition.newBuilder()
-                    .setType(GroupType.COMPUTE_HOST_CLUSTER)
-                    .setDisplayName("foo"))
-            .setId(CLUSTER_ID)
-            .build();
+        .setDefinition(GroupDefinition.newBuilder()
+            .setType(GroupType.COMPUTE_HOST_CLUSTER)
+            .setDisplayName("foo"))
+        .setId(CLUSTER_ID)
+        .build();
 
     private RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
 
@@ -107,8 +107,8 @@ public class ClusterHeadroomPostProcessorTest {
 
     @Rule
     public GrpcTestServer grpcTestServer =
-            GrpcTestServer.newServer(repositoryServiceMole, historyServiceMole,
-                    supplyChainServiceMole, groupRpcServiceMole, settingServiceMole);
+        GrpcTestServer.newServer(repositoryServiceMole, historyServiceMole,
+            supplyChainServiceMole, groupRpcServiceMole, settingServiceMole);
 
     private ClusterHeadroomPlanPostProcessor processor;
 
@@ -121,8 +121,8 @@ public class ClusterHeadroomPostProcessorTest {
             .thenReturn(Collections.singletonList(Grouping.newBuilder().setId(CLUSTER_ID).build()));
 
         processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
-                grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-                planDao, grpcTestServer.getChannel(), templatesDao));
+            grpcTestServer.getChannel(), grpcTestServer.getChannel(),
+            planDao, grpcTestServer.getChannel(), templatesDao));
     }
 
     @Test
@@ -134,40 +134,40 @@ public class ClusterHeadroomPostProcessorTest {
 
         // VmGrowth = 0 (because we don't have data in the past)
         verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
-                .setClusterId(CLUSTER_ID)
-                // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
+            .setClusterId(CLUSTER_ID)
+            // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
                 // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
-                // CPU headroom calculation :
+            // CPU headroom calculation :
                 // headroomCapacity = capacity / effectiveUsed = 40, headroomAvailable = (capacity - used) / effectiveUsed = 20
-                // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
-                .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
+            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+            .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
                     .setHeadroom(20)
                     .setCapacity(40)
-                    .setDaysToExhaustion(MORE_THAN_A_YEAR))
-                // Template Value MEMORY_SIZE = 100, consumedFactor = 0.4, effectiveUsed = 40
-                // PM MEM value : used = 40, capacity = 200
-                // MEM headroom calculation :
-                // headroomCapacity = capacity / effectiveUsed = 5, headroomAvailable = (capacity - used) / effectiveUsed = 4
-                // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
-                .setMemHeadroomInfo(CommodityHeadroom.newBuilder()
-                    .setCapacity(5)
-                    .setHeadroom(4)
-                    .setDaysToExhaustion(MORE_THAN_A_YEAR))
-                // Template Value DISK_SIZE = 200, consumedFactor = 1, effectiveUsed = 200
-                // Storage value : used = 100, capacity = 600
-                // Storage headroom calculation :
-                // headroomCapacity = capacity / effectiveUsed = 3, headroomAvailable = (capacity - used) / effectiveUsed = 2
-                // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
-                .setStorageHeadroomInfo(CommodityHeadroom.newBuilder()
-                    .setCapacity(3)
-                    .setHeadroom(2)
-                    .setDaysToExhaustion(MORE_THAN_A_YEAR))
-                .setNumHosts(1)
-                .setNumVMs(2)
-                .setNumStorages(1)
-                .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookBack days = (0 * 30)/7 = 0
-                .setHeadroom(2) // minimum of mem, cpu and storage headroom values : min(10, 4, 2)
-                .build());
+                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+            // Template Value MEMORY_SIZE = 100, consumedFactor = 0.4, effectiveUsed = 40
+            // PM MEM value : used = 40, capacity = 200
+            // MEM headroom calculation :
+            // headroomCapacity = capacity / effectiveUsed = 5, headroomAvailable = (capacity - used) / effectiveUsed = 4
+            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+            .setMemHeadroomInfo(CommodityHeadroom.newBuilder()
+                .setCapacity(5)
+                .setHeadroom(4)
+                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+            // Template Value DISK_SIZE = 200, consumedFactor = 1, effectiveUsed = 200
+            // Storage value : used = 100, capacity = 600
+            // Storage headroom calculation :
+            // headroomCapacity = capacity / effectiveUsed = 3, headroomAvailable = (capacity - used) / effectiveUsed = 2
+            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+            .setStorageHeadroomInfo(CommodityHeadroom.newBuilder()
+                .setCapacity(3)
+                .setHeadroom(2)
+                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+            .setNumHosts(1)
+            .setNumVMs(2)
+            .setNumStorages(1)
+            .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookBack days = (0 * 30)/7 = 0
+            .setHeadroom(2) // minimum of mem, cpu and storage headroom values : min(10, 4, 2)
+            .build());
     }
 
     @Test
@@ -178,23 +178,23 @@ public class ClusterHeadroomPostProcessorTest {
         processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
 
         verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
-                        .setClusterId(CLUSTER_ID)
-                        .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
+            .setClusterId(CLUSTER_ID)
+            .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
                             .setHeadroom(20)
                             .setCapacity(40)
-                            .setDaysToExhaustion(MORE_THAN_A_YEAR))
-                        .setMemHeadroomInfo(CommodityHeadroom.newBuilder()
-                            .setCapacity(5)
-                            .setHeadroom(4)
-                            .setDaysToExhaustion(MORE_THAN_A_YEAR))
-                         // Every thing same except for Storage headroom because storage commodities had zero usage.
-                        .setStorageHeadroomInfo(CommodityHeadroom.getDefaultInstance())
-                        .setNumHosts(1)
-                        .setNumVMs(2)
-                        .setNumStorages(1)
-                        .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookback days = (0 * 30)/7 = 0
-                        .setHeadroom(0) // minimum of mem, cpu and storage headroom values : min(10, 4, 0)
-                        .build());
+                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+            .setMemHeadroomInfo(CommodityHeadroom.newBuilder()
+                .setCapacity(5)
+                .setHeadroom(4)
+                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+            // Every thing same except for Storage headroom because storage commodities had zero usage.
+            .setStorageHeadroomInfo(CommodityHeadroom.getDefaultInstance())
+            .setNumHosts(1)
+            .setNumVMs(2)
+            .setNumStorages(1)
+            .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookback days = (0 * 30)/7 = 0
+            .setHeadroom(0) // minimum of mem, cpu and storage headroom values : min(10, 4, 0)
+            .build());
     }
 
     /**
@@ -342,17 +342,17 @@ public class ClusterHeadroomPostProcessorTest {
     @Test
     public void testPlanSucceeded() throws NoSuchObjectException {
         final ClusterHeadroomPlanPostProcessor processor =
-                spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
-                        grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-                        planDao, grpcTestServer.getChannel(), templatesDao));
+            spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
+                grpcTestServer.getChannel(), grpcTestServer.getChannel(),
+                planDao, grpcTestServer.getChannel(), templatesDao));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);
 
         processor.onPlanStatusChanged(PlanInstance.newBuilder()
-                .setPlanId(PLAN_ID)
-                .setStatus(PlanStatus.SUCCEEDED)
-                // Don't set the projected topology ID so that we don't try to store headroom
-                .build());
+            .setPlanId(PLAN_ID)
+            .setStatus(PlanStatus.SUCCEEDED)
+            // Don't set the projected topology ID so that we don't try to store headroom
+            .build());
 
         verify(planDao).deletePlan(PLAN_ID);
         verify(onCompleteHandler).accept(processor);
@@ -361,17 +361,17 @@ public class ClusterHeadroomPostProcessorTest {
     @Test
     public void testPlanFailed() throws NoSuchObjectException {
         final ClusterHeadroomPlanPostProcessor processor =
-                spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
-                        grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-                        planDao, grpcTestServer.getChannel(), templatesDao));
+            spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
+                grpcTestServer.getChannel(), grpcTestServer.getChannel(),
+                planDao, grpcTestServer.getChannel(), templatesDao));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);
 
         processor.onPlanStatusChanged(PlanInstance.newBuilder()
-                .setPlanId(PLAN_ID)
-                .setStatus(PlanStatus.FAILED)
-                // Don't set the projected topology ID so that we don't try to store headroom
-                .build());
+            .setPlanId(PLAN_ID)
+            .setStatus(PlanStatus.FAILED)
+            // Don't set the projected topology ID so that we don't try to store headroom
+            .build());
 
         verify(planDao).deletePlan(PLAN_ID);
         verify(onCompleteHandler).accept(processor);
@@ -455,11 +455,11 @@ public class ClusterHeadroomPostProcessorTest {
             StatSnapshot statSnapshot = StatSnapshot.newBuilder()
                 .setSnapshotDate(date)
                 .addStatRecords((StatRecord.newBuilder()
-                        .setValues(StatValue.newBuilder()
-                            .setAvg(numVm)
-                            .build())
-                        .setName(StringConstants.VM_NUM_VMS)
-                        .build()))
+                    .setValues(StatValue.newBuilder()
+                        .setAvg(numVm)
+                        .build())
+                    .setName(StringConstants.VM_NUM_VMS)
+                    .build()))
                 .build();
             statsList.add(statSnapshot);
         });
@@ -468,24 +468,24 @@ public class ClusterHeadroomPostProcessorTest {
 
     private Template getTemplateForHeadroom(boolean setValidValues) {
         return Template.newBuilder().setTemplateInfo(
-                        TemplateInfo.newBuilder()
-                        .setName("AVG:Cluster")
-                        .setTemplateSpecId(100)
-                        .addAllResources(ImmutableList.of(
-                            TemplateResource.newBuilder()
-                                .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Compute))
-                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED).setValue("10"))
-                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR).setValue("0.5"))
-                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU).setValue("1"))
-                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE).setValue("100"))
-                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR).setValue("0.4"))
-                                .build(),
-                           TemplateResource.newBuilder()
-                                .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Storage))
-                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_STORAGE_DISK_SIZE).setValue(setValidValues ? "200" : "0"))
-                                .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR).setValue("1"))
-                                .build())))
-                        .setId(1234)
-                        .build();
+            TemplateInfo.newBuilder()
+                .setName("AVG:Cluster")
+                .setTemplateSpecId(100)
+                .addAllResources(ImmutableList.of(
+                    TemplateResource.newBuilder()
+                        .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Compute))
+                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED).setValue("10"))
+                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR).setValue("0.5"))
+                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU).setValue("1"))
+                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE).setValue("100"))
+                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR).setValue("0.4"))
+                        .build(),
+                    TemplateResource.newBuilder()
+                        .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Storage))
+                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_STORAGE_DISK_SIZE).setValue(setValidValues ? "200" : "0"))
+                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR).setValue("1"))
+                        .build())))
+            .setId(1234)
+            .build();
     }
 }

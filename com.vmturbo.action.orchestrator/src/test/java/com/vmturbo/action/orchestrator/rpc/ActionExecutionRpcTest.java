@@ -11,6 +11,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -30,7 +31,6 @@ import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -42,8 +42,10 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
+import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -58,12 +60,14 @@ import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
+import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
@@ -83,6 +87,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -91,6 +99,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
@@ -104,6 +113,8 @@ public class ActionExecutionRpcTest {
 
     // Have the translator pass-through translate all actions.
     private final ActionTranslator actionTranslator = passthroughTranslator();
+    final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
+    final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
 
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
@@ -135,6 +146,9 @@ public class ActionExecutionRpcTest {
 
     private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
 
+    private final InvolvedEntitiesExpander involvedEntitiesExpander =
+        mock(InvolvedEntitiesExpander.class);
+
     private static final long ACTION_PLAN_ID = 2;
     private static final long TOPOLOGY_CONTEXT_ID = 3;
     private static final long ACTION_ID = 9999;
@@ -145,6 +159,8 @@ public class ActionExecutionRpcTest {
     private ActionApprovalManager actionApprovalManager;
 
     private final SettingPolicyServiceMole settingPolicyServiceMole = new SettingPolicyServiceMole();
+    private final SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
+    private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
 
     private GrpcTestServer grpcServer;
     private ActionStore actionStoreSpy;
@@ -172,8 +188,10 @@ public class ActionExecutionRpcTest {
                         statReader,
                         liveStatReader,
                         userSessionContext,
-                        acceptedActionsStore);
-        grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole);
+                        acceptedActionsStore,
+                        500);
+        grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole,
+                supplyChainServiceMole, repositoryServiceMole);
         grpcServer.start();
         ActionTargetInfo targetInfo = ImmutableActionTargetInfo.builder()
             .supportingLevel(SupportLevel.SUPPORTED)
@@ -186,11 +204,16 @@ public class ActionExecutionRpcTest {
         when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(targetInfo);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
-        actionStoreSpy = Mockito.spy(
-                new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID, actionTargetSelector,
-                        probeCapabilityCache, entitySettingsCache, actionHistoryDao, statistician,
-                        actionTranslator, clock, userSessionContext, licenseCheckClient,
-                        acceptedActionsStore, actionIdentityService));
+        actionStoreSpy =
+            Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
+                SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                actionTargetSelector, probeCapabilityCache,
+                entitySettingsCache, actionHistoryDao, statistician, actionTranslator,
+                    atomicActionFactory,
+                clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
+                actionIdentityService, involvedEntitiesExpander,
+                Mockito.mock(ActionAuditSender.class)));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -224,7 +247,7 @@ public class ActionExecutionRpcTest {
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
 
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
 
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
@@ -265,8 +288,8 @@ public class ActionExecutionRpcTest {
         when(snapshot.getSettingPoliciesForEntity(actionTargetId)).thenReturn(
                 new ImmutableMap.Builder<String, Collection<Long>>().put(
                         EntitySettingSpecs.Move.getSettingName(), Collections.singletonList(22L))
-                        .put(ActionSettingSpecs.getExecutionScheduleSettingFromActionModeSetting(
-                                EntitySettingSpecs.Move),
+                        .put(ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                                EntitySettingSpecs.Move, ActionSettingType.SCHEDULE),
                             Collections.singleton(23L))
                         .build());
 
@@ -350,11 +373,11 @@ public class ActionExecutionRpcTest {
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
 
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
 
         actionStorehouse.storeActions(plan);
         actionStorehouse.getStore(TOPOLOGY_CONTEXT_ID).get().overwriteActions(ImmutableMap.of(
-                ActionPlanType.MARKET, Collections.emptyList())); // Clear the action from the store
+            ActionPlanType.MARKET, Collections.emptyList())); // Clear the action from the store
         AcceptActionResponse response = actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
 
         assertTrue(response.hasError());
@@ -389,7 +412,7 @@ public class ActionExecutionRpcTest {
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
 
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
 
         EntitySeverityCache severityCacheMock = mock(EntitySeverityCache.class);
         doReturn(severityCacheMock).when(actionStoreSpy).getEntitySeverityCache();
@@ -416,7 +439,7 @@ public class ActionExecutionRpcTest {
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
 
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
 
         actionStorehouse.storeActions(plan);
 
@@ -516,6 +539,10 @@ public class ActionExecutionRpcTest {
                 return actionStream;
             }
         }, grpcServer.getChannel()));
+
+        final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
+        final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
+        ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
                 executor, actionStoreLoader, Mockito.mock(ActionApprovalSender.class));
         final ActionsRpcService actionsRpcService =
@@ -526,17 +553,21 @@ public class ActionExecutionRpcTest {
                     paginatorFactory,
                     statReader,
                     liveStatReader,
-                    userSessionContext, acceptedActionsStore);
-        GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
+                    userSessionContext, acceptedActionsStore, 500);
+        GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService,
+                supplyChainServiceMole, repositoryServiceMole);
         grpcServer.start();
         ActionsServiceBlockingStub actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(
-                grpcServer.getChannel());
+            grpcServer.getChannel());
         IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
-        actionStoreSpy = Mockito.spy(
-                new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID, actionTargetSelector,
-                        probeCapabilityCache, entitySettingsCache, actionHistoryDao, statistician,
-                        actionTranslator, clock, userSessionContext, licenseCheckClient,
-                        acceptedActionsStore, actionIdentityService));
+        actionStoreSpy =
+            Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
+                SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                actionTargetSelector, probeCapabilityCache, entitySettingsCache,
+                actionHistoryDao, statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
+                licenseCheckClient, acceptedActionsStore, actionIdentityService,
+                    involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class)));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);

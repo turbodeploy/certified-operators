@@ -271,7 +271,7 @@ public class PolicyStoreTest {
         when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO)).thenReturn(Optional.of(POLICY_INFO));
         final DiscoveredPlacementPolicyUpdater updater = new DiscoveredPlacementPolicyUpdater(identityProvider);
         updater.updateDiscoveredPolicies(policyStore, Collections.singletonMap(TARGET_ID, Collections.singletonList(DISCOVERED_POLICY_INFO)),
-                GROUP_TO_OID_MAP);
+                GROUP_TO_OID_MAP, Collections.emptySet());
 
         // delete the discovered group
         policyStore.deletePoliciesForGroupBeingRemoved(Collections.singleton(CONSUMER_GROUP_ID));

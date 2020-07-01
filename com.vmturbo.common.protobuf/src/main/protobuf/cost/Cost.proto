@@ -8,6 +8,7 @@ import "common/Pagination.proto";
 import "CommonDTO.proto";
 import "topology/TopologyDTO.proto";
 import "stats/Stats.proto";
+import "cca/CloudCommitmentAnalysis.proto";
 
 // Top down Cloud account expense discovered by the billing probe, associated with a specific account
 message AccountExpenses {
@@ -567,10 +568,10 @@ message UploadRIDataRequest {
     // The set of RI bought by the customer.
     repeated ReservedInstanceBought reserved_instance_bought = 4;
 
-    // Entity level reserved instance coverage.
+    // Entity level reserved instance coverages.
     repeated EntityRICoverageUpload reserved_instance_coverage = 5;
 
-    // Account level reserved instance coverage.
+    // Account level reserved instance coverages.
     repeated AccountRICoverageUpload account_level_reserved_instance_coverage = 6;
 
     // Contains the relationship about which service entity is covered by what reserved instance and
@@ -615,6 +616,12 @@ message UploadRIDataRequest {
 
             // The RI Coverage source for the entity
             optional RICoverageSource ri_coverage_source = 4;
+
+            // Usage start UTC timestamp in milliseconds.
+            optional int64 usage_start_timestamp = 5;
+
+            // Usage end UTC timestamp in milliseconds.
+            optional int64 usage_end_timestamp = 6;
         }
     }
 
@@ -625,12 +632,6 @@ message UploadRIDataRequest {
 
         // Coverage by reserved instances.
         repeated EntityRICoverageUpload.Coverage coverage = 2;
-
-        // Usage start UTC timestamp in milliseconds.
-        optional int64 usage_start_timestamp = 3;
-
-        // Usage end UTC timestamp in milliseconds.
-        optional int64 usage_end_timestamp = 4;
     }
 }
 
@@ -661,7 +662,17 @@ message AvailabilityZoneFilter {
 message AccountFilter {
     // A list of account ids need to filter by.
     repeated int64 account_id = 1;
+    // describes the semantics of the passed account Ids.
+    optional AccountFilterType account_filter_type = 2 [default = PURCHASED_BY];
+
+    enum  AccountFilterType {
+        PURCHASED_BY = 0;
+        USED_BY = 1;
+        USED_AND_PURCHASED_BY = 2;
+    }
 }
+
+
 
 message RiFilter {
     // A list of RI IDs to filter by, for e.g., RIs to be included in plans.
@@ -689,6 +700,7 @@ message GetReservedInstanceBoughtByFilterRequest {
     optional RegionFilter region_filter = 1;
     optional AvailabilityZoneFilter zone_filter = 2;
     optional AccountFilter account_filter = 3;
+    optional bool include_undiscovered = 4 [default = true];
 }
 
 // A response contains a list reserved instance bought.
@@ -1127,7 +1139,7 @@ message StartBuyRIAnalysisRequest {
 }
 
 message GetTierPriceForEntitiesRequest{
-    optional int64 oid = 1;
+    repeated int64 oids = 1;
     optional CostCategory costCategory = 2;
     optional int64 topologyContextId = 3;
 }
@@ -1429,4 +1441,21 @@ service RIBuyContextFetchService {
     // Deletes the data corresponding to context topology id from action_context table.
     rpc DeleteRIBuyContextData(DeleteRIBuyContextDataRequest)
         returns (DeleteRIBuyContextDataResponse);
+}
+
+
+message StartCloudCommitmentAnalysisRequest {
+    optional cca.CloudCommitmentAnalysisConfig analysis_config = 1;
+}
+
+message StartCloudCommitmentAnalysisResponse {
+    optional cca.CloudCommitmentAnalysisInfo cloud_commitment_analysis_info = 1;
+}
+
+service CloudCommitmentAnalysisService {
+
+    // Start an analysis, based on the configuration provided in the request. The response will
+    // return a unique identifier for the analysis, in order to check the status.
+    rpc StartCloudCommitmentAnalysis(StartCloudCommitmentAnalysisRequest)
+    returns (StartCloudCommitmentAnalysisResponse);
 }

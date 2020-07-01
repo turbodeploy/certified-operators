@@ -17,9 +17,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.text.WordUtils;
@@ -27,7 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -39,18 +36,22 @@ import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActionExplanationTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -199,6 +200,7 @@ public class ActionDTOUtil {
                 return actionInfo.getBuyRi().getRegion().getId();
             case ALLOCATE:
             case PROVISION:
+            case ATOMICRESIZE:
             case RESIZE:
             case ACTIVATE:
             case DEACTIVATE:
@@ -245,6 +247,8 @@ public class ActionDTOUtil {
                 // The entity to clone is the target of the action. The
                 // newly provisioned entity is the result of the clone.
                 return actionInfo.getProvision().getEntityToClone();
+            case ATOMICRESIZE:
+                return actionInfo.getAtomicResize().getExecutionTarget();
             case RESIZE:
                 return actionInfo.getResize().getTarget();
             case ACTIVATE:
@@ -376,64 +380,198 @@ public class ActionDTOUtil {
      */
     @Nonnull
     public static Set<Long> getInvolvedEntityIds(@Nonnull final ActionDTO.Action action)
-            throws UnsupportedActionException {
-        return getInvolvedEntities(action).stream()
+        throws UnsupportedActionException {
+        return getInvolvedEntityIds(action, InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+    }
+
+    /**
+     * Get the entities that are involved in an action.
+     * Involved entities are any entities which the action directly
+     * affects. For example, in a move the involved entities are the
+     * target, source, and destination.
+     *
+     * @param action The action to consider.
+     * @param involvedEntityCalculation How the involved entities must participate.
+     * @return A set of IDs of involved entities.
+     * @throws UnsupportedActionException If the type of the action is not supported.
+     */
+    @Nonnull
+    public static Set<Long> getInvolvedEntityIds(
+        @Nonnull final ActionDTO.Action action,
+        @Nonnull InvolvedEntityCalculation involvedEntityCalculation)
+        throws UnsupportedActionException {
+        return getInvolvedEntities(action, involvedEntityCalculation).stream()
             .map(ActionEntity::getId)
             .collect(Collectors.toSet());
     }
 
+    /**
+     * Get the entities that are involved in an action.
+     * Involved entities are any entities which the action directly
+     * affects. For example, in a move the involved entities are the
+     * target, source, and destination.
+     *
+     * @param action The action to consider.
+     * @return A set of IDs of involved entities.
+     * @throws UnsupportedActionException If the type of the action is not supported.
+     */
     @Nonnull
     public static List<ActionEntity> getInvolvedEntities(@Nonnull final ActionDTO.Action action)
+        throws UnsupportedActionException {
+        return getInvolvedEntities(action, InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+    }
+
+    /**
+     * Get the entities that are involved in an action.
+     * Involved entities are any entities which the action directly
+     * affects. For example, in a move the involved entities are the
+     * target, source, and destination.
+     *
+     * @param action The action to consider.
+     * @param involvedEntityCalculation How the involved entities must participate.
+     * @return A set of IDs of involved entities.
+     * @throws UnsupportedActionException If the type of the action is not supported.
+     */
+    @Nonnull
+    public static List<ActionEntity> getInvolvedEntities(
+            @Nonnull final ActionDTO.Action action,
+            @Nonnull InvolvedEntityCalculation involvedEntityCalculation)
             throws UnsupportedActionException {
         final ActionInfo actionInfo = action.getInfo();
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
+                return getInvolvedMove(action, involvedEntityCalculation);
             case SCALE:
-                final List<ActionEntity> retList = new ArrayList<>();
-                retList.add(getPrimaryEntity(action, false));
-                for (ChangeProvider change : getChangeProviderList(action)) {
-                    if (change.getSource().getId() != 0) {
-                        retList.add(change.getSource());
-                    }
-                    if (change.hasResource()) {
-                        retList.add(change.getResource());
-                    }
-                    retList.add(change.getDestination());
-                }
-                return retList;
+                return getInvolvedScale(action, involvedEntityCalculation);
             case ALLOCATE:
-                final Allocate allocate = actionInfo.getAllocate();
-                return Arrays.asList(allocate.getTarget(), allocate.getWorkloadTier());
-            case RESIZE:
+                return getInvolvedAllocate(action, involvedEntityCalculation);
+            case ATOMICRESIZE:
+                final List<ActionEntity> atomicResizeEntities = new ArrayList<>();
+                atomicResizeEntities.add(getPrimaryEntity(action));
+                for (ResizeInfo resize : action.getInfo().getAtomicResize().getResizesList()) {
+                    atomicResizeEntities.addAll(resize.getSourceEntitiesList());
+                    if (resize.hasTarget()) {
+                        atomicResizeEntities.add(resize.getTarget());
+                    }
+                }
+                return atomicResizeEntities;
+                case RESIZE:
             case ACTIVATE:
             case DEACTIVATE:
             case PROVISION:
-                return Collections.singletonList(getPrimaryEntity(action));
+                return getInvolvedPrimary(action);
             case RECONFIGURE:
-                final ActionDTO.Reconfigure reconfigure = actionInfo.getReconfigure();
-                if (reconfigure.hasSource()) {
-                    return Arrays.asList(reconfigure.getTarget(), reconfigure.getSource());
-                } else {
-                    return Collections.singletonList(reconfigure.getTarget());
-                }
+                return getInvolvedReconfigure(action);
             case DELETE:
-                final Delete delete = actionInfo.getDelete();
-                List<ActionEntity> deleteActionEntities = new ArrayList<>();
-                deleteActionEntities.add(delete.getTarget());
-                if (delete.hasSource()) {
-                    deleteActionEntities.add(delete.getSource());
-                }
-                return deleteActionEntities;
+                return getInvolvedDelete(action);
             case BUYRI:
-                final BuyRI buyRi = actionInfo.getBuyRi();
-                List<ActionEntity> actionEntities = new ArrayList<>();
-                actionEntities.add(buyRi.getComputeTier());
-                actionEntities.add(buyRi.getRegion());
-                actionEntities.add(buyRi.getMasterAccount());
-                return actionEntities;
+                return getInvolvedBuyRi(action, involvedEntityCalculation);
             default:
                 throw new UnsupportedActionException(action);
         }
+    }
+
+    private static List<ActionEntity> getInvolvedMove(
+            @Nonnull final ActionDTO.Action action,
+            InvolvedEntityCalculation involvedEntityCalculation)
+            throws UnsupportedActionException {
+        final List<ActionEntity> retList = new ArrayList<>();
+        boolean isCompliance =
+            action.getExplanation().getActionExplanationTypeCase() == ActionExplanationTypeCase.MOVE
+                && ChangeProviderExplanationTypeCase.COMPLIANCE
+                    == getPrimaryChangeProviderExplanation(action)
+                        .getChangeProviderExplanationTypeCase();
+        retList.add(getPrimaryEntity(action, false));
+        for (ChangeProvider change : getChangeProviderList(action)) {
+            if (change.getSource().getId() != 0
+                // Compliance source does not impact ARM entity so it should not be included
+                && (!isCompliance || involvedEntityCalculation != InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS)) {
+                retList.add(change.getSource());
+            }
+            if (change.hasResource()) {
+                retList.add(change.getResource());
+            }
+            if (involvedEntityCalculation != InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS) {
+                retList.add(change.getDestination());
+            }
+        }
+        return retList;
+    }
+
+    private static List<ActionEntity> getInvolvedScale(
+            @Nonnull final ActionDTO.Action action,
+            InvolvedEntityCalculation involvedEntityCalculation)
+            throws UnsupportedActionException {
+        final List<ActionEntity> retList = new ArrayList<>();
+        retList.add(getPrimaryEntity(action, false));
+        for (ChangeProvider change : getChangeProviderList(action)) {
+            if (change.getSource().getId() != 0) {
+                retList.add(change.getSource());
+            }
+            if (change.hasResource()) {
+                retList.add(change.getResource());
+            }
+            if (involvedEntityCalculation != InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS) {
+                retList.add(change.getDestination());
+            }
+        }
+        return retList;
+    }
+
+    private static List<ActionEntity> getInvolvedAllocate(
+            @Nonnull final ActionDTO.Action action,
+            InvolvedEntityCalculation involvedEntityCalculation) {
+        final ActionInfo actionInfo = action.getInfo();
+        final Allocate allocate = actionInfo.getAllocate();
+        final List<ActionEntity> retList = new ArrayList<>();
+        retList.add(allocate.getTarget());
+        if (involvedEntityCalculation != InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS) {
+            retList.add(allocate.getWorkloadTier());
+        }
+        return retList;
+    }
+
+    private static List<ActionEntity> getInvolvedPrimary(
+            @Nonnull final ActionDTO.Action action)
+            throws UnsupportedActionException {
+        return Collections.singletonList(getPrimaryEntity(action));
+    }
+
+    private static List<ActionEntity> getInvolvedReconfigure(
+            @Nonnull final ActionDTO.Action action) {
+        final ActionInfo actionInfo = action.getInfo();
+        final ActionDTO.Reconfigure reconfigure = actionInfo.getReconfigure();
+        if (reconfigure.hasSource()) {
+            return Arrays.asList(reconfigure.getTarget(), reconfigure.getSource());
+        } else {
+            return Collections.singletonList(reconfigure.getTarget());
+        }
+    }
+
+    private static List<ActionEntity> getInvolvedDelete(
+            @Nonnull final ActionDTO.Action action) {
+        final ActionInfo actionInfo = action.getInfo();
+        final Delete delete = actionInfo.getDelete();
+        List<ActionEntity> deleteActionEntities = new ArrayList<>();
+        deleteActionEntities.add(delete.getTarget());
+        if (delete.hasSource()) {
+            deleteActionEntities.add(delete.getSource());
+        }
+        return deleteActionEntities;
+    }
+
+    private static List<ActionEntity> getInvolvedBuyRi(
+            @Nonnull final ActionDTO.Action action,
+            InvolvedEntityCalculation involvedEntityCalculation) {
+        final ActionInfo actionInfo = action.getInfo();
+        final BuyRI buyRi = actionInfo.getBuyRi();
+        List<ActionEntity> actionEntities = new ArrayList<>();
+        if (involvedEntityCalculation != InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS) {
+            actionEntities.add(buyRi.getComputeTier());
+            actionEntities.add(buyRi.getRegion());
+            actionEntities.add(buyRi.getMasterAccount());
+        }
+        return actionEntities;
     }
 
     /**
@@ -469,6 +607,8 @@ public class ActionDTOUtil {
             case PROVISION:
                 return ActionType.PROVISION;
             case RESIZE:
+                return ActionType.RESIZE;
+            case ATOMICRESIZE:
                 return ActionType.RESIZE;
             case ACTIVATE:
                 return ActionType.ACTIVATE;

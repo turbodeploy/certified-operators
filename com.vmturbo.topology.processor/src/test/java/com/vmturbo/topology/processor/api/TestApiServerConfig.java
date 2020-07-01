@@ -74,6 +74,7 @@ import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
+import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
@@ -389,15 +390,24 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public EntityRetriever entityRetriever() {
         // Create an entity retriever with a real entity converter and a mock repository client
         // Since the repository client is a mock, the context ID doesn't matter - using zero
-        return new EntityRetriever(topologyToSdkEntityConverter(), repositoryClient(), 0);
+        return new EntityRetriever(topologyToSdkEntityConverter(), repositoryClient(),
+                cachedTopology(), 0);
+    }
+
+    /**
+     * Cached topology.
+     *
+     * @return the bean created
+     */
+    @Bean
+    public CachedTopology cachedTopology() {
+        return new CachedTopology();
     }
 
     @Bean
     public ActionExecutionContextFactory actionExecutionContextFactory() {
-        return new ActionExecutionContextFactory(actionDataManager(),
-                entityRepository(),
-                entityRetriever(),
-                targetStore(), probeStore());
+        return new ActionExecutionContextFactory(actionDataManager(), entityRepository(),
+                entityRetriever(), targetStore(), probeStore());
     }
 
     @Bean

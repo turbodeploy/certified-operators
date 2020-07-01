@@ -493,6 +493,38 @@ message GetEntityCommoditiesMaxValuesRequest {
     repeated int32 commodityTypes = 2;
 }
 
+// Request for commodity capacity values
+message GetEntityCommoditiesCapacityValuesRequest {
+
+    required string commodityTypeName = 1;
+
+    repeated EntityUuidAndType entityUuidAndTypeSet = 2;
+}
+
+// Entity uuid and type
+message EntityUuidAndType {
+
+    required int64 entityUuid = 1;
+
+    required int32 entityType = 2;
+}
+
+// Response of commodity capacity values
+message GetEntityCommoditiesCapacityValuesResponse {
+
+    repeated EntityToCommodityTypeCapacity entitiesToCommodityTypeCapacity = 1;
+}
+
+// Mapping a entity to a commodity type with the capacity
+message EntityToCommodityTypeCapacity {
+
+    required int64 entityUuid = 1;
+
+    required topology.CommodityType commodityType = 2;
+
+    required double capacity = 3;
+}
+
 // Request for system load info.
 message SystemLoadInfoRequest {
     // A list of "cluster ids" - each cluster id is a request for a list of system load records.
@@ -656,6 +688,10 @@ service StatsHistoryService {
     // Get the historic max values(within the stats retention period) for all the non-access commodities
     // for all entities of the given entity type.
     rpc GetEntityCommoditiesMaxValues(GetEntityCommoditiesMaxValuesRequest) returns (stream EntityCommoditiesMaxValues);
+
+    // Getting the commodity capacity values from the stats table, the returned capcity vallue is the
+    // max value from the last 7 days
+    rpc GetEntityCommoditiesCapacityValues(GetEntityCommoditiesCapacityValuesRequest) returns (stream GetEntityCommoditiesCapacityValuesResponse);
 
     // Get the system load information for a specific slice (cluster)
     rpc GetSystemLoadInfo(SystemLoadInfoRequest) returns (stream SystemLoadInfoResponse);

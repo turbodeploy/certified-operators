@@ -212,7 +212,8 @@ public class ReservationManager {
         // and only buy provision commodities.
 
         int numAdded = 0;
-        if (topologyType == TopologyType.REALTIME || planType == PlanProjectType.CLUSTER_HEADROOM) {
+        if (topologyType == TopologyType.REALTIME || planType == PlanProjectType.CLUSTER_HEADROOM
+                || planType == PlanProjectType.RESERVATION_PLAN) {
             // For real time and headroom plan we send all the reserved and placement_failed reservations.
             for (TopologyEntity.Builder reservedEntity : reservedReservationTopologyEntities) {
                 final TopologyEntity.Builder existingEntity =
@@ -224,7 +225,8 @@ public class ReservationManager {
             if (numAdded != 0) {
                 addVMPMAccessCommodity(topology, reservedReservationTopologyEntities);
             }
-        } else if (planType == PlanProjectType.RESERVATION_PLAN) {
+        }
+        if (planType == PlanProjectType.RESERVATION_PLAN) {
             // inProgressReservationTopologyEntities will be populated only for reservation plan.
             for (TopologyEntity.Builder reservedEntity : inProgressReservationTopologyEntities) {
                 final TopologyEntity.Builder existingEntity =
@@ -381,7 +383,7 @@ public class ReservationManager {
         topologyEntityBuilder.setOid(reservationInstance.getEntityId());
         topologyEntityBuilder.setDisplayName(reservationInstance.getName());
         // set suspendable to false in order to prevent Market from generating suspend action.
-        disableSuspendAnalysisSetting(topologyEntityBuilder);
+        disableSuspendAndControllableAnalysisSetting(topologyEntityBuilder);
         final Set<PlacementInfo> placementInfos = reservationInstance.getPlacementInfoList().stream()
                 .collect(Collectors.toSet());
 
@@ -665,6 +667,24 @@ public class ReservationManager {
             topologyEntityBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
         } else {
             topologyEntityBuilder.setAnalysisSettings(AnalysisSettings.newBuilder()
+                    .setSuspendable(false));
+        }
+    }
+
+    /**
+     * set controllable and suspendable to false for the input entity.
+     *
+     * @param topologyEntityBuilder {@link TopologyEntity.Builder} need to disable suspend
+     *                                                            and controllable.
+     */
+    private void disableSuspendAndControllableAnalysisSetting(@Nonnull TopologyEntityDTO.Builder topologyEntityBuilder) {
+        if (topologyEntityBuilder.hasAnalysisSettings()) {
+            topologyEntityBuilder.getAnalysisSettingsBuilder()
+                    .setControllable(false)
+                    .setSuspendable(false);
+        } else {
+            topologyEntityBuilder.setAnalysisSettings(AnalysisSettings.newBuilder()
+                    .setControllable(false)
                     .setSuspendable(false));
         }
     }

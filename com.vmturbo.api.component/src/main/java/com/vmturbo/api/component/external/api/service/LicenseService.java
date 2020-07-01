@@ -17,7 +17,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.client.RestTemplate;
@@ -43,7 +42,6 @@ import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseSummaryResponse
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.RemoveLicenseRequest;
-import com.vmturbo.common.protobuf.licensing.Licensing.RemoveLicenseResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.ValidateLicensesRequest;
 import com.vmturbo.licensing.utils.LicenseDeserializer;
 
@@ -53,6 +51,8 @@ public class LicenseService implements ILicenseService {
      * The HTTP accept header.
      */
     private static final List<MediaType> HTTP_ACCEPT = ImmutableList.of(MediaType.APPLICATION_JSON);
+    private static final String FAILED_TO_PARSE_POTENTIAL_MALICIOUS_LICENSE_FILE =
+            "Failed to parse potential malicious license file";
     /**
      * The logger.
      */
@@ -235,9 +235,16 @@ public class LicenseService implements ILicenseService {
     }
 
     @Override
-    public LicenseApiDTO deserializeLicenseToLicenseDTO(final InputStream inputStream, final String s) {
+    public LicenseApiDTO deserializeLicenseToLicenseDTO(final InputStream inputStream,
+            final String s) {
         try {
             return LicenseDeserializer.deserialize(inputStream, s);
+        } catch (SecurityException e) {
+            AuditLog.newEntry(AuditAction.ADD_LICENSE,
+                    FAILED_TO_PARSE_POTENTIAL_MALICIOUS_LICENSE_FILE, false)
+                    .targetName(s)
+                    .audit();
+            throw new SecurityException(FAILED_TO_PARSE_POTENTIAL_MALICIOUS_LICENSE_FILE);
         } catch (IOException ioe) {
             // this is how we're handling this in OM. The LicenseController is streaming the
             // results, and I'm assuming the empty LicenseApiDTO is part of the expected results.

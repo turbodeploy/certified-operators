@@ -1,27 +1,23 @@
 package com.vmturbo.repository.listener.realtime;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.InvalidProtocolBufferException;
-
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FastDecompressor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -30,6 +26,7 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -37,32 +34,39 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.components.api.CompressedProtobuf;
 import com.vmturbo.components.api.SharedByteBuffer;
+import com.vmturbo.topology.graph.SearchableProps;
+import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
+import com.vmturbo.topology.graph.ThinSearchableProps;
+import com.vmturbo.topology.graph.ThinSearchableProps.CommodityValueFetcher;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
+import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
 
 /**
  * {@link TopologyGraphEntity} for use in the repository. The intention is to make it as small
  * as possible while supporting all the searches and {@link com.vmturbo.common.protobuf.search.SearchableProperties}.
  */
-public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
+public class RepoGraphEntity implements TopologyGraphSearchableEntity<RepoGraphEntity>, CommodityValueFetcher {
     private static final Logger logger = LogManager.getLogger();
 
     private final long oid;
 
     private final String displayName;
 
-    private final TypeSpecificInfo typeSpecificInfo;
+    private final SearchableProps searchableProps;
+
+    private final ActionEntityTypeSpecificInfo actionEntityInfo;
 
     private final int type;
 
     private final EnvironmentType environmentType;
 
     private EntityState state;
-    private final Map<String, List<String>> tags;
-    private final Map<Integer, List<CommoditySoldDTO>> soldCommodities;
-    private final Map<Long, PerTargetEntityInformation> discoveredTargetData;
+    private final List<DiscoveredTargetId> discoveredTargetData;
+
+    private final List<SoldCommodity> soldCommodities;
 
     /**
      * These lists represent all connections of this entity:
@@ -84,86 +88,80 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     private List<RepoGraphEntity> controlledEntities = Collections.emptyList();
     private List<RepoGraphEntity> providers = Collections.emptyList();
     private List<RepoGraphEntity> consumers = Collections.emptyList();
-    private boolean deletable = true;
 
-    /**
-     * The full {@link TopologyEntityDTO}, compressed in case we want to retrieve it.
-     */
-    private final byte[] compressedEntityBytes;
+    private final CompressedProtobuf<TopologyEntityDTO, TopologyEntityDTO.Builder> entity;
 
-    /**
-     * The length of the uncompressed {@link TopologyEntityDTO} - needed for faster lz4 decompression.
-     */
-    private final int uncompressedLength;
+    private final DefaultTagIndex tags;
 
     private RepoGraphEntity(@Nonnull final TopologyEntityDTO src,
-                            @Nonnull final SharedByteBuffer sharedCompressionBuffer) {
+            @Nonnull final DefaultTagIndex tags,
+            @Nonnull final SharedByteBuffer sharedCompressionBuffer) {
         this.oid = src.getOid();
         this.displayName = src.getDisplayName();
-        this.typeSpecificInfo = src.getTypeSpecificInfo();
         this.type = src.getEntityType();
         this.environmentType = src.getEnvironmentType();
         this.state = src.getEntityState();
-
-        if (src.hasAnalysisSettings()) {
-            this.deletable = src.getAnalysisSettings().getDeletable();
-        }
+        this.tags = tags;
+        this.actionEntityInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(src.getTypeSpecificInfo())
+            .map(ActionEntityTypeSpecificInfo.Builder::build)
+            .orElse(null);
 
         // Will be an empty list if the entity was not discovered.
-        this.discoveredTargetData = ImmutableMap
-                        .copyOf(src.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap());
-
-        if (src.getTags().getTagsCount() > 0) {
-            tags = new HashMap<>(src.getTags().getTagsCount());
-            src.getTags().getTagsMap().forEach((tagName, tagValues) -> {
-                ArrayList<String> vals = new ArrayList<>(tagValues.getValuesList());
-                vals.trimToSize();
-                tags.put(tagName, vals);
-            });
+        if (src.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().isEmpty()) {
+            this.discoveredTargetData = Collections.emptyList();
         } else {
-            tags = Collections.emptyMap();
+            this.discoveredTargetData = new ArrayList<>(src.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataCount());
+            src.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().forEach((tId, info) -> {
+                discoveredTargetData.add(new DiscoveredTargetId(tId, info.getVendorId()));
+            });
+            ((ArrayList<DiscoveredTargetId>)this.discoveredTargetData).trimToSize();
         }
 
         final List<CommoditySoldDTO> commsToPersist = src.getCommoditySoldListList().stream()
             .filter(commSold -> {
                 final int commType = commSold.getCommodityType().getType();
-                return COMM_SOLD_TYPES_TO_PERSIST.contains(commType) ||
-                    ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(commType);
+                return SearchableProps.SEARCHABLE_COMM_TYPES.contains(commType)
+                    || ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(commType);
             })
             .collect(Collectors.toList());
         if (commsToPersist.isEmpty()) {
-            soldCommodities = Collections.emptyMap();
+            soldCommodities = Collections.emptyList();
         } else {
-            soldCommodities = new HashMap<>(commsToPersist.size());
-            commsToPersist.forEach(comm -> soldCommodities.computeIfAbsent(comm.getCommodityType().getType(),
-                    // Initialize to 1 because we typically expect just 1 sold commodity.
-                    k -> new ArrayList<>(1))
-                .add(comm));
-            soldCommodities.values().forEach(commList ->
-                ((ArrayList<CommoditySoldDTO>)commList).trimToSize());
+            soldCommodities = new ArrayList<>(commsToPersist.size());
+            commsToPersist.forEach(comm -> soldCommodities.add(new SoldCommodity(comm)));
+            ((ArrayList<SoldCommodity>)soldCommodities).trimToSize();
         }
 
-        // Use the fastest java instance to avoid using JNI & off-heap memory.
-        // Note - for a 200k topology we saw the size
-        final LZ4Compressor compressor = LZ4Factory.fastestJavaInstance().fastCompressor();
-
-        final byte[] uncompressedBytes = src.toByteArray();
-        uncompressedLength = uncompressedBytes.length;
-        final int maxCompressedLength = compressor.maxCompressedLength(uncompressedLength);
-        final byte[] compressionBuffer = sharedCompressionBuffer.getBuffer(maxCompressedLength);
-        final int compressedLength = compressor.compress(uncompressedBytes, compressionBuffer);
-        this.compressedEntityBytes = Arrays.copyOf(compressionBuffer, compressedLength);
+        entity = CompressedProtobuf.compress(src.toBuilder()
+            .build(), sharedCompressionBuffer);
+        this.searchableProps = ThinSearchableProps.newProps(tags, this, src);
     }
 
+    /**
+     * Create a new entity builder. This method is only for testing.
+     *
+     * @param entity The underlying {@link TopologyEntityDTO}.
+     * @return The {@link Builder}.
+     */
     @Nonnull
+    @VisibleForTesting
     public static Builder newBuilder(@Nonnull final TopologyEntityDTO entity) {
-        return new Builder(entity, new SharedByteBuffer());
+        return newBuilder(entity, new DefaultTagIndex(), new SharedByteBuffer());
     }
 
+    /**
+     * Create a new entity builder.
+     *
+     * @param entity The underlying {@link TopologyEntityDTO}.
+     * @param tags The {@link DefaultTagIndex} for the topology.
+     * @param sharedCompressionBuffer Shared buffer to speed up compression/reduce allocation.
+     * @return The {@link Builder}, which can be used for graph construction.
+     */
     @Nonnull
     public static Builder newBuilder(@Nonnull final TopologyEntityDTO entity,
-                                     @Nonnull final SharedByteBuffer sharedCompressionBuffer) {
-        return new Builder(entity, sharedCompressionBuffer);
+            @Nonnull final DefaultTagIndex tags,
+            @Nonnull final SharedByteBuffer sharedCompressionBuffer) {
+        return new Builder(entity, tags, sharedCompressionBuffer);
     }
 
     private void addOutboundAssociation(@Nonnull final RepoGraphEntity entity) {
@@ -234,6 +232,33 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
             this.consumers = new ArrayList<>(1);
         }
         this.consumers.add(entity);
+    }
+
+    @Override
+    public float getCommodityCapacity(int type) {
+        return (float)soldCommodities.stream()
+                .filter(comm -> comm.getType() == type)
+                .mapToDouble(SoldCommodity::getCapacity)
+                .findFirst().orElse(-1);
+    }
+
+    @Override
+    public float getCommodityUsed(final int type) {
+        return (float)soldCommodities.stream()
+            .filter(comm -> comm.getType() == type)
+            .mapToDouble(SoldCommodity::getUsed)
+            .findFirst().orElse(-1);
+    }
+
+    /**
+     * Look up sold commodities by type.
+     * @param types The types we are looking for.
+     * @return Stream of {@link SoldCommodity} objects of the type.
+     */
+    @Nonnull
+    public Stream<SoldCommodity> soldCommoditiesByType(IntOpenHashSet types) {
+        return soldCommodities.stream()
+                .filter(comm -> types.contains(comm.getType()));
     }
 
     /**
@@ -312,10 +337,14 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         return displayName;
     }
 
-    @Nonnull
+    @Nullable
     @Override
-    public TypeSpecificInfo getTypeSpecificInfo() {
-        return typeSpecificInfo;
+    public <T extends SearchableProps> T getSearchableProps(@Nonnull Class<T> clazz) {
+        if (clazz.isInstance(searchableProps)) {
+            return (T)searchableProps;
+        } else {
+            return null;
+        }
     }
 
     @Override
@@ -335,23 +364,24 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         return state;
     }
 
-    @Nonnull
-    @Override
-    public Map<Integer, List<CommoditySoldDTO>> soldCommoditiesByType() {
-        return soldCommodities;
+    @Nullable
+    public ActionEntityTypeSpecificInfo getActionTypeSpecificInfo() {
+        return actionEntityInfo;
     }
+
 
     /**
      * Get the FULL topology entity, including all the commodities. This is the entity
      * that was received from the Topology Processor.
+     *
+     * @return The full, decompressed {@link TopologyEntityDTO}.
      */
     @Nonnull
     public TopologyEntityDTO getTopologyEntity() {
         // Use the fastest available java instance to avoid using off-heap memory.
-        final LZ4FastDecompressor decompressor = LZ4Factory.fastestJavaInstance().fastDecompressor();
         try {
             TopologyEntityDTO.Builder bldr = TopologyEntityDTO.newBuilder();
-            bldr.mergeFrom(decompressor.decompress(compressedEntityBytes, uncompressedLength));
+            entity.decompressInto(bldr);
             bldr.setEntityState(state);
             return bldr.build();
         } catch (InvalidProtocolBufferException e) {
@@ -370,8 +400,25 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     }
 
     /**
+     * Get the tags on this entity.
+     *
+     * @return The {@link Tags}.
+     */
+    @Nonnull
+    public Tags getTags() {
+        Tags.Builder tagsBuilder = Tags.newBuilder();
+        tags.getTagsForEntity(oid).forEach((key, vals) ->
+                tagsBuilder.putTags(key, TagValuesDTO.newBuilder()
+                        .addAllValues(vals)
+                        .build()));
+        return tagsBuilder.build();
+    }
+
+    /**
      * Get a topology entity containing the important (i.e. searchable) fields. This is smaller
      * than the entity returned by {@link RepoGraphEntity#getTopologyEntity()}.
+     *
+     * @return The partial {@link TopologyEntityDTO}.
      */
     @Nonnull
     private TopologyEntityDTO getPartialTopologyEntity() {
@@ -379,30 +426,20 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
             .setOid(oid)
             .setDisplayName(displayName)
             .setEntityState(state)
-            .setTypeSpecificInfo(typeSpecificInfo)
             .setEnvironmentType(EnvironmentType.ON_PREM)
             .setEntityType(type);
-        Tags.Builder tagsBuilder = Tags.newBuilder();
-        tags.forEach((key, vals) ->
-            tagsBuilder.putTags(key, TagValuesDTO.newBuilder()
-                .addAllValues(vals)
-                .build()));
-        builder.setTags(tagsBuilder);
+        builder.setTags(getTags());
 
         if (!discoveredTargetData.isEmpty()) {
-            builder.setOrigin(Origin.newBuilder()
-                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                    .putAllDiscoveredTargetData(discoveredTargetData)));
+            DiscoveryOrigin.Builder originBldr = builder.getOriginBuilder().getDiscoveryOriginBuilder();
+            discoveredTargetData.forEach(localId -> {
+                originBldr.putDiscoveredTargetData(localId.targetId, PerTargetEntityInformation.newBuilder()
+                        .setVendorId(localId.vendorId)
+                        .build());
+            });
         }
 
-        soldCommodities.values().forEach(builder::addAllCommoditySoldList);
         return builder.build();
-    }
-
-    @Nonnull
-    @Override
-    public Map<String, List<String>> getTags() {
-        return tags;
     }
 
     @Nonnull
@@ -474,22 +511,24 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     @Nonnull
     @Override
     public Stream<Long> getDiscoveringTargetIds() {
-        return discoveredTargetData.keySet().stream();
+        return discoveredTargetData.stream()
+                .map(discoveredTargetId -> discoveredTargetId.targetId);
     }
 
     @Override
     public String getVendorId(long targetId) {
-        return Optional.ofNullable(discoveredTargetData.get(targetId))
-                        .filter(PerTargetEntityInformation::hasVendorId)
-                        .map(PerTargetEntityInformation::getVendorId).orElse(null);
+        return discoveredTargetData.stream()
+                .filter(discoveredTargetId -> discoveredTargetId.targetId == targetId)
+                .map(discoveredTargetId -> discoveredTargetId.vendorId)
+                .findFirst()
+                .orElse(null);
     }
 
     @Nonnull
     @Override
     public Stream<String> getAllVendorIds() {
-        return discoveredTargetData.values().stream()
-            .filter(PerTargetEntityInformation::hasVendorId)
-            .map(PerTargetEntityInformation::getVendorId);
+        return discoveredTargetData.stream()
+                .map(discoveredTargetId -> discoveredTargetId.vendorId);
     }
 
     @Override
@@ -568,14 +607,58 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     }
 
     /**
-     * Get deletable state of the topology entity. Default is true.
-     *
-     * @return true, means the Market can delete this entity.
-     *         false, means Market will not generate Delete Actions.
+     * Tuple for the ID of this entity local to a particular discovering target.
      */
-    @Override
-    public boolean getDeletable() {
-        return deletable;
+    private static class DiscoveredTargetId {
+        private final long targetId;
+        private final String vendorId;
+
+        DiscoveredTargetId(long targetId, String vendorId) {
+            this.targetId = targetId;
+            this.vendorId = vendorId;
+        }
+    }
+
+    /**
+     * Thin class for commodities sold by this entity, containing only the fields we need.
+     */
+    public static class SoldCommodity {
+        private final int type;
+        private final String key;
+        private final float capacity;
+        private final float used;
+
+        // Need this for AO.
+        private final boolean supportsHotReplace;
+
+        private SoldCommodity(@Nonnull final CommoditySoldDTO fromCmmSold) {
+            this.type = fromCmmSold.getCommodityType().getType();
+            this.key = fromCmmSold.getCommodityType().getKey().intern();
+            capacity = (float)fromCmmSold.getCapacity();
+            used = (float)fromCmmSold.getUsed();
+            supportsHotReplace = fromCmmSold.getHotResizeInfo().getHotReplaceSupported();
+        }
+
+        public int getType() {
+            return type;
+        }
+
+        public float getUsed() {
+            return used;
+
+        }
+
+        public float getCapacity() {
+            return capacity;
+        }
+
+        public boolean isSupportsHotReplace() {
+            return supportsHotReplace;
+        }
+
+        public String getKey() {
+            return key;
+        }
     }
 
     /**
@@ -587,14 +670,15 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         private final Set<ConnectedEntity> connectedEntities;
 
         private Builder(@Nonnull final TopologyEntityDTO dto,
-                        @Nonnull final SharedByteBuffer sharedByteBuffer) {
+                @Nonnull final DefaultTagIndex tags,
+                @Nonnull final SharedByteBuffer sharedByteBuffer) {
             this.providerIds = dto.getCommoditiesBoughtFromProvidersList().stream()
                 .filter(CommoditiesBoughtFromProvider::hasProviderId)
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .collect(Collectors.toSet());
             this.connectedEntities = dto.getConnectedEntityListList().stream()
                 .collect(Collectors.toSet());
-            this.repoGraphEntity = new RepoGraphEntity(dto, sharedByteBuffer);
+            this.repoGraphEntity = new RepoGraphEntity(dto, tags, sharedByteBuffer);
         }
 
         @Override

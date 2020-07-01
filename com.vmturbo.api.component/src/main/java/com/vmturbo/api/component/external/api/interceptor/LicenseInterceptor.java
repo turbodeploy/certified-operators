@@ -20,7 +20,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 /**
  * This interceptor is used to validate license for every request before further execution. It
@@ -39,7 +39,7 @@ public class LicenseInterceptor implements HandlerInterceptor {
 
     // may contain a set of license features that would all be required to be available in the license
     // in order to get access to the resource.
-    private final Collection<LicenseFeature> requiredFeatures;
+    private final Collection<ProbeLicense> requiredFeatures;
 
     /**
      * Construct a license interceptor that checks for the presence of a valid license before granting
@@ -55,10 +55,10 @@ public class LicenseInterceptor implements HandlerInterceptor {
      * Construct a license interceptor that, in addition to checking license validity, also checks
      * that a set of features is available before granting access to the protected resources.
      * @param licenseCheckClient the license check client to make checks with.
-     * @param requiredFeatures the set of {@link LicenseFeature} that are required to access the
+     * @param requiredFeatures the set of {@link ProbeLicense} that are required to access the
      *                         resources protected by this interceptor.
      */
-    public LicenseInterceptor(@Nonnull LicenseCheckClient licenseCheckClient, @Nonnull Collection<LicenseFeature> requiredFeatures) {
+    public LicenseInterceptor(@Nonnull LicenseCheckClient licenseCheckClient, @Nonnull Collection<ProbeLicense> requiredFeatures) {
         this.licenseCheckClient = licenseCheckClient;
         this.requiredFeatures = requiredFeatures;
     }
@@ -108,7 +108,7 @@ public class LicenseInterceptor implements HandlerInterceptor {
     /**
      * Send the invalid license error DTO in the response.
      */
-    private void sendMissingLicenseFeaturesResponse(final HttpServletResponse response, Collection<LicenseFeature> features) throws IOException {
+    private void sendMissingLicenseFeaturesResponse(final HttpServletResponse response, Collection<ProbeLicense> features) throws IOException {
         StringBuilder sbMessage = new StringBuilder("Requires an active license with the following features: ");
         features.forEach(feature -> sbMessage.append(feature.getKey()).append(" "));
         sendErrorResponse(response, sbMessage.toString());

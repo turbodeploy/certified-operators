@@ -232,7 +232,7 @@ public class ActionPlanGenerator {
             EntityType.BUSINESS_APPLICATION,
             EntityType.APPLICATION_SERVER,
             EntityType.APPLICATION,
-            EntityType.VIRTUAL_APPLICATION,
+            EntityType.SERVICE,
             EntityType.CHASSIS,
             EntityType.CONTAINER,
             EntityType.CONTAINER_POD

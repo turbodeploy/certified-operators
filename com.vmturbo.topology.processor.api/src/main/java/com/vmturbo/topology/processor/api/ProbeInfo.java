@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.api;
 
 import java.util.List;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -33,6 +34,21 @@ public interface ProbeInfo {
      */
     @Nonnull
     String getCategory();
+
+    /**
+     * Returns probe UI category.
+     *
+     * @return probe ui category
+     */
+    @Nonnull
+    String getUICategory();
+
+    /**
+     * Returns probe license.
+     *
+     * @return probe license
+     */
+    Optional<String> getLicense();
 
     /**
      * The creation mode of the probe.

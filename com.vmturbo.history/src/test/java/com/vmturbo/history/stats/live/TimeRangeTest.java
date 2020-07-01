@@ -23,11 +23,11 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.ImmutableList;
-
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
@@ -319,24 +319,24 @@ public class TimeRangeTest {
         // Time frame not latest.
         doReturn(TimeFrame.DAY).when(timeFrameCalculator).millis2TimeFrame(startTime);
         doReturn(TimeFrame.MONTH).when(timeFrameCalculator)
-                        .range2TimeFrame(rollupPeriod, RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
+            .range2TimeFrame(rollupPeriod, RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
         // Expected endTime is the last day of the month of the endTime value.
         final long expectedEndTime = 1590897599000L; // 2020-05-31 23:59:59
         Mockito.when(historydbIO.getTimestampsInRange(TimeFrame.MONTH,
-                        startTime, expectedEndTime, Optional.empty(), Optional.empty()))
-                        .thenReturn(Collections.singletonList(timestamp));
+            startTime, expectedEndTime, Optional.empty(), Optional.empty()))
+            .thenReturn(Collections.singletonList(timestamp));
 
         final Optional<TimeRange> timeRangeOpt =
-                        timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
-                                        .setStartDate(startTime)
-                                        .setEndDate(endTime)
-                                        .setRollupPeriod(rollupPeriod)
-                                        .build(),
-                                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+            timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
+                    .setStartDate(startTime)
+                    .setEndDate(endTime)
+                    .setRollupPeriod(rollupPeriod)
+                    .build(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         Mockito.verify(timeFrameCalculator)
-                        .range2TimeFrame(rollupPeriod, RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
+            .range2TimeFrame(rollupPeriod, RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
         Mockito.verify(historydbIO).getTimestampsInRange(TimeFrame.MONTH,
-                        startTime, expectedEndTime, Optional.empty(), Optional.empty());
+            startTime, expectedEndTime, Optional.empty(), Optional.empty());
 
         final TimeRange timeRange = timeRangeOpt.get();
         Assert.assertThat(timeRange.getStartTime(), is(startTime));
@@ -355,7 +355,7 @@ public class TimeRangeTest {
 
         Mockito.when(clock.instant()).thenReturn(Instant.now());
         Mockito.when(retentionPeriodFetcher.getRetentionPeriods())
-                        .thenReturn(RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
+            .thenReturn(RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
         when(timeFrameCalculator.millis2TimeFrame(anyLong())).thenReturn(TimeFrame.LATEST);
 
         // when there is no start/end date

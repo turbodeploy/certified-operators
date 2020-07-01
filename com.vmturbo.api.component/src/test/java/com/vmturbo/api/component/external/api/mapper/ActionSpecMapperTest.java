@@ -73,6 +73,7 @@ import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -921,12 +922,14 @@ public class ActionSpecMapperTest {
                 Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(10f).setTotal(10f).build();
         Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto2 =
                 Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(20f).setTotal(20f).build();
-        Cost.CloudCostStatRecord.StatRecord statRecord1 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto1).build();
-        Cost.CloudCostStatRecord.StatRecord statRecord2 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto2).build();
+        Cost.CloudCostStatRecord.StatRecord statRecord1 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto1).setAssociatedEntityId(targetId).build();
+        Cost.CloudCostStatRecord.StatRecord statRecord2 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto2).setAssociatedEntityId(targetId).build();
         Cost.CloudCostStatRecord record1 = Cost.CloudCostStatRecord.newBuilder()
+                .setSnapshotDate(0)
                 .addStatRecords(statRecord1)
                 .build();
         Cost.CloudCostStatRecord record2 = Cost.CloudCostStatRecord.newBuilder()
+                .setSnapshotDate(1)
                 .addStatRecords(statRecord2)
                 .build();
         Cost.GetCloudCostStatsResponse serviceResult = Cost.GetCloudCostStatsResponse
@@ -963,8 +966,8 @@ public class ActionSpecMapperTest {
                 .thenReturn(projectedResponse);
 
         // act
-        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = mapper.createCloudResizeActionDetailsDTO(targetId, null);
-
+        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper.createCloudResizeActionDetailsDTO(Collections.singleton(targetId), null);
+        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = dtoMap.get(targetId);
         // check
         assertNotNull(cloudResizeActionDetailsApiDTO);
         // on-demand cost
@@ -1030,8 +1033,8 @@ public class ActionSpecMapperTest {
         when(costServiceMole.getCloudCostStats(any()))
             .thenReturn(Arrays.asList(serviceResult, extraChunk1, extraChunk2));
 
-        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO =
-            mapper.createCloudResizeActionDetailsDTO(targetId, null);
+        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper.createCloudResizeActionDetailsDTO(Collections.singleton(targetId), null);
+        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = dtoMap.get(targetId);
 
         assertEquals(0, cloudResizeActionDetailsApiDTO.getOnDemandCostBefore(), 0);
         assertEquals(0, cloudResizeActionDetailsApiDTO.getOnDemandCostAfter(), 0);

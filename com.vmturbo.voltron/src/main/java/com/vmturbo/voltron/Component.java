@@ -122,9 +122,12 @@ public enum Component {
      */
     EXTRACTOR("extractor", "com.vmturbo.extractor",
             ExtractorComponent.class, Optional.of(Extractor.EXTRACTOR),
-            ImmutableMap.of("dbMigrationLocation", Voltron.migrationLocation("com.vmturbo.extractor.schema"),
-                    // The extractor connects to Postgres.
-                    "dbPort", "5432")),
+            ImmutableMap.<String, Object>builder()
+                .put("dbMigrationLocation", Voltron.migrationLocation("com.vmturbo.extractor.schema"))
+                // The extractor connects to Postgres.
+                .put("dbPort", "5432")
+                .put("grafanaBuiltinDashboardPath", Voltron.getAbsolutePath("com.vmturbo.extractor/src/main/resources/dashboards"))
+                .build()),
 
     /**
      * The API component.

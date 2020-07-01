@@ -1,6 +1,5 @@
 package com.vmturbo.repository.listener.realtime;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -24,13 +23,10 @@ import com.google.protobuf.util.JsonFormat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FastDecompressor;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.api.CompressedProtobuf;
 import com.vmturbo.components.api.SharedByteBuffer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -174,23 +170,16 @@ public class ProjectedRealtimeTopology {
 
         private final double originalPriceIdx;
         private final double projectedPriceIdx;
-        private final byte[] compressedDto;
-        private final int uncompressedLength;
+
+        // TODO - For entities that are not clones, only the commodities change between realtime
+        // and projected. Consider trimming the projected entity, retaining only the commodities.
+        private final CompressedProtobuf<TopologyEntityDTO, TopologyEntityDTO.Builder> compressedEntity;
 
         ProjectedEntity(@Nonnull final ProjectedTopologyEntity projectedTopologyEntity,
                         @Nonnull final SharedByteBuffer sharedByteBuffer) {
             this.originalPriceIdx = projectedTopologyEntity.getOriginalPriceIndex();
             this.projectedPriceIdx = projectedTopologyEntity.getOriginalPriceIndex();
-
-            // Use the fastest java instance to avoid using JNI & off-heap memory.
-            final LZ4Compressor compressor = LZ4Factory.fastestJavaInstance().fastCompressor();
-
-            final byte[] uncompressedBytes = projectedTopologyEntity.getEntity().toByteArray();
-            uncompressedLength = uncompressedBytes.length;
-            final int maxCompressedLength = compressor.maxCompressedLength(uncompressedLength);
-            final byte[] compressionBuffer = sharedByteBuffer.getBuffer(maxCompressedLength);
-            final int compressedLength = compressor.compress(uncompressedBytes, compressionBuffer);
-            this.compressedDto = Arrays.copyOf(compressionBuffer, compressedLength);
+            this.compressedEntity = CompressedProtobuf.compress(projectedTopologyEntity.getEntity(), sharedByteBuffer);
         }
 
         double getOriginalPriceIdx() {
@@ -203,10 +192,10 @@ public class ProjectedRealtimeTopology {
 
         @Nullable
         TopologyEntityDTO getEntity() {
-            // Use the fastest available java instance to avoid using off-heap memory.
-            final LZ4FastDecompressor decompressor = LZ4Factory.fastestJavaInstance().fastDecompressor();
             try {
-                return TopologyEntityDTO.parseFrom(decompressor.decompress(compressedDto, uncompressedLength));
+                TopologyEntityDTO.Builder bldr = TopologyEntityDTO.newBuilder();
+                compressedEntity.decompressInto(bldr);
+                return bldr.build();
             } catch (InvalidProtocolBufferException e) {
                 logger.error("Failed to decompress entity. Error: {}", e.getMessage());
                 return null;

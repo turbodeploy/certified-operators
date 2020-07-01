@@ -122,6 +122,8 @@ public class ActionExecutionContextFactory {
                 return new ProvisionContext(request, dataManager, entityStore, entityRetriever);
             case DELETE:
                 return new DeleteContext(request, dataManager, entityStore, entityRetriever);
+            case ATOMICRESIZE:
+                return new AtomicResizeContext(request, dataManager, entityStore, entityRetriever);
             default:
                 throw new IllegalArgumentException("Unsupported action type: " +
                         actionInfo.getActionTypeCase());

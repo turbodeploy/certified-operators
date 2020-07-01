@@ -696,6 +696,7 @@ public class UuidMapperTest {
                         .type(SDKProbeType.AWS.getProbeType())
                         .oid(1L)
                         .category("Cloud")
+                        .uiCategory("Cloud")
                         .build())
                 .build();
         // This is added to test all the Targets attached to the entity, not just the first one.
@@ -707,6 +708,7 @@ public class UuidMapperTest {
                         .type(SDKProbeType.AWS.getProbeType())
                         .oid(2L)
                         .category("Cloud")
+                        .uiCategory("Cloud")
                         .build())
                 .build();
         when(thinTargetCache.getTargetInfo(awsTargetId)).thenReturn(Optional.of(awsTargetInfo));
@@ -726,6 +728,7 @@ public class UuidMapperTest {
                         .type(SDKProbeType.AZURE.getProbeType())
                         .oid(2L)
                         .category("Cloud")
+                        .uiCategory("Cloud")
                         .build())
                 .build();
         when(thinTargetCache.getTargetInfo(azureTargetId)).thenReturn(Optional.of(azureTargetInfo));

@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -390,8 +390,8 @@ public class OperationManagerTest {
                 .build();
 
         // Wait until we receive notification of the failure
-        OperationTestUtilities.waitForEvent(operationManager.notifyDiscoveryResult(
-                                                           discovery, resultFailure), Future::isDone);
+        operationManager.notifyDiscoveryResult(discovery, resultFailure).get(
+                OperationTestUtilities.DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
         // We should have received two notifications - once for start, once for complete
         Assert.assertFalse(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
@@ -406,8 +406,8 @@ public class OperationManagerTest {
                         .build();
 
         // Wait until we receive notification of the failure
-        OperationTestUtilities.waitForEvent(operationManager.notifyDiscoveryResult(
-                                                           discovery2, resultSuccess), Future::isDone);
+        operationManager.notifyDiscoveryResult(
+                discovery2, resultSuccess).get(OperationTestUtilities.DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
         // We should have received two notifications - once for start, once for complete
         Assert.assertFalse(operationManager.getInProgressDiscovery(discovery2.getId()).isPresent());
@@ -879,8 +879,7 @@ public class OperationManagerTest {
         operationManager.onProbeRegistered(probeId, probeInfo);
 
         OperationTestUtilities.waitForEvent(
-            operationManager,
-            operationManager -> operationManager.getInProgressDiscoveryForTarget(targetId, discoveryType).isPresent()
+            () -> operationManager.getInProgressDiscoveryForTarget(targetId, discoveryType).isPresent()
         );
         Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(any(Target.class),
             any(DiscoveryRequest.class), any(OperationMessageHandler.class));
@@ -1021,8 +1020,8 @@ public class OperationManagerTest {
         OperationTestUtilities.waitForAction(operationManager, action);
 
         // Wait until we receive notification of the failure
-        OperationTestUtilities.waitForEvent(operationListener, listener ->
-            listener.getLastNotifiedStatus()
+        OperationTestUtilities.waitForEvent(() ->
+            operationListener.getLastNotifiedStatus()
                 .map(status -> status == Status.FAILED)
                 .orElse(false));
 
@@ -1037,22 +1036,23 @@ public class OperationManagerTest {
      */
     @Test
     public void testProcessActionCancelOperation() throws Exception {
-        final List<ActionItemDTO> actionItemDtos = actionItemDtos();
-
         final Action action = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
                 Collections.singleton(targetId));
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
         operationManager.onTargetRemoved(target);
-        OperationTestUtilities.waitForEvent(operationListener, listener -> !listener.lastStatusMatches(Status.IN_PROGRESS));
+        OperationTestUtilities.waitForEvent(
+                () -> !operationListener.lastStatusMatches(Status.IN_PROGRESS));
+        OperationTestUtilities.waitForEvent(
+                () -> !operationManager.getInProgressAction(action.getId()).isPresent());
 
         final List<String> errors = action.getErrors();
         Assert.assertEquals(1, errors.size());
         final String errorMessage = errors.iterator().next();
         Assert.assertThat(errorMessage,
                 CoreMatchers.containsString("Target " + targetId + " removed"));
-        Assert.assertFalse(operationManager.getInProgressAction(action.getId()).isPresent());
+
     }
 
     /**
@@ -1109,8 +1109,8 @@ public class OperationManagerTest {
             .build();
         doThrow(RuntimeException.class).when(entityStore)
             .entitiesDiscovered(anyLong(), anyLong(), anyInt(), eq(discoveryType), anyListOf(EntityDTO.class));
-        OperationTestUtilities.waitForEvent(operationManager.notifyDiscoveryResult(
-            discovery, result), Future::isDone);
+        operationManager.notifyDiscoveryResult(discovery, result).get(
+                OperationTestUtilities.DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         Assert.assertFalse(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
     }
 

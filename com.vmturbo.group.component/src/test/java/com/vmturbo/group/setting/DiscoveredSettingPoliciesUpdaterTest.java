@@ -86,7 +86,8 @@ public class DiscoveredSettingPoliciesUpdaterTest {
         Mockito.when(settingPolicyStore.getDiscoveredPolicies()).thenReturn(Collections.emptyMap());
         Mockito.when(identityProvider.next()).thenReturn(44L);
         updater.updateSettingPolicies(settingPolicyStore,
-                Collections.singletonMap(TARGET_ID, Collections.singletonList(spInfo)), GROUP_IDS);
+                Collections.singletonMap(TARGET_ID, Collections.singletonList(spInfo)), GROUP_IDS,
+                Collections.emptySet());
 
         Mockito.verify(settingPolicyStore)
                 .deletePolicies(Collections.emptyList(), SettingPolicy.Type.DISCOVERED);
@@ -121,7 +122,8 @@ public class DiscoveredSettingPoliciesUpdaterTest {
                 .thenReturn(Collections.singletonMap(TARGET_ID,
                         Collections.singletonMap(POLICY_NAME_1, 2L)));
         updater.updateSettingPolicies(settingPolicyStore,
-                Collections.singletonMap(TARGET_ID, Collections.singletonList(spInfo)), GROUP_IDS);
+                Collections.singletonMap(TARGET_ID, Collections.singletonList(spInfo)), GROUP_IDS,
+            Collections.emptySet());
 
         Mockito.verify(settingPolicyStore)
                 .deletePolicies(Collections.singletonList(2L), SettingPolicy.Type.DISCOVERED);
@@ -163,7 +165,8 @@ public class DiscoveredSettingPoliciesUpdaterTest {
                         ImmutableMap.of(POLICY_NAME_1, 1L, POLICY_NAME_2, 2L)));
         Mockito.when(identityProvider.next()).thenReturn(3L);
         updater.updateSettingPolicies(settingPolicyStore,
-                Collections.singletonMap(TARGET_ID, Arrays.asList(spInfo1, spInfo2)), GROUP_IDS);
+                Collections.singletonMap(TARGET_ID, Arrays.asList(spInfo1, spInfo2)), GROUP_IDS,
+                Collections.emptySet());
         Mockito.verify(settingPolicyStore)
                 .deletePolicies(deletedPolicies.capture(), Mockito.eq(Type.DISCOVERED));
         Assert.assertEquals(Sets.newHashSet(1L, 2L), new HashSet<>(deletedPolicies.getValue()));

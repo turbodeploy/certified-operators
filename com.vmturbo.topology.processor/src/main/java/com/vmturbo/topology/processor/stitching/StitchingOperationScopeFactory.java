@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -115,6 +116,14 @@ public class StitchingOperationScopeFactory implements StitchingScopeFactory<Sti
                                                          @Nonnull final EntityType entityType) {
         return new ProbeCategoryEntityTypeStitchingScope(stitchingContext, probeCategory, entityType,
             probeStore, targetStore);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public StitchingScope<StitchingEntity> probeCategoryScope(@Nonnull final ProbeCategory probeCategory) {
+        return new ProbeCategoryScope(stitchingContext, probeCategory, probeStore, targetStore);
     }
 
     /**
@@ -411,6 +420,38 @@ public class StitchingOperationScopeFactory implements StitchingScopeFactory<Sti
                 .flatMap(probeId -> targetStore.getProbeTargets(probeId).stream())
                 .map(Target::getId)
                 .flatMap(targetId -> getStitchingContext().internalEntities(entityType, targetId));
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation to entities discovered by a probe category.
+     */
+    private static class ProbeCategoryScope extends BaseStitchingScope {
+
+        private final ProbeCategory probeCategory;
+        private final ProbeStore probeStore;
+        private final TargetStore targetStore;
+
+        ProbeCategoryScope(@Nonnull StitchingContext stitchingContext,
+                           @Nonnull final ProbeCategory probeCategory,
+                           @Nonnull final ProbeStore probeStore,
+                           @Nonnull final TargetStore targetStore) {
+            super(stitchingContext);
+            this.probeCategory = Objects.requireNonNull(probeCategory);
+            this.probeStore = Objects.requireNonNull(probeStore);
+            this.targetStore = Objects.requireNonNull(targetStore);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<StitchingEntity> entities() {
+            final Set<Long> probeCategoryTargetIds = probeStore.getProbeIdsForCategory(probeCategory).stream()
+                .flatMap(probeId -> targetStore.getProbeTargets(probeId).stream()
+                    .map(Target::getId))
+                .collect(Collectors.toSet());
+
+            return getStitchingContext().internalEntities(probeCategoryTargetIds)
+                .map(Function.identity());
         }
     }
 

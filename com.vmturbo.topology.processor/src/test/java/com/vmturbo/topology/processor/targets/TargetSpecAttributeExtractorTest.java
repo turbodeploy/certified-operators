@@ -25,10 +25,10 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
  */
 public class TargetSpecAttributeExtractorTest {
 
-    public static final String PROBE_TYPE_IDENTIFIER = "probeType";
-    public static final String PROBE_TYPE_NAME = "myProbeType";
-    public static final String ADDR_NAME = "address";
-    public static final String ADDR = "1.2.3.4";
+    private static final String PROBE_TYPE_IDENTIFIER = "probeType";
+    private static final String PROBE_TYPE_NAME = "myProbeType";
+    private static final String ADDR_NAME = "address";
+    private static final String ADDR = "AA-1.2.3.4";
 
     private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     private final org.apache.logging.log4j.Logger logger = LogManager.getLogger();
@@ -41,7 +41,7 @@ public class TargetSpecAttributeExtractorTest {
     public void testExtractAttributes() {
         // arrange
         ProbeInfo probe = ProbeInfo.newBuilder().setProbeType(PROBE_TYPE_NAME).setProbeCategory("probeCategory")
-                .addTargetIdentifierField(ADDR_NAME).build();
+                .addTargetIdentifierField(ADDR_NAME).setUiProbeCategory("probeCategory").build();
         TargetSpec testItem = TargetSpec.newBuilder()
             .setProbeId(1L)
             .addAccountValue(AccountValue.newBuilder().setKey(ADDR_NAME).setStringValue(ADDR))
@@ -49,7 +49,8 @@ public class TargetSpecAttributeExtractorTest {
         // a workflow has two identifying attributes:  name and targetId
         IdentityMatchingAttribute nameAttr = new IdentityMatchingAttribute(
             PROBE_TYPE_IDENTIFIER, PROBE_TYPE_NAME);
-        IdentityMatchingAttribute targetAttr = new IdentityMatchingAttribute(ADDR_NAME, ADDR);
+        IdentityMatchingAttribute targetAttr = new IdentityMatchingAttribute(ADDR_NAME,
+                ADDR.toLowerCase());
         TargetSpecAttributeExtractor extractorToTest = new TargetSpecAttributeExtractor(probeStore);
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probe));
         // act

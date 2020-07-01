@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -13,17 +12,15 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
 
 /**
- * {@link TopologyGraphEntity} for use in the repository. The intention is to make it as small
- * as possible while supporting all the searches and {@link com.vmturbo.common.protobuf.search.SearchableProperties}.
+ * {@link TopologyGraphEntity} for use in the repository. The intention is to make it as small as
+ * possible while supporting all the searches and {@link com.vmturbo.common.protobuf.search.SearchableProperties}.
  */
 public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity> {
 
@@ -45,6 +42,11 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     private final List<SupplyChainEntity> consumers = new ArrayList<>(0);
     private boolean deletable = true;
 
+    /**
+     * Representation of an entity in the supply chain.
+     *
+     * @param src broadcast topology on which this supply chain entity is based
+     */
     public SupplyChainEntity(@Nonnull final TopologyEntityDTO src) {
         this.oid = src.getOid();
         this.displayName = src.getDisplayName();
@@ -61,6 +63,7 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
 
     /**
      * Create a new instance for a given {@link TopologyEntityDTO} entity.
+     *
      * @param entity topology entity
      * @return new {@link SupplyChainEntity}
      */
@@ -111,6 +114,7 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
 
     private void clearConsumersAndProviders() {
         providers.clear();
+        consumers.clear();
         outboundAssociatedEntities.clear();
         inboundAssociatedEntities.clear();
         owner = null;
@@ -132,12 +136,6 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         return displayName;
     }
 
-    @Nonnull
-    @Override
-    public TypeSpecificInfo getTypeSpecificInfo() {
-        return TypeSpecificInfo.getDefaultInstance();
-    }
-
     @Override
     public int getEntityType() {
         return type;
@@ -153,18 +151,6 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     @Override
     public EntityState getEntityState() {
         return EntityState.POWERED_ON;
-    }
-
-    @Nonnull
-    @Override
-    public Map<Integer, List<CommoditySoldDTO>> soldCommoditiesByType() {
-        return Collections.emptyMap();
-    }
-
-    @Nonnull
-    @Override
-    public Map<String, List<String>> getTags() {
-        return Collections.emptyMap();
     }
 
     @Nonnull
@@ -253,17 +239,6 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     @Override
     public String toString() {
         return displayName + "@" + oid;
-    }
-
-    /**
-     * Get deletable state of the topology entity. Default is true.
-     *
-     * @return true, means the Market can delete this entity.
-     *         false, means Market will not generate Delete Actions.
-     */
-    @Override
-    public boolean getDeletable() {
-        return deletable;
     }
 
     /**

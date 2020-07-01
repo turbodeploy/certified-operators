@@ -184,7 +184,7 @@ public class StringConstants {
     /**
      * Group types set.
      */
-    public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER, RESOURCE_GROUP);
+    public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER, RESOURCE_GROUP, VIRTUAL_MACHINE_CLUSTER);
 
     // Entity type class names
     public static final String VIRTUAL_MACHINE = "VirtualMachine";
@@ -212,6 +212,8 @@ public class StringConstants {
     public static final String TIER = "tier";
     public static final String BUSINESS_UNIT = "businessUnit";
     public static final String BUSINESS_APPLICATION = "BusinessApplication";
+    public static final String BUSINESS_TRANSACTION = "BusinessTransaction";
+    public static final String APPLICATION_COMPONENT = "ApplicationComponent";
     public static final String RESERVED_INSTANCE = "ReservedInstance";
     public static final String ACCOUNTID = "accountID";
     public static final String NUM_RI = "numRIs";
@@ -263,7 +265,7 @@ public class StringConstants {
     public static final String NUM_LOADBALANCERS = "numLoadBalancers";
     public static final String NUM_DCS = "numDCs";
     public static final String NUM_APPS = "numApps";
-    public static final String NUM_VAPPS = "numVApps";
+    public static final String NUM_SERVICES = "numServices";
     public static final String NUM_NETWORKS = "numNetworks";
     public static final String NUM_TARGETS = "numTargets";
     public static final String NUM_CLUSTERS = "numClusters";
@@ -306,6 +308,8 @@ public class StringConstants {
     public static final String CURRENTVMS = "CurrentVMs";
     public static final String V_POD = "VPod";
     public static final String D_POD = "DPod";
+    public static final String SERVICE = "Service";
+    public static String[] PROPERTY_SUBTYPE_LIST = {"DesiredVMs","CurrentVMs","currentNumHosts","currentNumStorages","currentUtilization"};
     public static final String CREATE_TIME="create_time";
 
     public static final String TARGET = "Target";
@@ -313,7 +317,10 @@ public class StringConstants {
     public static final String TARGET_UUID_CC = "targetUuid";
     public static final String PROPERTY_SUBTYPE_USED = "used";
     public static final String PROPERTY_SUBTYPE_UTILIZATION = "utilization";
-
+    /**
+     * Commodity percentile utilization.
+     */
+    public static final String PROPERTY_SUBTYPE_PERCENTILE_UTILIZATION = "percentileUtilization";
     public static final String TARGET_UUID = "target_uuid";
     public static final String PROVIDER_ID = "provider_id";
     public static final String CATEGORY_ID = "category_id";

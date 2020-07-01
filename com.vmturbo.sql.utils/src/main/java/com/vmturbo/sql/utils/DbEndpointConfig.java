@@ -1,7 +1,7 @@
 package com.vmturbo.sql.utils;
 
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.concurrent.TimeUnit;
 
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
@@ -33,7 +33,11 @@ public class DbEndpointConfig {
     private FlywayCallback[] dbFlywayCallbacks;
     private Boolean dbDestructiveProvisioningEnabled;
     private Boolean dbEndpointEnabled;
-    private Supplier<DbEndpoint> templateSupplier;
+    private DbEndpoint template;
+    private String dbNameSuffix;
+
+    // By default, wait for 30 minutes for context to finish initializing.
+    private long maxAwaitCompletionMs = TimeUnit.MINUTES.toMillis(30);
 
     public String getTag() {
         return tag;
@@ -41,6 +45,25 @@ public class DbEndpointConfig {
 
     public void setTag(final String tag) {
         this.tag = tag;
+    }
+
+    /**
+     * Set the maximum time to wait for completion.
+     *
+     * @param maxAwaitCompletion The time to wait for completion.
+     * @param timeUnit The time unit.
+     */
+    public void setMaxAwaitCompletion(long maxAwaitCompletion, TimeUnit timeUnit) {
+        this.maxAwaitCompletionMs = timeUnit.toMillis(maxAwaitCompletion);
+    }
+
+    /**
+     * Get the maximum time to wait for completion, in millis.
+     *
+     * @return The time, in millis.
+     */
+    public long getMaxAwaitCompletionMs() {
+        return maxAwaitCompletionMs;
     }
 
     public SQLDialect getDialect() {
@@ -171,11 +194,19 @@ public class DbEndpointConfig {
         this.dbEndpointEnabled = dbEndpointEnabled;
     }
 
-    public Supplier<DbEndpoint> getTemplateSupplier() {
-        return templateSupplier;
+    public DbEndpoint getTemplate() {
+        return template;
     }
 
-    public void setTemplateSupplier(final Supplier<DbEndpoint> templateSupplier) {
-        this.templateSupplier = templateSupplier;
+    public void setTemplate(final DbEndpoint template) {
+        this.template = template;
+    }
+
+    public String getDbNameSuffix() {
+        return dbNameSuffix;
+    }
+
+    public void setDbNameSuffix(final String dbNameSuffix) {
+        this.dbNameSuffix = dbNameSuffix;
     }
 }
