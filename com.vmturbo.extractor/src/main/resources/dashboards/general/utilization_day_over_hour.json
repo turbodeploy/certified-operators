@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592858798306,
+  "iteration": 1593458642045,
   "links": [],
   "panels": [
     {
@@ -768,14 +768,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "select name as __text, \n       oid as __value \nfrom entity \nwhere entity.type = 'GROUP' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
+        "definition": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'REGULAR' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'PHYSICAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "Group",
         "options": [],
-        "query": "select name as __text, \n       oid as __value \nfrom entity \nwhere entity.type = 'GROUP' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
+        "query": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'REGULAR' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'PHYSICAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

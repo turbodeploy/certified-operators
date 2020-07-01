@@ -12,16 +12,17 @@
       }
     ]
   },
+  "description": "This report shows Virtual Machines that are over or under provisioned, as indicated by their utilization levels of allocated resources.",
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592516312715,
+  "iteration": 1593541576302,
   "links": [],
   "panels": [
     {
       "columns": [],
       "datasource": "$DB",
-      "description": "Active VMs with CPU, Memory or Thin Provisioning utilization peaks that are below their respective lower thresholds are listed as over-provisioned. Values indicating over- provisioning are highlighted.",
+      "description": "Active VMs with CPU or Memory utilization peaks that are below 10%. Values indicating over- provisioning are highlighted with red text. ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -44,6 +45,7 @@
       },
       "styles": [
         {
+          "$$hashKey": "object:279",
           "alias": "Time",
           "align": "auto",
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
@@ -51,13 +53,14 @@
           "type": "date"
         },
         {
+          "$$hashKey": "object:280",
           "alias": "",
           "align": "right",
-          "colorMode": "cell",
+          "colorMode": "value",
           "colors": [
             "#C4162A",
-            "#56A64B",
-            "#56A64B"
+            "rgb(1, 3, 0)",
+            "rgb(1, 3, 0)"
           ],
           "decimals": 2,
           "pattern": "/.*Peak/",
@@ -68,6 +71,7 @@
           "unit": "percentunit"
         },
         {
+          "$$hashKey": "object:281",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -85,6 +89,7 @@
           "unit": "percentunit"
         },
         {
+          "$$hashKey": "object:282",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -139,7 +144,7 @@
     {
       "columns": [],
       "datasource": "$DB",
-      "description": "Active VMs with CPU, Memory or Thin Provisioning utilization averages that are above their respective upper thresholds are shown as under-provisioned in at least one of these aspects. Values indicating under-provisioning are highlighted.",
+      "description": "Active VMs with CPU or Memory utilization averages that are above 85%. Values indicating under-provisioning are highlighted in red text.",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -157,11 +162,12 @@
       "pageSize": 50,
       "showHeader": true,
       "sort": {
-        "col": 4,
+        "col": 7,
         "desc": true
       },
       "styles": [
         {
+          "$$hashKey": "object:511",
           "alias": "Time",
           "align": "auto",
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
@@ -169,11 +175,12 @@
           "type": "date"
         },
         {
+          "$$hashKey": "object:512",
           "alias": "",
           "align": "right",
-          "colorMode": "cell",
+          "colorMode": "value",
           "colors": [
-            "#56A64B",
+            "rgb(1, 3, 0)",
             "#E02F44",
             "#E02F44"
           ],
@@ -186,6 +193,7 @@
           "unit": "percentunit"
         },
         {
+          "$$hashKey": "object:513",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -203,6 +211,7 @@
           "unit": "percentunit"
         },
         {
+          "$$hashKey": "object:514",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -366,6 +375,6 @@
     ]
   },
   "timezone": "",
-  "title": "VM Under/Over Provisioning 90 Days",
+  "title": "VM Over or Under Provisioning 90 Days",
   "uid": "vm_under_over_provisioning"
 }

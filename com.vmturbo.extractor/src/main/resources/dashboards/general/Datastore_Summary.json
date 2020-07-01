@@ -15,7 +15,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592516075480,
+  "iteration": 1593454619314,
   "links": [],
   "panels": [
     {
@@ -43,6 +43,7 @@
       },
       "styles": [
         {
+          "$$hashKey": "object:374",
           "alias": "Time",
           "align": "auto",
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
@@ -50,6 +51,7 @@
           "type": "date"
         },
         {
+          "$$hashKey": "object:375",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -67,6 +69,7 @@
           "unit": "iops"
         },
         {
+          "$$hashKey": "object:376",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -84,6 +87,7 @@
           "unit": "ms"
         },
         {
+          "$$hashKey": "object:377",
           "alias": "",
           "align": "right",
           "colorMode": null,
@@ -105,7 +109,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT \nmax(metric.capacity) FILTER (WHERE metric.type = 'STORAGE_AMOUNT') AS \"Capacity\",\navg(metric.current) FILTER (WHERE metric.type = 'STORAGE_PROVISIONED') AS \"Provisioned Used\",\navg(metric.current) FILTER (WHERE metric.type = 'STORAGE_AMOUNT') AS \"Used\",\navg(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS') AS \"IOPS\",\navg(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY') AS \"Latency\"\nFROM metric, entity\nWHERE   \n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  entity.type = 'STORAGE' and \n  CASE WHEN ARRAY[ [[Datastore]] ] = ARRAY[ '0' ] THEN true ELSE (entity.oid = any (array[ [[Datastore]] ]::bigint[])) END and \n  entity.oid = metric.entity_oid and\n  $__timeFilter(\"time\")\n",
+          "rawSql": "SELECT \nmax(metric.capacity) FILTER (WHERE metric.type = 'STORAGE_AMOUNT') AS \"Capacity\",\navg(metric.current) FILTER (WHERE metric.type = 'STORAGE_PROVISIONED') AS \"Provisioned Used\",\navg(metric.current) FILTER (WHERE metric.type = 'STORAGE_AMOUNT') AS \"Used\",\navg(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS') AS \"IOPS\",\navg(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY') AS \"Latency\"\nFROM metric, entity\nWHERE   \n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  entity.type = 'STORAGE' and \n  CASE WHEN ARRAY[ [[Datastore]] ] = ARRAY[ '0' ] THEN true ELSE (entity.oid in ( [[Datastore]] )) END and \n  entity.oid = metric.entity_oid and\n  $__timeFilter(\"time\")\n",
           "refId": "A",
           "select": [
             [
@@ -160,6 +164,7 @@
       },
       "styles": [
         {
+          "$$hashKey": "object:464",
           "alias": "",
           "align": "left",
           "colorMode": null,
@@ -177,6 +182,7 @@
           "unit": "iops"
         },
         {
+          "$$hashKey": "object:465",
           "alias": "",
           "align": "left",
           "colorMode": null,
@@ -194,6 +200,7 @@
           "unit": "ms"
         },
         {
+          "$$hashKey": "object:466",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -211,6 +218,7 @@
           "unit": "short"
         },
         {
+          "$$hashKey": "object:467",
           "alias": "",
           "align": "left",
           "colorMode": null,
@@ -228,6 +236,7 @@
           "unit": "percent"
         },
         {
+          "$$hashKey": "object:468",
           "alias": "",
           "align": "left",
           "colorMode": null,
@@ -249,7 +258,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT \nunnest(array['1','2','3']) as \"order\",\nunnest(array['AVG','MIN','MAX']) as \"Aggregation\",\nunnest(array[avg(metric.utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT'),\nmin(metric.utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT'),\nmax(metric.Utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT')\n]) AS \"Utilization\",\nunnest(array[avg(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS'),\nmin(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS'),\nmax(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS')\n]) AS \"IOPS\",\nunnest(array[avg(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY'),\nmin(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY'),\nmax(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY')\n]) AS \"Latency\"\nFROM metric, entity\nWHERE entity.type = 'STORAGE' and \nCASE WHEN ARRAY[ [[Datastore]] ] = ARRAY[ '0' ] THEN true ELSE (entity.oid = any (array[ [[Datastore]] ]::bigint[])) END and \nentity.oid = metric.entity_oid and entity.hash = metric.entity_hash and\n  $__timeFilter(\"time\") and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\nORDER BY \"order\" asc\n\n\n",
+          "rawSql": "SELECT \nunnest(array['1','2','3']) as \"order\",\nunnest(array['AVG','MIN','MAX']) as \"Aggregation\",\nunnest(array[avg(metric.utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT'),\nmin(metric.utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT'),\nmax(metric.Utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT')\n]) AS \"Utilization\",\nunnest(array[avg(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS'),\nmin(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS'),\nmax(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS')\n]) AS \"IOPS\",\nunnest(array[avg(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY'),\nmin(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY'),\nmax(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY')\n]) AS \"Latency\"\nFROM metric, entity\nWHERE entity.type = 'STORAGE' and \nCASE WHEN ARRAY[ [[Datastore]] ] = ARRAY[ '0' ] THEN true ELSE (entity.oid in ( [[Datastore]] )) END and \nentity.oid = metric.entity_oid and entity.hash = metric.entity_hash and\n  $__timeFilter(\"time\") and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\nORDER BY \"order\" asc\n\n\n",
           "refId": "A",
           "select": [
             [
@@ -304,6 +313,7 @@
       },
       "styles": [
         {
+          "$$hashKey": "object:96",
           "alias": "Time",
           "align": "auto",
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
@@ -311,6 +321,7 @@
           "type": "date"
         },
         {
+          "$$hashKey": "object:97",
           "alias": "",
           "align": "left",
           "colorMode": null,
@@ -328,6 +339,7 @@
           "unit": "short"
         },
         {
+          "$$hashKey": "object:98",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -345,6 +357,7 @@
           "unit": "mbytes"
         },
         {
+          "$$hashKey": "object:99",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -362,6 +375,7 @@
           "unit": "iops"
         },
         {
+          "$$hashKey": "object:100",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -379,6 +393,7 @@
           "unit": "ms"
         },
         {
+          "$$hashKey": "object:101",
           "alias": "",
           "align": "right",
           "colorMode": null,
@@ -400,7 +415,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\nmax(sub.name) as \"VM Name\",\nmax(sub.value) FILTER (WHERE sub.type = 'STORAGE_AMOUNT') AS \"Storage Used\",\navg(sub.value) FILTER (WHERE sub.type = 'STORAGE_ACCESS') AS \"Avg IOPS\",\nmax(sub.value) FILTER (WHERE sub.type = 'STORAGE_ACCESS') AS \"Max IOPS\",\navg(sub.value) FILTER (WHERE sub.type = 'STORAGE_LATENCY') AS \"Avg Latency\",\nmax(sub.value) FILTER (WHERE sub.type = 'STORAGE_LATENCY') AS \"Max Latency\"\nFROM (\nselect entity.oid as oid, entity.name as name, metric.type as type, metric.consumed as value \nfrom metric, entity\nWHERE entity.type = 'VIRTUAL_MACHINE' and (entity.scope && (array[ [[Datastore]] ]::bigint[])) \nand entity.oid = metric.entity_oid and entity.hash = metric.entity_hash and (metric.type = 'STORAGE_LATENCY' or metric.type = 'STORAGE_ACCESS') \nand $__timeFilter(\"time\") and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\nunion\nselect entity.oid as oid, max(entity.name) as name, max(metric.type) as type, sum(metric.consumed) as value \nfrom metric, entity\nWHERE entity.type = 'VIRTUAL_MACHINE' and \nCASE WHEN ARRAY[ [[Datastore]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && (array[ [[Datastore]] ]::bigint[])) END\nand entity.oid = metric.entity_oid and entity.hash = metric.entity_hash and metric.type = 'STORAGE_AMOUNT'\nand $__timeFilter(\"time\") and  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\nGROUP BY time, entity.oid\n) sub\ngroup by sub.oid\n",
+          "rawSql": "SELECT\n    max(sub.name) as \"VM Name\",\n    max(sub.value) FILTER (WHERE sub.type = 'STORAGE_AMOUNT') AS \"Storage Used\",\n    avg(sub.value) FILTER (WHERE sub.type = 'STORAGE_ACCESS') AS \"Avg IOPS\",\n    max(sub.value) FILTER (WHERE sub.type = 'STORAGE_ACCESS') AS \"Max IOPS\",\n    avg(sub.value) FILTER (WHERE sub.type = 'STORAGE_LATENCY') AS \"Avg Latency\",\n    max(sub.value) FILTER (WHERE sub.type = 'STORAGE_LATENCY') AS \"Max Latency\"\nFROM (\n        select entity.oid as oid,\n               entity.name as name,\n               metric.type as type,\n               metric.consumed as value \n          from metric, entity\n         WHERE entity.type = 'VIRTUAL_MACHINE'\n           and CASE WHEN ARRAY[ [[Datastore]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && (array[ [[Datastore]] ]::bigint[])) END\n           and entity.oid = metric.entity_oid and entity.hash = metric.entity_hash \n           and (metric.type = 'STORAGE_LATENCY' or metric.type = 'STORAGE_ACCESS') \n           and $__timeFilter(\"time\") and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n       union\n        select entity.oid as oid, max(entity.name) as name, max(metric.type) as type, sum(metric.consumed) as value \n          from metric, entity\n         WHERE entity.type = 'VIRTUAL_MACHINE' \n           and CASE WHEN ARRAY[ [[Datastore]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && (array[ [[Datastore]] ]::bigint[])) END\n           and entity.oid = metric.entity_oid and entity.hash = metric.entity_hash and metric.type = 'STORAGE_AMOUNT'\n           and $__timeFilter(\"time\") and  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n         GROUP BY time, entity.oid\n) sub\ngroup by sub.oid",
           "refId": "A",
           "select": [
             [
@@ -443,6 +458,7 @@
         "name": "DB",
         "options": [],
         "query": "postgres",
+        "queryValue": "",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,

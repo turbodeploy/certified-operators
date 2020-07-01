@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1593178456812,
+  "iteration": 1593440163780,
   "links": [],
   "panels": [
     {
@@ -629,14 +629,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "select name as __text, oid as __value from entity where entity.type = 'GROUP' and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) group by name, oid order by 1",
+        "definition": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'REGULAR' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "Group",
         "options": [],
-        "query": "select name as __text, oid as __value from entity where entity.type = 'GROUP' and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) group by name, oid order by 1",
+        "query": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'REGULAR' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

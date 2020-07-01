@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592837209257,
+  "iteration": 1593542705221,
   "links": [],
   "panels": [
     {
@@ -25,13 +25,14 @@
       "dashLength": 10,
       "dashes": false,
       "datasource": "$DB",
+      "description": "Average utilization for physical machines over selected time period. ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
         },
         "overrides": []
       },
-      "fill": 1,
+      "fill": 0,
       "fillGradient": 0,
       "gridPos": {
         "h": 9,
@@ -51,7 +52,7 @@
         "values": false
       },
       "lines": true,
-      "linewidth": 1,
+      "linewidth": 3,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
@@ -114,6 +115,7 @@
       },
       "yaxes": [
         {
+          "$$hashKey": "object:410",
           "format": "percentunit",
           "label": null,
           "logBase": 1,
@@ -122,6 +124,7 @@
           "show": true
         },
         {
+          "$$hashKey": "object:411",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -136,439 +139,8 @@
       }
     },
     {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
       "datasource": "$DB",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
-      },
-      "fill": 1,
-      "fillGradient": 0,
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "hiddenSeries": false,
-      "id": 3,
-      "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": true,
-        "total": false,
-        "values": false
-      },
-      "lines": true,
-      "linewidth": 1,
-      "nullPointMode": "null",
-      "options": {
-        "dataLinks": []
-      },
-      "percentage": false,
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
-      "targets": [
-        {
-          "format": "time_series",
-          "group": [],
-          "metricColumn": "none",
-          "rawQuery": true,
-          "rawSql": "select DATE(metric.\"time\") as \"time\", metric.\"type\", avg(utilization)\nfrom metric, entity\nwhere metric.entity_oid = entity.oid and\n      metric.entity_hash = entity.hash and \n      entity.\"type\" = 'VIRTUAL_MACHINE' and \n      provider_oid isnull and \n      $__timeFilter(\"time\") and \n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\ngroup by 1, 2\norder by 1",
-          "refId": "A",
-          "select": [
-            [
-              {
-                "params": [
-                  "current"
-                ],
-                "type": "column"
-              }
-            ]
-          ],
-          "table": "metric",
-          "timeColumn": "\"time\"",
-          "timeColumnType": "timestamp",
-          "where": [
-            {
-              "name": "$__timeFilter",
-              "params": [],
-              "type": "macro"
-            }
-          ]
-        }
-      ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "Virtual Infrastructure Utilization Metrics",
-      "tooltip": {
-        "shared": true,
-        "sort": 2,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "percentunit",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    },
-    {
-      "columns": [],
-      "datasource": "-- Dashboard --",
       "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
-      },
-      "fontSize": "80%",
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 9
-      },
-      "id": 4,
-      "pageSize": null,
-      "showHeader": true,
-      "sort": {
-        "col": 0,
-        "desc": false
-      },
-      "styles": [
-        {
-          "$$hashKey": "object:1199",
-          "alias": "Date",
-          "align": "",
-          "dateFormat": "YYYY-MM-DD",
-          "pattern": "Time",
-          "type": "date"
-        },
-        {
-          "$$hashKey": "object:1200",
-          "alias": "",
-          "align": "",
-          "colorMode": "cell",
-          "colors": [
-            "rgba(41, 168, 36, 0.97)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(245, 54, 54, 0.9)"
-          ],
-          "dateFormat": "YYYY-MM-DD HH:mm:ss",
-          "decimals": 2,
-          "mappingType": 1,
-          "pattern": "CPU",
-          "thresholds": [
-            "0.2",
-            "0.4"
-          ],
-          "type": "number",
-          "unit": "percentunit"
-        },
-        {
-          "$$hashKey": "object:1201",
-          "alias": "",
-          "align": "auto",
-          "colorMode": "cell",
-          "colors": [
-            "rgba(50, 172, 45, 0.97)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(245, 54, 54, 0.9)"
-          ],
-          "dateFormat": "YYYY-MM-DD HH:mm:ss",
-          "decimals": 2,
-          "mappingType": 1,
-          "pattern": "MEM",
-          "thresholds": [
-            "0.6",
-            "0.8"
-          ],
-          "type": "number",
-          "unit": "percentunit"
-        },
-        {
-          "$$hashKey": "object:1202",
-          "alias": "",
-          "align": "auto",
-          "colorMode": "cell",
-          "colors": [
-            "rgba(50, 172, 45, 0.97)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(245, 54, 54, 0.9)"
-          ],
-          "dateFormat": "YYYY-MM-DD HH:mm:ss",
-          "decimals": 2,
-          "link": false,
-          "mappingType": 1,
-          "pattern": "BALLOONING",
-          "thresholds": [
-            "0.3",
-            "0.6"
-          ],
-          "type": "number",
-          "unit": "percentunit"
-        },
-        {
-          "$$hashKey": "object:1203",
-          "alias": "",
-          "align": "auto",
-          "colorMode": "cell",
-          "colors": [
-            "rgba(50, 172, 45, 0.97)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(245, 54, 54, 0.9)"
-          ],
-          "dateFormat": "YYYY-MM-DD HH:mm:ss",
-          "decimals": 2,
-          "mappingType": 1,
-          "pattern": "SWAPPING",
-          "thresholds": [
-            "0.1",
-            "0.25"
-          ],
-          "type": "number",
-          "unit": "percentunit"
-        },
-        {
-          "$$hashKey": "object:1204",
-          "alias": "",
-          "align": "auto",
-          "colorMode": "cell",
-          "colors": [
-            "rgba(50, 172, 45, 0.97)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(245, 54, 54, 0.9)"
-          ],
-          "dateFormat": "YYYY-MM-DD HH:mm:ss",
-          "decimals": 2,
-          "mappingType": 1,
-          "pattern": "IO_THROUGHPUT",
-          "thresholds": [
-            "0.2",
-            "0.4"
-          ],
-          "type": "number",
-          "unit": "percentunit"
-        },
-        {
-          "$$hashKey": "object:1205",
-          "alias": "",
-          "align": "auto",
-          "colorMode": "cell",
-          "colors": [
-            "rgba(50, 172, 45, 0.97)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(245, 54, 54, 0.9)"
-          ],
-          "dateFormat": "YYYY-MM-DD HH:mm:ss",
-          "decimals": 2,
-          "mappingType": 1,
-          "pattern": "NET_THROUGHPUT",
-          "thresholds": [
-            "0.2",
-            "0.4"
-          ],
-          "type": "number",
-          "unit": "percentunit"
-        },
-        {
-          "$$hashKey": "object:1206",
-          "alias": "",
-          "align": "auto",
-          "colorMode": "cell",
-          "colors": [
-            "rgba(50, 172, 45, 0.97)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(245, 54, 54, 0.9)"
-          ],
-          "dateFormat": "YYYY-MM-DD HH:mm:ss",
-          "decimals": 2,
-          "mappingType": 1,
-          "pattern": "/Q.*_VCPU/",
-          "thresholds": [
-            "0.03",
-            "0.1"
-          ],
-          "type": "number",
-          "unit": "percentunit"
-        },
-        {
-          "$$hashKey": "object:1207",
-          "alias": "",
-          "align": "right",
-          "colorMode": null,
-          "colors": [
-            "rgba(245, 54, 54, 0.9)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(50, 172, 45, 0.97)"
-          ],
-          "decimals": 2,
-          "pattern": "/.*/",
-          "thresholds": [],
-          "type": "number",
-          "unit": "percentunit"
-        }
-      ],
-      "targets": [
-        {
-          "panelId": 2,
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Physical Machine Summary",
-      "transform": "timeseries_to_columns",
-      "type": "table-old"
-    },
-    {
-      "columns": [],
-      "datasource": "-- Dashboard --",
-      "description": "",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {}
-        },
-        "overrides": []
-      },
-      "fontSize": "100%",
-      "gridPos": {
-        "h": 11,
-        "w": 10,
-        "x": 0,
-        "y": 21
-      },
-      "id": 5,
-      "pageSize": null,
-      "showHeader": true,
-      "sort": {
-        "col": 0,
-        "desc": false
-      },
-      "styles": [
-        {
-          "$$hashKey": "object:1426",
-          "alias": "Date",
-          "align": "",
-          "dateFormat": "YYYY-MM-DD",
-          "pattern": "Time",
-          "type": "date"
-        },
-        {
-          "$$hashKey": "object:1427",
-          "alias": "",
-          "align": "",
-          "colorMode": "cell",
-          "colors": [
-            "rgba(41, 168, 36, 0.97)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(245, 54, 54, 0.9)"
-          ],
-          "dateFormat": "YYYY-MM-DD HH:mm:ss",
-          "decimals": 2,
-          "mappingType": 1,
-          "pattern": "VCPU",
-          "thresholds": [
-            "0.2",
-            "0.4"
-          ],
-          "type": "number",
-          "unit": "percentunit"
-        },
-        {
-          "$$hashKey": "object:1428",
-          "alias": "",
-          "align": "",
-          "colorMode": "cell",
-          "colors": [
-            "rgba(50, 172, 45, 0.97)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(245, 54, 54, 0.9)"
-          ],
-          "dateFormat": "YYYY-MM-DD HH:mm:ss",
-          "decimals": 2,
-          "mappingType": 1,
-          "pattern": "VMEM",
-          "thresholds": [
-            "0.6",
-            "0.8"
-          ],
-          "type": "number",
-          "unit": "percentunit"
-        },
-        {
-          "$$hashKey": "object:1429",
-          "alias": "",
-          "align": "",
-          "colorMode": null,
-          "colors": [
-            "rgba(245, 54, 54, 0.9)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(50, 172, 45, 0.97)"
-          ],
-          "dateFormat": "YYYY-MM-DD HH:mm:ss",
-          "decimals": 2,
-          "mappingType": 1,
-          "pattern": "/.*/",
-          "thresholds": [],
-          "type": "number",
-          "unit": "percentunit"
-        }
-      ],
-      "targets": [
-        {
-          "panelId": 3,
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Virtual Machine Summary",
-      "transform": "timeseries_to_columns",
-      "type": "table-old"
-    },
-    {
-      "datasource": "$DB",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -883,10 +455,10 @@
         ]
       },
       "gridPos": {
-        "h": 8,
-        "w": 14,
-        "x": 10,
-        "y": 21
+        "h": 4,
+        "w": 11,
+        "x": 0,
+        "y": 9
       },
       "id": 7,
       "options": {
@@ -925,8 +497,443 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Threshold Definitions",
+      "title": "Legend",
       "type": "table"
+    },
+    {
+      "columns": [],
+      "datasource": "-- Dashboard --",
+      "description": "Daily average for physical machines. ",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fontSize": "80%",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 4,
+      "pageSize": null,
+      "showHeader": true,
+      "sort": {
+        "col": 0,
+        "desc": false
+      },
+      "styles": [
+        {
+          "$$hashKey": "object:1199",
+          "alias": "Date",
+          "align": "",
+          "dateFormat": "YYYY-MM-DD",
+          "pattern": "Time",
+          "type": "date"
+        },
+        {
+          "$$hashKey": "object:1200",
+          "alias": "",
+          "align": "",
+          "colorMode": "cell",
+          "colors": [
+            "rgba(41, 168, 36, 0.97)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(245, 54, 54, 0.9)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "CPU",
+          "thresholds": [
+            "0.2",
+            "0.4"
+          ],
+          "type": "number",
+          "unit": "percentunit"
+        },
+        {
+          "$$hashKey": "object:1201",
+          "alias": "",
+          "align": "auto",
+          "colorMode": "cell",
+          "colors": [
+            "rgba(50, 172, 45, 0.97)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(245, 54, 54, 0.9)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "MEM",
+          "thresholds": [
+            "0.6",
+            "0.8"
+          ],
+          "type": "number",
+          "unit": "percentunit"
+        },
+        {
+          "$$hashKey": "object:1202",
+          "alias": "",
+          "align": "auto",
+          "colorMode": "cell",
+          "colors": [
+            "rgba(50, 172, 45, 0.97)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(245, 54, 54, 0.9)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "link": false,
+          "mappingType": 1,
+          "pattern": "BALLOONING",
+          "thresholds": [
+            "0.3",
+            "0.6"
+          ],
+          "type": "number",
+          "unit": "percentunit"
+        },
+        {
+          "$$hashKey": "object:1203",
+          "alias": "",
+          "align": "auto",
+          "colorMode": "cell",
+          "colors": [
+            "rgba(50, 172, 45, 0.97)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(245, 54, 54, 0.9)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "SWAPPING",
+          "thresholds": [
+            "0.1",
+            "0.25"
+          ],
+          "type": "number",
+          "unit": "percentunit"
+        },
+        {
+          "$$hashKey": "object:1204",
+          "alias": "",
+          "align": "auto",
+          "colorMode": "cell",
+          "colors": [
+            "rgba(50, 172, 45, 0.97)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(245, 54, 54, 0.9)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "IO_THROUGHPUT",
+          "thresholds": [
+            "0.2",
+            "0.4"
+          ],
+          "type": "number",
+          "unit": "percentunit"
+        },
+        {
+          "$$hashKey": "object:1205",
+          "alias": "",
+          "align": "auto",
+          "colorMode": "cell",
+          "colors": [
+            "rgba(50, 172, 45, 0.97)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(245, 54, 54, 0.9)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "NET_THROUGHPUT",
+          "thresholds": [
+            "0.2",
+            "0.4"
+          ],
+          "type": "number",
+          "unit": "percentunit"
+        },
+        {
+          "$$hashKey": "object:1206",
+          "alias": "",
+          "align": "auto",
+          "colorMode": "cell",
+          "colors": [
+            "rgba(50, 172, 45, 0.97)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(245, 54, 54, 0.9)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "/Q.*_VCPU/",
+          "thresholds": [
+            "0.03",
+            "0.1"
+          ],
+          "type": "number",
+          "unit": "percentunit"
+        },
+        {
+          "$$hashKey": "object:1207",
+          "alias": "",
+          "align": "right",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "decimals": 2,
+          "pattern": "/.*/",
+          "thresholds": [],
+          "type": "number",
+          "unit": "percentunit"
+        }
+      ],
+      "targets": [
+        {
+          "panelId": 2,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Physical Machine Summary",
+      "transform": "timeseries_to_columns",
+      "type": "table-old"
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$DB",
+      "description": "Average utilization for virtual machines over selected time period. ",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fill": 0,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
+      "hiddenSeries": false,
+      "id": 3,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 3,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "format": "time_series",
+          "group": [],
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "select DATE(metric.\"time\") as \"time\", metric.\"type\", avg(utilization)\nfrom metric, entity\nwhere metric.entity_oid = entity.oid and\n      metric.entity_hash = entity.hash and \n      entity.\"type\" = 'VIRTUAL_MACHINE' and \n      provider_oid isnull and \n      $__timeFilter(\"time\") and \n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\ngroup by 1, 2\norder by 1",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "current"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "metric",
+          "timeColumn": "\"time\"",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Virtual Infrastructure Utilization Metrics",
+      "tooltip": {
+        "shared": true,
+        "sort": 2,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:317",
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:318",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "columns": [],
+      "datasource": "-- Dashboard --",
+      "description": "Daily average for virtual machines. ",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fontSize": "100%",
+      "gridPos": {
+        "h": 11,
+        "w": 10,
+        "x": 0,
+        "y": 34
+      },
+      "id": 5,
+      "pageSize": null,
+      "showHeader": true,
+      "sort": {
+        "col": 0,
+        "desc": false
+      },
+      "styles": [
+        {
+          "$$hashKey": "object:1426",
+          "alias": "Date",
+          "align": "",
+          "dateFormat": "YYYY-MM-DD",
+          "pattern": "Time",
+          "type": "date"
+        },
+        {
+          "$$hashKey": "object:1427",
+          "alias": "",
+          "align": "",
+          "colorMode": "cell",
+          "colors": [
+            "rgba(41, 168, 36, 0.97)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(245, 54, 54, 0.9)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "VCPU",
+          "thresholds": [
+            "0.2",
+            "0.4"
+          ],
+          "type": "number",
+          "unit": "percentunit"
+        },
+        {
+          "$$hashKey": "object:1428",
+          "alias": "",
+          "align": "",
+          "colorMode": "cell",
+          "colors": [
+            "rgba(50, 172, 45, 0.97)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(245, 54, 54, 0.9)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "VMEM",
+          "thresholds": [
+            "0.6",
+            "0.8"
+          ],
+          "type": "number",
+          "unit": "percentunit"
+        },
+        {
+          "$$hashKey": "object:1429",
+          "alias": "",
+          "align": "",
+          "colorMode": null,
+          "colors": [
+            "rgba(245, 54, 54, 0.9)",
+            "rgba(237, 129, 40, 0.89)",
+            "rgba(50, 172, 45, 0.97)"
+          ],
+          "dateFormat": "YYYY-MM-DD HH:mm:ss",
+          "decimals": 2,
+          "mappingType": 1,
+          "pattern": "/.*/",
+          "thresholds": [],
+          "type": "number",
+          "unit": "percentunit"
+        }
+      ],
+      "targets": [
+        {
+          "panelId": 3,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Virtual Machine Summary",
+      "transform": "timeseries_to_columns",
+      "type": "table-old"
     }
   ],
   "refresh": false,
@@ -965,6 +972,6 @@
     ]
   },
   "timezone": "",
-  "title": "Host/VM 30 Day Stats vs Thresholds",
+  "title": "Daily Infrastructure Average Stats vs. Thresholds for 30 Days",
   "uid": "host_vm_stats_thresholds"
 }

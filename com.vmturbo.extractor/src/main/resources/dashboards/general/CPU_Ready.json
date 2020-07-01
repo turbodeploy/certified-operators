@@ -15,7 +15,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592975104057,
+  "iteration": 1593579626558,
   "links": [],
   "panels": [
     {
@@ -43,7 +43,7 @@
               },
               {
                 "color": "red",
-                "value": 5
+                "value": 0.05
               }
             ]
           },
@@ -65,12 +65,13 @@
           "calcs": [
             "max"
           ],
+          "fields": "",
           "limit": 10,
           "values": true
         },
         "showUnfilled": true
       },
-      "pluginVersion": "7.0.1",
+      "pluginVersion": "7.0.4",
       "targets": [
         {
           "panelId": 4,
@@ -80,6 +81,20 @@
       "timeFrom": null,
       "timeShift": null,
       "title": "Physical Machine CPU Ready Percentage",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Max CPU Ready Pct": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "Host": ""
+            }
+          }
+        }
+      ],
       "type": "bargauge"
     },
     {
@@ -98,7 +113,7 @@
               },
               {
                 "color": "red",
-                "value": 5
+                "value": 0.05
               }
             ]
           },
@@ -120,12 +135,13 @@
           "calcs": [
             "first"
           ],
+          "fields": "",
           "limit": 10,
           "values": true
         },
         "showUnfilled": true
       },
-      "pluginVersion": "7.0.1",
+      "pluginVersion": "7.0.4",
       "targets": [
         {
           "panelId": 6,
@@ -135,6 +151,18 @@
       "timeFrom": null,
       "timeShift": null,
       "title": "VMs by CPU Ready Pct",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Max CPU Ready Pct": true
+            },
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
       "type": "bargauge"
     },
     {
@@ -162,6 +190,7 @@
       },
       "styles": [
         {
+          "$$hashKey": "object:645",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -175,28 +204,34 @@
           "mappingType": 1,
           "pattern": "Host",
           "preserveFormat": false,
-          "thresholds": [],
+          "thresholds": [
+            ""
+          ],
           "type": "string",
           "unit": "short"
         },
         {
+          "$$hashKey": "object:646",
           "alias": "",
           "align": "auto",
-          "colorMode": null,
+          "colorMode": "value",
           "colors": [
-            "rgba(245, 54, 54, 0.9)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(50, 172, 45, 0.97)"
+            "rgba(50, 172, 45, 0.97)",
+            "#E02F44",
+            "rgba(245, 54, 54, 0.9)"
           ],
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
           "decimals": 2,
           "mappingType": 1,
           "pattern": "/.*CPU Ready Pct/",
-          "thresholds": [],
+          "thresholds": [
+            "0.05"
+          ],
           "type": "number",
           "unit": "percentunit"
         },
         {
+          "$$hashKey": "object:647",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -215,6 +250,7 @@
           "valueMaps": []
         },
         {
+          "$$hashKey": "object:648",
           "alias": "",
           "align": "right",
           "colorMode": null,
@@ -332,17 +368,19 @@
           "$$hashKey": "object:384",
           "alias": "",
           "align": "auto",
-          "colorMode": null,
+          "colorMode": "value",
           "colors": [
-            "rgba(245, 54, 54, 0.9)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(50, 172, 45, 0.97)"
+            "rgba(50, 172, 45, 0.97)",
+            "#E02F44",
+            "rgba(245, 54, 54, 0.9)"
           ],
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
           "decimals": 2,
           "mappingType": 1,
           "pattern": "Avg CPU Ready Pct",
-          "thresholds": [],
+          "thresholds": [
+            "0.05"
+          ],
           "type": "number",
           "unit": "percentunit"
         },
@@ -350,17 +388,19 @@
           "$$hashKey": "object:385",
           "alias": "",
           "align": "auto",
-          "colorMode": null,
+          "colorMode": "value",
           "colors": [
-            "rgba(245, 54, 54, 0.9)",
-            "rgba(237, 129, 40, 0.89)",
-            "rgba(50, 172, 45, 0.97)"
+            "rgba(50, 172, 45, 0.97)",
+            "#E02F44",
+            "rgba(245, 54, 54, 0.9)"
           ],
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
           "decimals": 2,
           "mappingType": 1,
           "pattern": "Max CPU Ready Pct",
-          "thresholds": [],
+          "thresholds": [
+            "0.05"
+          ],
           "type": "number",
           "unit": "percentunit"
         },
@@ -405,7 +445,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  entity.name as \"VM Name\",\n  max(entity.attrs->>'num_cpus') || ' vCPUs' as \"Num vCPUs\",\n  avg(metric.consumed/20000) as \"Avg CPU Ready Pct\",\n  max(metric.consumed/20000) as \"Max CPU Ready Pct\",\n\n  entity.oid as \"VM OID\"\nFROM metric, entity\nWHERE\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  $__timeFilter(\"time\") AND entity.oid = metric.entity_oid AND entity.hash = metric.entity_hash and \n  entity.type = 'VIRTUAL_MACHINE' AND \n  metric.type LIKE 'Q%_VCPU' \n  AND CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGROUP BY entity.oid, entity.name\nORDER BY 3 desc",
+          "rawSql": "SELECT\n  entity.name as \"VM Name\",\n  max(entity.attrs->>'num_cpus') || ' vCPUs' as \"Num vCPUs\",\n  avg(metric.consumed/20000) as \"Avg CPU Ready Pct\",\n  max(metric.consumed/20000) as \"Max CPU Ready Pct\"\nFROM metric, entity\nWHERE\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  $__timeFilter(\"time\") AND entity.oid = metric.entity_oid AND entity.hash = metric.entity_hash and \n  entity.type = 'VIRTUAL_MACHINE' AND \n  metric.type LIKE 'Q%_VCPU' \n  AND CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGROUP BY entity.oid, entity.name\nORDER BY 3 desc",
           "refId": "A",
           "select": [
             [
@@ -459,14 +499,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "select name as __text, oid as __value from entity where entity.type = 'COMPUTE_HOST_CLUSTER'  and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) group by name, oid order by 1",
+        "definition": "select name as __text, oid as __value \nfrom entity \nwhere entity.type = 'COMPUTE_HOST_CLUSTER' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": true,
         "name": "Cluster",
         "options": [],
-        "query": "select name as __text, oid as __value from entity where entity.type = 'COMPUTE_HOST_CLUSTER'  and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) group by name, oid order by 1",
+        "query": "select name as __text, oid as __value \nfrom entity \nwhere entity.type = 'COMPUTE_HOST_CLUSTER' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

@@ -15,7 +15,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592516044472,
+  "iteration": 1593462183381,
   "links": [],
   "panels": [
     {
@@ -73,7 +73,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT sum(used) as \"Storage Used\"\n      ,sum(capacity) as \"Storage Capacity\"\n      ,round((sum(used)/sum(capacity))::numeric, 4) as \"Utilization\"\nFROM\n        (SELECT e.oid\n              ,avg(m.current) AS used\n              ,avg(m.capacity) AS capacity\n        FROM entity e\n        JOIN metric m ON m.entity_oid = e.oid\n          AND m.type = 'STORAGE_AMOUNT'\n          AND m.entity_hash = e.hash\n          AND e.type = 'STORAGE'\n          AND $__timeFilter(m.\"time\")\n          --AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n          AND CASE WHEN ARRAY[ [[Group]] ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n        GROUP BY 1) as data_tbl",
+          "rawSql": "SELECT sum(used) as \"Storage Used\"\n      ,sum(capacity) as \"Storage Capacity\"\n      ,round((sum(used)/NULLIF(sum(capacity),0))::numeric, 4) as \"Utilization\"\nFROM\n        (SELECT e.oid\n              ,avg(m.current) AS used\n              ,avg(m.capacity)::numeric AS capacity\n        FROM entity e\n        JOIN metric m ON m.entity_oid = e.oid\n          AND m.type = 'STORAGE_AMOUNT'\n          AND m.entity_hash = e.hash\n          AND e.type = 'STORAGE'\n          AND $__timeFilter(m.\"time\")\n          AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n          AND CASE WHEN ARRAY[ [[Group]] ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n        GROUP BY 1) as data_tbl",
           "refId": "A",
           "select": [
             [
@@ -129,67 +129,47 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Min"
+              "options": "Utilization"
             },
             "properties": [
               {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
                 "id": "custom.width",
-                "value": 123
+                "value": null
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Avg"
+              "options": "IOPS"
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 135
+                "id": "unit",
+                "value": "iops"
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Max"
+              "options": "Latency"
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 112
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Unit"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 111
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Resource Type"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 165
+                "id": "unit",
+                "value": "ms"
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 4,
+        "h": 5,
         "w": 12,
         "x": 12,
         "y": 0
@@ -206,7 +186,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN type = 'STORAGE_ACCESS' THEN 'IOPS'\n            WHEN type = 'STORAGE_LATENCY' THEN 'Latency' END as \"Resource Type\"\n      ,sum(used_avg) as \"Avg\"\n      ,sum(used_min) as \"Min\"\n      ,sum(used_max) as \"Max\"\n      ,CASE WHEN type = 'STORAGE_ACCESS' THEN 'IOPS'\n            WHEN type = 'STORAGE_LATENCY' THEN 'ms' END as \"Unit\"\nFROM\n        (SELECT m.type\n              ,avg(m.current) AS used_avg\n              ,min(m.current) AS used_min\n              ,max(m.current) AS used_max\n        FROM entity e\n        JOIN metric m ON m.entity_oid = e.oid\n          AND m.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')\n          AND m.entity_hash = e.hash\n          AND e.type = 'STORAGE'\n          AND $__timeFilter(m.\"time\")\n          --AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n          AND CASE WHEN ARRAY[ [[Group]] ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n        GROUP BY 1) as data_tbl\nGROUP BY 1, 5;",
+          "rawSql": "SELECT \nunnest(array['AVG','MIN','MAX']) as \"Aggregation\",\nunnest(array[avg(metric.utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT'),\nmin(metric.utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT'),\nmax(metric.Utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT')\n]) AS \"Utilization\",\nunnest(array[avg(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS'),\nmin(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS'),\nmax(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS')\n]) AS \"IOPS\",\nunnest(array[avg(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY'),\nmin(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY'),\nmax(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY')\n]) AS \"Latency\"\nFROM metric, entity\nWHERE entity.type = 'STORAGE' and \nCASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && array[ [[Group]] ]::bigint[]) END and \nentity.oid = metric.entity_oid and entity.hash = metric.entity_hash and\n$__timeFilter(\"time\") and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)",
           "refId": "A",
           "select": [
             [
@@ -233,6 +213,12 @@
       "timeFrom": null,
       "timeShift": null,
       "title": "Performance Stats",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {}
+        }
+      ],
       "type": "table"
     },
     {
@@ -250,7 +236,7 @@
       "fill": 1,
       "fillGradient": 0,
       "gridPos": {
-        "h": 9,
+        "h": 10,
         "w": 12,
         "x": 0,
         "y": 3
@@ -286,7 +272,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT \n      date_trunc('hour', m.time) as \"time\",\n      ROUND((sum(m.current)/sum(m.capacity))::NUMERIC, 4) AS \"Storage Amount Used\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid\n  AND m.type = 'STORAGE_AMOUNT'\n  AND m.entity_hash = e.hash\n  AND e.type = 'STORAGE'\n  AND $__timeFilter(m.\"time\")\n  --AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n  AND CASE WHEN ARRAY[ [[Group]] ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1",
+          "rawSql": "SELECT \n      date_trunc('hour', m.time) as \"time\",\n      ROUND((sum(m.current)/sum(m.capacity))::NUMERIC, 4) AS \"Storage Amount Used\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid\n  AND m.type = 'STORAGE_AMOUNT'\n  AND m.entity_hash = e.hash\n  AND e.type = 'STORAGE'\n  AND $__timeFilter(m.\"time\")\n  AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n  AND CASE WHEN ARRAY[ [[Group]] ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1",
           "refId": "A",
           "select": [
             [
@@ -330,6 +316,7 @@
       },
       "yaxes": [
         {
+          "$$hashKey": "object:754",
           "decimals": 2,
           "format": "percentunit",
           "label": null,
@@ -339,6 +326,7 @@
           "show": true
         },
         {
+          "$$hashKey": "object:755",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -370,7 +358,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 5
       },
       "hiddenSeries": false,
       "id": 8,
@@ -395,6 +383,7 @@
       "renderer": "flot",
       "seriesOverrides": [
         {
+          "$$hashKey": "object:844",
           "alias": "Latency Avg",
           "yaxis": 2
         }
@@ -408,7 +397,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT m.time\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_ACCESS') AS \"IOPS Avg\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_LATENCY') AS \"Latency Avg\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid\n  AND m.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')\n  AND m.entity_hash = e.hash\n  AND e.type = 'STORAGE'\n  AND $__timeFilter(m.\"time\")\n  --AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n  AND CASE WHEN ARRAY[ [[Group]] ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1",
+          "rawSql": "SELECT m.time\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_ACCESS') AS \"IOPS Avg\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_LATENCY') AS \"Latency Avg\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid\n  AND m.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')\n  AND m.entity_hash = e.hash\n  AND e.type = 'STORAGE'\n  AND $__timeFilter(m.\"time\")\n  AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n  AND CASE WHEN ARRAY[ [[Group]] ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1",
           "refId": "A",
           "select": [
             [
@@ -452,6 +441,7 @@
       },
       "yaxes": [
         {
+          "$$hashKey": "object:851",
           "decimals": 2,
           "format": "iops",
           "label": "",
@@ -461,6 +451,7 @@
           "show": true
         },
         {
+          "$$hashKey": "object:852",
           "decimals": 2,
           "format": "ms",
           "label": null,
@@ -549,7 +540,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 13
       },
       "id": 10,
       "options": {
@@ -563,7 +554,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT e.name as \"Datastore\"\n      ,avg(m.capacity) FILTER (WHERE m.type = 'STORAGE_AMOUNT') AS \"Storage Capacity\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_AMOUNT') AS \"Storage Used\"\n      ,avg(m.current / m.capacity) FILTER (WHERE m.type = 'STORAGE_AMOUNT') as \"Storage Utilization\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_PROVISIONED') as \"Storage Provisioned\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_PROVISIONED') / \n            avg(m.capacity) FILTER (WHERE m.type = 'STORAGE_AMOUNT') as \"Storage Over-Provisioned\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid\n  AND m.type IN ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')\n  AND m.entity_hash = e.hash\n  AND e.type = 'STORAGE'\n  AND $__timeFilter(m.\"time\")\n  --AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n  AND CASE WHEN ARRAY[ [[Group]] ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1\nORDER BY 4 DESC",
+          "rawSql": "SELECT e.name as \"Datastore\"\n      ,avg(m.capacity) FILTER (WHERE m.type = 'STORAGE_AMOUNT') AS \"Storage Capacity\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_AMOUNT') AS \"Storage Used\"\n      ,avg(m.utilization) FILTER (WHERE m.type = 'STORAGE_AMOUNT') as \"Storage Utilization\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_PROVISIONED') as \"Storage Provisioned\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_PROVISIONED') / \n            NULLIF(avg(m.capacity) FILTER (WHERE m.type = 'STORAGE_AMOUNT'), 0) as \"Storage Over-Provisioned\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid\n  AND m.type IN ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')\n  AND m.entity_hash = e.hash\n  AND e.type = 'STORAGE'\n  AND $__timeFilter(m.\"time\")\n  AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n  AND CASE WHEN ARRAY[ [[Group]] ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1\nORDER BY 4 DESC",
           "refId": "A",
           "select": [
             [
@@ -646,7 +637,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 21
       },
       "id": 12,
       "options": {
@@ -659,7 +650,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT e.name as \"Datastore\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_ACCESS') AS \"IOPS Avg\"\n      ,max(m.current) FILTER (WHERE m.type = 'STORAGE_ACCESS') AS \"IOPS Max\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_LATENCY') AS \"Latency Avg\"\n      ,max(m.current) FILTER (WHERE m.type = 'STORAGE_LATENCY') AS \"Latency Max\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid\n  AND m.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')\n  AND m.entity_hash = e.hash\n  AND e.type = 'STORAGE'\n  AND $__timeFilter(m.\"time\")\n  --AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n  AND CASE WHEN ARRAY[ [[Group]] ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1\nORDER BY 2 DESC",
+          "rawSql": "SELECT e.name as \"Datastore\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_ACCESS') AS \"IOPS Avg\"\n      ,max(m.current) FILTER (WHERE m.type = 'STORAGE_ACCESS') AS \"IOPS Max\"\n      ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_LATENCY') AS \"Latency Avg\"\n      ,max(m.current) FILTER (WHERE m.type = 'STORAGE_LATENCY') AS \"Latency Max\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid\n  AND m.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')\n  AND m.entity_hash = e.hash\n  AND e.type = 'STORAGE'\n  AND $__timeFilter(m.\"time\")\n  AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n  AND CASE WHEN ARRAY[ [[Group]] ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1\nORDER BY 2 DESC",
           "refId": "A",
           "select": [
             [
@@ -689,6 +680,7 @@
       "type": "table"
     }
   ],
+  "refresh": false,
   "schemaVersion": 25,
   "style": "dark",
   "tags": [],
@@ -711,14 +703,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND $__timeTo() >= first_seen \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'REGULAR' \n   AND attrs #>> '{expectedTypes, 0}' = 'STORAGE')",
+        "definition": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'REGULAR' \n   AND attrs -> 'expectedTypes' ? 'STORAGE')\n",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "Group",
         "options": [],
-        "query": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND $__timeTo() >= first_seen \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'REGULAR' \n   AND attrs #>> '{expectedTypes, 0}' = 'STORAGE')",
+        "query": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'REGULAR' \n   AND attrs -> 'expectedTypes' ? 'STORAGE')\n",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
