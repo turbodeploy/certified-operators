@@ -2,15 +2,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
+        <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
-        <artifactId>com.vmturbo.components</artifactId>
         <version>7.22.5-SNAPSHOT</version>
-        <relativePath>../com.vmturbo.components</relativePath>
+        <relativePath>../build</relativePath>
     </parent>
-
-    <properties>
-        <mediation.base.dir>${project.basedir}</mediation.base.dir>
-    </properties>
 
     <artifactId>mediation-parent</artifactId>
     <packaging>pom</packaging>
@@ -40,85 +36,63 @@
                     </configuration>
                 </plugin>
                 <plugin>
+                    <groupId>com.spotify</groupId>
+                    <artifactId>docker-maven-plugin</artifactId>
+                    <configuration>
+                        <imageName>${docker.image.prefix}/${project.artifactId}</imageName>
+                        <imageTags>
+                            <imageTag>${project.version}</imageTag>
+                        </imageTags>
+                        <baseImage>${docker.image.prefix}/com.vmturbo.mediation.client:${project.version}</baseImage>
+                        <resources>
+                            <resource>
+                                <targetPath>/probe-jars</targetPath>
+                                <directory>${project.build.directory}/probe-jars</directory>
+                            </resource>
+                        </resources>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>build-docker-image</id>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>build</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>tag-docker-image</id>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>tag</goal>
+                            </goals>
+                            <configuration>
+                                <image>${docker.image.prefix}/${project.artifactId}</image>
+                                <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}</newName>
+                            </configuration>
+                        </execution>
+                        <execution>
+                            <id>push-docker-image</id>
+                            <phase>deploy</phase>
+                            <goals>
+                                <goal>push</goal>
+                            </goals>
+                            <configuration>
+                                <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}</imageName>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-jar-plugin</artifactId>
                     <configuration>
                         <archive>
                             <manifest>
-                                <addClasspath>false</addClasspath>
-                                <mainClass>com.vmturbo.mediation.client.bootstrap.MediationBootstrap</mainClass>
+                                <addClasspath>true</addClasspath>
+                                <classpathPrefix>lib/</classpathPrefix>
                             </manifest>
-                            <manifestEntries>
-                                <Class-Path>bootstrap/com.vmturbo.mediation.client.bootstrap.jar</Class-Path>
-                            </manifestEntries>
                         </archive>
                     </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>com.spotify</groupId>
-                    <artifactId>docker-maven-plugin</artifactId>
-                    <configuration>
-                        <resources>
-                            <resource>
-                                <targetPath>/</targetPath>
-                                <directory>${project.build.directory}</directory>
-                                <include>${project.build.finalName}.jar</include>
-                            </resource>
-                            <resource>
-                                <targetPath>/probe-jars</targetPath>
-                                <directory>${project.build.directory}/probe-jars</directory>
-                            </resource>
-                            <resource>
-                                <targetPath>/lib</targetPath>
-                                <directory>${project.build.directory}/lib</directory>
-                            </resource>
-                            <resource>
-                                <targetPath>/bootstrap</targetPath>
-                                <directory>${project.build.directory}/bootstrap</directory>
-                            </resource>
-                            <resource>
-                                <targetPath>/swagger</targetPath>
-                                <directory>${project.build.directory}/generated-docs/swagger</directory>
-                            </resource>
-                        </resources>
-                    </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-dependency-plugin</artifactId>
-                    <executions>
-                        <execution>
-                            <id>copy-dependencies</id>
-                            <goals>
-                                <goal>copy-dependencies</goal>
-                            </goals>
-                            <phase>prepare-package</phase>
-                            <configuration>
-                                <includeScope>runtime</includeScope>
-                                <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                                <useBaseVersion>false</useBaseVersion>
-                            </configuration>
-                        </execution>
-                        <execution>
-                            <id>copy-mediation-bootstrap</id>
-                            <goals>
-                                <goal>copy</goal>
-                            </goals>
-                            <phase>prepare-package</phase>
-                            <configuration>
-                                <outputDirectory>${project.build.directory}/bootstrap</outputDirectory>
-                                <useBaseVersion>false</useBaseVersion>
-                                <stripVersion>true</stripVersion>
-                                <artifactItems>
-                                    <artifactItem>
-                                        <groupId>com.vmturbo</groupId>
-                                        <artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
-                                        <version>${project.version}</version>
-                                    </artifactItem>
-                                </artifactItems>
-                            </configuration>
-                        </execution>
-                    </executions>
                 </plugin>
             </plugins>
         </pluginManagement>
@@ -138,20 +112,6 @@
             <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>com.github.kongchen</groupId>
-                <artifactId>swagger-maven-plugin</artifactId>
-                <configuration>
-                    <apiSources>
-                        <apiSource>
-                            <locations>
-                                <location>com.vmturbo.common.protobuf.logging</location>
-                                <location>com.vmturbo.components.common</location>
-                            </locations>
-                        </apiSource>
-                    </apiSources>
-                </configuration>
             </plugin>
         </plugins>
     </build>
