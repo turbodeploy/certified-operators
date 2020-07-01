@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -26,7 +27,7 @@ public class CachedTopology {
      * Holds a copy of the result from the most recent constructed topology stage run by the
      * live topology broadcast or null if none have run successfully yet.
      */
-    private Map<Long, TopologyEntity.Builder> cachedMap;
+    private Map<Long, TopologyEntity.Builder> cachedMap = Collections.emptyMap();
 
     /**
      * Cache the result of the construct topology stage.
@@ -41,14 +42,15 @@ public class CachedTopology {
     /**
      * Return a deep copy of the cached topology.
      *
-     * @param pendingTopology Information about the topology under construction. Certain topology
+     * @param pendingPlanType Information about the topology under construction. Certain topology
      *                        types (e.g. reservation plan) may get different subsets of entities.
      * @return {@link CachedTopologyResult} for the most recently cached topology.
      */
-    public synchronized CachedTopologyResult getTopology(@Nonnull final TopologyInfo pendingTopology) {
+    public synchronized CachedTopologyResult getTopology(
+            @Nullable final PlanProjectType pendingPlanType) {
         final Stream<TopologyEntity.Builder> entities;
         final TIntIntMap removedCounts;
-        if (pendingTopology.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN) {
+        if (pendingPlanType == PlanProjectType.RESERVATION_PLAN) {
             removedCounts = new TIntIntHashMap();
             entities = cachedMap.values().stream()
                 .filter(entity -> {
@@ -82,11 +84,11 @@ public class CachedTopology {
      * @return boolean indicating if the cache is empty or not.
      */
     public synchronized boolean isEmpty() {
-        return cachedMap == null || cachedMap.isEmpty();
+        return cachedMap.isEmpty();
     }
 
     /**
-     * Return object for {@link CachedTopology#getTopology(TopologyInfo)}, containing additional
+     * Return object for {@link CachedTopology#getTopology(PlanProjectType)}, containing additional
      * information about the cached topology which is useful for topology pipeline sumaries.
      */
     public static class CachedTopologyResult {

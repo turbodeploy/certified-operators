@@ -433,7 +433,6 @@
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]spec[/\\]StorageProvisionSpecFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]spec[/\\]ContainerResizeSpecFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]spec[/\\]ActionDataManager.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]EntityRetriever.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]EntityRetrievalException.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]api[/\\]server[/\\]TopologyProcessorKafkaSender.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]api[/\\]server[/\\]TopologyBroadcast.java" />

@@ -35,7 +35,9 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
+import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
+import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
 
 /**
  * Configuration for action execution.
@@ -47,7 +49,8 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
         RepositoryConfig.class,
         TargetConfig.class,
         ActionOrchestratorClientConfig.class,
-        BaseKafkaProducerConfig.class})
+        BaseKafkaProducerConfig.class,
+        StitchingConfig.class})
 public class ActionsConfig {
 
     @Autowired
@@ -73,6 +76,9 @@ public class ActionsConfig {
 
     @Autowired
     private ActionMergeSpecsConfig actionMergeSpecsConfig;
+
+    @Autowired
+    private StitchingConfig stitchingConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -116,9 +122,22 @@ public class ActionsConfig {
     }
 
     @Bean
+    public CachedTopology cachedTopology() {
+        return new CachedTopology();
+    }
+
+    /**
+     * Entity retrieber. It is able to retrieve entities from toplogy cached by the previous
+     * broadcast or fall back to repository request.
+     *
+     * @return the bean created
+     */
+    @Bean
     public EntityRetriever entityRetriever() {
-        return new EntityRetriever(topologyToSdkEntityConverter(),
+        return new EntityRetriever(
+                topologyToSdkEntityConverter(),
                 repositoryConfig.repository(),
+                cachedTopology(),
                 realtimeTopologyContextId);
     }
 

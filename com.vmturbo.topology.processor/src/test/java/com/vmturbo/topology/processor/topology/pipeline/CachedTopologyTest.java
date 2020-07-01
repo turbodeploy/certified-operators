@@ -14,8 +14,6 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
@@ -40,7 +38,7 @@ public class CachedTopologyTest {
         cachedTopology.updateTopology(entities.stream()
             .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity())));
 
-        CachedTopologyResult result = cachedTopology.getTopology(TopologyInfo.getDefaultInstance());
+        CachedTopologyResult result = cachedTopology.getTopology(null);
         // Size 3
         assertThat(result.toString(), containsString("3"));
         assertThat(result.getEntities().keySet(), containsInAnyOrder(1L, 2L, 3L));
@@ -57,10 +55,8 @@ public class CachedTopologyTest {
         cachedTopology.updateTopology(entities.stream()
             .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity())));
 
-        CachedTopologyResult result = cachedTopology.getTopology(TopologyInfo.newBuilder()
-            .setPlanInfo(PlanTopologyInfo.newBuilder()
-                .setPlanProjectType(PlanProjectType.RESERVATION_PLAN))
-            .build());
+        final CachedTopologyResult result = cachedTopology.getTopology(
+                PlanProjectType.RESERVATION_PLAN);
 
         // Size 2
         assertThat(result.toString(), containsString("2"));

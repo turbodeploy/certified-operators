@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
@@ -43,8 +44,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -104,13 +104,6 @@ public class ActionAuditServiceTest {
         MockitoAnnotations.initMocks(this);
         this.threadPool = new MockScheduledService();
         counter = new AtomicLong(0);
-        final TargetSpec targetSpec = TargetSpec.newBuilder()
-                .setProbeId(AUDIT_PROBE)
-                .addAccountValue(AccountValue.newBuilder()
-                        .setKey("id")
-                        .setStringValue("target")
-                        .build())
-                .build();
         final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
                 .setProbeType("test probe")
@@ -128,18 +121,29 @@ public class ActionAuditServiceTest {
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
         final ActionDataManager actionDataManagerMock = Mockito.mock(ActionDataManager.class);
         final EntityStore entityStoreMock = Mockito.mock(EntityStore.class);
-        final EntityRetriever entityRetrieverMock = Mockito.mock(EntityRetriever.class);
+        final EntityRetriever entityRetriever = Mockito.mock(EntityRetriever.class);
+        final TopologyEntityDTO vmTopology = TopologyEntityDTO
+                .newBuilder()
+                .setOid(ENTITY_ID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("vm-1")
+                .build();
         final EntityDTO vm = EntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE)
                 .setDisplayName("vm-1")
                 .setId("vm-1")
                 .build();
-        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(ENTITY_ID)).thenReturn(vm);
+        Mockito.when(entityRetriever.retrieveTopologyEntities(Collections.singletonList(ENTITY_ID)))
+                .thenReturn(Collections.singletonList(vmTopology));
+        Mockito.when(entityRetriever.fetchAndConvertToEntityDTO(ENTITY_ID)).thenReturn(vm);
         final Entity vmEntity = new Entity(ENTITY_ID, EntityType.VIRTUAL_MACHINE);
         vmEntity.addTargetInfo(ACTION_TARGET, vm);
+        final TopologyToSdkEntityConverter topologyToSdkEntityConverter = Mockito.mock(
+                TopologyToSdkEntityConverter.class);
+        Mockito.when(topologyToSdkEntityConverter.convertToEntityDTO(vmTopology)).thenReturn(vm);
         Mockito.when(entityStoreMock.getEntity(ENTITY_ID)).thenReturn(Optional.of(vmEntity));
         this.contextFactory = new ActionExecutionContextFactory(actionDataManagerMock,
-                entityStoreMock, entityRetrieverMock, targetStore, probeStore);
+                entityStoreMock, entityRetriever, targetStore, probeStore);
         identityProvider = Mockito.mock(IdentityProvider.class);
         Mockito.when(identityProvider.generateOperationId()).thenAnswer(
                 invocation -> counter.getAndIncrement());
@@ -314,8 +318,8 @@ public class ActionAuditServiceTest {
         actionAuditService.initialize();
         expectedException.expect(IllegalArgumentException.class);
         expectedException.expectMessage("batchSize must be a positive value");
-        new ActionAuditService(eventsReceiver, operationManager, contextFactory,
-                threadPool, 10, 0, 0);
+        new ActionAuditService(eventsReceiver, operationManager, contextFactory, threadPool, 10, 0,
+                0);
     }
 
     @Nonnull

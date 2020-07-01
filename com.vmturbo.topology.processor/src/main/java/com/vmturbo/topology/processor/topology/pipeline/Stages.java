@@ -19,6 +19,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 import com.google.protobuf.AbstractMessage;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
@@ -510,7 +511,10 @@ public class Stages {
         @Nonnull
         @Override
         public StageResult<Map<Long, Builder>> execute(@Nonnull final EntityStore entityStore) {
-            final CachedTopologyResult result = resultCache.getTopology(getContext().getTopologyInfo());
+            final CachedTopologyResult result = resultCache.getTopology(
+                    getContext().getTopologyInfo().hasPlanInfo()
+                            ? getContext().getTopologyInfo().getPlanInfo().getPlanProjectType()
+                            : null);
             return StageResult.withResult(result.getEntities())
                 .andStatus(Status.success(result.toString()));
         }

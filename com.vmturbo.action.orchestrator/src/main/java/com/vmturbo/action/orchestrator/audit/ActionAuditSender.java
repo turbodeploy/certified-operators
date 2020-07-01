@@ -51,20 +51,26 @@ public class ActionAuditSender {
      */
     public void sendActionEvents(@Nonnull Collection<ActionView> actions)
             throws CommunicationException, InterruptedException {
+        int counter = 0;
         for (ActionView action : actions) {
             final Optional<WorkflowDTO.Workflow> workflowOptional = action.getWorkflow(
                     workflowStore);
             if (workflowOptional.isPresent()) {
-                processWorkflow(action, workflowOptional.get());
+                if (processWorkflow(action, workflowOptional.get())) {
+                    counter++;
+                }
             } else {
                 logger.trace(
                         "Action {} does not have a currently associated workflow. Skip the audit",
                         action::getId);
             }
         }
+        if (counter > 0) {
+            logger.info("Sent {} of {} actions for external audit", counter, actions.size());
+        }
     }
 
-    private void processWorkflow(@Nonnull ActionView action, @Nonnull WorkflowDTO.Workflow workflow)
+    private boolean processWorkflow(@Nonnull ActionView action, @Nonnull WorkflowDTO.Workflow workflow)
             throws CommunicationException, InterruptedException {
         final ActionResponseState oldState;
         final ActionResponseState newState;
@@ -86,7 +92,10 @@ public class ActionAuditSender {
                 break;
             }
             default:
-                return;
+                logger.trace("Action {}'s workflow {} ({}) is for phase {}. Skipping audit",
+                        action::getId, workflow::getId, () -> workflow.getWorkflowInfo().getName(),
+                        () -> workflow.getWorkflowInfo().getActionPhase());
+                return false;
         }
 
         final ExecuteActionRequest request = ActionExecutor.createRequest(
@@ -100,5 +109,6 @@ public class ActionAuditSender {
                 .build();
         logger.debug("Sending action {} audit event to external audit", action.getId());
         messageSender.sendMessage(event);
+        return true;
     }
 }

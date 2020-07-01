@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.actions;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -25,8 +26,8 @@ import com.vmturbo.platform.common.dto.ActionExecution.ExternalActionInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.topology.processor.AbstractActionApprovalService;
-import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContext;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
+import com.vmturbo.topology.processor.actions.data.context.ContextCreationException;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.IOperationManager.OperationCallback;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
@@ -119,11 +120,18 @@ public class ActionApprovalService extends AbstractActionApprovalService {
         }
         try {
             if (actionApprovalOperation == null) {
-                final List<ActionExecutionDTO> actionExecutionList = requests.getActionsList()
-                        .stream()
-                        .map(contextFactory::getActionExecutionContext)
-                        .map(ActionExecutionContext::buildActionExecutionDto)
-                        .collect(Collectors.toList());
+                final List<ActionExecutionDTO> actionExecutionList = new ArrayList<>(
+                        requests.getActionsCount());
+                for (ExecuteActionRequest actionRequest: requests.getActionsList()) {
+                    try {
+                        final ActionExecutionDTO actionExecutionDTO =
+                                contextFactory.getActionExecutionContext(actionRequest)
+                                        .buildActionExecutionDto();
+                        actionExecutionList.add(actionExecutionDTO);
+                    } catch (ContextCreationException e) {
+                        getLogger().warn("Failed to create SDK action from " + actionRequest, e);
+                    }
+                }
                 // This is the only thread able to set the actionApprovalOperation variable
                 actionApprovalOperation = operationManager.approveActions(targetId.get(),
                         actionExecutionList, new ApproveActionsCallback(targetId.get()));
