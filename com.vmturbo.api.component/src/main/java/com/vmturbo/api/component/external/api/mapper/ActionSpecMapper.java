@@ -61,7 +61,6 @@ import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
 import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
-import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -91,7 +90,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
@@ -1876,110 +1874,78 @@ public class ActionSpecMapper {
     @Nullable
     public ActionDetailsApiDTO createActionDetailsApiDTO(
             final ActionDTO.ActionOrchestratorAction action, Long topologyContextId) {
-
-        Map<String, ActionDetailsApiDTO> dtoMap = createActionDetailsApiDTO(Collections.singleton(action), topologyContextId);
-        return dtoMap.get(Long.toString(action.getActionId()));
-    }
-
-
-    /**
-     * Given a list of actionSpecs fetches the corresponding action details.
-     * @param actions - collection of ActionOrchestratorAction objects for the user sent actions
-     * @param topologyContextId - the topology context that the action corresponds to
-     * @return actionDetailsApiDTO which contains extra information about a given action
-     */
-    @Nullable
-    public Map<String, ActionDetailsApiDTO> createActionDetailsApiDTO(
-            final Collection<ActionOrchestratorAction> actions, Long topologyContextId) {
-
-        Map<String, ActionDetailsApiDTO> response = new HashMap<>();
-        Map<String, Long> actionToEntityUuidMap = new HashMap<>();
-
-        for (ActionOrchestratorAction action: actions) {
-            final ActionSpec actionSpec = action.getActionSpec();
-            if (actionSpec == null || !actionSpec.hasRecommendation()) {
-                response.put(Long.toString(action.getActionId()), new NoDetailsApiDTO());
-            } else {
-                ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
-                // Buy RI action - set est. on-demand cost and coverage values + historical demand data
-                if (actionSpec.getRecommendation().hasExplanation() && actionType.equals(BUY_RI)) {
-                    RIBuyActionDetailsApiDTO detailsDto = new RIBuyActionDetailsApiDTO();
-                    // set est RI Coverage
-                    ActionDTO.Explanation.BuyRIExplanation buyRIExplanation = actionSpec.getRecommendation().getExplanation().getBuyRI();
-                    float covered = buyRIExplanation.getCoveredAverageDemand();
-                    float capacity = buyRIExplanation.getTotalAverageDemand();
-                    detailsDto.setEstimatedRICoverage((covered / capacity) * 100);
-                    // set est. on-demand cost
-                    detailsDto.setEstimatedOnDemandCost(buyRIExplanation.getEstimatedOnDemandCost());
-                    // set demand data
-                    Cost.riBuyDemandStats snapshots = riStub
-                            .getRIBuyContextData(Cost.GetRIBuyContextRequest.newBuilder()
-                                    .setActionId(Long.toString(actionSpec.getRecommendation().getId())).build());
-                    List<StatSnapshotApiDTO> demandList = createRiHistoricalContextStatSnapshotDTO(
-                            snapshots.getStatSnapshotsList());
-                    detailsDto.setHistoricalDemandData(demandList);
-                    response.put(Long.toString(action.getActionId()), detailsDto);
-                }
-                else if (actionType == RESIZE || actionType == SCALE || actionType == ALLOCATE) {
-                    long entityUuid;
-                    ActionEntity entity;
-                    try {
-                        entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
-                        entityUuid = entity.getId();
-                    } catch (UnsupportedActionException e) {
-                        logger.warn("Cannot create action details due to unsupported action type", e);
-                        continue;
-                    }
-                    if (entity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
-                        logger.warn("Cannot create action details for on-prem actions");
-                        continue;
-                    }
-                    actionToEntityUuidMap.put(Long.toString(action.getActionId()), entityUuid);
-                }
+        final ActionSpec actionSpec = action.getActionSpec();
+        if (actionSpec != null && actionSpec.hasRecommendation()) {
+            ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
+            // Buy RI action - set est. on-demand cost and coverage values + historical demand data
+            if (actionSpec.getRecommendation().hasExplanation() && actionType.equals(BUY_RI)) {
+                RIBuyActionDetailsApiDTO detailsDto = new RIBuyActionDetailsApiDTO();
+                // set est RI Coverage
+                ActionDTO.Explanation.BuyRIExplanation buyRIExplanation = actionSpec.getRecommendation()
+                        .getExplanation().getBuyRI();
+                float covered = buyRIExplanation.getCoveredAverageDemand();
+                float capacity = buyRIExplanation.getTotalAverageDemand();
+                detailsDto.setEstimatedRICoverage((covered / capacity) * 100);
+                // set est. on-demand cost
+                detailsDto.setEstimatedOnDemandCost(buyRIExplanation.getEstimatedOnDemandCost());
+                // set demand data
+                Cost.riBuyDemandStats snapshots = riStub
+                        .getRIBuyContextData(Cost.GetRIBuyContextRequest.newBuilder()
+                                .setActionId(Long.toString(actionSpec.getRecommendation().getId())).build());
+                List<StatSnapshotApiDTO> demandList =
+                        createRiHistoricalContextStatSnapshotDTO(snapshots.getStatSnapshotsList());
+                detailsDto.setHistoricalDemandData(demandList);
+                return detailsDto;
             }
+            if (actionType == RESIZE || actionType == SCALE || actionType == ALLOCATE) {
+                long entityUuid;
+                ActionEntity entity;
+                try {
+                    entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
+                    entityUuid = entity.getId();
+                } catch (UnsupportedActionException e) {
+                    logger.warn("Cannot create action details due to unsupported action type", e);
+                    return null;
+                }
+                if (entity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+                    logger.warn("Cannot create action details for on-prem actions");
+                    return null;
+                }
+                return createCloudResizeActionDetailsDTO(entityUuid, topologyContextId);
+            }
+            return null;
         }
-
-        Map<Long, CloudResizeActionDetailsApiDTO> actionDetailMap = createCloudResizeActionDetailsDTO(actionToEntityUuidMap.values(), topologyContextId);
-
-        actionToEntityUuidMap.forEach((actionId, entityId) -> {
-            response.put(actionId, actionDetailMap.get(entityId));
-        });
-
-        return response;
+        return null;
     }
 
     /**
-     * Create Cloud Resize Action Details DTOs for a list of entity ids.
-     * @param entityUuids - list of uuid of the action target entity
+     * Create Cloud Resize Action Details DTO.
+     * @param entityUuid - uuid of the action target entity
      * @param topologyContextId - the topology context that the action corresponds to
-     * @return dtoMap - A map that contains additional details about the actions
-     * like on-demand rates, costs and RI coverage before/after the resize, indexed by entity id
+     * @return cloudResizeActionDetailsDTO - this contains additional details about the action
+     * like on-demand rates, costs and RI coverage before/after the resize
      */
     @Nonnull
-    public Map<Long, CloudResizeActionDetailsApiDTO> createCloudResizeActionDetailsDTO(Collection<Long> entityUuids, Long topologyContextId) {
-        Set<Long> entityUuidSet = new HashSet<>(entityUuids);
-        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = entityUuidSet.stream().collect(Collectors.toMap(e -> e, e -> new CloudResizeActionDetailsApiDTO()));
-
+    public CloudResizeActionDetailsApiDTO createCloudResizeActionDetailsDTO(long entityUuid, Long topologyContextId) {
+        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = new CloudResizeActionDetailsApiDTO();
         // get on-demand costs
-        setOnDemandCosts(topologyContextId, dtoMap);
-
+        setOnDemandCosts(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
         // get on-demand rates
-        setOnDemandRates(topologyContextId, dtoMap);
-
+        setOnDemandRates(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
         // get RI coverage before/after
-        setRiCoverage(topologyContextId, dtoMap);
-
-        return dtoMap;
+        setRiCoverage(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
+        return cloudResizeActionDetailsApiDTO;
     }
 
     /**
      * Set on-demand costs for target entity which factors in RI usage.
      *
+     * @param entityUuid - uuid of target entity
      * @param topologyContextId - context Id
-     * @param dtoMap - cloud resize action details DTO, key is action target entity id
+     * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setOnDemandCosts(Long topologyContextId, Map<Long, CloudResizeActionDetailsApiDTO> dtoMap) {
-        EntityFilter entityFilter = EntityFilter.newBuilder().addAllEntityId(dtoMap.keySet()).build();
+    private void setOnDemandCosts(long entityUuid, Long topologyContextId, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+        EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
         CloudCostStatsQuery.Builder cloudCostStatsQueryBuilder = CloudCostStatsQuery.newBuilder()
                 .setRequestProjected(true)
                 .setEntityFilter(entityFilter)
@@ -2005,59 +1971,54 @@ public class ActionSpecMapper {
                 .addCloudCostStatsQuery(cloudCostStatsQueryBuilder.build())
                 .build();
         final Iterator<GetCloudCostStatsResponse> response =
-                costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
-        Map<Long, List<StatRecord>> recordsByTime = new HashMap<>();
-        while(response.hasNext()) {
-            for(CloudCostStatRecord rec: response.next().getCloudStatRecordList()) {
-                recordsByTime.computeIfAbsent(rec.getSnapshotDate(), x -> new ArrayList<>()).addAll(rec.getStatRecordsList());
+            costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
+        final List<CloudCostStatRecord> records = new ArrayList<>();
+        int statRecordListSize = 0;
+        while (response.hasNext()) {
+            final GetCloudCostStatsResponse nextResponse = response.next();
+            statRecordListSize += nextResponse.getCloudStatRecordCount();
+            // cost stats are only required if there are exactly two records (representing
+            // Cost Before and Cost After). If there are more records, don't bother continuing to
+            // process them.
+            if (statRecordListSize > 2) {
+                break;
             }
+            records.addAll(nextResponse.getCloudStatRecordList());
         }
-
-        // We expect to receive only current and future times
-        Set<Long> timeSet = recordsByTime.keySet();
-        if (timeSet.size() == 2) {
-            Long currentTime = Collections.min(timeSet); // current
-            Long projectedTime = Collections.max(timeSet); // projected
-            List<StatRecord> currentRecords = recordsByTime.get(currentTime);
-            List<StatRecord> projectedRecords = recordsByTime.get(projectedTime);
-
-            dtoMap.forEach((id, dto) -> {
-                // get real-time
-                Double onDemandCostBefore = currentRecords
-                        .stream()
-                        .filter(rec -> rec.getAssociatedEntityId() == id)
-                        .map(StatRecord::getValues)
-                        .mapToDouble(StatRecord.StatValue::getTotal)
-                        .sum();
-                // get projected
-                Double onDemandCostAfter = projectedRecords
-                        .stream()
-                        .filter(rec -> rec.getAssociatedEntityId() == id)
-                        .map(StatRecord::getValues)
-                        .mapToDouble(StatRecord.StatValue::getTotal)
-                        .sum();
-                dto.setOnDemandCostBefore(onDemandCostBefore.floatValue());
-                dto.setOnDemandCostAfter(onDemandCostAfter.floatValue());
-            });
+        if (statRecordListSize == 2) {
+            // get real-time
+            Double onDemandCostBefore = records.get(0).getStatRecordsList()
+                    .stream()
+                    .map(StatRecord::getValues)
+                    .mapToDouble(StatRecord.StatValue::getTotal)
+                    .sum();
+            // get projected
+            Double onDemandCostAfter = records.get(1).getStatRecordsList()
+                    .stream()
+                    .map(StatRecord::getValues)
+                    .mapToDouble(StatRecord.StatValue::getTotal)
+                    .sum();
+            cloudResizeActionDetailsApiDTO.setOnDemandCostBefore(onDemandCostBefore.floatValue());
+            cloudResizeActionDetailsApiDTO.setOnDemandCostAfter(onDemandCostAfter.floatValue());
         } else {
-            logger.debug("Unable to provide on-demand costs before and after action for entities {}",
-                    dtoMap);
+            logger.debug("Unable to provide on-demand costs before and after action for entity {}",
+                entityUuid);
         }
     }
 
     /**
-     * Set on-demand template rates for a list of target entities.
+     * Set on-demand template rates for the target entity.
      *
+     * @param entityUuid - uuid of target entity
      * @param topologyContextId - topology context ID
-     * @param dtoMap - map of cloud resize action details DTO, key is action target entity id
+     * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setOnDemandRates(@Nullable Long topologyContextId,
-            Map<Long, CloudResizeActionDetailsApiDTO> dtoMap) {
-        Set<Long> entityUuids = dtoMap.keySet();
+    private void setOnDemandRates(long entityUuid, @Nullable Long topologyContextId,
+                                  CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
 
         // Get the On Demand compute costs
         GetTierPriceForEntitiesRequest.Builder onDemandComputeCostsRequest = GetTierPriceForEntitiesRequest.newBuilder()
-                .addAllOids(entityUuids)
+                .setOid(entityUuid)
                 .setCostCategory(CostCategory.ON_DEMAND_COMPUTE);
         if (Objects.nonNull(topologyContextId)) {
             onDemandComputeCostsRequest.setTopologyContextId(topologyContextId);
@@ -2071,7 +2032,7 @@ public class ActionSpecMapper {
 
         // Get the On Demand License costs
         GetTierPriceForEntitiesRequest.Builder onDemandLicenseCostsRequest = GetTierPriceForEntitiesRequest.newBuilder()
-                .addAllOids(entityUuids)
+                .setOid(entityUuid)
                 .setCostCategory(CostCategory.ON_DEMAND_LICENSE);
         if (Objects.nonNull(topologyContextId)) {
             onDemandLicenseCostsRequest.setTopologyContextId(topologyContextId);
@@ -2083,76 +2044,72 @@ public class ActionSpecMapper {
         Map<Long, CurrencyAmount> afterLicenseComputeCosts = onDemandLicenseCostsResponse
                 .getAfterTierPriceByEntityOidMap();
 
-        dtoMap.forEach((entityUuid, cloudResizeActionDetailsApiDTO) -> {
-            double totalCurrentOnDemandRate = 0;
-            if (beforeOnDemandComputeCostByEntityOidMap != null && beforeOnDemandComputeCostByEntityOidMap.get(entityUuid) != null) {
-                double amount = beforeOnDemandComputeCostByEntityOidMap.get(entityUuid).getAmount();
-                totalCurrentOnDemandRate += amount;
-            }
-            if (beforeLicenseComputeCosts != null && beforeLicenseComputeCosts.get(entityUuid) != null) {
-                double amount = beforeLicenseComputeCosts.get(entityUuid).getAmount();
-                totalCurrentOnDemandRate += amount;
-            }
-            if (totalCurrentOnDemandRate == 0) {
-                logger.error("Current On Demand rate for entity with oid {}, not found", entityUuid);
-            }
-            cloudResizeActionDetailsApiDTO.setOnDemandRateBefore((float)totalCurrentOnDemandRate);
+        double totalCurrentOnDemandRate = 0;
+        if (beforeOnDemandComputeCostByEntityOidMap != null && beforeOnDemandComputeCostByEntityOidMap.get(entityUuid) != null) {
+            double amount = beforeOnDemandComputeCostByEntityOidMap.get(entityUuid).getAmount();
+            totalCurrentOnDemandRate += amount;
+        }
+        if (beforeLicenseComputeCosts != null && beforeLicenseComputeCosts.get(entityUuid) != null) {
+            double amount = beforeLicenseComputeCosts.get(entityUuid).getAmount();
+            totalCurrentOnDemandRate += amount;
+        }
+        if (totalCurrentOnDemandRate == 0) {
+            logger.error("Current On Demand rate for entity with oid {}, not found", entityUuid);
+        }
+        cloudResizeActionDetailsApiDTO.setOnDemandRateBefore((float)totalCurrentOnDemandRate);
 
-            double totalProjectedOnDemandRate = 0;
-            if (afterComputeCostByEntityOidMap != null && afterComputeCostByEntityOidMap.get(entityUuid) != null) {
-                double amount = afterComputeCostByEntityOidMap.get(entityUuid).getAmount();
-                totalProjectedOnDemandRate += amount;
-            }
+        double totalProjectedOnDemandRate = 0;
+        if (afterComputeCostByEntityOidMap != null && afterComputeCostByEntityOidMap.get(entityUuid) != null) {
+            double amount = afterComputeCostByEntityOidMap.get(entityUuid).getAmount();
+            totalProjectedOnDemandRate += amount;
+        }
 
-            if (afterLicenseComputeCosts != null && afterLicenseComputeCosts.get(entityUuid) != null) {
-                double amount = afterLicenseComputeCosts.get(entityUuid).getAmount();
-                totalProjectedOnDemandRate += amount;
-            }
+        if (afterLicenseComputeCosts != null && afterLicenseComputeCosts.get(entityUuid) != null) {
+            double amount = afterLicenseComputeCosts.get(entityUuid).getAmount();
+            totalProjectedOnDemandRate += amount;
+        }
 
-            if (totalProjectedOnDemandRate == 0) {
-                logger.error("Projected On Demand rate for entity with oid {}, not found", entityUuid);
-            }
-            cloudResizeActionDetailsApiDTO.setOnDemandRateAfter((float)totalProjectedOnDemandRate);
-        });
+        if (totalProjectedOnDemandRate == 0) {
+            logger.error("Projected On Demand rate for entity with oid {}, not found", entityUuid);
+        }
+        cloudResizeActionDetailsApiDTO.setOnDemandRateAfter((float)totalProjectedOnDemandRate);
     }
 
     /**
-     * Set RI Coverage before/after for a list of target entities.
+     * Set RI Coverage before/after for the target entity.
+     * @param entityUuid - uuid of target entity
      * @param topologyContextId - the topology context for which RI coverage is being set
-     * @param dtoMap - map of cloud resize action details DTO, key is action target entity id
+     * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setRiCoverage(Long topologyContextId, Map<Long, CloudResizeActionDetailsApiDTO> dtoMap) {
-        final EntityFilter entityFilter = EntityFilter.newBuilder().addAllEntityId(dtoMap.keySet()).build();
+    private void setRiCoverage(long entityUuid, Long topologyContextId, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+        final EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
 
         // get latest RI coverage for target entity
         Cost.GetEntityReservedInstanceCoverageRequest reservedInstanceCoverageRequest =
                 Cost.GetEntityReservedInstanceCoverageRequest
-                        .newBuilder()
-                        .setEntityFilter(entityFilter)
-                        .build();
+                .newBuilder()
+                .setEntityFilter(entityFilter)
+                .build();
         Cost.GetEntityReservedInstanceCoverageResponse reservedInstanceCoverageResponse =
                 reservedInstanceUtilizationCoverageServiceBlockingStub
                         .getEntityReservedInstanceCoverage(reservedInstanceCoverageRequest);
 
         Map<Long, Cost.EntityReservedInstanceCoverage> coverageMap = reservedInstanceCoverageResponse.getCoverageByEntityIdMap();
-        dtoMap.forEach((entityUuid, cloudResizeActionDetailsApiDTO) -> {
-            if (coverageMap.containsKey(entityUuid)) {
-                Cost.EntityReservedInstanceCoverage latestCoverage = coverageMap.get(entityUuid);
-                StatValueApiDTO latestCoverageCapacityDTO = new StatValueApiDTO();
-                latestCoverageCapacityDTO.setAvg((float)latestCoverage.getEntityCouponCapacity());
+        if (coverageMap.containsKey(entityUuid)) {
+            Cost.EntityReservedInstanceCoverage latestCoverage = coverageMap.get(entityUuid);
+            StatValueApiDTO latestCoverageCapacityDTO = new StatValueApiDTO();
+            latestCoverageCapacityDTO.setAvg((float)latestCoverage.getEntityCouponCapacity());
 
-                StatApiDTO latestCoverageStatDTO = new StatApiDTO();
-                // set coupon capacity
-                latestCoverageStatDTO.setCapacity(latestCoverageCapacityDTO);
-                // set coupon usage
-                latestCoverageStatDTO.setValue((float)latestCoverage.getCouponsCoveredByRiMap().values()
-                        .stream().mapToDouble(Double::doubleValue).sum());
-                cloudResizeActionDetailsApiDTO.setRiCoverageBefore(latestCoverageStatDTO);
-            } else {
-                logger.debug("Failed to retrieve current RI coverage for entity with ID: {}", entityUuid);
-            }
-        });
-
+            StatApiDTO latestCoverageStatDTO = new StatApiDTO();
+            // set coupon capacity
+            latestCoverageStatDTO.setCapacity(latestCoverageCapacityDTO);
+            // set coupon usage
+            latestCoverageStatDTO.setValue((float)latestCoverage.getCouponsCoveredByRiMap().values()
+                    .stream().mapToDouble(Double::doubleValue).sum());
+            cloudResizeActionDetailsApiDTO.setRiCoverageBefore(latestCoverageStatDTO);
+        } else {
+            logger.debug("Failed to retrieve current RI coverage for entity with ID: {}", entityUuid);
+        }
 
         // get projected RI coverage for target entity
         Cost.GetProjectedEntityReservedInstanceCoverageRequest.Builder builder =
@@ -2166,29 +2123,27 @@ public class ActionSpecMapper {
         Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest = builder.build();
         Cost.GetProjectedEntityReservedInstanceCoverageResponse projectedEntityReservedInstanceCoverageResponse =
                 reservedInstanceUtilizationCoverageServiceBlockingStub
-                        .getProjectedEntityReservedInstanceCoverageStats(projectedEntityReservedInstanceCoverageRequest);
+                    .getProjectedEntityReservedInstanceCoverageStats(projectedEntityReservedInstanceCoverageRequest);
 
         Map<Long, Cost.EntityReservedInstanceCoverage> projectedCoverageMap = projectedEntityReservedInstanceCoverageResponse
                 .getCoverageByEntityIdMap();
 
-        dtoMap.forEach((entityUuid, cloudResizeActionDetailsApiDTO) -> {
-            if (projectedCoverageMap.containsKey(entityUuid)) {
-                // set projected RI coverage
-                Cost.EntityReservedInstanceCoverage projectedRiCoverage = projectedCoverageMap.get(entityUuid);
-                StatValueApiDTO projectedCoverageCapacityDTO = new StatValueApiDTO();
-                projectedCoverageCapacityDTO.setAvg((float)projectedRiCoverage.getEntityCouponCapacity());
+        if (projectedCoverageMap.containsKey(entityUuid)) {
+            // set projected RI coverage
+            Cost.EntityReservedInstanceCoverage projectedRiCoverage = projectedCoverageMap.get(entityUuid);
+            StatValueApiDTO projectedCoverageCapacityDTO = new StatValueApiDTO();
+            projectedCoverageCapacityDTO.setAvg((float)projectedRiCoverage.getEntityCouponCapacity());
 
-                StatApiDTO projectedCoverageStatDTO = new StatApiDTO();
-                // set coupon capacity
-                projectedCoverageStatDTO.setCapacity(projectedCoverageCapacityDTO);
-                // set coupon usage
-                projectedCoverageStatDTO.setValue((float)projectedRiCoverage.getCouponsCoveredByRiMap()
-                        .values().stream().mapToDouble(Double::doubleValue).sum());
-                cloudResizeActionDetailsApiDTO.setRiCoverageAfter(projectedCoverageStatDTO);
-            } else {
-                logger.debug("Failed to retrieve projected RI coverage for entity with ID: {}", entityUuid);
-            }
-        });
+            StatApiDTO projectedCoverageStatDTO = new StatApiDTO();
+            // set coupon capacity
+            projectedCoverageStatDTO.setCapacity(projectedCoverageCapacityDTO);
+            // set coupon usage
+            projectedCoverageStatDTO.setValue((float)projectedRiCoverage.getCouponsCoveredByRiMap()
+                    .values().stream().mapToDouble(Double::doubleValue).sum());
+            cloudResizeActionDetailsApiDTO.setRiCoverageAfter(projectedCoverageStatDTO);
+        } else {
+            logger.debug("Failed to retrieve projected RI coverage for entity with ID: {}", entityUuid);
+        }
     }
 
     /**

@@ -41,7 +41,6 @@ import org.jooq.Record;
 import org.jooq.Record7;
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
-import org.jooq.SelectHavingStep;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.exception.DataAccessException;
@@ -211,23 +210,13 @@ public class SqlEntityCostStore implements EntityCostStore {
                     .from(table)
                     .where(entityCostFilter.getConditions());
 
-            // If latest timestamp is requested only return the info related to latest timestamp (created_time)
-            // we want to get the latest time stamp for every entity. Since entities can have different
-            // max(created_time), we create a tmp table with (entityId, max_created_time) and join with
-            // cost table, so that each entity will have a record with its own entity time.
+            // If latest timestamp is requested only return the info related to latest timestamp
             if (entityCostFilter.isLatestTimeStampRequested()) {
-                final String maxCreatedTime = "max_created_time";
-                SelectHavingStep tmpTable = dsl.select(entityId, createdTime.max().as(maxCreatedTime))
-                        .from(table).where(entityCostFilter.getConditions()).groupBy(entityId);
-                final Field<Long> entityIdTmp = tmpTable.field(ENTITY_COST.ASSOCIATED_ENTITY_ID);
-                final Field<LocalDateTime> createdTimeMax = tmpTable.field(maxCreatedTime);
-
-                selectCondition = dsl
-                    .select(modifiableList)
-                    .from(table)
-                    .join(tmpTable)
-                    .on(entityId.eq(entityIdTmp).and(createdTime.eq(createdTimeMax)))
-                    .where(entityCostFilter.getConditions());
+                selectCondition =
+                        selectCondition.and(ENTITY_COST.CREATED_TIME.eq(
+                                dsl.select(DSL.max(ENTITY_COST.CREATED_TIME))
+                                        .from(table)
+                                        .where(entityCostFilter.getConditions())));
             }
 
             final Result<? extends Record> records = selectCondition.fetch();
