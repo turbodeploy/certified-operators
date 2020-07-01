@@ -78,7 +78,9 @@ message CostDTO {
         message StorageResourceRatioDependency {
             optional CommoditySpecificationTO base_resource_type = 1;
             optional CommoditySpecificationTO dependent_resource_type = 2;
-            optional int32 ratio = 3;
+            optional double max_ratio = 3;
+            optional double min_ratio = 4;
+            optional bool increase_base_default_supported = 5;
         }
         // the dependency commodity, its base commodity, and the range relationship between
         // dependent commodity's capacity and base commodity's capacity

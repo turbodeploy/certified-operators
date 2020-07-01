@@ -306,7 +306,7 @@ public class Resize extends ActionImpl {
                 // resize action.
                 newResize.enableExtractAction();
                 newResize.getResizeTriggerTraders().putAll(getResizeTriggerTraders());
-                newResize.getResizeTriggerTraders().forEach((k, v) -> resize.getResizeTriggerTraders()
+                resize.getResizeTriggerTraders().forEach((k, v) -> newResize.getResizeTriggerTraders()
                     .merge(k, v, (reasons1, reasons2)
                         -> Stream.concat(reasons1.stream(), reasons2.stream()).collect(Collectors.toSet())));
             }
