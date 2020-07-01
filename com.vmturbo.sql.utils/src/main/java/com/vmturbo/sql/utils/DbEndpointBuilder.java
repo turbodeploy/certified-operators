@@ -32,7 +32,7 @@ import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
  */
 public class DbEndpointBuilder {
 
-    final DbEndpointConfig config = new DbEndpointConfig();
+    private final DbEndpointConfig config;
 
     /**
      * Internal constructor for a new endpoint instance.
@@ -40,11 +40,11 @@ public class DbEndpointBuilder {
      * <p>Client code should use {@link DbEndpoint#primaryDbEndpoint(SQLDialect)} or
      * {@link DbEndpoint#secondaryDbEndpoint(String, SQLDialect)} to declare endpoints.</p>
      *
-     * @param tag     tag for secondary endpoint, or null for primary
+     * @param tag     tag for secondary endpoint, or an empty string for primary
      * @param dialect server type, identified by {@link SQLDialect}
      */
-    DbEndpointBuilder(String tag, SQLDialect dialect) {
-        config.setTag(tag);
+    DbEndpointBuilder(@Nonnull final String tag, SQLDialect dialect) {
+        config = new DbEndpointConfig(Objects.requireNonNull(tag, "Tag should be a string."));
         config.setDialect(dialect);
     }
 

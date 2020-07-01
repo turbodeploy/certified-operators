@@ -69,7 +69,7 @@ public class GrafanaConfigurationIT {
             ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString());
 
 
-        DbEndpointConfig endpointConfig = new DbEndpointConfig();
+        DbEndpointConfig endpointConfig = new DbEndpointConfig("extractor");
         endpointConfig.setDbDatabaseName("mydb");
         endpointConfig.setDbUserName("me");
         endpointConfig.setDbPassword("foo");

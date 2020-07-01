@@ -54,6 +54,8 @@ class PropertyRegistry {
         props.put("apiHost", "localhost");
         props.put("grafanaHost", "localhost");
 
+        props.put("postgresPort", "5432");
+
         props.put("authDbPassword", "vmturbo");
         props.put("clustermgrDbPassword", "vmturbo");
         props.put("actionDbPassword", "vmturbo");
@@ -120,6 +122,7 @@ class PropertyRegistry {
         // Additional overrides.
         props.put("migrationLocation", Voltron.migrationLocation(topFolder));
         props.put("com.vmturbo.kvdir", Paths.get(dataPath, namespace, "kvdir", topFolder).toString());
+        props.put("discoveryResponsesCachePath", Paths.get(dataPath, namespace, "cached_responses", topFolder).toString());
         props.put("component_type", shortName);
         props.put("instance_route", restRoute);
         props.put("instance_id", shortName + "-1");

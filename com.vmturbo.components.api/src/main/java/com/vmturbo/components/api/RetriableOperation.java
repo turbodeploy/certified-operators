@@ -104,6 +104,11 @@ public class RetriableOperation<T> {
                 T curTryOutput = operation.call();
                 latestResult = new OperationResult<>(curTryOutput, null);
             } catch (RetriableOperationFailedException | RuntimeException e) {
+                // This is a warning-level log, because the error may be expected by the caller.
+                logger.warn("Retriable operation at {} encountered {} error.",
+                        StackTrace.getCallerOutsideClass(),
+                        exceptionPredicate.test(e) ? "expected" : "unexpected",
+                        e);
                 latestResult = new OperationResult<>(null, e);
             }
 

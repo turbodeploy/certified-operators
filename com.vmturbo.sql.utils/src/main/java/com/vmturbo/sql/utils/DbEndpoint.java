@@ -10,8 +10,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.UnaryOperator;
 
+import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.api.callback.FlywayCallback;
@@ -31,6 +33,7 @@ import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.Operation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
@@ -132,7 +135,7 @@ public class DbEndpoint {
      * @return an endpoint that can provide access to the database
      */
     public static DbEndpointBuilder primaryDbEndpoint(SQLDialect dialect) {
-        return secondaryDbEndpoint(null, dialect);
+        return secondaryDbEndpoint("", dialect);
     }
 
     /**
@@ -150,7 +153,7 @@ public class DbEndpoint {
      *                endpoint
      * @return an endpoint that can provide access to the database
      */
-    public static DbEndpointBuilder secondaryDbEndpoint(String tag, SQLDialect dialect) {
+    public static DbEndpointBuilder secondaryDbEndpoint(@Nonnull final String tag, SQLDialect dialect) {
         return new DbEndpointBuilder(tag, dialect);
     }
 
@@ -314,6 +317,7 @@ public class DbEndpoint {
             final Operation<Boolean> op = () -> {
                 if (future.isDone()) {
                     try {
+                        logger.debug("Waiting for future....");
                         future.get();
                         // endpoint is ready to go... no more retries
                         return false;
@@ -346,8 +350,10 @@ public class DbEndpoint {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
+            logger.error("Endpoint {} failed initialization.", this, e);
             throw new IllegalStateException(String.format("Endpoint %s failed initialization", this), e);
         } catch (TimeoutException timeoutException) {
+            logger.error("Endpoint {} still not initialized after retries: {}", this, timeoutException.getMessage());
             throw new IllegalStateException(
                     String.format("Endpoint %s still not initialized after retries", this));
         } finally {
@@ -372,15 +378,19 @@ public class DbEndpoint {
 
     @Override
     public String toString() {
-        String tagLabel = config.getTag() != null ? "tag " + config.getTag() : "untagged";
-        String url;
-        try {
-            url = adapter.getUrl(config);
-        } catch (UnsupportedDialectException e) {
-            url = "[invalid dialect]";
+        // "tag"
+        String tagLabel = !StringUtils.isEmpty(config.getTag()) ? "tag " + config.getTag() : "untagged";
+        if (isReady()) {
+            String url;
+            try {
+                url = adapter.getUrl(config);
+            } catch (UnsupportedDialectException e) {
+                url = "[invalid dialect]";
+            }
+            return FormattedString.format("DbEndpoint[{}; url={}; user={}]", tagLabel, url, config.getDbUserName());
+        } else {
+            return FormattedString.format("DbEndpoint[{}; uninitialized", tagLabel);
         }
-        return String.format("DbEndpoint[%s; url=%s; user=%s]",
-                tagLabel, url, config.getDbUserName());
     }
 
     /**
@@ -422,7 +432,7 @@ public class DbEndpoint {
         public void onServerStarted(ConfigurableWebApplicationContext serverContext) {
             ConfigurableEnvironment environment = serverContext.getEnvironment();
             String authHost = environment.getProperty("authHost");
-            String authRoute = environment.getProperty("authRoute");
+            String authRoute = environment.getProperty("authRoute", "");
             int serverHttpPort = Integer.parseInt(environment.getProperty("serverHttpPort"));
             int authRetryDelaySec = Integer.parseInt(environment.getProperty("authRetryDelaySecs"));
             DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, serverHttpPort, authRoute, authRetryDelaySec);
@@ -442,6 +452,7 @@ public class DbEndpoint {
         }
 
         private void completePendingEndpoints() {
+            logger.info("Completing {} uninitialized endpoints.", pendingEndpoints.size());
             for (DbEndpoint endpoint : pendingEndpoints) {
                 completeEndpoint(endpoint);
             }
@@ -467,17 +478,18 @@ public class DbEndpoint {
 
         void completeEndpoint(DbEndpoint endpoint) {
             if (endpoint.isReady()) {
+                logger.info("Skipping endpoint completion for {} because it's ready.", endpoint);
                 return;
             }
             final DbEndpointConfig config = endpoint.getConfig();
-            logger.debug("Completing {}", endpoint);
+            logger.info("Completing {}", endpoint);
             try {
                 resolveConfig(config);
                 final DbAdapter adapter = DbAdapter.of(config);
                 adapter.init();
                 endpoint.markComplete(adapter);
             } catch (Exception e) {
-                logger.debug("Failed to create {}", endpoint, e);
+                logger.warn("Failed to create {}. Error: {}", endpoint, e.getMessage());
                 endpoint.markComplete(e);
             }
         }

@@ -3,6 +3,8 @@ package com.vmturbo.sql.utils;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nonnull;
+
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
 
@@ -14,8 +16,7 @@ import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
  * <p>See {@link DbEndpoint} for a detailed description of all the properties.</p>
  */
 public class DbEndpointConfig {
-
-    private String tag;
+    private final String tag;
     private SQLDialect dialect;
 
     private String dbHost;
@@ -39,12 +40,17 @@ public class DbEndpointConfig {
     // By default, wait for 30 minutes for context to finish initializing.
     private long maxAwaitCompletionMs = TimeUnit.MINUTES.toMillis(30);
 
-    public String getTag() {
-        return tag;
+    public DbEndpointConfig(@Nonnull final String tag) {
+        this.tag = tag;
     }
 
-    public void setTag(final String tag) {
-        this.tag = tag;
+    /**
+     * Get the tag associated with this endpoint.
+     *
+     * @return The tag.
+     */
+    public String getTag() {
+        return tag;
     }
 
     /**
