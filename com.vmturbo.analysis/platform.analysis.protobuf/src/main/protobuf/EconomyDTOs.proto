@@ -73,6 +73,12 @@ message ShoppingListTO {
 
     // The context of the move, contains additional info.
     optional Context context = 9;
+
+    // Whether demand is scalable within M2. Added for cloud volume Savings/Reversibility mode -
+    // In Reversibility mode, demand_scalable is false, which indicates that volume size cannot
+    // be increased by default.
+    // In Savings mode, demand_scalable is true.
+    optional bool demand_scalable = 10;
 }
 
 // Contains family based coverage
