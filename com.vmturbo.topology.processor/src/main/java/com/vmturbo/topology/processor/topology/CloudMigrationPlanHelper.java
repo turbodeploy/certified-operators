@@ -37,6 +37,9 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -615,7 +618,8 @@ public class CloudMigrationPlanHelper {
                 .stream()
                 .map(EntityType::forNumber)
                 .collect(Collectors.toSet());
-        final Map<Long, TopologyEntity.Builder> resultEntityMap = new HashMap<>();
+        final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap =
+                new Long2ObjectOpenHashMap<>(allEntityTypes.size());
         for (EntityType type : allEntityTypes) {
             Set<TopologyEntity> filteredEntities = filteredEntityByType.get(type);
             if (filteredEntities != null) {

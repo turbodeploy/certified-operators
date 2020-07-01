@@ -35,6 +35,8 @@ import gnu.trove.list.array.TLongArrayList;
 import gnu.trove.list.linked.TLongLinkedList;
 import gnu.trove.set.TLongSet;
 import gnu.trove.set.hash.TLongHashSet;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -116,11 +118,11 @@ public class PlanTopologyScopeEditor {
                         onPremSourceEntities.add(entity.getOid());
                     }
                 });
-        final Map<Long, TopologyEntity.Builder> resultEntityMap = new HashMap<>();
 
+        final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap =
+                new Long2ObjectOpenHashMap<>(cloudSourceEntities.size() + onPremSourceEntities.size());
         scopeCloudTopology(topologyInfo, graph, cloudSourceEntities, resultEntityMap);
         scopeOnPremTopology(graph, onPremSourceEntities, resultEntityMap);
-
         return new TopologyGraphCreator<>(resultEntityMap).build();
     }
 
