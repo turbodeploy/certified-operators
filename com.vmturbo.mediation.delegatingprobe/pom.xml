@@ -4,7 +4,7 @@
     <parent>
         <artifactId>xl-sdk-probe-parent</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.22.5-SNAPSHOT</version>
+        <version>7.22.100-MPC-SNAPSHOT</version>
         <relativePath>../com.vmturbo.mediation.probe.parent/pom.xml</relativePath>
     </parent>
 
