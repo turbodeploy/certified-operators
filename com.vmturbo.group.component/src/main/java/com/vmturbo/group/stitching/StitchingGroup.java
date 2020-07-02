@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,6 +33,7 @@ public class StitchingGroup {
     private final String sourceId;
     private final Set<Long> targets;
     private final boolean newGroup;
+    private final byte[] existingHash;
     private final Map<MemberType, Set<Long>> membersByType = new HashMap<>();
 
     /**
@@ -41,16 +43,19 @@ public class StitchingGroup {
      * @param groupDefinition the group definition
      * @param sourceId source identifier
      * @param targetId id of the target which discovers this group
+     * @param existingHash has of the matched existing group. If this is a new group, this
+     *         value will be {@code null}. It still may be {@code null} for existing groups
      * @param newGroup whether this group is a new one ({@code true}) or it is an update of
      *         the existing group (otherwise)
      */
     StitchingGroup(final long oid, final GroupDefinition groupDefinition, final String sourceId,
-            final long targetId, final boolean newGroup) {
+            final long targetId, boolean newGroup, final @Nullable byte[] existingHash) {
         this.oid = oid;
         this.groupDefinition = GroupDefinition.newBuilder(Objects.requireNonNull(groupDefinition));
         this.sourceId = Objects.requireNonNull(sourceId);
         this.targets = new HashSet<>();
         this.newGroup = newGroup;
+        this.existingHash = existingHash;
         mergedGroup(groupDefinition, targetId);
     }
 
@@ -70,7 +75,6 @@ public class StitchingGroup {
      */
     public GroupDefinition buildGroupDefinition() {
         if (!membersByType.isEmpty()) {
-            final Set<MemberType> mergedTypes = new HashSet<>();
             final Map<MemberType, Set<Long>> unmergedMembers = new HashMap<>(membersByType);
             for (StaticMembersByType.Builder builder : groupDefinition.getStaticGroupMembersBuilder()
                     .getMembersByTypeBuilderList()) {
@@ -169,9 +173,20 @@ public class StitchingGroup {
     }
 
     /**
-     * Returns whether this group is a new one.
+     * Returns a hash of discovered group existing in the DB.
      *
-     * @return whether this group is a new one
+     * @return hash, if group already exists and has a hash calculated
+     */
+    @Nullable
+    public byte[] getExistingHash() {
+        return existingHash;
+    }
+
+    /**
+     * Returns whether this is a new group to create ({@code trye}) or an existing one ({@code
+     * false}) tp update.
+     *
+     * @return whether this is a new group
      */
     public boolean isNewGroup() {
         return newGroup;

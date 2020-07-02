@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -293,10 +294,11 @@ public interface IGroupStore {
         Long getTarget();
 
         /**
-         * OID assigned to the group.
+         * Identity of the discovered group that does already exist in the DB.
          *
-         * @return oid
+         * @return discovered identity
          */
-        long getOid();
+        @Nonnull
+        DiscoveredObjectVersionIdentity getIdentity();
     }
 }

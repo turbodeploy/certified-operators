@@ -113,6 +113,8 @@ import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
+import com.vmturbo.group.DiscoveredObjectVersionIdentity;
+import com.vmturbo.group.group.DiscoveredGroupHash;
 import com.vmturbo.group.group.GroupDAO.DiscoveredGroupIdImpl;
 import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
@@ -133,6 +135,9 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
  * This class tests {@link GroupRpcService}.
  */
 public class GroupRpcServiceTest {
+
+    private static final long TARGET1 = 1001L;
+    private static final long TARGET2 = 1002L;
 
     private AtomicReference<List<Long>> mockDataReference = new AtomicReference<>(Collections.emptyList());
     private SearchServiceMole searchServiceMole;
@@ -1495,8 +1500,10 @@ public class GroupRpcServiceTest {
                 .thenReturn(Collections.singleton(oid1));
         Mockito.when(transactionProvider.getGroupStore().getDiscoveredGroupsIds())
                 .thenReturn(Arrays.asList(
-                        new DiscoveredGroupIdImpl(oid1, 112L, "src3", GroupType.RESOURCE),
-                        new DiscoveredGroupIdImpl(oid2, 110L, "src3", GroupType.RESOURCE)));
+                        new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid1, null), 112L,
+                                "src3", GroupType.RESOURCE),
+                        new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid2, null), 110L,
+                                "src3", GroupType.RESOURCE)));
         requestObserver.onNext(DiscoveredGroupsPoliciesSettings.newBuilder()
                 .setTargetId(110L)
                 .setProbeType(SDKProbeType.AZURE.toString())
@@ -1514,6 +1521,61 @@ public class GroupRpcServiceTest {
                         Mockito.anyCollectionOf(DiscoveredGroup.class),
                         Mockito.eq(Collections.singleton(oid2)));
     }
+
+    /**
+     * Test that resource groups are uploaded and stitched successfully in rpc call method.
+     *
+     * @throws StoreOperationException exception thrown if group is invalid
+     */
+    @Test
+    public void testGroupStitchingNoUpdates() throws StoreOperationException {
+        final StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver =
+                mock(StreamObserver.class);
+        final StreamObserver<DiscoveredGroupsPoliciesSettings> requestObserver =
+                spy(groupRpcService.storeDiscoveredGroupsPoliciesSettings(responseObserver));
+
+        // create two resource groups from two different probes
+        final UploadedGroup group1 = GroupTestUtils.createUploadedGroup(GroupType.REGULAR, "src1",
+                ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(11L),
+                        EntityType.DATABASE_VALUE, Sets.newHashSet(21L)));
+        final UploadedGroup group2 = GroupTestUtils.createUploadedGroup(GroupType.REGULAR, "src2",
+                ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(15L)));
+        final long oid1 = 100001L;
+        final long oid2 = 100002L;
+        final DiscoveredGroup discoveredGroup2 = new DiscoveredGroup(oid2, group2.getDefinition(),
+                group2.getSourceIdentifier(), Collections.singleton(TARGET1), Collections.singleton(
+                MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build()), true);
+        final byte[] hash = DiscoveredGroupHash.hash(discoveredGroup2);
+        Mockito.when(
+                transactionProvider.getGroupStore().getGroupsByTargets(Collections.singleton(TARGET1)))
+                .thenReturn(Collections.singleton(oid1));
+        Mockito.when(transactionProvider.getGroupStore().getDiscoveredGroupsIds())
+                .thenReturn(Arrays.asList(
+                        new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid1, null), TARGET1,
+                                "src1", GroupType.REGULAR),
+                        new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid2, hash), TARGET1,
+                                "src2", GroupType.REGULAR)));
+        requestObserver.onNext(DiscoveredGroupsPoliciesSettings.newBuilder()
+                .setTargetId(TARGET1)
+                .setProbeType(SDKProbeType.VCENTER.toString())
+                .addUploadedGroups(group1)
+                .addUploadedGroups(group2)
+                .build());
+        requestObserver.onCompleted();
+
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<Collection<DiscoveredGroup>> updatedCaptor = (ArgumentCaptor<Collection<DiscoveredGroup>>)
+                (ArgumentCaptor)ArgumentCaptor.forClass(
+                        Collection.class);
+        Mockito.verify(transactionProvider.getGroupStore()).updateDiscoveredGroups(
+                Mockito.eq(Collections.emptyList()), updatedCaptor.capture(),
+                Mockito.eq(Collections.emptySet()));
+        Assert.assertEquals(Collections.singleton(oid1), updatedCaptor.getValue()
+                .stream()
+                .map(DiscoveredGroup::getOid)
+                .collect(Collectors.toSet()));
+    }
+
 
     /**
      * Test failed retrieval of tags.

@@ -18,7 +18,7 @@ import com.google.gson.reflect.TypeToken;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.Record3;
+import org.jooq.Record4;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
@@ -31,6 +31,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.StringDiagnosable;
+import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
@@ -510,18 +511,21 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
      */
     @Override
     @Nonnull
-    public Map<Long, Map<String, Long>> getDiscoveredPolicies() {
-        final Collection<Record3<Long, String, Long>> records = dslContext
-                .select(Tables.POLICY.DISCOVERED_BY_ID, Tables.POLICY.NAME, Tables.POLICY.ID)
+    public Map<Long, Map<String, DiscoveredObjectVersionIdentity>> getDiscoveredPolicies() {
+        final Collection<Record4<Long, String, Long, byte[]>> records = dslContext
+                .select(Tables.POLICY.DISCOVERED_BY_ID, Tables.POLICY.NAME,
+                        Tables.POLICY.ID, Tables.POLICY.HASH)
                 .from(Tables.POLICY)
                 .where(Tables.POLICY.DISCOVERED_BY_ID.isNotNull())
                 .fetch();
-        final Map<Long, Map<String, Long>> result = new HashMap<>();
-        for (Record3<Long, String, Long> record : records) {
+        final Map<Long, Map<String, DiscoveredObjectVersionIdentity>> result = new HashMap<>();
+        for (Record4<Long, String, Long, byte[]> record : records) {
             final long targetId = record.value1();
             final String policyName = record.value2();
             final long policyOid = record.value3();
-            result.computeIfAbsent(targetId, key -> new HashMap<>()).put(policyName, policyOid);
+            final byte[] hash = record.value4();
+            final DiscoveredObjectVersionIdentity identity = new DiscoveredObjectVersionIdentity(policyOid, hash);
+            result.computeIfAbsent(targetId, key -> new HashMap<>()).put(policyName, identity);
         }
         return result;
     }
@@ -556,10 +560,11 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
             @Nonnull Collection<PolicyDTO.Policy> policies) {
         final Collection<PolicyRecord> policyRecords = new ArrayList<>(policies.size());
         for (PolicyDTO.Policy policyProto : policies) {
+            final byte[] hash = PlacementPolicyHash.hash(policyProto);
             final PolicyRecord policy = new PolicyRecord(policyProto.getId(),
                     policyProto.getPolicyInfo().getName(), policyProto.getPolicyInfo().getEnabled(),
                     policyProto.hasTargetId() ? policyProto.getTargetId() : null,
-                    policyProto.getPolicyInfo());
+                    policyProto.getPolicyInfo(), hash);
             policyRecords.add(policy);
         }
         final int policyCount = context.batchInsert(policyRecords).execute().length;
