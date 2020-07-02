@@ -9,7 +9,6 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
-import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.sdk.common.util.Pair;
 
@@ -23,7 +22,7 @@ public interface ISettingPolicyStore {
      * @return map of policy id by policy name, groupped by target id
      */
     @Nonnull
-    Map<Long, Map<String, DiscoveredObjectVersionIdentity>> getDiscoveredPolicies();
+    Map<Long, Map<String, Long>> getDiscoveredPolicies();
 
     /**
      * Deletes the setting policies from the store identified by OIDs. {@code allowedType}

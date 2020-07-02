@@ -1,12 +1,12 @@
 package com.vmturbo.group.policy;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -15,13 +15,9 @@ import com.google.common.collect.Table;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.DiscoveredPolicyUpdater;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.service.StoreOperationException;
-import com.vmturbo.group.setting.CollectionsUpdate;
-import com.vmturbo.proactivesupport.DataMetricSummary;
-import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * Updater for discovered placement policies. It's main purpose is to process incoming discovered
@@ -31,14 +27,8 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * policies for every discovered target and recreate it back (preserving OIDs for existing
  * policies).
  */
-public class DiscoveredPlacementPolicyUpdater extends DiscoveredPolicyUpdater<Policy, PolicyInfo, DiscoveredPolicyInfo> {
+public class DiscoveredPlacementPolicyUpdater extends DiscoveredPolicyUpdater {
     private static final String POLICY_TYPE_LOGGING = "Placement";
-    private static final DataMetricSummary DURATION_TIMER = DataMetricSummary
-            .builder()
-            .withName("group_discovered_placement_policy_update_duration")
-            .withHelp("Duration of a discovered placement policy update procedure.")
-            .build()
-            .register();
 
     /**
      * Constructs discovered placement policies updater.
@@ -61,85 +51,62 @@ public class DiscoveredPlacementPolicyUpdater extends DiscoveredPolicyUpdater<Po
      * @throws StoreOperationException If there is an error interacting with the database.
      */
     public void updateDiscoveredPolicies(@Nonnull IPlacementPolicyStore store,
-            @Nonnull Map<Long, Collection<DiscoveredPolicyInfo>> discoveredPolicies,
+            @Nonnull Map<Long, ? extends Collection<DiscoveredPolicyInfo>> discoveredPolicies,
             @Nonnull Table<Long, String, Long> groupOids, Set<Long> undiscoveredTargets) throws StoreOperationException {
-        final DataMetricTimer timer = DURATION_TIMER.startTimer();
+        final long startTime = System.currentTimeMillis();
         getLogger().info("Updating discovered placement policies for {} targets: {}",
                 discoveredPolicies.size(), discoveredPolicies.keySet());
-        final Map<Long, Map<String, DiscoveredObjectVersionIdentity>> allExistingPolicies =
-                store.getDiscoveredPolicies();
-        final CollectionsUpdate<Policy> update = analyzeAllPolicies(allExistingPolicies,
-                discoveredPolicies, groupOids, undiscoveredTargets);
+        final Map<Long, Map<String, Long>> allExistingPolicies = store.getDiscoveredPolicies();
+        final Collection<Policy> policiesToAdd = new ArrayList<>();
+        final Collection<Long> policiesToRemove = new ArrayList<>();
 
+        // remove the policies associated to targets that are no longer around
+        policiesToRemove.addAll(findPoliciesAssociatedTargetsRemoved(allExistingPolicies,
+            discoveredPolicies.keySet(), undiscoveredTargets, POLICY_TYPE_LOGGING));
 
-        getLogger().debug("Deleting {}...", update.getObjectsToDelete()::size);
-        store.deletePolicies(update.getObjectsToDelete());
-        getLogger().debug("Inserting {} policies will be added: {}",
-                update.getObjectsToAdd()::size,
-                () -> update.getObjectsToAdd()
-                        .stream()
-                        .map(policy -> policy.getPolicyInfo().getName() + "(" + policy.getId() + ")")
-                        .collect(Collectors.joining(",")));
-        store.createPolicies(update.getObjectsToAdd());
-        getLogger().info(
-                "Successfully processed {} discovered placement policies. from {} targets. Took {}s",
-                discoveredPolicies.values()
-                        .stream()
-                        .map(Collection::size)
-                        .reduce(Integer::sum)
-                        .orElse(0),
-                discoveredPolicies.size(),
-                timer.observe());
-    }
-
-    @Nonnull
-    @Override
-    protected String getPolicyType() {
-        return POLICY_TYPE_LOGGING;
-    }
-
-    @Nonnull
-    @Override
-    protected Function<DiscoveredPolicyInfo, Optional<PolicyInfo>> createPolicyMapper(
-            @Nonnull Map<String, Long> groupIds, long targetId) {
-        final DiscoveredPoliciesMapper mapper = new DiscoveredPoliciesMapper(groupIds);
-        return mapper::inputPolicy;
-    }
-
-    @Override
-    @Nonnull
-    protected Optional<PolicyDecision<Policy>> analyzePolicy(@Nonnull DiscoveredPolicyInfo policyInfo,
-            @Nonnull Function<DiscoveredPolicyInfo, Optional<PolicyInfo>> policiesMapper,
-            @Nonnull Map<String, DiscoveredObjectVersionIdentity> existingPolicies, long targetId) {
-        final Optional<PolicyInfo> policyInfoOptional = policiesMapper.apply(policyInfo);
-        if (!policyInfoOptional.isPresent()) {
-            return Optional.empty();
+        for (Entry<Long, ? extends Collection<DiscoveredPolicyInfo>> policyEntry : discoveredPolicies
+                .entrySet()) {
+            final long targetId = policyEntry.getKey();
+            final Collection<DiscoveredPolicyInfo> policyInfos = policyEntry.getValue();
+            final Map<String, Long> existingPolicies = allExistingPolicies.getOrDefault(targetId,
+                    Collections.emptyMap());
+            final DiscoveredPoliciesMapper policiesMapper = new DiscoveredPoliciesMapper(
+                    groupOids.row(targetId));
+            policiesToRemove.addAll(existingPolicies.values());
+            int addedPolicies = 0;
+            int skippedPolicies = 0;
+            for (DiscoveredPolicyInfo policyInfo : policyInfos) {
+                final Long existingOid = existingPolicies.get(policyInfo.getPolicyName());
+                final long effectiveOid;
+                if (existingOid == null) {
+                    effectiveOid = getIdentityProvider().next();
+                } else {
+                    effectiveOid = existingOid;
+                }
+                final Optional<PolicyInfo> policyInfoOptional = policiesMapper.inputPolicy(
+                        policyInfo);
+                if (policyInfoOptional.isPresent()) {
+                    addedPolicies++;
+                    policiesToAdd.add(Policy.newBuilder()
+                            .setId(effectiveOid)
+                            .setTargetId(targetId)
+                            .setPolicyInfo(policyInfoOptional.get())
+                            .build());
+                } else {
+                    skippedPolicies++;
+                }
+            }
+            getLogger().info(
+                    "For target {} {} placement policies will overwrite existing {} policies. {} skipped because of errors",
+                    targetId, addedPolicies, existingPolicies.size(), skippedPolicies);
         }
-        final long effectiveOid;
-        final boolean delete;
-        final DiscoveredObjectVersionIdentity existingIdentity = existingPolicies.get(
-                policyInfo.getPolicyName());
-        if (existingIdentity != null) {
-            effectiveOid = existingIdentity.getOid();
-            delete = true;
-        } else {
-            effectiveOid = getIdentityProvider().next();
-            delete = false;
-        }
-        final Policy policy = policyInfoOptional
-                .map(info -> Policy
-                        .newBuilder()
-                        .setId(effectiveOid)
-                        .setTargetId(targetId)
-                        .setPolicyInfo(info)
-                        .build())
-                .orElse(null);
-        final byte[] hash = PlacementPolicyHash.hash(policy);
-        if (existingIdentity != null && Arrays.equals(hash, existingIdentity.getHash())) {
-            return Optional.of(new PolicyDecision<>(effectiveOid, false, null));
-        } else {
-            return Optional.of(new PolicyDecision<>(effectiveOid, delete, policy));
-        }
+        getLogger().info("Removing {} discovered placement policies for {} targets",
+                policiesToRemove.size(), discoveredPolicies.size());
+        store.deletePolicies(policiesToRemove);
+        getLogger().info("Adding (restoring) {} discovered placement policies for {} targets",
+                policiesToAdd.size(), discoveredPolicies.size());
+        store.createPolicies(policiesToAdd);
+        getLogger().info("Updating discovered placement policies finished. Took {} ms",
+                System.currentTimeMillis() - startTime);
     }
-
 }

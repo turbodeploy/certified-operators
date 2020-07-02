@@ -21,7 +21,9 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -55,7 +57,7 @@ import org.jooq.Query;
 import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Record3;
-import org.jooq.Record6;
+import org.jooq.Record5;
 import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.SelectConditionStep;
@@ -86,7 +88,6 @@ import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.GroupDiscoverTargets;
@@ -147,6 +148,8 @@ public class GroupDAO implements IGroupStore {
             PROPETY_FILTER_CONDITION_CREATORS;
 
     private final DSLContext dslContext;
+
+    private final Collection<Consumer<Long>> deleteCallbacks = new CopyOnWriteArrayList<>();
 
     static {
         PROPETY_FILTER_CONDITION_CREATORS =
@@ -417,11 +420,9 @@ public class GroupDAO implements IGroupStore {
     @Nonnull
     @Override
     public Collection<DiscoveredGroupId> getDiscoveredGroupsIds() {
-        // This grouping is aimed to fetch groups with a count of associated targets
-        final Result<Record6<Long, String, GroupType, byte[], Integer, Long>> records =
-                dslContext.select(GROUPING.ID, DSL.max(GROUPING.ORIGIN_DISCOVERED_SRC_ID),
-                        DSL.max(GROUPING.GROUP_TYPE), DSL.max(GROUPING.HASH),
-                        DSL.count(GROUP_DISCOVER_TARGETS.TARGET_ID),
+        final Result<Record5<Long, String, GroupType, Integer, Long>> records =
+                dslContext.select(DSL.max(GROUPING.ID), DSL.max(GROUPING.ORIGIN_DISCOVERED_SRC_ID),
+                        DSL.max(GROUPING.GROUP_TYPE), DSL.count(GROUP_DISCOVER_TARGETS.TARGET_ID),
                         DSL.max(GROUP_DISCOVER_TARGETS.TARGET_ID))
                         .from(GROUPING)
                         .leftJoin(GROUP_DISCOVER_TARGETS)
@@ -430,11 +431,11 @@ public class GroupDAO implements IGroupStore {
                         .groupBy(GROUPING.ID)
                         .fetch();
         final Collection<DiscoveredGroupId> result = new ArrayList<>(records.size());
-        for (Record6<Long, String, GroupType, byte[], Integer, Long> record: records) {
-            final Long targetId = record.value5() != 1 ? null : record.value6();
-            final DiscoveredObjectVersionIdentity identity = new DiscoveredObjectVersionIdentity(record.value1(), record.value4());
-            final DiscoveredGroupId id = new DiscoveredGroupIdImpl(identity, targetId,
-                    record.value2(), record.value3());
+        for (Record5<Long, String, GroupType, Integer, Long> record: records) {
+            final Long targetId = record.value4() != 1 ? null : record.value5();
+            final DiscoveredGroupId id =
+                    new DiscoveredGroupIdImpl(record.value1(), targetId, record.value2(),
+                            record.value3());
             result.add(id);
         }
         return Collections.unmodifiableCollection(result);
@@ -1272,6 +1273,7 @@ public class GroupDAO implements IGroupStore {
             GROUP_STORE_ERROR_COUNT.labels(DELETE_LABEL).increment();
             throw e;
         }
+        deleteCallbacks.forEach(callback -> callback.accept(groupId));
     }
 
     private void deleteGroup(@Nonnull DSLContext context, long groupId)
@@ -1359,7 +1361,6 @@ public class GroupDAO implements IGroupStore {
             groupPojo.setId(effectiveId);
             groupPojo.setSupportsMemberReverseLookup(group.isReverseLookupSupported());
             groupPojo.setOriginDiscoveredSrcId(sourceIdentifier);
-            groupPojo.setHash(DiscoveredGroupHash.hash(group));
             queriesToAppend.add(createFunction.apply(groupPojo));
             insertsToAppend.addAll(insertGroupDefinitionDependencies(context, effectiveId, def));
             insertsToAppend.addAll(insertExpectedMembers(context, groupPojo.getId(),
@@ -1457,7 +1458,6 @@ public class GroupDAO implements IGroupStore {
                         groupPojo.getOptimizationEnvironmentType())
                 .set(GROUPING.OPTIMIZATION_IS_GLOBAL_SCOPE,
                         groupPojo.getOptimizationIsGlobalScope())
-                .set(GROUPING.HASH, groupPojo.getHash())
                 .where(GROUPING.ID.eq(groupId));
     }
 
@@ -1560,22 +1560,22 @@ public class GroupDAO implements IGroupStore {
     @Immutable
     public static class DiscoveredGroupIdImpl implements DiscoveredGroupId {
         private final Long targetId;
-        private final DiscoveredObjectVersionIdentity identity;
+        private final long oid;
         private final String sourceId;
         private final GroupType groupType;
 
         /**
          * Constructs discovered group id.
          *
-         * @param identity identity of the group (OID + hash)
+         * @param oid oid of the group
          * @param targetId target the group is reporeted
          * @param sourceId source id
          * @param groupType group type
          */
-        public DiscoveredGroupIdImpl(@Nonnull DiscoveredObjectVersionIdentity identity,
-                @Nullable Long targetId, @Nonnull String sourceId, @Nonnull GroupType groupType) {
+        public DiscoveredGroupIdImpl(long oid, @Nullable Long targetId, @Nonnull String sourceId,
+                @Nonnull GroupType groupType) {
             this.targetId = targetId;
-            this.identity = Objects.requireNonNull(identity);
+            this.oid = oid;
             this.sourceId = Objects.requireNonNull(sourceId);
             this.groupType = Objects.requireNonNull(groupType);
         }
@@ -1587,8 +1587,8 @@ public class GroupDAO implements IGroupStore {
         }
 
         @Override
-        public DiscoveredObjectVersionIdentity getIdentity() {
-            return identity;
+        public long getOid() {
+            return oid;
         }
 
         @Nonnull

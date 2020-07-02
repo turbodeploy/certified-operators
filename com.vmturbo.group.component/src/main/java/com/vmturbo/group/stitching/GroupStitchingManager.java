@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
-import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
 import com.vmturbo.group.identity.IdentityProvider;
@@ -108,11 +107,10 @@ public class GroupStitchingManager {
                             group::getDefinition);
                     foundGroup.mergedGroup(group.getDefinition(), targetId);
                 } else {
-                    final Optional<DiscoveredObjectVersionIdentity> existingOid = idProvider.getId(
-                            stitchKey);
+                    final Optional<Long> existingOid = idProvider.getId(stitchKey);
                     final long oid;
                     if (existingOid.isPresent()) {
-                        oid = existingOid.get().getOid();
+                        oid = existingOid.get();
                         logger.trace("Found existing OID {} for group {}", existingOid::get,
                                 group::getDefinition);
                     } else {
@@ -120,10 +118,9 @@ public class GroupStitchingManager {
                         logger.trace("Assigning new OID {} to group {}", () -> oid,
                                 group::getDefinition);
                     }
-                    final StitchingGroup stitchingGroup = new StitchingGroup(oid,
-                            group.getDefinition(), group.getSourceIdentifier(), targetId,
-                            !existingOid.isPresent(),
-                            existingOid.map(DiscoveredObjectVersionIdentity::getHash).orElse(null));
+                    final StitchingGroup stitchingGroup =
+                            new StitchingGroup(oid, group.getDefinition(),
+                                    group.getSourceIdentifier(), targetId, !existingOid.isPresent());
                     stitchingGroups.put(stitchKey, stitchingGroup);
                 }
             }
@@ -131,8 +128,7 @@ public class GroupStitchingManager {
         executionTimer.observe();
 
         final Set<Long> groupsToDelete = new HashSet<>(existingDiscoveredGroups.stream()
-                .map(DiscoveredGroupId::getIdentity)
-                .map(DiscoveredObjectVersionIdentity::getOid)
+                .map(DiscoveredGroupId::getOid)
                 .collect(Collectors.toSet()));
         groupsToDelete.removeAll(stitchingGroups.values()
                 .stream()
@@ -176,7 +172,7 @@ public class GroupStitchingManager {
          * @return existing OID or {@link Optional#empty()}
          */
         @Nonnull
-        Optional<DiscoveredObjectVersionIdentity> getId(@Nonnull String stitchingKey);
+        Optional<Long> getId(@Nonnull String stitchingKey);
 
         /**
          * Returns a stitching key - an internally used string identifier, which is used while the
@@ -196,7 +192,7 @@ public class GroupStitchingManager {
      * are present, we ignore them, as they are obviously related to target-local groups
      */
     private static class CrossTargetStitcher implements GroupIdProvider {
-        private final Map<String, DiscoveredObjectVersionIdentity> groupsToIds;
+        private final Map<String, Long> groupsToIds;
 
         CrossTargetStitcher(@Nonnull Collection<DiscoveredGroupId> discoveredGroups) {
             this.groupsToIds = Collections.unmodifiableMap(discoveredGroups.stream()
@@ -208,14 +204,13 @@ public class GroupStitchingManager {
                     .map(set -> set.iterator().next())
                     .collect(Collectors.toMap(key -> String.format(CROSS_TARGET_STITCHING_KEY,
                             GroupProtoUtil.createIdentifyingKey(key.getGroupType(),
-                                    key.getSourceId())),
-                            DiscoveredGroupId::getIdentity,
+                                    key.getSourceId())), DiscoveredGroupId::getOid,
                             (val1, val2) -> val1)));
         }
 
         @Nonnull
         @Override
-        public Optional<DiscoveredObjectVersionIdentity> getId(@Nonnull String stitchingKey) {
+        public Optional<Long> getId(@Nonnull String stitchingKey) {
             return Optional.ofNullable(groupsToIds.get(stitchingKey));
         }
 
@@ -235,7 +230,7 @@ public class GroupStitchingManager {
      * Identity provider for groups, that should not be stitched between targets.
      */
     private static class TargetLocalStitcher implements GroupIdProvider {
-        private final Map<String, DiscoveredObjectVersionIdentity> groupsToIds;
+        private final Map<String, Long> groupsToIds;
 
         TargetLocalStitcher(@Nonnull Collection<DiscoveredGroupId> discoveredGroups) {
             groupsToIds = Collections.unmodifiableMap(discoveredGroups.stream()
@@ -244,12 +239,12 @@ public class GroupStitchingManager {
                             key -> String.format(TARGET_LOCAL_STITCHING_KEY, key.getTarget(),
                                     GroupProtoUtil.createIdentifyingKey(key.getGroupType(),
                                             key.getSourceId())),
-                            DiscoveredGroupId::getIdentity)));
+                            DiscoveredGroupId::getOid)));
         }
 
         @Nonnull
         @Override
-        public Optional<DiscoveredObjectVersionIdentity> getId(@Nonnull String stitchingKey) {
+        public Optional<Long> getId(@Nonnull String stitchingKey) {
             return Optional.ofNullable(groupsToIds.get(stitchingKey));
         }
 

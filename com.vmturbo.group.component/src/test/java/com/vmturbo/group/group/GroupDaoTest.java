@@ -46,7 +46,6 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
@@ -125,8 +124,7 @@ public class GroupDaoTest {
         Assert.assertEquals(Collections.singleton(group1.getOid()),
                 groupStore.getDiscoveredGroupsIds()
                         .stream()
-                        .map(DiscoveredGroupId::getIdentity)
-                        .map(DiscoveredObjectVersionIdentity::getOid)
+                        .map(DiscoveredGroupId::getOid)
                         .collect(Collectors.toSet()));
         final GroupDTO.Grouping agroup1 = getGroupFromStore(group1.getOid());
         assertGroupsEqual(group1, agroup1);
@@ -138,8 +136,7 @@ public class GroupDaoTest {
         Assert.assertEquals(Sets.newHashSet(group2.getOid(), group3.getOid()),
                 groupStore.getDiscoveredGroupsIds()
                         .stream()
-                        .map(DiscoveredGroupId::getIdentity)
-                        .map(DiscoveredObjectVersionIdentity::getOid)
+                        .map(DiscoveredGroupId::getOid)
                         .collect(Collectors.toSet()));
         final GroupDTO.Grouping agroup2 = getGroupFromStore(group2.getOid());
         final GroupDTO.Grouping agroup3 = getGroupFromStore(group3.getOid());
@@ -156,8 +153,7 @@ public class GroupDaoTest {
         Assert.assertEquals(Sets.newHashSet(group1.getOid(), group2.getOid(), group3.getOid()),
                 groupStore.getDiscoveredGroupsIds()
                         .stream()
-                        .map(DiscoveredGroupId::getIdentity)
-                        .map(DiscoveredObjectVersionIdentity::getOid)
+                        .map(DiscoveredGroupId::getOid)
                         .collect(Collectors.toSet()));
     }
 

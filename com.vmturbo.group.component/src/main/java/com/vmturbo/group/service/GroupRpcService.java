@@ -1,7 +1,6 @@
 package com.vmturbo.group.service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -82,7 +81,6 @@ import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchSe
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.group.group.DiscoveredGroupHash;
 import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
@@ -1202,8 +1200,8 @@ public class GroupRpcService extends GroupServiceImplBase {
 
         private final StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver;
 
-        private final Map<Long, Collection<DiscoveredPolicyInfo>> policiesByTarget = new HashMap<>();
-        private final Map<Long, Collection<DiscoveredSettingPolicyInfo>> settingPoliciesByTarget = new HashMap<>();
+        private final Map<Long, List<DiscoveredPolicyInfo>> policiesByTarget = new HashMap<>();
+        private final Map<Long, List<DiscoveredSettingPolicyInfo>> settingPoliciesByTarget = new HashMap<>();
         private final GroupStitchingContext groupStitchingContext = new GroupStitchingContext();
 
         /**
@@ -1253,29 +1251,20 @@ public class GroupRpcService extends GroupServiceImplBase {
             // stitch all groups, e.g. merge same groups from different targets into one
             final StitchingResult stitchingResult =
                     groupStitchingManager.stitch(stores.getGroupStore(), groupStitchingContext);
-            final List<DiscoveredGroup> groupsToAdd = new ArrayList<>();
-            final List<DiscoveredGroup> groupsToUpdate = new ArrayList<>();
-            final List<Long> unchangedGroups = new ArrayList<>();
-            for (StitchingGroup group: stitchingResult.getGroupsToAddOrUpdate()) {
-                final DiscoveredGroup discoveredGroup = createDiscoveredGroup(
-                        stores.getGroupStore(), group);
-                if (group.isNewGroup()) {
-                    groupsToAdd.add(discoveredGroup);
-                } else {
-                    final byte[] existingHash = group.getExistingHash();
-                    final byte[] actualHash = DiscoveredGroupHash.hash(discoveredGroup);
-                    if (Arrays.equals(existingHash, actualHash)) {
-                        unchangedGroups.add(group.getOid());
-                    } else {
-                        groupsToUpdate.add(discoveredGroup);
-                    }
-                }
-            }
-            logger.info("Got {} new groups, {} for update, {} unchanged and {} to delete",
-                    groupsToAdd.size(), groupsToUpdate.size(), unchangedGroups.size(),
-                    stitchingResult.getGroupsToDelete().size());
-            logger.debug("The following {} groups will not be updated as they are not changed: {}",
-                    unchangedGroups::size, unchangedGroups::toString);
+            final List<DiscoveredGroup> groupsToAdd = stitchingResult.getGroupsToAddOrUpdate()
+                    .stream()
+                    .filter(StitchingGroup::isNewGroup)
+                    .map(stitchingGroup -> createDiscoveredGroup(stores.getGroupStore(),
+                            stitchingGroup))
+                    .collect(Collectors.toList());
+            final List<DiscoveredGroup> groupsToUpdate = stitchingResult.getGroupsToAddOrUpdate()
+                    .stream()
+                    .filter(group -> !group.isNewGroup())
+                    .map(stitchingGroup -> createDiscoveredGroup(stores.getGroupStore(),
+                            stitchingGroup))
+                    .collect(Collectors.toList());
+            logger.info("Got {} new groups, {} for update and {} to delete", groupsToAdd.size(),
+                    groupsToUpdate.size(), stitchingResult.getGroupsToDelete().size());
             // First, we need to remove setting policies and placement policies for the groups
             // that are removed. After the groups are removed themselves, a link between groups
             // and policies will be lost

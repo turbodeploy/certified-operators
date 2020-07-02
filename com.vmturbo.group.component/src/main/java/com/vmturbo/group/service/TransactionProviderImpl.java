@@ -16,7 +16,6 @@ import org.jooq.impl.DSL;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
-import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
@@ -128,7 +127,7 @@ public class TransactionProviderImpl implements TransactionProvider {
 
         @Nonnull
         @Override
-        public Map<Long, Map<String, DiscoveredObjectVersionIdentity>> getDiscoveredPolicies() {
+        public Map<Long, Map<String, Long>> getDiscoveredPolicies() {
             return settingStore.getDiscoveredPolicies(dslContext);
         }
 

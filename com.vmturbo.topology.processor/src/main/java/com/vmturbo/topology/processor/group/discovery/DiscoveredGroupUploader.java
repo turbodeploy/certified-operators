@@ -566,13 +566,14 @@ public class DiscoveredGroupUploader {
     }
 
     /**
-     * Called when a target has been removed. Remove the target from internal map, so it will not
-     * be sent to group component.
+     * Called when a target has been removed. Queue an empty Group list for that target.
+     * This should effectively delete all previously discovered Groups and Clusters for the given
+     * target.
      *
      * @param targetId ID of the target that was removed.
      */
     public void targetRemoved(long targetId) {
-        dataByTarget.remove(targetId);
+        setTargetDiscoveredGroups(targetId, Collections.emptyList());
     }
 
     /**
