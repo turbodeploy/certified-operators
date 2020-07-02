@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -18,18 +19,21 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
 import org.stringtemplate.v4.ST;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.enums.EntityToReservedInstanceMappingRiSourceCoverage;
 import com.vmturbo.cost.component.db.tables.pojos.EntityToReservedInstanceMapping;
@@ -41,7 +45,9 @@ import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanc
  * coupons coverage information. And the data is only comes from billing topology. For example:
  * VM1 use RI1 10 coupons, VM1 use RI2 20 coupons, VM2 use RI3 5 coupons.
  */
-public class EntityReservedInstanceMappingStore {
+public class EntityReservedInstanceMappingStore implements DiagsRestorable {
+
+    private static final String entityReservedInstanceMappingFile = "entityToReserved_dump";
 
     private final static Logger logger = LogManager.getLogger();
 
@@ -499,5 +505,32 @@ public class EntityReservedInstanceMappingStore {
             strBuilder.append(new ST(LOGGING_TEMPLATE_TERMINATE).render());
             logger.info(strBuilder.toString());
         }
+    }
+
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        // TODO to be implemented as part of OM-58627
+    }
+
+    @Override
+    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+        dsl.transaction(transactionContext -> {
+            final DSLContext transaction = DSL.using(transactionContext);
+            Stream<EntityToReservedInstanceMappingRecord> latestRecords = transaction.selectFrom(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING).stream();
+            latestRecords.forEach(s -> {
+                try {
+                    appender.appendString(s.formatJSON());
+                } catch (DiagnosticsException e) {
+                    logger.error("Exception encountered while appending entity to RI mapping records" +
+                            " to the diags dump", e);
+                }
+            });
+        });
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return entityReservedInstanceMappingFile;
     }
 }

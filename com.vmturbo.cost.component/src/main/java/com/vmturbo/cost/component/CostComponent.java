@@ -60,7 +60,7 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CostStatsConfig.class,
     CostPlanListenerConfig.class,
     ReservedInstanceSpecConfig.class,
-    CostDiagnonsticsConfig.class})
+    CostDiagnosticsConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.
@@ -86,7 +86,7 @@ public class CostComponent extends BaseVmtComponent {
     private CostServiceConfig costServiceConfig;
 
     @Autowired
-    private CostDiagnonsticsConfig diagnosticsConfig;
+    private CostDiagnosticsConfig diagnosticsConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
