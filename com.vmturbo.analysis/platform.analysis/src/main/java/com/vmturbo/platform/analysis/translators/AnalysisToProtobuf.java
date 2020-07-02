@@ -538,12 +538,15 @@ public final class AnalysisToProtobuf {
             }
             if (!resize.getResizeTriggerTraders().isEmpty()) {
                 resizeBuilder.addAllResizeTriggerTrader(resize.getResizeTriggerTraders().entrySet()
-                    .stream().map(entry -> {
-                    ResizeTriggerTraderTO.Builder resizeTriggerTrader = ResizeTriggerTraderTO.newBuilder();
-                    resizeTriggerTrader.setTrader(traderOid.get(entry.getKey()));
-                    resizeTriggerTrader.addAllRelatedCommodities(entry.getValue());
-                    return resizeTriggerTrader.build();
-                }).collect(Collectors.toList()));
+                    .stream()
+                    .filter(entry -> traderOid.get(entry.getKey()) != null)
+                    .map(entry -> {
+                        ResizeTriggerTraderTO.Builder resizeTriggerTrader = ResizeTriggerTraderTO.newBuilder();
+                        resizeTriggerTrader.setTrader(traderOid.get(entry.getKey()));
+                        resizeTriggerTrader.addAllRelatedCommodities(entry.getValue());
+                        return resizeTriggerTrader.build();
+                    })
+                    .collect(Collectors.toList()));
             }
             builder.setResize(resizeBuilder);
         } else if (input instanceof CompoundMove) {
