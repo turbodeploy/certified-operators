@@ -75,12 +75,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
+/**
+ * Verifies ClusterHeadroomPostProcessor.
+ */
 public class ClusterHeadroomPostProcessorTest {
 
     private static final long PLAN_ID = 7;
     private static final long CLUSTER_ID = 10;
     private static final int MORE_THAN_A_YEAR = 3650;
-    private static final long ONE_HOUR = 3600000;
     // Milliseconds in a day
     private static final long DAY_MILLI_SECS = TimeUnit.DAYS.toMillis(1);
 
@@ -105,6 +107,9 @@ public class ClusterHeadroomPostProcessorTest {
 
     private TemplatesDao templatesDao = mock(TemplatesDao.class);
 
+    /**
+     * The mock grpc service.
+     */
     @Rule
     public GrpcTestServer grpcTestServer =
         GrpcTestServer.newServer(repositoryServiceMole, historyServiceMole,
@@ -125,6 +130,11 @@ public class ClusterHeadroomPostProcessorTest {
             planDao, grpcTestServer.getChannel(), templatesDao));
     }
 
+    /**
+     * A successful plan should save the results to history service.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testProjectedTopologyWithHeadroomValues() throws Exception {
         prepareForHeadroomCalculation(true);
@@ -170,6 +180,11 @@ public class ClusterHeadroomPostProcessorTest {
             .build());
     }
 
+    /**
+     * A project plan should succeed despite having invalid templates.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testProjectedTopologyWithInvalidValuesInTemplate() throws Exception {
         prepareForHeadroomCalculation(false);
@@ -339,6 +354,11 @@ public class ClusterHeadroomPostProcessorTest {
         };
     }
 
+    /**
+     * A plan should be deleted and it's onCompleteHandler should be called after it succeeds.
+     *
+     * @throws NoSuchObjectException should not be thrown.
+     */
     @Test
     public void testPlanSucceeded() throws NoSuchObjectException {
         final ClusterHeadroomPlanPostProcessor processor =
@@ -358,6 +378,11 @@ public class ClusterHeadroomPostProcessorTest {
         verify(onCompleteHandler).accept(processor);
     }
 
+    /**
+     * A plan should be deleted and it's onCompleteHandler should be called after it fails.
+     *
+     * @throws NoSuchObjectException should not be thrown.
+     */
     @Test
     public void testPlanFailed() throws NoSuchObjectException {
         final ClusterHeadroomPlanPostProcessor processor =
@@ -382,7 +407,6 @@ public class ClusterHeadroomPostProcessorTest {
      */
     @Test
     public void testGetVMDailyGrowth() {
-        float delta = 0.01f;
         final Set<Long> entityOidsByClusterAndType = Collections.singleton(1L);
 
         final ClusterHeadroomPlanPostProcessor processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, ImmutableSet.of(1L),
@@ -404,6 +428,7 @@ public class ClusterHeadroomPostProcessorTest {
         // No records, growth should be 0.
         when(historyServiceMole.getClusterStatsForHeadroomPlan(any())).thenReturn(new ArrayList<>());
         growthPerCluster = processor.getVMDailyGrowth(entityOidsByClusterAndType);
+        float delta = 0.01f;
         assertEquals(growthPerCluster.get(1L), 0.0f, delta);
 
         // Negative growth, should override to 0. all values in history are greater than current VM values.
@@ -416,6 +441,7 @@ public class ClusterHeadroomPostProcessorTest {
 
     /**
      * Start Value is decreased per day for given number of days.
+     *
      * @param startValue value to start from
      * @param numDays number of days for which we insert values.
      * @return array with values {startValue, startValue+1.... , startValue + numDays - 1}
@@ -423,7 +449,7 @@ public class ClusterHeadroomPostProcessorTest {
     private long[] getVMCountData(int startValue, int numDays) {
         long[] vmCounts = new long[numDays];
         int i = 0;
-        while(i < numDays) {
+        while (i < numDays) {
             vmCounts[i] = startValue;
             startValue--;
             i++;
@@ -434,6 +460,7 @@ public class ClusterHeadroomPostProcessorTest {
     /**
      * Inserts each value in numVMs mapped with numVMs -> (endDate - x * millis in days)
      * with x starting from 1 incrementing by 1 with each insert.
+     *
      * @param numVms set of values of number of VMs
      * @param endDate date we decrement from.
      * @return vm -> date map.
@@ -445,7 +472,7 @@ public class ClusterHeadroomPostProcessorTest {
             // Keep going a day before
             vmByDate.put(numVM, endDate - (days * DAY_MILLI_SECS));
             days++;
-        };
+        }
         return vmByDate;
     }
 

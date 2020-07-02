@@ -21,6 +21,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
 import io.grpc.Channel;
 
 import org.junit.Before;
@@ -28,9 +31,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -61,17 +61,17 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 
@@ -90,6 +90,9 @@ public class PlanProjectExecutorTest {
 
     private StatsHistoryServiceMole statsHistoryServiceMole = spy(new StatsHistoryServiceMole());
 
+    /**
+     * The grpcServer mock.
+     */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceMole, settingServiceMole, statsHistoryServiceMole);
 
@@ -97,6 +100,11 @@ public class PlanProjectExecutorTest {
 
     private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
 
+    /**
+     * Set up the mocks.
+     *
+     * @throws CommunicationException should not be thrown.
+     */
     @Before
     public void setup() throws CommunicationException {
         IdentityGenerator.initPrefix(0);
@@ -104,7 +112,8 @@ public class PlanProjectExecutorTest {
         PlanRpcService planRpcService = mock(PlanRpcService.class);
         Channel repositoryChannel = mock(Channel.class);
         planProjectExecutor = new PlanProjectExecutor(planDao, grpcServer.getChannel(),
-                planRpcService, registry, repositoryChannel, templatesDao, grpcServer.getChannel(), true, topologyProcessor);
+                planRpcService, registry, repositoryChannel, templatesDao, grpcServer.getChannel(),
+                true, topologyProcessor);
         when(templatesDao.getFilteredTemplates(any()))
             .thenReturn(Collections.singleton(Template.newBuilder()
                     .setId(7L)
@@ -115,6 +124,11 @@ public class PlanProjectExecutorTest {
         when(topologyProcessor.getAllTargets()).thenReturn(Collections.emptySet());
     }
 
+    /**
+     * Each cluster should run a plan against each scenario.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testExecutePlanOnePlanInstancePerClusterPerScenario() throws Exception {
         final PlanProjectOuterClass.PlanProject planProject = createHeadroomPlanProjectWithTwoScenarios();
@@ -158,8 +172,8 @@ public class PlanProjectExecutorTest {
         planProjectExecutor.executePlan(planProject);
 
         // 2 clusters, with 2 scenarios each.  So there are 4 plan instances created.
-        verify(planDao, Mockito.times(4)).
-                createPlanInstance(any(Scenario.class), eq(PlanProjectType.CLUSTER_HEADROOM));
+        verify(planDao, Mockito.times(4))
+                .createPlanInstance(any(Scenario.class), eq(PlanProjectType.CLUSTER_HEADROOM));
     }
 
     /**
@@ -259,12 +273,12 @@ public class PlanProjectExecutorTest {
                 .build()));
 
         long averageTemplateId = 3333;
-        Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
+        final Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
             .setId(12345L)
             .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
-                            .setDisplayName("TestCluster")
-                            .setType(GroupType.COMPUTE_HOST_CLUSTER))
+                .setDisplayName("TestCluster")
+                .setType(GroupType.COMPUTE_HOST_CLUSTER))
             .setOrigin(Origin.newBuilder().setDiscovered(Discovered.newBuilder().addDiscoveringTargetId(500L)))
             .build();
 
@@ -297,9 +311,9 @@ public class PlanProjectExecutorTest {
 
     /**
      *  When calling createPlanInstanceWithClusterHeadroomTemplate, and the group does not have
-     * cluster information. In this case the code for changing the template is called
+     * cluster information. In this case the code for changing the template is called.
      *
-     * @throws Exception
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testCreatePlanInstanceWithoutClusterInfo() throws Exception {
@@ -322,7 +336,7 @@ public class PlanProjectExecutorTest {
      * When calling createPlanInstanceWithClusterHeadroomTemplate, and the group does not have
      * a headroom template ID. In this case, the code for creating the template is called
      *
-     * @throws Exception
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testCreatePlanInstanceWithoutClusterHeadroomTemplate() throws Exception {
@@ -353,7 +367,7 @@ public class PlanProjectExecutorTest {
     }
 
     /**
-     * Create a plan project of type CLUSTER_HEADROOM, with 2 scenarios
+     * Create a plan project of type CLUSTER_HEADROOM, with 2 scenarios.
      *
      * @return a plan project
      */
@@ -388,8 +402,11 @@ public class PlanProjectExecutorTest {
         return planProject;
     }
 
+    /**
+     * Should restrict the number of clusters to the global setting.
+     */
     @Test
-    public void testRestrictNumberOfClustersMoreThanMax() throws Exception {
+    public void testRestrictNumberOfClustersMoreThanMax() {
         int numberOfClusters = 100;
         Float maxNumberOfClusters = 20F;
         when(settingServiceMole.getGlobalSetting(any(GetSingleGlobalSettingRequest.class)))
@@ -411,8 +428,11 @@ public class PlanProjectExecutorTest {
         assertEquals(maxNumberOfClusters.intValue(), groupSet1.size());
     }
 
+    /**
+     * Should not change the number of clusters because it's below the global max setting.
+     */
     @Test
-    public void testRestrictNumberOfClustersLessThanMax() throws Exception {
+    public void testRestrictNumberOfClustersLessThanMax() {
         int numberOfClusters = 15;
         Float maxNumberOfClusters = 20F;
         when(settingServiceMole.getGlobalSetting(any(GetSingleGlobalSettingRequest.class)))
