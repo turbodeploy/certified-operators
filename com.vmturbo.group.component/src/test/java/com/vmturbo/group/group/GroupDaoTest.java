@@ -584,16 +584,20 @@ public class GroupDaoTest {
         final String tagName1 = "tag1";
         final String tagValue11 = "tag1-1";
         final String tagValue12 = tagValue11;
+        final String tagName2 = "tag1 ";
 
         final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition())
                 .setTags(Tags.newBuilder()
                         .putTags(tagName1, TagValuesDTO.newBuilder()
-                                .addAllValues(Arrays.asList(tagValue11, tagValue12)).build())).build();
-                       // .putTags(tagName2, TagValuesDTO.newBuilder().addValues(tagValue22).build())).build();
+                                .addAllValues(Arrays.asList(tagValue11, tagValue12)).build())
+                        .putTags(tagName2, TagValuesDTO.newBuilder()
+                            .addAllValues(Collections.singletonList(tagValue11)).build())).build();
 
+        Assert.assertEquals(2, groupDefinition.getTags().getTagsCount());
         groupStore.createGroup(OID2, origin, groupDefinition, EXPECTED_MEMBERS, true);
         final Map<Long, Map<String, Set<String>>> actualAllTags =
                 groupStore.getTags(Collections.emptyList());
+        Assert.assertEquals(1, actualAllTags.size());
         Assert.assertEquals(1, actualAllTags.entrySet().iterator().next().getValue()
                 .entrySet().iterator().next().getValue().size());
     }
