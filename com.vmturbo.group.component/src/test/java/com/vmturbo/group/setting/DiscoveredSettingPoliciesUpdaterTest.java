@@ -24,6 +24,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.identity.IdentityProvider;
 
 /**
@@ -33,6 +35,8 @@ public class DiscoveredSettingPoliciesUpdaterTest {
 
     private static final long TARGET_ID = 12345L;
     private static final long GROUP_ID = 100L;
+    private static final long OID1 = 2L;
+    private static final long OID2 = 3L;
 
     private static final String SETTING_NAME = "exclusions";
     private static final Setting UPDATED_SETTING = Setting.newBuilder()
@@ -90,7 +94,7 @@ public class DiscoveredSettingPoliciesUpdaterTest {
                 Collections.emptySet());
 
         Mockito.verify(settingPolicyStore)
-                .deletePolicies(Collections.emptyList(), SettingPolicy.Type.DISCOVERED);
+                .deletePolicies(Collections.emptySet(), SettingPolicy.Type.DISCOVERED);
         Mockito.verify(settingPolicyStore).createSettingPolicies(newPolicies.capture());
         Assert.assertEquals(1, newPolicies.getValue().size());
         final SettingPolicy newPolicy = newPolicies.getValue().iterator().next();
@@ -105,34 +109,44 @@ public class DiscoveredSettingPoliciesUpdaterTest {
     }
 
     /**
-     * Tests updating existing setting policy.
+     * Tests updating existing setting policy. It is expected that policy 2 is treated as unchanged.
      *
      * @throws Exception on exceptions occurred.
      */
     @Test
     public void testUpdateTargetSettingPoliciesUpdate() throws Exception {
-        final DiscoveredSettingPolicyInfo spInfo = DiscoveredSettingPolicyInfo.newBuilder()
+        final DiscoveredSettingPolicyInfo spInfo1 = DiscoveredSettingPolicyInfo.newBuilder()
                 .setEntityType(1)
                 .setName(POLICY_NAME_1)
                 .addDiscoveredGroupNames(GROUP_NAME)
                 .addSettings(UPDATED_SETTING)
                 .build();
+        final DiscoveredSettingPolicyInfo spInfo2 = DiscoveredSettingPolicyInfo.newBuilder()
+                .setEntityType(2)
+                .setName(POLICY_NAME_2)
+                .addDiscoveredGroupNames(GROUP_NAME)
+                .addSettings(UPDATED_SETTING)
+                .build();
+        final SettingPolicyInfo spInfoInt2 = new DiscoveredSettingPoliciesMapper(TARGET_ID,
+                GROUP_IDS.row(TARGET_ID)).mapToSettingPolicyInfo(spInfo2).get();
+        final byte[] policy2Hash = SettingPolicyHash.hash(spInfoInt2);
 
-        Mockito.when(settingPolicyStore.getDiscoveredPolicies())
-                .thenReturn(Collections.singletonMap(TARGET_ID,
-                        Collections.singletonMap(POLICY_NAME_1, 2L)));
+        Mockito.when(settingPolicyStore.getDiscoveredPolicies()).thenReturn(
+                Collections.singletonMap(TARGET_ID,
+                        ImmutableMap.of(POLICY_NAME_1, new DiscoveredObjectVersionIdentity(OID1, null),
+                                POLICY_NAME_2, new DiscoveredObjectVersionIdentity(OID2, policy2Hash))));
         updater.updateSettingPolicies(settingPolicyStore,
-                Collections.singletonMap(TARGET_ID, Collections.singletonList(spInfo)), GROUP_IDS,
-            Collections.emptySet());
+                Collections.singletonMap(TARGET_ID, Arrays.asList(spInfo1, spInfo2)), GROUP_IDS,
+                Collections.emptySet());
 
         Mockito.verify(settingPolicyStore)
-                .deletePolicies(Collections.singletonList(2L), SettingPolicy.Type.DISCOVERED);
+                .deletePolicies(Collections.singleton(OID1), SettingPolicy.Type.DISCOVERED);
         Mockito.verify(settingPolicyStore).createSettingPolicies(newPolicies.capture());
         Assert.assertEquals(1, newPolicies.getValue().size());
         final SettingPolicy newPolicy = newPolicies.getValue().iterator().next();
         Assert.assertEquals(2L, newPolicy.getId());
-        Assert.assertEquals(spInfo.getEntityType(), newPolicy.getInfo().getEntityType());
-        Assert.assertEquals(spInfo.getName(), newPolicy.getInfo().getName());
+        Assert.assertEquals(spInfo1.getEntityType(), newPolicy.getInfo().getEntityType());
+        Assert.assertEquals(spInfo1.getName(), newPolicy.getInfo().getName());
         Assert.assertEquals(Collections.singletonList(GROUP_ID),
                 newPolicy.getInfo().getScope().getGroupsList());
         Assert.assertEquals(Collections.singletonList(UPDATED_SETTING),
@@ -162,7 +176,8 @@ public class DiscoveredSettingPoliciesUpdaterTest {
                 .build();
         Mockito.when(settingPolicyStore.getDiscoveredPolicies())
                 .thenReturn(Collections.singletonMap(TARGET_ID,
-                        ImmutableMap.of(POLICY_NAME_1, 1L, POLICY_NAME_2, 2L)));
+                        ImmutableMap.of(POLICY_NAME_1, new DiscoveredObjectVersionIdentity(1L, null),
+                                POLICY_NAME_2, new DiscoveredObjectVersionIdentity(2L, null))));
         Mockito.when(identityProvider.next()).thenReturn(3L);
         updater.updateSettingPolicies(settingPolicyStore,
                 Collections.singletonMap(TARGET_ID, Arrays.asList(spInfo1, spInfo2)), GROUP_IDS,
