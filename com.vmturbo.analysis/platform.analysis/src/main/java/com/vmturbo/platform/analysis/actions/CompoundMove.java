@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
@@ -26,6 +27,7 @@ import org.checkerframework.dataflow.qual.Pure;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 
 /**
  * An action to group multiple {@link Move}s that should happen atomically by {@link ShoppingList}s
@@ -53,8 +55,28 @@ public class CompoundMove extends ActionImpl {
      */
     private CompoundMove(@NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists,
                         @NonNull Collection<@Nullable Trader> destinations) {
-        this(economy,shoppingLists,shoppingLists.stream().map(ShoppingList::getSupplier)
-             .collect(Collectors.toList()),destinations);
+        this(
+                economy,
+                shoppingLists,
+                shoppingLists.stream()
+                        .map(ShoppingList::getSupplier)
+                        .collect(Collectors.toList()),
+                destinations,
+                shoppingLists.stream()
+                        .map(ShoppingList::getContext)
+                        .collect(Collectors.toList()));
+    }
+
+    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists,
+            @NonNull Collection<@Nullable Trader> sources, @NonNull Collection<@Nullable Trader> destinations) {
+        this(
+                economy,
+                shoppingLists,
+                sources,
+                destinations,
+                shoppingLists.stream()
+                        .map(ShoppingList::getContext)
+                        .collect(Collectors.toList()));
     }
 
     /**
@@ -75,9 +97,14 @@ public class CompoundMove extends ActionImpl {
      *                {@link Economy#getMarketsAsBuyer(Trader)}.
      *                Must be the same size as <b>destinations</b> and not empty.
      * @param destinations Same as for {@link #CompoundMove(Economy, Collection, Collection)}.
+     * @param contexts ShoppingList Context objects
      */
-    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists,
-            @NonNull Collection<@Nullable Trader> sources, @NonNull Collection<@Nullable Trader> destinations) {
+    private CompoundMove(
+            @NonNull Economy economy,
+            @NonNull Collection<@NonNull ShoppingList> shoppingLists,
+            @NonNull Collection<@Nullable Trader> sources,
+            @NonNull Collection<@Nullable Trader> destinations,
+            @NonNull Collection<Optional<Context>> contexts) {
         super(economy);
 
         checkArgument(shoppingLists.size() == destinations.size(), "shoppingLists.size() = "
@@ -89,13 +116,17 @@ public class CompoundMove extends ActionImpl {
         Iterator<ShoppingList> shoppingListIter = shoppingLists.iterator();
         Iterator<Trader> sourceIter = sources.iterator();
         Iterator<Trader> destinationIter = destinations.iterator();
+        Iterator<Optional<Context>> contextIter = contexts.iterator();
         while (shoppingListIter.hasNext()) {
             // create move action only if the source and destination are different
             ShoppingList sl = shoppingListIter.next();
             Trader source = sourceIter.next();
             Trader destination = destinationIter.next();
+            Optional<Context> context = contextIter.next();
             if (destination != null && !destination.equals(source)) {
-                moves.add(new Move(economy, sl, source, destination));
+                moves.add(context.isPresent()
+                        ? new Move(economy, sl, source, destination, context)
+                        : new Move(economy, sl, source, destination));
             }
         }
 
