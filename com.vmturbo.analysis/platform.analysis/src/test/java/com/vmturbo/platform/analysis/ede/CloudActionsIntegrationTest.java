@@ -373,9 +373,9 @@ public class CloudActionsIntegrationTest {
         assertEquals(8, slVM2.getQuantity(1), 0);
 
         // VM2's context got updated after move
-        assertEquals(16, vms[1].getSettings().getContext().getTotalRequestedCoupons(
+        assertEquals(16, vms[1].getSettings().getContext().get().getTotalRequestedCoupons(
                 t.getTraderOid(sellers[2])).get(), 0);
-        assertEquals(8, vms[1].getSettings().getContext().getTotalAllocatedCoupons(
+        assertEquals(8, vms[1].getSettings().getContext().get().getTotalAllocatedCoupons(
             t.getTraderOid(sellers[2])).get(), 0);
         // now say we trigger an actual placement instead of forcing the move
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
@@ -1046,8 +1046,8 @@ public class CloudActionsIntegrationTest {
         PlacementResults result = Placement.runPlacementsTillConverge(e, new Ledger(e), "PlacementFromUnitTest");
         Assert.assertEquals(3, result.getActions().size());
         // Make sure the buyer context has 24 requested and allocated coupons
-        Assert.assertEquals(24, vms[0].getSettings().getContext().getTotalRequestedCoupons(traderOids.get(sellers[2])).get(), 0.1);
-        Assert.assertEquals(24, vms[0].getSettings().getContext().getTotalAllocatedCoupons(traderOids.get(sellers[2])).get(), 0.1);
+        Assert.assertEquals(24, vms[0].getSettings().getContext().get().getTotalRequestedCoupons(traderOids.get(sellers[2])).get(), 0.1);
+        Assert.assertEquals(24, vms[0].getSettings().getContext().get().getTotalAllocatedCoupons(traderOids.get(sellers[2])).get(), 0.1);
         // Make sure the CBTP1's coupon comm sold has quantity 24
         Assert.assertEquals(24, sellers[2].getCommoditySold(COUPON).getQuantity(), 0.1);
     }

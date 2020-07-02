@@ -927,9 +927,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private void cloneContext(Trader trader, Trader cloneTrader) {
         //TODO Have Cloud Context extend a Context class so that the setting is generic for
         // on prem and cloud
-        Context context = trader.getSettings().getContext();
-        if (context != null) {
-            Context cloneContext = new Context(context);
+        Optional<Context> optionalContext = trader.getSettings().getContext();
+        if (optionalContext.isPresent()) {
+            Context cloneContext = new Context(optionalContext.get());
             cloneTrader.getSettings().setContext(cloneContext);
         }
     }
@@ -1243,10 +1243,10 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                     groupSupplierId = oid;
                 }
                 first = false;
-                Context context = sl.getBuyer().getSettings().getContext();
-                if (context == null) {
+                if (!sl.getBuyer().getSettings().getContext().isPresent()) {
                     continue;
                 }
+                Context context = sl.getBuyer().getSettings().getContext().get();
                 if (oid != null) {
                     // create coverageEntries in the map only for non-zero coverages
                     if (context.getTotalAllocatedCoupons(oid).isPresent()) {

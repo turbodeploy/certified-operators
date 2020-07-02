@@ -486,7 +486,8 @@ public class CostFunctionFactory {
                                                               CostTable costTable,
                                                               final int licenseBaseType) {
         long groupFactor = buyer.getGroupFactor();
-        final Context buyerContext = buyer.getBuyer().getSettings().getContext();
+        @Nullable final Context buyerContext = buyer.getBuyer().getSettings()
+                .getContext().orElse(null);
         final int licenseCommBoughtIndex = buyer.getBasket().indexOfBaseType(licenseBaseType);
         if (costTable.getAccountIds().isEmpty()) {
             // empty cost table, return infinity to not place entity on this seller
@@ -783,11 +784,12 @@ public class CostFunctionFactory {
                                                                      CostTable costTable, final int licenseBaseType) {
         final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
         final long groupFactor = sl.getGroupFactor();
-        final com.vmturbo.platform.analysis.economy.Context context = sl.getBuyer().getSettings().getContext();
-        if (context == null) {
+        final Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
+        if (!optionalContext.isPresent()) {
             // on prem entities do not have context can reach here in migration plan
             return getCheapestComputeCostWithoutContext(seller, sl, costTable, licenseCommBoughtIndex);
         }
+        final Context context = optionalContext.get();
         final long regionIdBought = context.getRegionId();
         final BalanceAccount balanceAccount = context.getBalanceAccount();
         if (balanceAccount == null) {
@@ -1095,14 +1097,14 @@ public class CostFunctionFactory {
                                                           @Nonnull Map<CommoditySpecification, CapacityLimitation> commCapacity,
                                                           @Nonnull ShoppingList sl, Trader seller) {
         // TODO: refactor the PriceData to improve performance for region and business account lookup
-        com.vmturbo.platform.analysis.economy.Context context = sl.getBuyer().getSettings().getContext();
-        if (context == null) {
+        Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
+        if (!optionalContext.isPresent()) {
             // On-prem entities do not have context can reach here in cloud migration plan.
             return getCheapestStorageCostWithoutContext(priceDataMap, commCapacity, sl, seller);
         }
+        final Context context = optionalContext.get();
         final long regionId = context.getRegionId();
-        final BalanceAccount balanceAccount = sl.getBuyer().getSettings().getContext()
-                .getBalanceAccount();
+        final BalanceAccount balanceAccount = context.getBalanceAccount();
         final long priceId = balanceAccount.getPriceId();
         final long balanceAccountId = balanceAccount.getId();
 

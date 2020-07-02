@@ -138,10 +138,10 @@ public class Move extends MoveBase implements Action { // inheritance for code r
 
     public boolean isContextChangeValid(Trader buyer) {
         return getContext().isPresent() &&
-                ((buyer != null) ?
-                        ((buyer.getSettings() != null) ?
-                                ((buyer.getSettings().getContext() != null) ?
-                                        !buyer.getSettings().getContext().equals(getContext()) : false)
+                ((buyer != null)
+                        ? ((buyer.getSettings() != null)
+                                ? ((buyer.getSettings().getContext().isPresent())
+                                        ? !buyer.getSettings().getContext().equals(getContext().get()) : false)
                                 : false)
                         : false);
 
@@ -408,7 +408,8 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                 if ((customer != sl && commIndex != -1) ||
                         // if a consumer hasContext, consider for overhead subtraction
                         // hasContext true means VM on CBTP
-                        (ts != null && ts.getContext() != null && ts.getContext().hasValidContext())) {
+                        (ts != null && ts.getContext().isPresent()
+                                && ts.getContext().get().hasValidContext())) {
                     // subtract the used value of comm in question of all the customers but the
                     // incoming shoppingList from the current used value of the sold commodity
                     overhead -= customer.getQuantity(commIndex);
