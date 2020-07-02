@@ -346,7 +346,7 @@ public class InterpretActionTest {
 
         final long shoppingListId = 5L;
         final ShoppingListInfo slInfo = new ShoppingListInfo(shoppingListId, businessUser.getOid(), null,
-            null, null, null, Arrays.asList());
+            null, null, Arrays.asList());
         final Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(shoppingListId, slInfo);
         final Map<Long, TopologyEntityDTO> originalTopology = ImmutableMap.of(businessUser.getOid(),
             businessUser);
@@ -795,7 +795,7 @@ public class InterpretActionTest {
         when(mockCloudTc.isMarketTier(1l)).thenReturn(true);
         when(mockCloudTc.isMarketTier(2l)).thenReturn(true);
 
-        ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, null, null, null, Arrays.asList());
+        ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, null, null, Arrays.asList());
         Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(5l, slInfo);
         TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
         CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);

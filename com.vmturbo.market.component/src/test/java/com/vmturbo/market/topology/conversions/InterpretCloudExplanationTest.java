@@ -103,7 +103,7 @@ public class InterpretCloudExplanationTest {
     @Before
     public void setup() {
         shoppingListInfoMap.put(SL_TO_MOVE, new ShoppingListInfo(SL_TO_MOVE, VM1_OID, TIER1_OID,
-            null, null, EntityType.COMPUTE_TIER_VALUE, Collections.emptyList()));
+            null, EntityType.COMPUTE_TIER_VALUE, Collections.emptyList()));
 
         MarketTier computeTier = new OnDemandMarketTier(TopologyEntityDTO.newBuilder()
             .setOid(TIER2_OID)
