@@ -44,6 +44,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSetting
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityRawMaterialEntry;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependency;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependencyEntry;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.ResizeDependencySkipEntry;
@@ -212,9 +213,6 @@ public final class ProtobufToAnalysis {
 
         shoppingList.setMovable(input.getMovable());
         shoppingList.setMoveCost(input.getStorageMoveCost());
-        if (input.hasDemandScalable()) {
-            shoppingList.setDemandScalable(input.getDemandScalable());
-        }
         if (input.hasGroupFactor()) {
             shoppingList.setGroupFactor(input.getGroupFactor());
             Economy economy = (Economy)topology.getEconomy();
@@ -223,14 +221,9 @@ public final class ProtobufToAnalysis {
         shoppingList.getUnquotedCommoditiesBaseTypeList().addAll(input.getUnquotedCommoditiesBaseTypeListList());
 
         for (CommodityBoughtTO commodityBought : input.getCommoditiesBoughtList()) {
-            final CommoditySpecification commoditySpecification = commoditySpecification(commodityBought.getSpecification());
-            final int index = basketBought.indexOf(commoditySpecification);
+            int index = basketBought.indexOf(commoditySpecification(commodityBought.getSpecification()));
             shoppingList.setQuantity(index, commodityBought.getQuantity());
             shoppingList.setPeakQuantity(index, commodityBought.getPeakQuantity());
-            if (commodityBought.hasAssignedCapacityForBuyer()) {
-                shoppingList.addAssignedCapacity(
-                        commoditySpecification.getType(), commodityBought.getAssignedCapacityForBuyer());
-            }
         }
 
         return shoppingList;

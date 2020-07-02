@@ -35,13 +35,6 @@ message CommodityBoughtTO {
     // The peak quantity that is currently bought or needs to be bought. The relationship
     // quantity <= peak_quantity must hold.
     optional float peak_quantity = 3;
-
-    // The assigned capacity related to commodity sold by buyer.
-    // Added for shoppingList representing cloud volume, preserving commodity sold capacity for volume.
-    // Initially it will be set to volume current commodity capacity, which is used in M2 to compare with
-    // desired demand and generate action for commodity resize case.
-    // After M2 analysis, value will be adjusted to new capacity which reflects volume scaling result.
-    optional float assigned_capacity_for_buyer = 4;
 }
 
 // The settings associated with and controlling the behavior of a single commodity sold.

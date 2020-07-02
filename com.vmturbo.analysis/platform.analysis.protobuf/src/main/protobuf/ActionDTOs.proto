@@ -34,22 +34,6 @@ message MoveTO {
 
     // scaling group ID
     optional string scaling_group_id = 8;
-
-    // The context of commodity demand information.
-    optional DemandContext demand_context = 9;
-
-    message DemandContext {
-        repeated DemandEntry demand_entry = 1;
-    }
-
-    message DemandEntry {
-        // The specification of the commodity sold that should be resized.
-        optional CommoditySpecificationTO specification = 1;
-        // The capacity of the commodity sold before action. Used in human-readable messages.
-        optional float old_capacity = 2;
-        // The capacity to resize to.
-        optional float new_capacity = 3;
-    }
 }
 
 // a move explanation suggesting unavailability of commodities

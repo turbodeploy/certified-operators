@@ -5,9 +5,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -67,17 +65,6 @@ public class ShoppingList implements Serializable {
     private List<Integer> modifiableUnquotedCommoditiesBaseTypeList_ = new ArrayList<Integer>();
 
     private Context moveContext;
-
-    // Assigned capacities related to commodities sold by buyer.
-    // Added for shoppingList representing cloud volume, preserving commodity sold capacities for volume,
-    // which is used to compare with desired demand and generate action for commodity resize case.
-    private Map<Integer, Double> assignedCapacities = new HashMap<>();
-
-    // Whether demand is scalable within M2. Added for cloud volume Savings/Reversibility mode -
-    // In Reversibility mode, demand_scalable is false, which indicates that volume size cannot
-    // be increased by default.
-    // In Savings mode, demand_scalable is true.
-    private boolean demandScalable;
 
     // Constructors
     /**
@@ -468,44 +455,5 @@ public class ShoppingList implements Serializable {
         return this.getBuyer().getSettings().getContext()
             .getTotalRequestedCoupons(economy.getTopology().getTraderOids().get(seller))
             .orElse(0.0);
-    }
-
-    /**
-     * Add entry for commodity type with assigned capacity sold by buyer.
-     *
-     * @param commodityType commodityType.
-     * @param assignedCapacity assignedCapacity for the commodityType sold by buyer.
-     */
-    public void addAssignedCapacity(Integer commodityType, double assignedCapacity) {
-        assignedCapacities.put(commodityType, assignedCapacity);
-    }
-
-    /**
-     * Get assigned capacity for certain commodity type sold by buyer.
-     *
-     * @param commodityType commodityType.
-     * @return assigned capacity for given commodityType.
-     */
-    @Nullable
-    public Double getAssignedCapacity(Integer commodityType) {
-        return assignedCapacities.get(commodityType);
-    }
-
-    /**
-     * Set demandScalable flag on the shopping list.
-     *
-     * @param demandScalable given demandScalable value.
-     */
-    public void setDemandScalable(boolean demandScalable) {
-        this.demandScalable = demandScalable;
-    }
-
-    /**
-     * Get demandScalable flag for the shopping list.
-     *
-     * @return demandScalable value.
-     */
-    public boolean getDemandScalable() {
-        return demandScalable;
     }
 } // end ShoppingList class
