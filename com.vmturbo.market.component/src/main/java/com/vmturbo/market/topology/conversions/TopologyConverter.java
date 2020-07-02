@@ -2283,45 +2283,30 @@ public class TopologyConverter {
                 // the one from Volume -> StorageTier if there is one present.
                 if (providerTypeAfterCollapsing != null) {
                     Long directProviderId = commBoughtGrouping.getProviderId();
-                    if (directProviderId == null || entityOidToDto.get(directProviderId) == null) {
+                    if (entityOidToDto.get(directProviderId) == null) {
                         logger.error("Provider {} for entity {} not found", directProviderId, topologyEntity.getOid());
                         continue;
                     }
                     TopologyEntityDTO directProvider = entityOidToDto.get(directProviderId);
-                    CommoditiesBoughtFromProvider directCommBoughtGrouping = directProvider
-                            .getCommoditiesBoughtFromProvidersList().stream()
+                    commBoughtGroupingForSL = directProvider.getCommoditiesBoughtFromProvidersList().stream()
                             .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
                             .filter(commBought -> commBought.getProviderEntityType() == providerTypeAfterCollapsing)
                             .findAny().orElse(null);
-                    if (directCommBoughtGrouping == null) {
-                        logger.error("Couldn't find provider with type {} after collapsing direct provider {} for entity {}",
-                                providerTypeAfterCollapsing, directProviderId, topologyEntity.getOid());
+                    if (commBoughtGroupingForSL == null) {
+                        logger.error("Couldn't find commBoughtGrouping with provider type {} for collapsed entity {}",
+                                providerTypeAfterCollapsing, directProviderId);
                         continue;
                     }
-                    // Add any remaining commodities (like segmentation) from commBoughtGrouping.
-                    Set<Integer> existingCommodityTypes = directCommBoughtGrouping
-                            .getCommodityBoughtList()
-                            .stream()
-                            .map(cb -> cb.getCommodityType().getType())
-                            .collect(Collectors.toSet());
-                    Set<CommodityBoughtDTO> commoditiesToAdd = commBoughtGrouping
-                            .getCommodityBoughtList()
-                            .stream()
-                            .filter(cb -> !existingCommodityTypes.contains(cb
-                                    .getCommodityType().getType()))
-                            .collect(Collectors.toSet());
-                    CommoditiesBoughtFromProvider.Builder cbgBuilder
-                            = CommoditiesBoughtFromProvider.newBuilder(
-                            directCommBoughtGrouping)
-                            .addAllCommodityBought(commoditiesToAdd);
                     if (isCloudMigration) {
                         // Volume may not be movable for real-time, but for plans, make it
                         // movable if commBoughtGrouping b/w VM -> Volume is set so.
                         // TODO: We should not need this after we support real-time volume actions.
+                        CommoditiesBoughtFromProvider.Builder cbgBuilder
+                                = CommoditiesBoughtFromProvider.newBuilder(commBoughtGroupingForSL);
                         cbgBuilder.setMovable(commBoughtGrouping.hasMovable()
                                 && commBoughtGrouping.getMovable());
+                        commBoughtGroupingForSL = cbgBuilder.build();
                     }
-                    commBoughtGroupingForSL = cbgBuilder.build();
                     entityForSL = directProvider;
                 }
                 Pair<Long, Class> providerId;

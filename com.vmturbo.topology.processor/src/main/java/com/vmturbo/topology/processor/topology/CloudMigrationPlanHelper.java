@@ -1,13 +1,12 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.COMPUTE_TIER;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATACENTER;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DISK_ARRAY;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_VALUE;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE;
@@ -16,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,14 +26,14 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -52,7 +50,6 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -62,6 +59,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.processor.entity.EntityNotFoundException;
@@ -129,13 +127,9 @@ public class CloudMigrationPlanHelper {
             CommodityType.CPU_PROVISIONED,
             CommodityType.MEM_PROVISIONED,
             CommodityType.STORAGE_PROVISIONED,
+            // TODO: These 2 are sold by Azure compute tiers, but not by AWS tiers.
             CommodityType.INSTANCE_DISK_SIZE,
-            CommodityType.INSTANCE_DISK_TYPE,
-            // TODO: Num disk will be needed when migrating to Azure.
-            CommodityType.NUM_DISK,
-            // TODO: For these 2 below, Azure templates seem to have 0 capacity, causing issues.
-            CommodityType.NET_THROUGHPUT,
-            CommodityType.NETWORK_INTERFACE_COUNT
+            CommodityType.INSTANCE_DISK_TYPE
     );
 
     /**
@@ -173,6 +167,8 @@ public class CloudMigrationPlanHelper {
      * @param inputGraph Graph coming in from previous pipeline stages.
      * @param planScope Scope of the plan.
      * @param changes Migration changes specified by user.
+     * @return Output graph, mostly same as input, except non-migrating workloads/volumes removed.
+     * @throws PipelineStageException Thrown on stage execution issue.
      * @return Output graph, mostly same as input, execept non-migrating workloads/volumes removed.
      * @throws PipelineStageException When a PipelineStageException occurs
      */
@@ -299,7 +295,7 @@ public class CloudMigrationPlanHelper {
                                                         @Nonnull Set<EntityType> providerTypes,
                                                         @Nonnull CommodityType commodityType,
                                                         @Nonnull String newKey) {
-        Builder vmBuilder = vm.getTopologyEntityDtoBuilder();
+        TopologyEntityDTO.Builder vmBuilder = vm.getTopologyEntityDtoBuilder();
 
         List<CommoditiesBoughtFromProvider> originalCommBoughtGroupings =
                 vmBuilder.getCommoditiesBoughtFromProvidersList();
@@ -536,48 +532,6 @@ public class CloudMigrationPlanHelper {
     }
 
     /**
-     * Gets the providers for the source migration entities that we need for the plan.
-     * Only needed providers are returned, instead of everything under the entities, as that
-     * ends up returning providers (e.g Storage) that don't have any direct connection to the
-     * workloads being migrated.
-     *
-     * @param migrationWorkloads Set of workloads being migrated.
-     * @return Map keyed off of provider entity type, with value being a set of those entities.
-     */
-    @Nonnull
-    public Map<EntityType, Set<TopologyEntity>> getProviders(
-            @Nonnull final Set<TopologyEntity> migrationWorkloads) {
-        Map<EntityType, Set<TopologyEntity>> providerByType = new HashMap<>();
-        migrationWorkloads
-                .stream()
-                .map(TopologyEntity::getProviders)
-                .flatMap(Collection::stream)
-                .forEach(provider -> {
-                    EntityType providerType = EntityType.forNumber(provider.getEntityType());
-                    switch (providerType) {
-                        case PHYSICAL_MACHINE:
-                        case STORAGE:
-                        case VIRTUAL_VOLUME:
-                            // For these, we need to add the parent providers as well.
-                            for (TopologyEntity parent : provider.getProviders()) {
-                                EntityType parentType = EntityType.forNumber(parent.getEntityType());
-                                if (parentType == DATACENTER
-                                        || parentType == DISK_ARRAY
-                                        || parentType == STORAGE_TIER) {
-                                    providerByType.computeIfAbsent(parentType, k -> new HashSet<>())
-                                            .add(parent);
-                                }
-                            }
-                            break;
-                    }
-                    // Add the current provider.
-                    providerByType.computeIfAbsent(providerType, k -> new HashSet<>())
-                            .add(provider);
-                });
-        return providerByType;
-    }
-
-    /**
      * Removes workloads (VM/DB/DBS) and volumes that don't apply for migration, so that we don't
      * unnecessarily send them to market. This is the entities in the scoped target regions, as
      * we use generic OCP scoping in earlier stages which ends up picking all entities in target
@@ -607,7 +561,7 @@ public class CloudMigrationPlanHelper {
         }
         // Get volumes attached to the VMs that are in scope.
         filteredEntityByType.put(VIRTUAL_VOLUME,
-                filteredEntityByType.get(VIRTUAL_MACHINE)
+                filteredEntityByType.get(EntityType.VIRTUAL_MACHINE)
                         .stream()
                         .flatMap(e -> Stream.concat(e.getOutboundAssociatedEntities().stream(),
                                 e.getProviders().stream()))
@@ -618,8 +572,7 @@ public class CloudMigrationPlanHelper {
                 .stream()
                 .map(EntityType::forNumber)
                 .collect(Collectors.toSet());
-        final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap =
-                new Long2ObjectOpenHashMap<>(allEntityTypes.size());
+        final Long2ObjectMap<Builder> resultEntityMap = new Long2ObjectOpenHashMap<>();
         for (EntityType type : allEntityTypes) {
             Set<TopologyEntity> filteredEntities = filteredEntityByType.get(type);
             if (filteredEntities != null) {
@@ -627,12 +580,14 @@ public class CloudMigrationPlanHelper {
                 resultEntityMap.putAll(filteredEntities
                         .stream()
                         .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                        .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder)));
+                        .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid,
+                                TopologyEntity::newBuilder)));
             } else {
                 // Pick all entities of this type as-is.
                 resultEntityMap.putAll(graph.entitiesOfType(type)
                         .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                        .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder)));
+                        .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid,
+                                TopologyEntity::newBuilder)));
             }
         }
         return new TopologyGraphCreator<>(resultEntityMap).build();
@@ -724,7 +679,7 @@ public class CloudMigrationPlanHelper {
                         for (MigrationReference volumeRef : sourceVolumeRefs) {
                             // Save a policy group for each volume id.
                             createPolicyGroup(context, Collections.singletonList(volumeRef),
-                                    EntityType.VIRTUAL_VOLUME,
+                                    VIRTUAL_VOLUME,
                                     destinationTierRefs, providerType);
                         }
                     });
@@ -748,7 +703,7 @@ public class CloudMigrationPlanHelper {
                                            @Nonnull final TopologyInfo topologyInfo,
                                            @Nullable final TopologyEntity currentCsp) {
         // Go over all known storage tiers, for all CSPs.
-        return graph.entitiesOfType(EntityType.STORAGE_TIER)
+        return graph.entitiesOfType(STORAGE_TIER)
                 .filter(storageTier -> {
                     // If this is an already known tier that we want to skip (e.g for Lift_n_Shift
                     // plan, we only want GP2 and Managed_Premium), then apply that filter.
@@ -818,28 +773,46 @@ public class CloudMigrationPlanHelper {
      * Gets a map of storage provider type to the List of volume ids that are buying from that.
      * One placement policy is created for each such provider type.
      *
-     * @param entity Source entity being migrated.
+     * @param inputEntity Source VM being migrated.
      * @return Provider to volumes map.
      */
     @Nonnull
     private Map<EntityType, List<MigrationReference>> getStorageProviders(
-            @Nonnull final TopologyEntity entity) {
+            @Nonnull final TopologyEntity inputEntity) {
         Map<EntityType, List<MigrationReference>> volumesByStorageType = new HashMap<>();
-        entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                .stream()
-                .filter(commBought -> commBought.hasProviderId()
-                        && (commBought.getProviderEntityType() == STORAGE_VALUE
-                        || commBought.getProviderEntityType() == VIRTUAL_VOLUME_VALUE))
-                .forEach(commBought -> {
-                    long volumeId = commBought.getVolumeId();
-                    if (volumeId == 0) {
-                        // For cloud to cloud, volume is the provider.
-                        volumeId = commBought.getProviderId();
+
+        // If we are getting a cloud VM, then we need to process its volumes instead. Policy
+        // in this case needs to be created on those volumes, with providers being storage tiers.
+        Stream.of(inputEntity)
+                .map(entity -> {
+                    if (!isCloudEntity(entity)) {
+                        return Collections.singletonList(entity);
                     }
-                    volumesByStorageType.computeIfAbsent(EntityType.forNumber(
-                            commBought.getProviderEntityType()),
-                            k -> new ArrayList<>()).add(MigrationReference.newBuilder()
-                            .setOid(volumeId).build());
+                    return entity.getProviders()
+                            .stream()
+                            .filter(e -> e.getEntityType() == VIRTUAL_VOLUME_VALUE)
+                            .collect(Collectors.toSet());
+                })
+                .flatMap(Collection::stream)
+                .forEach(entity -> {
+                    // This entity is a VM in case of on-prem source. For cloud sources, this is
+                    // the cloud volume, with provider being storage tier.
+                    entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+                            .stream()
+                            .filter(commBought -> commBought.hasProviderId()
+                                    && (commBought.getProviderEntityType() == STORAGE_VALUE
+                                    || commBought.getProviderEntityType() == STORAGE_TIER_VALUE))
+                            .forEach(commBought -> {
+                                long volumeId = commBought.getVolumeId();
+                                if (volumeId == 0) {
+                                    // For cloud volume, entity itself it the volume, so get its id.
+                                    volumeId = entity.getOid();
+                                }
+                                volumesByStorageType.computeIfAbsent(EntityType.forNumber(
+                                        commBought.getProviderEntityType()),
+                                        k -> new ArrayList<>()).add(MigrationReference.newBuilder()
+                                        .setOid(volumeId).build());
+                            });
                 });
         return volumesByStorageType;
     }
@@ -969,5 +942,17 @@ public class CloudMigrationPlanHelper {
         }
 
         return licensingMap.build();
+    }
+
+    /**
+     * Checks if entity has an associated business account, if so, it is considered cloud entity.
+     * Env type doesn't seem to be set reliably, so cannot be considered for the check.
+     *
+     * @param entity Entity to check.
+     * @return Whether entity is a cloud entity or not.
+     */
+    private boolean isCloudEntity(@Nonnull final TopologyEntity entity) {
+        return entity.getOwner().isPresent() && entity.getOwner().get().getEntityType()
+                == BUSINESS_ACCOUNT_VALUE;
     }
 }

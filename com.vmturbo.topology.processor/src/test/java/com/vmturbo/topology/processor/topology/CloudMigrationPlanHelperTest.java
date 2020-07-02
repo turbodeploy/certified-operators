@@ -159,7 +159,7 @@ public class CloudMigrationPlanHelperTest {
         settings.volumeId = 73433887060893L;
 
         settings.movable = false;
-        settings.totalSkipped = 7;
+        settings.totalSkipped = 6;
         settings.totalAccess = 6;
         settings.totalInactive = 0;
         settings.countsByProvider.put(settings.hostProviderId, 13L);
@@ -176,7 +176,7 @@ public class CloudMigrationPlanHelperTest {
         settings.totalSkipped = 0;
         settings.totalAccess = 0;
         settings.totalInactive = 2;
-        settings.countsByProvider.put(settings.hostProviderId, 3L);
+        settings.countsByProvider.put(settings.hostProviderId, 4L);
         settings.countsByProvider.put(settings.storageProviderId1, 3L);
 
         // Check counts after.
@@ -204,7 +204,7 @@ public class CloudMigrationPlanHelperTest {
         settings.volumeId = 0;
 
         settings.movable = false;
-        settings.totalSkipped = 6;
+        settings.totalSkipped = 5;
         settings.totalAccess = 4;
         settings.totalInactive = 0;
         settings.countsByProvider.put(settings.hostProviderId, 8L);
@@ -222,7 +222,7 @@ public class CloudMigrationPlanHelperTest {
         settings.totalSkipped = 0;
         settings.totalAccess = 0;
         settings.totalInactive = 4;
-        settings.countsByProvider.put(settings.hostProviderId, 2L);
+        settings.countsByProvider.put(settings.hostProviderId, 3L);
         settings.countsByProvider.put(settings.storageProviderId1, 4L);
         settings.countsByProvider.put(settings.storageProviderId2, 4L);
 
@@ -250,7 +250,7 @@ public class CloudMigrationPlanHelperTest {
         settings.volumeId = 0;
 
         settings.movable = false;
-        settings.totalSkipped = 5;
+        settings.totalSkipped = 3;
         settings.totalAccess = 3;
         settings.totalInactive = 0;
         settings.countsByProvider.put(settings.hostProviderId, 9L);
@@ -267,7 +267,7 @@ public class CloudMigrationPlanHelperTest {
         settings.totalSkipped = 0;
         settings.totalAccess = 0;
         settings.totalInactive = 3;
-        settings.countsByProvider.put(settings.hostProviderId, 3L);
+        settings.countsByProvider.put(settings.hostProviderId, 5L);
         settings.countsByProvider.put(settings.storageProviderId1, 4L);
 
         // Check counts after.
