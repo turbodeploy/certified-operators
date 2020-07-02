@@ -12,12 +12,14 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Table;
+
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -28,9 +30,9 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -38,6 +40,8 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.policy.application.BindToComplementaryGroupPolicy;
+import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
@@ -197,7 +201,7 @@ public class PolicyManager {
      * @param groupResolver The resolver for the groups that the policy applies to.
      * @return map from policy id to the commodityType.
      */
-    public Map<Long, TopologyDTO.CommodityType> getPlacementPolicyIdToCommodityType(
+    public Table<Long, Integer, TopologyDTO.CommodityType> getPlacementPolicyIdToCommodityType(
             @Nonnull final TopologyGraph<TopologyEntity> graph,
             @Nonnull final GroupResolver groupResolver) {
 
@@ -218,15 +222,17 @@ public class PolicyManager {
         getServerPolicies(new ArrayList<>(), livePolicies, groupsById)
                 .forEach(policiesToApply::add);
 
-        Map<Long, TopologyDTO.CommodityType> results = new HashMap<>();
-        for (PlacementPolicy policy : policiesToApply) {
+        Table<Long, Integer, TopologyDTO.CommodityType> results = HashBasedTable.create();
+        policiesToApply.stream().filter(policy -> policy instanceof BindToGroupPolicy
+                || policy instanceof BindToComplementaryGroupPolicy).forEach(policy ->
 
-            results.put(policy
+                        results.put(policy
                             .getPolicyDefinition().getId(),
+                                getProviderType(policy),
                     policyApplicator
                             .commodityTypeAssociatedWithPlacementPolicy(policy,
-                                    groupResolver, graph));
-        }
+                                    groupResolver, graph)));
+
         return results;
     }
 
@@ -251,6 +257,33 @@ public class PolicyManager {
         }
         return groupsById;
     }
+
+    /**
+     * Get the procvider type associated with the placement policy. Should only be called
+     * for BindToGroupPolicy and BindToComplementaryGroupPolicy.
+     * @param placementPolicy placement policy of interest
+     * @return the Entity type of the provider group of this policy.
+     */
+    private int getProviderType(PlacementPolicy placementPolicy) {
+        Grouping providerGroup;
+        if (placementPolicy instanceof BindToGroupPolicy) {
+            BindToGroupPolicy policy = (BindToGroupPolicy)placementPolicy;
+            providerGroup =  policy.getProviderPolicyEntities().getGroup();
+        } else if  (placementPolicy instanceof BindToComplementaryGroupPolicy) {
+            BindToComplementaryGroupPolicy policy = (BindToComplementaryGroupPolicy)placementPolicy;
+            providerGroup = policy.getProviderPolicyEntities().getGroup();
+        } else {
+            // should never reach here. The method should be called only for BindToGroupPolicy
+            // and BindToComplementaryGroupPolicy policy.
+            return 0;
+        }
+        GroupProtoUtil.checkEntityTypeForPolicy(providerGroup);
+        // Resolve the relevant groups
+        final ApiEntityType providerEntityType = GroupProtoUtil.getEntityTypes(providerGroup).iterator().next();
+        return providerEntityType.typeNumber();
+
+    }
+
 
     private Stream<PlacementPolicy> getServerPolicies(
                     @Nonnull List<ScenarioChange> changes,

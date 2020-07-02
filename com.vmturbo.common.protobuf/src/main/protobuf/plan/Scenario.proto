@@ -278,6 +278,8 @@ message ReservationConstraintInfo {
     optional Type type = 2;
     // the key of the commodity associated with the constraint.
     optional string key = 3;
+    // The entity type of provider.
+    optional int32 provider_type = 4;
     enum Type {
         // Cluster constraint and constraint id is cluster id
         CLUSTER = 1;
@@ -296,6 +298,10 @@ message ReservationConstraintInfo {
         // This means the template will only be placed on hosts that are connected to the
         // specified network.
         NETWORK = 5;
+
+        // Cluster constraint and constraint id is storage cluster id
+        STORAGE_CLUSTER = 6;
+
     }
 }
 

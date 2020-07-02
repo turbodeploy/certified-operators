@@ -3,11 +3,13 @@ package com.vmturbo.topology.processor.reservation;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.Table;
+import com.google.common.collect.Table.Cell;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -84,19 +86,19 @@ public class GenerateConstraintMap {
         while (membersResponseIterator.hasNext()) {
             GetMembersResponse membersResponse = membersResponseIterator.next();
             if (!membersResponse.getMemberIdList().isEmpty()) {
-                Optional<Long> hostOidOptional = membersResponse.getMemberIdList()
+                Optional<Long> providerOidOptional = membersResponse.getMemberIdList()
                         .stream().findFirst();
-                if (!hostOidOptional.isPresent()) {
+                if (!providerOidOptional.isPresent()) {
                     continue;
                 }
-                Long hostOid = hostOidOptional.get();
-                Optional<TopologyEntity> hostOptional = topologyGraph.getEntity(hostOid);
-                if (!hostOptional.isPresent()) {
+                Long providerOid = providerOidOptional.get();
+                Optional<TopologyEntity> providerOptional = topologyGraph.getEntity(providerOid);
+                if (!providerOptional.isPresent()) {
                     continue;
                 }
-                TopologyEntity host = hostOptional.get();
-                if (host.getTypeSpecificInfo().hasPhysicalMachine()) {
-                    String key = host.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                TopologyEntity provider = providerOptional.get();
+                if (provider.getTypeSpecificInfo().hasPhysicalMachine()) {
+                    String key = provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
                             .filter(a -> a.getCommodityType().getType()
                                     == CommodityType.CLUSTER_VALUE).findFirst().get()
                             .getCommodityType().getKey();
@@ -104,10 +106,23 @@ public class GenerateConstraintMap {
                             .newBuilder()
                             .setKey(key)
                             .setConstraintId(membersResponse.getGroupId())
+                            .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
                             .setType(Type.CLUSTER).build());
+                } else if (provider.getTypeSpecificInfo().hasStorage()) {
+                    String key = provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                            .filter(a -> a.getCommodityType().getType()
+                                    == CommodityType.STORAGE_CLUSTER_VALUE).findFirst().get()
+                            .getCommodityType().getKey();
+                    updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
+                            .newBuilder()
+                            .setKey(key)
+                            .setConstraintId(membersResponse.getGroupId())
+                            .setProviderType(EntityType.STORAGE_VALUE)
+                            .setType(Type.STORAGE_CLUSTER).build());
                 }
             }
         }
+
 
         // go over all the datacenter. Find a host in the datacenter. Find the
         // data center commodity sold by the host. Find the key associated with the
@@ -128,22 +143,23 @@ public class GenerateConstraintMap {
                     .newBuilder()
                     .setKey(key)
                     .setConstraintId(dataCenter.getOid())
+                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .setType(Type.DATA_CENTER).build());
         }
 
         // go over all the policies and find the key of the segmentaion commodity
-        // associated with the placement policy.
-        Map<Long, TopologyDTO.CommodityType> placementPolicyIdToCommodityType = policyManager
+        // associated with the placement policy and also the provider type of the entity.
+        Table<Long, Integer, TopologyDTO.CommodityType> placementPolicyIdToCommodityType = policyManager
                 .getPlacementPolicyIdToCommodityType(topologyGraph,
                         groupResolver);
-
-        placementPolicyIdToCommodityType.forEach((id, commodityType) -> {
+        for (Cell<Long, Integer, TopologyDTO.CommodityType> cell : placementPolicyIdToCommodityType.cellSet()) {
             updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
                     .newBuilder()
-                    .setKey(commodityType.getKey())
-                    .setConstraintId(id)
+                    .setKey(cell.getValue().getKey())
+                    .setConstraintId(cell.getRowKey())
+                    .setProviderType(cell.getColumnKey())
                     .setType(Type.POLICY).build());
-        });
+        }
 
         // TODO handle VDC, storage clusters and Network constraints
 

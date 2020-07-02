@@ -1,7 +1,6 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -29,7 +28,6 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -41,27 +39,18 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
-import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.ReservationProtoUtil;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
-import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
-import com.vmturbo.plan.orchestrator.plan.PlanStatusListener;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -174,9 +163,9 @@ public class ReservationManager implements ReservationDeletedListener {
     /**
      * Update the provider info of the reservation using the initial placement response.
      *
-     * @param response initial placement response from market.
+     * @param response            initial placement response from market.
      * @param currentReservations reservations which are sent to the market. We have to make sure
-     *                          we only update the reservations which are part of the request.
+     *                            we only update the reservations which are part of the request.
      * @return all in-progress reservations with the provider info updated.
      */
     public Set<Reservation> updateProviderInfoForReservations(final FindInitialPlacementResponse response,
@@ -346,13 +335,13 @@ public class ReservationManager implements ReservationDeletedListener {
                     }
                 }
             }
-            List<PlacementInfo> placementInfos = new ArrayList<>();
+            List<PlacementInfo.Builder> storagePlacementInfos = new ArrayList<>();
             for (Double diskSize : diskSizes) {
-                placementInfos.add(PlacementInfo
+                storagePlacementInfos.add(PlacementInfo
                         .newBuilder().clearProviderId()
                         .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
                                 .CommodityType.STORAGE_PROVISIONED_VALUE, diskSize))
-                        .setProviderType(EntityType.STORAGE_VALUE).build());
+                        .setProviderType(EntityType.STORAGE_VALUE));
             }
 
             PlacementInfo.Builder computePlacementInfo = PlacementInfo.newBuilder().clearProviderId()
@@ -364,33 +353,57 @@ public class ReservationManager implements ReservationDeletedListener {
 
             for (ReservationConstraintInfo constraintInfo
                     : reservation.getConstraintInfoCollection()
-                            .getReservationConstraintInfoList()) {
-                switch (constraintInfo.getType()) {
-                    case DATA_CENTER:
-                        computePlacementInfo.addCommodityBought(
-                                createCommodityBoughtDTO(CommodityDTO
-                                                .CommodityType.DATACENTER_VALUE,
-                                        Optional.of(constraintInfo.getKey()), 1));
-                        break;
-                    case CLUSTER:
-                        computePlacementInfo.addCommodityBought(
-                                createCommodityBoughtDTO(CommodityDTO
-                                                .CommodityType.CLUSTER_VALUE,
-                                        Optional.of(constraintInfo.getKey()), 1));
-                        break;
-                    case POLICY:
-                        computePlacementInfo.addCommodityBought(
-                                createCommodityBoughtDTO(CommodityDTO
-                                                .CommodityType.SEGMENTATION_VALUE,
-                                        Optional.of(constraintInfo.getKey()), 1));
-                        break;
-                    default:
-                        break;
+                    .getReservationConstraintInfoList()) {
+                if (constraintInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+                    switch (constraintInfo.getType()) {
+                        case DATA_CENTER:
+                            computePlacementInfo.addCommodityBought(
+                                    createCommodityBoughtDTO(CommodityDTO
+                                                    .CommodityType.DATACENTER_VALUE,
+                                            Optional.of(constraintInfo.getKey()), 1));
+                            break;
+                        case CLUSTER:
+                            computePlacementInfo.addCommodityBought(
+                                    createCommodityBoughtDTO(CommodityDTO
+                                                    .CommodityType.CLUSTER_VALUE,
+                                            Optional.of(constraintInfo.getKey()), 1));
+                            break;
+                        case POLICY:
+                            computePlacementInfo.addCommodityBought(
+                                    createCommodityBoughtDTO(CommodityDTO
+                                                    .CommodityType.SEGMENTATION_VALUE,
+                                            Optional.of(constraintInfo.getKey()), 1));
+                            break;
+                        default:
+                            break;
 
+                    }
+                } else if (constraintInfo.getProviderType() == EntityType.STORAGE_VALUE) {
+                    switch (constraintInfo.getType()) {
+                        case STORAGE_CLUSTER:
+                            storagePlacementInfos.stream().forEach(storagePlacementInfo -> {
+                                storagePlacementInfo.addCommodityBought(
+                                        createCommodityBoughtDTO(CommodityDTO
+                                                        .CommodityType.STORAGE_CLUSTER_VALUE,
+                                                Optional.of(constraintInfo.getKey()), 1));
+                            });
+                            break;
+                        case POLICY:
+                            storagePlacementInfos.stream().forEach(storagePlacementInfo -> {
+                                storagePlacementInfo.addCommodityBought(
+                                        createCommodityBoughtDTO(CommodityDTO
+                                                        .CommodityType.SEGMENTATION_VALUE,
+                                                Optional.of(constraintInfo.getKey()), 1));
+                            });
+                            break;
+                        default:
+                            break;
+                    }
                 }
             }
-            placementInfos.add(computePlacementInfo.build());
-
+            List<PlacementInfo.Builder> placementInfos = new ArrayList<>();
+            placementInfos.addAll(storagePlacementInfos);
+            placementInfos.add(computePlacementInfo);
 
             for (int i = 0; i < reservationTemplateBuilder.getCount(); i++) {
                 ReservationInstance.Builder reservationInstanceBuilder = ReservationInstance
@@ -398,8 +411,8 @@ public class ReservationManager implements ReservationDeletedListener {
                         .setName(reservation.getName() + "_" + entityNameSuffix);
                 entityNameSuffix++;
                 placementInfos.forEach(p -> {
-                    reservationInstanceBuilder.addPlacementInfo(p.toBuilder()
-                            .setPlacementInfoId(IdentityGenerator.next()).build());
+                    reservationInstanceBuilder.addPlacementInfo(p.setPlacementInfoId(
+                            IdentityGenerator.next()).build());
                 });
                 reservationTemplateBuilder.addReservationInstance(ReservationInstance
                         .newBuilder(reservationInstanceBuilder.build()));
@@ -414,6 +427,7 @@ public class ReservationManager implements ReservationDeletedListener {
                 .build();
         return updatedReservation;
     }
+
 
     /**
      * Add entities to the reservation. Update the reservation to UNFULFILLED/FUTURE

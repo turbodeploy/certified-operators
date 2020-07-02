@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacementMoles.InitialPlacement
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementFailureInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
@@ -45,6 +46,8 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
@@ -54,6 +57,9 @@ import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Test cases for {@link ReservationManager}.
@@ -151,7 +157,27 @@ public class ReservationManagerTest {
                             .setTemplateId(234L)))
             .build();
 
+    private Reservation fastReservationWithConstraints = Reservation.newBuilder()
+            .setId(10000)
+            .setName("fast-reservation")
+            .setStatus(ReservationStatus.INPROGRESS)
+            .setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
+                    .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                            .setConstraintId(1111L))
+                    .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                            .setConstraintId(1112L))
+                    .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                            .setConstraintId(1113L))
+                    .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                            .setConstraintId(1114L))
+                    .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                            .setConstraintId(1115L)))
 
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(2L)
+                            .setTemplateId(234L)))
+            .build();
 
     private Reservation inProgressReservation2 = Reservation.newBuilder()
             .setId(1004)
@@ -322,6 +348,76 @@ public class ReservationManagerTest {
         verify(initialPlacementService, times(0)).findInitialPlacement(Matchers.any());
     }
 
+    /**
+     * Test the constraints are properly converted to commodities.
+     */
+    @Test
+    public void testConstraintInfo() {
+        IdentityGenerator.initPrefix(0);
+        ReservationManager reservationManagerSpy = spy(reservationManager);
+        when(templatesDao.getTemplate(234L)).thenReturn(java.util.Optional.ofNullable(template));
+        ReservationConstraintInfo reservationConstraintInfo1 = ReservationConstraintInfo.newBuilder()
+                .setConstraintId(1111L)
+                .setType(Type.CLUSTER)
+                .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setKey("KEY001").build();
+        ReservationConstraintInfo reservationConstraintInfo2 = ReservationConstraintInfo.newBuilder()
+                .setConstraintId(1112L)
+                .setType(Type.STORAGE_CLUSTER)
+                .setProviderType(EntityType.STORAGE_VALUE)
+                .setKey("KEY002").build();
+        ReservationConstraintInfo reservationConstraintInfo3 = ReservationConstraintInfo.newBuilder()
+                .setConstraintId(1113L)
+                .setType(Type.DATA_CENTER)
+                .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setKey("KEY003").build();
+        ReservationConstraintInfo reservationConstraintInfo4 = ReservationConstraintInfo.newBuilder()
+                .setConstraintId(1114L)
+                .setType(Type.POLICY)
+                .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setKey("KEY004").build();
+        ReservationConstraintInfo reservationConstraintInfo5 = ReservationConstraintInfo.newBuilder()
+                .setConstraintId(1115L)
+                .setType(Type.POLICY)
+                .setProviderType(EntityType.STORAGE_VALUE)
+                .setKey("KEY005").build();
+        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1111L, reservationConstraintInfo1);
+        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1112L, reservationConstraintInfo2);
+        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1113L, reservationConstraintInfo3);
+        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1114L, reservationConstraintInfo4);
+        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1115L, reservationConstraintInfo5);
+        Reservation updateReservation = reservationManagerSpy.addConstraintInfoDetails(fastReservationWithConstraints);
+        updateReservation = reservationManagerSpy.addEntityToReservation(updateReservation);
+        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .findAny().get().getCommodityBoughtList().stream().filter(a -> a.getCommodityType().getType() == CommodityDTO
+                        .CommodityType.CLUSTER_VALUE).findFirst().get().getCommodityType().getKey().equals("KEY001"));
+        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                .filter(pInfo -> pInfo.getProviderType() == EntityType.STORAGE_VALUE)
+                .findAny().get().getCommodityBoughtList().stream()
+                .filter(a -> a.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE)
+                .findFirst().get().getCommodityType().getKey().equals("KEY002"));
+        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .findAny().get().getCommodityBoughtList().stream()
+                .filter(a -> a.getCommodityType().getType() == CommodityType.DATACENTER_VALUE)
+                .findFirst().get().getCommodityType().getKey().equals("KEY003"));
+        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .findAny().get().getCommodityBoughtList().stream()
+                .filter(a -> a.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE)
+                .findFirst().get().getCommodityType().getKey().equals("KEY004"));
+        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                .filter(pInfo -> pInfo.getProviderType() == EntityType.STORAGE_VALUE)
+                .findAny().get().getCommodityBoughtList().stream()
+                .filter(a -> a.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE)
+                .findFirst().get().getCommodityType().getKey().equals("KEY005"));
+    }
 
     /**
      * End to end testing for fast reservation success scenario. Add the
@@ -337,8 +433,7 @@ public class ReservationManagerTest {
         IdentityGenerator.initPrefix(0);
         ReservationManager reservationManagerSpy = spy(reservationManager);
         when(templatesDao.getTemplate(234L)).thenReturn(java.util.Optional.ofNullable(template));
-        Reservation updateReservation =
-                reservationManagerSpy.addEntityToReservation(fastReservation);
+        Reservation updateReservation = reservationManagerSpy.addEntityToReservation(fastReservation);
         Set<Reservation> reservations = new HashSet<>();
         reservations.add(updateReservation);
         FindInitialPlacementRequest findInitialPlacementRequest =
