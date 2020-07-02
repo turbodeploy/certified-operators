@@ -714,31 +714,45 @@ public class GroupMapper {
              case STATIC_GROUP_MEMBERS:
                  if (outputDTO.getMemberUuidList().isEmpty()) {
                      List<Long> groupMembers = GroupProtoUtil.getStaticMembers(group);
+                     Set<Long> groupValidEntities;
+                     Set<Long> validEntities = conversionContext.getValidEntities();
+                     final int missingEntitiesCount;
                      if (GroupProtoUtil.isNestedGroup(groupAndMembers.group())) {
+                         // Retain the valid entities of the group.
+                         groupValidEntities = Sets.newHashSet(groupAndMembers.entities());
+                         groupValidEntities.retainAll(validEntities);
+                         missingEntitiesCount =
+                                 groupAndMembers.entities().size() - groupValidEntities.size();
+                         if (missingEntitiesCount > 0) {
+                             logger.warn("{} entities for static group {} not found in repository.",
+                                     missingEntitiesCount, groupDefinition.getDisplayName());
+                         }
+                         // TODO: In case of nested group, we should also only return the valid
+                         //       direct members of the group like we only return its valid entities
+                         //       See OM-60187
                          outputDTO.setMemberUuidList(groupMembers
                                  .stream()
                                  .map(String::valueOf)
                                  .collect(Collectors.toList()));
                      } else {
                          // Retain valid entities of group members/entities.
-                         Set<Long> groupValidEntities = Sets.newHashSet(groupMembers);
-                         Set<Long> validEntities = conversionContext.getValidEntities();
+                         groupValidEntities = Sets.newHashSet(groupMembers);
                          groupValidEntities.retainAll(validEntities);
-                         final int missingEntities = groupMembers.size() - groupValidEntities.size();
-                         if (missingEntities > 0) {
+                         missingEntitiesCount = groupMembers.size() - groupValidEntities.size();
+                         if (missingEntitiesCount > 0) {
                              logger.warn("{} members for static group {} not found in repository.",
-                                     missingEntities, groupDefinition.getDisplayName());
+                                     missingEntitiesCount, groupDefinition.getDisplayName());
                          }
                          outputDTO.setMemberUuidList(groupValidEntities
                                  .stream()
                                  .map(String::valueOf)
                                  .collect(Collectors.toList()));
-                         outputDTO.setEntitiesCount(groupValidEntities.size());
 
                          Set<Long> membersConsideredInMembersCount = getMembersConsideredInMembersCount(groupAndMembers);
                          membersConsideredInMembersCount.retainAll(validEntities);
                          outputDTO.setMembersCount(membersConsideredInMembersCount.size());
                      }
+                     outputDTO.setEntitiesCount(groupValidEntities.size());
                  }
                  break;
 
