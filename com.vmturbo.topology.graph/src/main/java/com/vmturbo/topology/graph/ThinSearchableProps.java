@@ -43,6 +43,12 @@ public class ThinSearchableProps implements SearchableProps {
         return commodities.getCommodityCapacity(type);
     }
 
+    @Override
+    public float getCommodityUsed(final int type) {
+        return commodities.getCommodityUsed(type);
+    }
+
+
     /**
      * Helper interface to support commodity value lookups.
      */
@@ -55,6 +61,16 @@ public class ThinSearchableProps implements SearchableProps {
          *         such commodity.
          */
         float getCommodityCapacity(int type);
+
+
+        /**
+         * Return used value.
+         *
+         * @param type The type of the commodity.
+         * @return The used value of the first found commodity of this type, or -1 if there is no
+         *         such commodity.
+         */
+        float getCommodityUsed(int type);
     }
 
     /**

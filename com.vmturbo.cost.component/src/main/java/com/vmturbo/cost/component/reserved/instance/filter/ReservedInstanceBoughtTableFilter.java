@@ -15,6 +15,7 @@ import javax.annotation.Nullable;
 import org.jooq.Condition;
 
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
 import com.vmturbo.cost.component.db.Tables;
 
 /**
@@ -77,8 +78,14 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
         }
 
         if (accountFilter.getAccountIdCount() > 0) {
-            conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(
-                    accountFilter.getAccountIdList()));
+            AccountFilterType filterType = accountFilter.getAccountFilterType();
+            switch (filterType) {
+                case USED_AND_PURCHASED_BY:
+                    case PURCHASED_BY:
+                    conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(
+                        accountFilter.getAccountIdList()));
+                    break;
+            }
         }
 
 

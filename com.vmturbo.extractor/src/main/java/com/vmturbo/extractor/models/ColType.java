@@ -182,7 +182,8 @@ public enum ColType {
             case JSON:
                 return value.toString().getBytes(UTF_8);
             case TIMESTAMP:
-                return ByteBuffer.allocate(Long.BYTES).putLong(((Timestamp)value).getTime()).array();
+                return ByteBuffer.allocate(Long.BYTES + Integer.BYTES).putLong(((Timestamp)value).getTime())
+                    .putInt(((Timestamp)value).getNanos()).array();
             case ENTITY_TYPE:
                 return ((EntityType)value).getLiteral().getBytes(UTF_8);
             case ENVIRONMENT_TYPE:
@@ -292,7 +293,10 @@ public enum ColType {
             case JSON:
                 return new JsonString(new String(bytes, UTF_8));
             case TIMESTAMP:
-                return new Timestamp(ByteBuffer.wrap(bytes).getLong());
+                ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+                Timestamp result = new Timestamp(byteBuffer.getLong());
+                result.setNanos(byteBuffer.getInt());
+                return result;
             case ENTITY_TYPE:
                 return EntityType.valueOf(new String(bytes, UTF_8));
             case ENVIRONMENT_TYPE:

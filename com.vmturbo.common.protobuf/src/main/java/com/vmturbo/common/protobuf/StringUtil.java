@@ -1,5 +1,7 @@
 package com.vmturbo.common.protobuf;
 
+import java.text.CharacterIterator;
+import java.text.StringCharacterIterator;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
@@ -46,4 +48,25 @@ public class StringUtil {
         return WordUtils.capitalize(str.replace("_"," ").toLowerCase());
     }
 
+    /**
+     * Get a human readable description for a size given in bytes.
+     * Provides precision to a single decimal point.
+     *
+     * @param sizeInBytes The size in bytes for which we should generate a human readable description.
+     * @return a human readable description for a size given in bytes.
+     */
+    public static String getHumanReadableSize(long sizeInBytes) {
+        // Reference:
+        // https://stackoverflow.com/questions/3758606/how-to-convert-byte-size-into-human-readable-format-in-java
+        if (sizeInBytes < 1024) {
+            return sizeInBytes + " Bytes";
+        }
+        long value = sizeInBytes;
+        CharacterIterator ci = new StringCharacterIterator("KMGTPE");
+        for (int i = 40; i >= 0 && sizeInBytes > 0xfffccccccccccccL >> i; i -= 10) {
+            value >>= 10;
+            ci.next();
+        }
+        return String.format("%.1f %cB", value / 1024.0, ci.current());
+    }
 }

@@ -14,6 +14,7 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.MemberFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.RelatedActionFieldApiDTO;
+import com.vmturbo.api.dto.searchquery.RelatedEntityFieldApiDTO;
 import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.enums.GroupType;
@@ -61,8 +62,6 @@ public enum SearchGroupMetadata {
         return ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
                 // common fields
                 .putAll(GROUP_COMMON_FIELDS)
-                // member counts
-                .put(MemberFieldApiDTO.memberCount(), SearchMetadataMapping.DIRECT_MEMBER_COUNT)
                 .build();
     }
 
@@ -73,12 +72,11 @@ public enum SearchGroupMetadata {
                 // member counts
                 .put(MemberFieldApiDTO.memberCount(EntityType.PHYSICAL_MACHINE),
                         SearchMetadataMapping.DIRECT_MEMBER_COUNT_PM)
-                //todo: add relatedMemberCount to MemberFieldApiDTO, and use it here
-                .put(MemberFieldApiDTO.memberCount(EntityType.VIRTUAL_MACHINE),
+                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE),
                         SearchMetadataMapping.RELATED_MEMBER_COUNT_VM)
-                .put(MemberFieldApiDTO.memberCount(EntityType.STORAGE),
+                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.STORAGE),
                         SearchMetadataMapping.RELATED_MEMBER_COUNT_ST)
-                // aggregated commodity
+                // aggregated commodities
                 .put(AggregateCommodityFieldApiDTO.total(CommodityFieldApiDTO.utilization(CommodityType.CPU)),
                         SearchMetadataMapping.GROUP_COMMODITY_CPU_UTILIZATION_TOTAL)
                 .put(AggregateCommodityFieldApiDTO.total(CommodityFieldApiDTO.utilization(CommodityType.MEM)),
@@ -103,6 +101,8 @@ public enum SearchGroupMetadata {
                 .put(PrimitiveFieldApiDTO.origin(), SearchMetadataMapping.PRIMITIVE_GROUP_ORIGIN)
                 .put(PrimitiveFieldApiDTO.dynamic(), SearchMetadataMapping.PRIMITIVE_GROUP_DYNAMIC)
                 .put(PrimitiveFieldApiDTO.memberTypes(), SearchMetadataMapping.PRIMITIVE_GROUP_MEMBER_TYPES)
+                // MEMBERS
+                .put(MemberFieldApiDTO.memberCount(), SearchMetadataMapping.DIRECT_MEMBER_COUNT)
                 // todo: uncomment if indirect member types is needed
                 // .put(PrimitiveFieldApiDTO.indirectMemberTypes(), SearchMetadataMapping.PRIMITIVE_GROUP_INDIRECT_MEMBER_TYPES)
                 // RELATED ACTION

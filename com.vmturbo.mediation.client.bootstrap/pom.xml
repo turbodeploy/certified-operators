@@ -10,6 +10,22 @@
         <relativePath>../build/pom.xml</relativePath>
     </parent>
 
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>false</addClasspath>
+                            <mainClass>com.vmturbo.mediation.client.bootstrap.MediationBootstrap</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
     <artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
     <description>Mediation client bootstraping code</description>
 

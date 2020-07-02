@@ -229,7 +229,9 @@ public class HCIPhysicalMachineEntityConstructor {
     private void setClusterCommodities(@Nonnull Collection<TopologyEntity.Builder> hostsToReplace,
             @Nonnull TopologyEntityDTO.Builder newStorage)
             throws TopologyEntityConstructorException {
-        String clusterKey = getStorageClusterKey(newStorage);
+        CommoditySoldDTO.Builder clusterSoldComm = getSoldCommodity(newStorage,
+                CommodityType.STORAGE_CLUSTER);
+        String clusterKey = clusterSoldComm.getCommodityType().getKey();
         TopologyDTO.CommodityType clusterTypeWithKey = TopologyDTO.CommodityType.newBuilder()
                 .setType(CommodityType.STORAGE_CLUSTER_VALUE).setKey(clusterKey).build();
 
@@ -242,8 +244,14 @@ public class HCIPhysicalMachineEntityConstructor {
 
             for (Long providerId : host.getProviderIds()) {
                 TopologyEntity.Builder provider = topology.get(providerId);
+
+                if (provider == null) {
+                    throw new TopologyEntityConstructorException("Cannot find  provider "
+                            + providerId + " for host " + host.getDisplayName());
+                }
+
                 if (provider.getEntityType() == EntityType.STORAGE_VALUE) {
-                    setClusterKeyForStorage(provider.build(), clusterTypeWithKey);
+                    provider.getEntityBuilder().addCommoditySoldList(clusterSoldComm);
                 }
             }
         }
@@ -269,24 +277,6 @@ public class HCIPhysicalMachineEntityConstructor {
                 }
             }
         }
-    }
-
-    private void setClusterKeyForStorage(@Nonnull TopologyEntity storage,
-            @Nonnull TopologyDTO.CommodityType clusterTypeWithKey)
-            throws TopologyEntityConstructorException {
-        CommoditySoldDTO.Builder clusterComm = getSoldCommodity(
-                storage.getTopologyEntityDtoBuilder(), CommodityType.STORAGE_CLUSTER);
-
-        clusterComm.setCommodityType(clusterTypeWithKey);
-    }
-
-    @Nonnull
-    private String getStorageClusterKey(@Nonnull TopologyEntityDTO.Builder newStorage)
-            throws TopologyEntityConstructorException {
-        CommoditySoldDTO.Builder clusterComm = getSoldCommodity(newStorage,
-                CommodityType.STORAGE_CLUSTER);
-
-        return clusterComm.getCommodityType().getKey();
     }
 
     private CommoditySoldDTO.Builder getSoldCommodity(TopologyEntityDTO.Builder entity,

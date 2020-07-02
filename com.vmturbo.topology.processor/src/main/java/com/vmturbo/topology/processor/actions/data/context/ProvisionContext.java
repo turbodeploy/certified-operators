@@ -56,9 +56,10 @@ public class ProvisionContext extends AbstractActionExecutionContext {
      * The default implementation creates a single {@link Builder}
      *
      * @return a list of {@link Builder ActionItemDTO builders}
+     * @throws ContextCreationException if errors faced constructing action
      */
     @Override
-    protected List<ActionItemDTO.Builder> initActionItemBuilders() {
+    protected List<ActionItemDTO.Builder> initActionItemBuilders() throws ContextCreationException {
         // Retrieve the full, stitched representation of the entity to clone from the repository
         final long primaryEntityId = getPrimaryEntityId();
         final TopologyEntityDTO entityToClone = entityRetriever.retrieveTopologyEntity(primaryEntityId)
@@ -75,9 +76,10 @@ public class ProvisionContext extends AbstractActionExecutionContext {
             .collect(Collectors.toList());
         // If providers are found, create an ADD_PROVIDER action item for each provider
         if (!allProviderIds.isEmpty()) {
-            final Stream<TopologyEntityDTO> allProviders =
+            final List<TopologyEntityDTO> allProviders =
                 entityRetriever.retrieveTopologyEntities(allProviderIds);
-            allProviders.map(topologyEntityDTO -> entityRetriever.convertToEntityDTO(topologyEntityDTO))
+            allProviders.stream()
+                    .map(topologyEntityDTO -> entityRetriever.convertToEntityDTO(topologyEntityDTO))
                 .filter(provider -> filterProvider(entityToCloneSdkDTO, provider))
                 .forEach(entityDTO -> builders.add(
                     createAddProviderActionItem(entityToCloneSdkDTO, entityDTO)));

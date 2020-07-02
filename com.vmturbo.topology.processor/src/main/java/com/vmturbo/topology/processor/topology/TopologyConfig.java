@@ -39,7 +39,6 @@ import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
-import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
 import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.PlanPipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
@@ -219,11 +218,6 @@ public class TopologyConfig {
         return matrixConfig.matrixInterface();
     }
 
-    @Bean
-    public CachedTopology cachedTopology() {
-        return new CachedTopology();
-    }
-
     /**
      * A bean configuration to instantiate a live pipeline factory.
      *
@@ -253,7 +247,7 @@ public class TopologyConfig {
                 controllableConfig.controllableManager(),
                 historicalEditor(),
                 matrixInterface(),
-                cachedTopology(),
+                actionsConfig.cachedTopology(),
                 probeActionCapabilitiesApplicatorEditor(),
                 historyAggregationConfig.historyAggregationStage(),
                 licenseCheckClientConfig.licenseCheckClient(),
@@ -292,7 +286,7 @@ public class TopologyConfig {
                 probeActionCapabilitiesApplicatorEditor(),
                 historicalEditor(),
                 matrixInterface(),
-                cachedTopology(),
+                actionsConfig.cachedTopology(),
                 historyAggregationConfig.historyAggregationStage(),
                 dmandOverriddenCommodityEditor(),
                 consistentScalingConfig.consistentScalingManager(),
@@ -355,8 +349,8 @@ public class TopologyConfig {
     }
 
     @Bean
-    public RequestCommodityThresholdsInjector requestCommodityThresholdsInjector() {
-        return new RequestCommodityThresholdsInjector();
+    public RequestAndLimitCommodityThresholdsInjector requestCommodityThresholdsInjector() {
+        return new RequestAndLimitCommodityThresholdsInjector();
     }
 
     @Bean

@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
@@ -71,27 +72,25 @@ public class OperationTestUtilities {
     public static void waitForAction(@Nonnull final OperationManager operationManager,
                                      @Nonnull final Action action) throws Exception {
         waitForEvent(
-            operationManager,
-            opManager -> !opManager.getInProgressAction(action.getId()).isPresent()
+            () -> !operationManager.getInProgressAction(action.getId()).isPresent()
         );
     }
 
     /**
      * Wait for an event to complete as determined by a predicate check function.
      *
-     * @param checkerArgument The argument to the predicate checker check
-     * @param predicateCheck The predicate check.
+     * @param predicate The predicate to check.
      * @param <T> The type of the argument to the predicate
      * @throws Exception when something goes wrong
      */
-    public static <T> void waitForEvent(final T checkerArgument, Predicate<T> predicateCheck) throws Exception {
+    public static <T> void waitForEvent(final @Nonnull Supplier<Boolean> predicate) throws Exception {
         final long pollIntervalMillis = 10;
         long timePolled = 0;
         final long pollTimeout = TimeUnit.MILLISECONDS.convert(DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
         // Poll until the results are processed or we time out
         while (timePolled < pollTimeout) {
-            if (predicateCheck.test(checkerArgument)) {
+            if (predicate.get()) {
                 return;
             }
             Thread.sleep(pollIntervalMillis);

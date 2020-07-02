@@ -242,6 +242,14 @@ public class RepoGraphEntity implements TopologyGraphSearchableEntity<RepoGraphE
                 .findFirst().orElse(-1);
     }
 
+    @Override
+    public float getCommodityUsed(final int type) {
+        return (float)soldCommodities.stream()
+            .filter(comm -> comm.getType() == type)
+            .mapToDouble(SoldCommodity::getUsed)
+            .findFirst().orElse(-1);
+    }
+
     /**
      * Look up sold commodities by type.
      * @param types The types we are looking for.

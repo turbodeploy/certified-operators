@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.util;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -167,5 +168,20 @@ public class EntityCostFilterTest {
                         .build();
 
         assertFalse(filter.filterComponentCost(componentCost));
+    }
+
+    @Test
+    public void testCreateGroupBy() {
+        EntityCostFilterBuilder builder =
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                        .groupByFields(ImmutableSet.of("unknown_field", "plan_id", CostGroupBy.ENTITY));
+
+        // The unknown_field field should be ignored. The plan_id field is only valid when a topology ID
+        // is provided.  The created_time field is automatically added here.
+        EntityCostFilter filter = builder.build();
+        assertEquals(2, filter.getCostGroupBy().getGroupByFields().size());
+        // Include the plan ID, which makes plan_id valid
+        filter = builder.topologyContextId(2116L).build();
+        assertEquals(3, filter.getCostGroupBy().getGroupByFields().size());
     }
 }

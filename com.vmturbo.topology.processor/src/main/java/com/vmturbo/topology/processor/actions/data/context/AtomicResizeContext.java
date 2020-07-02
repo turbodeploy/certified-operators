@@ -47,7 +47,7 @@ public class AtomicResizeContext extends AbstractActionExecutionContext {
     }
 
     @Override
-    protected List<ActionItemDTO.Builder> initActionItemBuilders() {
+    protected List<ActionItemDTO.Builder> initActionItemBuilders() throws ContextCreationException {
         // Primary entity is the workload controller entity where the merged actions will be executed
         final EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
 

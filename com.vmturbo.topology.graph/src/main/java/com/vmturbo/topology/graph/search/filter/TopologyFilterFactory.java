@@ -280,6 +280,17 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                     return PropertyFilter.typeSpecificFilter(v -> v.isEphemeral() == targetEphemeral, VolumeProps.class);
                 }
             }
+            case SearchableProperties.VM_DESKTOP_POOL_ACTIVE_SESSIONS: {
+                if (stringCriteria.getOptionsCount() == 1) {
+                    final boolean targetActiveSessions =
+                        Boolean.parseBoolean(stringCriteria.getOptions(0));
+                    final Predicate<SearchableProps> propsTest =
+                        targetActiveSessions
+                            ? e -> (long)e.getCommodityUsed(CommodityType.ACTIVE_SESSIONS_VALUE) == 1L
+                            : e -> (long)e.getCommodityUsed(CommodityType.ACTIVE_SESSIONS_VALUE) < 1L;
+                        return PropertyFilter.typeSpecificFilter(propsTest, SearchableProps.class);
+                }
+            }
             case SearchableProperties.DELETABLE:
                 // to use this filter, presentation layer needs to send true or false for options,
                 // we need to only depend on the optionsList. When both true and false are send then

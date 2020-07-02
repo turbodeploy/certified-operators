@@ -19,7 +19,7 @@ dependencies:
   - name: postgresql
     repository: file://../base/postgresql
     version: 8.9.6
-    condition: timescaledb.enabled
+    condition: timescaledb.enabled,extractor.enabled,reporting.enabled
   - name: kafka
     repository: file://../base/kafka
     version: 0.1.0

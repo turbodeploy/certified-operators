@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -395,8 +396,9 @@ public class OperationControllerTest {
         // Simulate the validation completing on the server.
         final Discovery actualDiscovery =
             operationManager.getInProgressDiscoveryForTarget(target.getId(), DiscoveryType.FULL).get();
-        OperationTestUtilities.waitForEvent(operationManager.notifyDiscoveryResult(
-            actualDiscovery, DiscoveryResponse.getDefaultInstance()), Future::isDone);
+        operationManager.notifyDiscoveryResult(actualDiscovery,
+                DiscoveryResponse.getDefaultInstance()).get(
+                OperationTestUtilities.DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
         final OperationResponse completeResponse = getDiscoveryByTargetId(target.getId());
         Assert.assertEquals(Status.SUCCESS, completeResponse.operation.getStatus());
@@ -577,8 +579,9 @@ public class OperationControllerTest {
 
         // Simulate the validation completing on the server.
         final Validation actualValidation = operationManager.getInProgressValidationForTarget(target.getId()).get();
-        OperationTestUtilities.waitForEvent(operationManager.notifyValidationResult(
-            actualValidation, ValidationResponse.getDefaultInstance()), Future::isDone);
+        operationManager.notifyValidationResult(actualValidation,
+                ValidationResponse.getDefaultInstance()).get(
+                OperationTestUtilities.DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
         final OperationResponse completeResponse = getValidationByTargetId(target.getId());
         Assert.assertEquals(Status.SUCCESS, completeResponse.operation.getStatus());

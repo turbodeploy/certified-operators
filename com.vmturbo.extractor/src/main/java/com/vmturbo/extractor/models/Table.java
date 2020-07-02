@@ -14,6 +14,8 @@ import java.util.stream.Collectors;
 
 import net.jpountz.xxhash.StreamingXXHash64;
 
+import com.vmturbo.proactivesupport.DataMetricGauge;
+
 /**
  * This class represents tables populated during the ingestion of topologies.
  *
@@ -137,6 +139,13 @@ public class Table {
         }
     }
 
+    private static final DataMetricGauge RECORDS_WRITTEN_GAUGE = DataMetricGauge.builder()
+            .withName("xtr_table_write_gauge")
+            .withHelp("Gauge of the number of records written to tables during each topology processing cycle. Labelled by name.")
+            .withLabelNames("name")
+            .build()
+            .register();
+
     /**
      * Class to manage a record sink attached to a table.
      */
@@ -144,6 +153,7 @@ public class Table {
 
         private final Consumer<Record> sink;
         private boolean closed = false;
+        private long recordsWritten = 0;
 
         /**
          * Create a new instance.
@@ -183,7 +193,7 @@ public class Table {
          */
         public Record open(Record partial) {
             if (!closed) {
-                return new Record(this, sink, partial);
+                return new Record(this, this::accept, partial);
             } else {
                 throw new IllegalStateException(
                         String.format("TableWriter for table %s is closed", name));
@@ -198,6 +208,7 @@ public class Table {
         public void accept(Record full) {
             if (!closed) {
                 sink.accept(full);
+                recordsWritten++;
             } else {
                 throw new IllegalStateException(
                         String.format("TableWriter for table %s is closed", name));
@@ -209,9 +220,11 @@ public class Table {
          *
          * <p>This completes the operation of sending a stream of records to the database.</p>
          */
+        @Override
         public void close() {
             sink.accept(null);
             this.closed = true;
+            RECORDS_WRITTEN_GAUGE.labels(getName()).setData((double)recordsWritten);
         }
 
         /**
@@ -229,7 +242,7 @@ public class Table {
          *
          * @return the table name
          */
-        public Object getName() {
+        public String getName() {
             return Table.this.getName();
         }
 

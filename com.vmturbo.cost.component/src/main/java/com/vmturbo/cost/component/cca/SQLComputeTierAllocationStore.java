@@ -44,10 +44,10 @@ import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocationF
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityComputeTierAllocationRecord;
@@ -64,7 +64,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * {@link Tables#ENTITY_CLOUD_SCOPE}. An assumption is made the {@link Tables#ENTITY_COMPUTE_TIER_ALLOCATION}
  * has a foreign key relationship with the {@link Tables#ENTITY_CLOUD_SCOPE} table.
  */
-public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implements ComputeTierAllocationStore {
+public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implements ComputeTierAllocationStore, DiagsRestorable {
 
     private static final ZoneId UTC_ZONE_ID = ZoneId.from(ZoneOffset.UTC);
 
@@ -532,7 +532,6 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                         .osType(OSType.forNumber(allocationRecord.getOsType()))
                         .tenancy(Tenancy.forNumber(allocationRecord.getTenancy()))
                         .build())
-                .cloudTierType(CloudTierType.COMPUTE_TIER)
                 .build();
     }
 

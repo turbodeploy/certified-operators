@@ -243,6 +243,16 @@ public class TestGraphEntity implements TopologyGraphSearchableEntity<TestGraphE
                 .orElse(-1);
     }
 
+    @Override
+    public float getCommodityUsed(final int type) {
+        return (float)commsSoldByType.stream()
+            .filter(comm -> comm.getCommodityType().getType() == type)
+            .filter(CommoditySoldDTO::hasUsed)
+            .mapToDouble(CommoditySoldDTO::getUsed)
+            .findFirst()
+            .orElse(-1);
+    }
+
     private void refreshSearchableProps() {
         Tags.Builder t = Tags.newBuilder();
         this.tags.forEach((key, values) -> {

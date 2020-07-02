@@ -40,7 +40,7 @@ import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
-import com.vmturbo.topology.processor.topology.RequestCommodityThresholdsInjector;
+import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GenerateConstraintMapStage;
@@ -145,7 +145,7 @@ public class LivePipelineFactory {
 
     private final ActionMergeSpecsUploader actionMergeSpecsUploader;
 
-    private final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector;
+    private final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector;
 
     private final EphemeralEntityEditor ephemeralEntityEditor;
 
@@ -180,7 +180,7 @@ public class LivePipelineFactory {
                                @Nonnull final ConsistentScalingManager consistentScalingManager,
                                @Nonnull final ActionConstraintsUploader actionConstraintsUploader,
                                @Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader,
-                               @Nonnull final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector,
+                               @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector,
                                @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
                                @Nonnull final ReservationServiceBlockingStub reservationService) {
         this.topoBroadcastManager = topoBroadcastManager;
@@ -211,7 +211,7 @@ public class LivePipelineFactory {
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.consistentScalingManager = Objects.requireNonNull(consistentScalingManager);
         this.actionConstraintsUploader = actionConstraintsUploader;
-        this.requestCommodityThresholdsInjector = Objects.requireNonNull(requestCommodityThresholdsInjector);
+        this.requestAndLimitCommodityThresholdsInjector = Objects.requireNonNull(requestAndLimitCommodityThresholdsInjector);
         this.actionMergeSpecsUploader = actionMergeSpecsUploader;
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
         this.reservationService = Objects.requireNonNull(reservationService);
@@ -300,7 +300,7 @@ public class LivePipelineFactory {
                 .addStage(new HistoryAggregationStage(historyAggregator, null, topologyInfo, null))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
-                .addStage(new RequestCommodityThresholdsStage(requestCommodityThresholdsInjector))
+                .addStage(new RequestCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
                 .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new UploadAtomicActionSpecsStage(actionMergeSpecsUploader))

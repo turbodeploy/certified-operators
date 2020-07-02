@@ -117,6 +117,12 @@ public class SearchableProperties {
      * Deleteable field from virtual volume information.
      */
     public static final String DELETABLE = "deletable";
+    /**
+     * Whether a VM has active sessions in the desktop pool.
+     */
+    public static final String VM_DESKTOP_POOL_ACTIVE_SESSIONS = "activeSessions";
+
+
 
     /**
      * Status of a target.

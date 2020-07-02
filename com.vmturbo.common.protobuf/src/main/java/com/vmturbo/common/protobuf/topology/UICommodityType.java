@@ -238,6 +238,8 @@ public enum UICommodityType {
     BICLIQUE("Biclique", CommodityType.BICLIQUE, "Biclique"),
     /** KPI commodity. **/
     KPI("KPI", CommodityType.KPI, "KPI"),
+    /** The commodity TOTAL_SESSIONS. */
+    TOTAL_SESSIONS("TotalSessions", CommodityType.TOTAL_SESSIONS, "Total Sessions"),
     /** The commodity UNKNOWN. */
     UNKNOWN("Unknown", CommodityType.UNKNOWN, "Unknown");
 

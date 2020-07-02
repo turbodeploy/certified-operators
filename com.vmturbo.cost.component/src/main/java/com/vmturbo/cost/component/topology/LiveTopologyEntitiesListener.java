@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
+import com.vmturbo.cloud.commitment.analysis.writer.CloudCommitmentDemandWriter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -144,7 +144,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                 journalRecorder.recordCostJournals(costs);
 
                 try {
-                    entityCostStore.persistEntityCost(costs, cloudTopology, topologyInfo.getCreationTime());
+                    entityCostStore.persistEntityCost(costs, cloudTopology, topologyInfo.getCreationTime(), false);
                 } catch (DbException e) {
                     runBuyRI = false;
                     logger.error("Failed to persist entity costs.", e);

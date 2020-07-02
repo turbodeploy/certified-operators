@@ -114,9 +114,10 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
      *  additional action items for cross target move are not (yet) being added.
      *
      * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders}
+     * @throws ContextCreationException if error faced while creating context
      */
     @Override
-    protected List<Builder> initActionItemBuilders() {
+    protected List<Builder> initActionItemBuilders() throws ContextCreationException {
         List<ActionItemDTO.Builder> builders = new ArrayList<>();
         // TODO: Assess whether the performance benefits warrant aggregating all the entities
         // involved in the move and making a bulk call to lookup the TopologyEntityDTOs.
@@ -124,10 +125,12 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
         final EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
         // sort the changes list so host change comes first, and then others (storage move), since
         // the list coming from AO may be any order, but probe is assuming host move comes first
-        final List<ChangeProvider> changeProviderList = ActionDTOUtil.getChangeProviderList(getActionInfo());
-        changeProviderList.stream()
-                .sorted(CHANGE_LIST_COMPARATOR)
-                .forEach(change -> builders.add(actionItemDtoBuilder(change, getActionId(), fullEntityDTO)));
+        final List<ChangeProvider> changeProviderList = new ArrayList<>(
+                ActionDTOUtil.getChangeProviderList(getActionInfo()));
+        changeProviderList.sort(CHANGE_LIST_COMPARATOR);
+        for (ChangeProvider change: changeProviderList) {
+            builders.add(actionItemDtoBuilder(change, getActionId(), fullEntityDTO));
+        }
         // Cross-target moves require adding storage changes, even when storage is staying the same
         if (isCrossTargetMove()) {
             builders.addAll(getActionItemsForUnchangedStorageProviders(fullEntityDTO,
@@ -151,9 +154,11 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
      * @param fullEntityDTO the entity being moved
      * @param changeList List of {@link ChangeProvider}.
      * @return list of action items for unchanged storage providers associated with the entity being moved
+     * @throws ContextCreationException if error faced while creating context
      */
     private List<ActionItemDTO.Builder> getActionItemsForUnchangedStorageProviders(
-            final EntityDTO fullEntityDTO, final List<ChangeProvider> changeList) {
+            final EntityDTO fullEntityDTO, final List<ChangeProvider> changeList)
+            throws ContextCreationException {
         final long primaryEntityId = getPrimaryEntityId();
         final TopologyEntityDTO topologyEntityDTO = entityRetriever.retrieveTopologyEntity(primaryEntityId)
                 .orElseThrow(() ->
@@ -174,12 +179,15 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
 
         // For each related storage entity, create a change where the source and destination are
         // both the same. This is a convention used to pass the storage information to the probe.
-        return storageEntityIds.stream()
-                .map(ChangeProviderContext::createStorageChange)
-                // Convert the change into an ActionItemDTO, which the probe expects to receive
-                .map(storageChange ->
-                        actionItemDtoBuilder(storageChange, getActionId(), fullEntityDTO))
-                .collect(Collectors.toList());
+        final List<ActionItemDTO.Builder> result = new ArrayList<>(storageEntityIds.size());
+        for (Long entityId : storageEntityIds) {
+            final ChangeProvider storageChange = ChangeProviderContext.createStorageChange(
+                    entityId);
+            final ActionItemDTO.Builder builder = actionItemDtoBuilder(storageChange, getActionId(),
+                    fullEntityDTO);
+            result.add(builder);
+        }
+        return result;
     }
 
     /**
@@ -212,7 +220,7 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
 
     private ActionItemDTO.Builder actionItemDtoBuilder(final ChangeProvider change,
             final long actionId,
-            final EntityDTO primaryEntity) {
+            final EntityDTO primaryEntity) throws ContextCreationException {
         long sourceId = change.getSource().getId();
         long destId = change.getDestination().getId();
         logger.info("Retrieving Source id {} and destination id {} from repository", sourceId, destId);

@@ -212,6 +212,8 @@ public class EntitySettingsApplicator {
                                         new ComputeTierInstanceStoreCommoditiesCreator()),
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
                         CommodityType.ACTIVE_SESSIONS),
+                new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
+                        CommodityType.TOTAL_SESSIONS),
                 new VsanStorageApplicator(graphWithSettings),
                 new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
@@ -1196,11 +1198,13 @@ public class EntitySettingsApplicator {
 
                 entity.getAnalysisSettingsBuilder().setCloneable(provisionScaling);
                 entity.getAnalysisSettingsBuilder().setSuspendable(provisionScaling);
-                entity.getCommoditySoldListList().forEach(c -> {
-                });
-                entity.getCommoditySoldListBuilderList().forEach(c -> {
-                    c.setIsResizeable(resizeScaling);
-                });
+                // If resize scaling then leave isResizeable the way it was set by the probe,
+                // otherwise set to false (no resize).
+                if (!resizeScaling) {
+                    entity.getCommoditySoldListBuilderList().forEach(c -> {
+                        c.setIsResizeable(false);
+                    });
+                }
                 logger.trace("Set scaling policy {} for entity {}",
                         settingValue, entity.getDisplayName());
             }

@@ -1,5 +1,6 @@
 package com.vmturbo.search;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -14,6 +15,8 @@ import org.jooq.Field;
 
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO;
+import com.vmturbo.api.dto.searchquery.OrderByApiDTO;
+import com.vmturbo.api.dto.searchquery.PaginationApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SelectEntityApiDTO;
 import com.vmturbo.api.dto.searchquery.WhereApiDTO;
@@ -65,6 +68,17 @@ public class EntityQuery extends AbstractQuery {
     @Override
     protected WhereApiDTO getWhere() {
             return this.getRequest().getWhere();
+    }
+
+    @Override
+    protected List<OrderByApiDTO> getOrderBy() {
+        PaginationApiDTO pag = getPaginationApiDto();
+        return pag == null ? Collections.emptyList() : pag.getOrderBy();
+    }
+
+    @Override
+    protected PaginationApiDTO getPaginationApiDto() {
+        return this.getRequest().getPagination();
     }
 
     @Override

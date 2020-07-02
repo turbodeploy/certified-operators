@@ -12,7 +12,6 @@ import com.google.common.collect.Lists;
 
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
@@ -37,7 +36,7 @@ public class CachedTopologyTest {
         cachedTopology.updateTopology(entities.stream()
             .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity())));
 
-        CachedTopologyResult result = cachedTopology.getTopology(TopologyInfo.getDefaultInstance());
+        CachedTopologyResult result = cachedTopology.getTopology();
         // Size 3
         assertThat(result.toString(), containsString("3"));
         assertThat(result.getEntities().keySet(), containsInAnyOrder(1L, 2L, 3L));

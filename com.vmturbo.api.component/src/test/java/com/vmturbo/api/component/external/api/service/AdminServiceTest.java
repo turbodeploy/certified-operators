@@ -92,6 +92,7 @@ public class AdminServiceTest {
 
     private static ClusterService clusterService = Mockito.mock(ClusterService.class);
     private static RestTemplate restTemplate = Mockito.mock(RestTemplate.class);
+    private static SettingsService settingsService = Mockito.mock(SettingsService.class);
 
     @Autowired
     private KeyValueStore keyValueStoreTest;
@@ -180,7 +181,8 @@ public class AdminServiceTest {
                 Mockito.mock(ApiWebsocketHandler.class),
                 Mockito.mock(BuildProperties.class),
                 DeploymentMode.SAAS,
-                false);
+                false,
+                Mockito.mock(SettingsService.class));
         //WHEN
         ProductCapabilityDTO dto = adminService.getProductCapabilities();
 
@@ -204,7 +206,8 @@ public class AdminServiceTest {
                 Mockito.mock(ApiWebsocketHandler.class),
                 Mockito.mock(BuildProperties.class),
                 DeploymentMode.SAAS,
-                true);
+                true,
+                Mockito.mock(SettingsService.class));
         //WHEN
         ProductCapabilityDTO dto = adminService.getProductCapabilities();
 
@@ -481,7 +484,8 @@ public class AdminServiceTest {
         @Bean
         public AdminService adminService() {
             return new AdminService(clusterService, keyValueStore(),
-                clusterMgrClient(), restTemplate, apiWebsocketHandler(), buildProperties(), DeploymentMode.SERVER, false);
+                clusterMgrClient(), restTemplate, apiWebsocketHandler(),
+                buildProperties(), DeploymentMode.SERVER, false, settingsService);
         }
 
         /**

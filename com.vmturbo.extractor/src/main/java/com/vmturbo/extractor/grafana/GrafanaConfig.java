@@ -12,13 +12,12 @@ import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.client.GrafanaClientConfig;
 import com.vmturbo.extractor.schema.ExtractorDbConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
  * Configures the Grafana initialization logic.
  */
 @Configuration
-@Import({SQLDatabaseConfig2.class, ExtractorDbConfig.class})
+@Import({ExtractorDbConfig.class})
 public class GrafanaConfig {
 
     @Value("${grafanaHost:grafana}")
@@ -47,9 +46,6 @@ public class GrafanaConfig {
     private String builtinDashboardPath;
 
     @Autowired
-    private SQLDatabaseConfig2 sqlDatabaseConfig;
-
-    @Autowired
     private ExtractorDbConfig extractorDbConfig;
 
     /**
@@ -59,7 +55,7 @@ public class GrafanaConfig {
      */
     @Bean
     public Grafanon grafanon() {
-        GrafanonConfig config = new GrafanonConfig(() -> extractorDbConfig.ingesterEndpoint().getConfig())
+        GrafanonConfig config = new GrafanonConfig(() -> extractorDbConfig.grafanaQueryEndpoint().getConfig())
                 .setTimescaleDisplayName(datasourceName)
                 .setErrorSleepInterval(grafanaErrorSleepIntervalSec, TimeUnit.SECONDS);
         return new Grafanon(config, dashboardsOnDisk(), grafanaClient());

@@ -9,14 +9,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 
 import org.flywaydb.core.api.callback.FlywayCallback;
-import org.jetbrains.annotations.Nullable;
 import org.jooq.SQLDialect;
 import org.springframework.core.env.Environment;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
@@ -94,8 +92,6 @@ public class DbEndpointResolver {
     public static final String DEFAULT_DB_MIGRATION_LOCATION_VALUE = "db.migration";
     /** default for access level. */
     public static final String DEFAULT_DB_ACCESS_VALUE = DbEndpointAccess.READ_ONLY.name();
-    /** default retry scheudle... will continue indefinitely. */
-    public static final String DEFAULT_DB_RETRY_TIMES_SEC = "0,10,20,30,60,-1";
 
     /** separator between tag name and property name when configuring tagged endpoints. */
     public static final String TAG_PREFIX_SEPARATOR = "_";
@@ -143,7 +139,6 @@ public class DbEndpointResolver {
         resolveDbMigrationLocations();
         resolveDbFlywayCallbacks();
         resolveDbDestructiveProvisioningEnabled();
-        resovleDbRetryBackoffTimesSec();
         resolveDbEndpointEnabled();
     }
 
@@ -322,32 +317,6 @@ public class DbEndpointResolver {
         config.setDbDestructiveProvisioningEnabled(Boolean.parseBoolean(
                 choosePropertyValue(dbTag(DB_DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY),
                         or(currentValue, Boolean.FALSE.toString()))));
-    }
-
-    /**
-     * Resolve the dbRetryBackoffTimesSec property.
-     *
-     * @throws UnsupportedDialectException if endpiont has bad dialect
-     */
-    public void resovleDbRetryBackoffTimesSec() throws UnsupportedDialectException {
-        final String currentValue = intsToString(config.getDbRetryBackoffTimesSec());
-        final String fromTemplate = template != null
-                ? intsToString(template.getDbRetryBackoffTimesSec())
-                : null;
-        final String value = choosePropertyValue(dbTag(DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY),
-                or(currentValue, fromTemplate, DEFAULT_DB_RETRY_TIMES_SEC));
-        config.setDbRetryBackoffTimesSec(value != null
-                ? Arrays.stream(value.split(",")).map(String::trim).mapToInt(Integer::parseInt).toArray()
-                : new int[0]);
-    }
-
-    @Nullable
-    private String intsToString(int[] ints) {
-        return config.getDbRetryBackoffTimesSec() != null
-                ? Arrays.stream(config.getDbRetryBackoffTimesSec())
-                .mapToObj(Integer::toString)
-                .collect(Collectors.joining(","))
-                : null;
     }
 
     /**

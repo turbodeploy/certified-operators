@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.util;
 
 import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
+import static com.vmturbo.cost.component.db.Tables.PLAN_ENTITY_COST;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -71,9 +72,10 @@ public class EntityCostFilter extends CostFilter {
                      @Nullable final Set<Long> accountIds,
                      @Nullable final Set<Long> availabilityZoneIds,
                      @Nullable final Set<Long> regionIds,
-                     final boolean latestTimeStampRequested) {
+                     final boolean latestTimeStampRequested,
+                     @Nullable final Long topologyContextId) {
         super(entityFilters, entityTypeFilters, startDateMillis, endDateMillis, timeFrame,
-            CREATED_TIME, latestTimeStampRequested);
+            CREATED_TIME, latestTimeStampRequested, topologyContextId);
         this.excludeCostSources = excludeCostSources;
         this.costSources = costSources;
         this.costCategoryFilter = costCategoryFilter;
@@ -88,11 +90,11 @@ public class EntityCostFilter extends CostFilter {
     private CostGroupBy createGroupByFieldString(@Nonnull Set<String> items ) {
         Set<String> listOfFields = Sets.newHashSet(items);
         listOfFields.add(getTable().field(CREATED_TIME).getName());
-        return items.isEmpty() ?
-                null :
-                new CostGroupBy(listOfFields.stream().map(columnName -> columnName.toLowerCase(Locale.getDefault()))
-                        .collect(Collectors.toSet()),
-                        timeFrame);
+        return items.isEmpty()
+            ? null
+            : new CostGroupBy(listOfFields.stream()
+                                  .map(columnName -> columnName.toLowerCase(Locale.getDefault()))
+                                  .collect(Collectors.toSet()), timeFrame, topologyContextId);
     }
 
     /**
@@ -102,8 +104,6 @@ public class EntityCostFilter extends CostFilter {
      */
     public List<Condition> generateConditions() {
         final List<Condition> conditions = new ArrayList<>();
-
-
         final Table<?> table = getTable();
 
         if (startDateMillis != null) {
@@ -139,15 +139,15 @@ public class EntityCostFilter extends CostFilter {
         }
 
         if (costSources != null && !costSources.isEmpty()) {
-            if (getTable() == ENTITY_COST) {
+            if (getTable() == ENTITY_COST || getTable() == PLAN_ENTITY_COST) {
                 if (excludeCostSources) {
                     conditions.add(table.field(ENTITY_COST.COST_SOURCE.getName()).notIn(costSources));
                 } else {
                     conditions.add(table.field(ENTITY_COST.COST_SOURCE.getName()).in(costSources));
                 }
             } else {
-                logger.warn("Cost source filter has been set on a query on a table other than the" +
-                    " latest. It will be ignored.");
+                logger.warn("Cost source filter has been set on a query on a table other than the"
+                        + " latest. It will be ignored.");
             }
         }
 
@@ -163,6 +163,10 @@ public class EntityCostFilter extends CostFilter {
             conditions.add(table.field(ENTITY_COST.REGION_ID.getName()).in(regionIds));
         }
 
+        if (hasTopologyContextId()) {
+            conditions.add(PLAN_ENTITY_COST.PLAN_ID.eq(topologyContextId));
+        }
+
         return conditions;
     }
 
@@ -173,7 +177,9 @@ public class EntityCostFilter extends CostFilter {
 
     @Override
     public Table<?> getTable() {
-        if (this.timeFrame == null || this.timeFrame.equals(TimeFrame.LATEST)) {
+        if (this.hasTopologyContextId()) {
+            return Tables.PLAN_ENTITY_COST;
+        } else if (this.timeFrame == null || this.timeFrame.equals(TimeFrame.LATEST)) {
             return Tables.ENTITY_COST;
         } else if (this.timeFrame.equals(TimeFrame.HOUR)) {
             return Tables.ENTITY_COST_BY_HOUR;
@@ -207,9 +213,10 @@ public class EntityCostFilter extends CostFilter {
      * @return True, if this filter includes {@code componentCost}, false otherwise
      */
     public boolean filterComponentCost(EntityCost.ComponentCost componentCost) {
-        return filterComponentCostByCostSource(componentCost) &&
-                filterComponentCostByCostCategory(componentCost);
+        return filterComponentCostByCostSource(componentCost)
+                && filterComponentCostByCostCategory(componentCost);
     }
+
     public Optional<Set<Long>> getAccountIds() {
         return Optional.ofNullable(accountIds);
     }
@@ -246,7 +253,8 @@ public class EntityCostFilter extends CostFilter {
                 && excludeCostSources == other.excludeCostSources
                 && Objects.equals(accountIds, other.accountIds)
                 && Objects.equals(availabilityZoneIds, other.availabilityZoneIds)
-                && Objects.equals(regionIds, other.regionIds);
+                && Objects.equals(regionIds, other.regionIds)
+                && Objects.equals(topologyContextId, other.topologyContextId);
         }
         return false;
     }
@@ -268,23 +276,24 @@ public class EntityCostFilter extends CostFilter {
         builder.append("\n exclude cost sources: ");
         builder.append(excludeCostSources);
         builder.append("\n cost sources: ");
-        builder.append((costSources == null) ? "NOT SET" :
-            costSources.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        builder.append((costSources == null) ? "NOT SET"
+                : costSources.stream().map(String::valueOf).collect(Collectors.joining(",")));
         builder.append("\n cost category filter: ");
         builder.append((costCategoryFilter == null) ? "NOT SET" : costCategoryFilter);
         builder.append("\n account ids: ");
-        builder.append((accountIds == null) ? "NOT SET" :
-            accountIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        builder.append((accountIds == null) ? "NOT SET"
+                : accountIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
         builder.append("\n availability zone ids: ");
-        builder.append((availabilityZoneIds == null) ? "NOT SET" :
-            availabilityZoneIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        builder.append((availabilityZoneIds == null) ? "NOT SET"
+                : availabilityZoneIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
         builder.append("\n region ids: ");
-        builder.append((regionIds == null) ? "NOT SET" :
-            regionIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
-        builder.append("\n conditions: ");
-        builder.append(
-            conditions.stream().map(Condition::toString).collect(Collectors.joining(" AND ")));
-
+        builder.append((regionIds == null) ? "NOT SET"
+                : regionIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        if (conditions != null) {
+            builder.append("\n conditions: ");
+            builder.append(
+                    conditions.stream().map(Condition::toString).collect(Collectors.joining(" AND ")));
+        }
         return builder.toString();
     }
 
@@ -327,6 +336,7 @@ public class EntityCostFilter extends CostFilter {
         private Set<Long> accountIds = null;
         private Set<Long> availabilityZoneIds = null;
         private Set<Long> regionIds = null;
+        private Long topologyContextId = null;
 
         private EntityCostFilterBuilder(@Nonnull TimeFrame timeFrame) {
             this.timeFrame = timeFrame;
@@ -347,7 +357,8 @@ public class EntityCostFilter extends CostFilter {
         public EntityCostFilter build() {
             return new EntityCostFilter(entityIds, entityTypeFilters, startDateMillis,
                 endDateMillis, timeFrame, groupByFields, excludeCostSources, costSources, costCategoryFilter,
-                accountIds, availabilityZoneIds, regionIds, latestTimeStampRequested);
+                accountIds, availabilityZoneIds, regionIds, latestTimeStampRequested,
+                    topologyContextId);
         }
 
         /**
@@ -410,6 +421,17 @@ public class EntityCostFilter extends CostFilter {
         public EntityCostFilterBuilder regionIds(
             @Nonnull Collection<Long> regionIds) {
             this.regionIds = new HashSet<>(regionIds);
+            return this;
+        }
+
+        /**
+         * Set the associated topology context ID.
+         * @param topologyContextId the topology context ID
+         * @return this builder
+         */
+        @Nonnull
+        public EntityCostFilterBuilder topologyContextId(long topologyContextId) {
+            this.topologyContextId = topologyContextId;
             return this;
         }
     }

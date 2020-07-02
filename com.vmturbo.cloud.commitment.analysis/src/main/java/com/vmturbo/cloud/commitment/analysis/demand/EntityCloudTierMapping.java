@@ -7,8 +7,6 @@ import javax.annotation.Nonnull;
 
 import org.immutables.value.Value.Immutable;
 
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
-
 /**
  * A mapping of an entity to cloud tier over a period of time, as represented by the start and end
  * times of the mapping.
@@ -77,7 +75,5 @@ public interface EntityCloudTierMapping<CLOUD_TIER_DEMAND_TYPE> {
     @Nonnull
     CLOUD_TIER_DEMAND_TYPE cloudTierDemand();
 
-    @Nonnull
-    CloudTierType cloudTierType();
 
 }

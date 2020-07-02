@@ -91,12 +91,16 @@ public class UtilizationCountArray {
         final long minTimestampSinceWhichHistory =
                         now.minus(Duration.ofDays(minObservationPeriodDays)).toEpochMilli();
         if (startTimestamp <= 0) {
+            logger.debug("Percentile data is not initialized. Requested timestamp is {} and key is {}",
+                         currentTimestamp,
+                         fieldReference);
             return false;
         }
         final boolean historyDataAvailable =
                         minTimestampSinceWhichHistory > startTimestamp;
-        logger.debug("Percentile data available for '{}' since '{}'. Minimum required timestamp for history data '{}'.",
+        logger.debug("Percentile data available for '{}' since '{}'. Now minus {} days is '{}'.",
                         () -> fieldReference, () -> Instant.ofEpochMilli(startTimestamp),
+                        () -> minObservationPeriodDays,
                         () -> Instant.ofEpochMilli(minTimestampSinceWhichHistory));
         return historyDataAvailable;
     }
@@ -126,6 +130,11 @@ public class UtilizationCountArray {
             return;
         }
         if (startTimestamp == 0 || remove && timestamp > startTimestamp) {
+            logger.trace("Updating start timestamp from {} to {} during {} operation for key {}",
+                        startTimestamp,
+                        timestamp,
+                        add ? "add" : "remove",
+                        key);
             startTimestamp = timestamp;
         }
         if (usage > newCapacity) {
@@ -227,6 +236,10 @@ public class UtilizationCountArray {
      * Clean up the data.
      */
     public void clear() {
+        logger.trace("Cleared array with capacity {}, startTimestamp {} and endTimestamp {}",
+                     capacity,
+                     startTimestamp,
+                     endTimestamp);
         Arrays.fill(counts, 0);
         capacity = 0f;
         startTimestamp = 0;
