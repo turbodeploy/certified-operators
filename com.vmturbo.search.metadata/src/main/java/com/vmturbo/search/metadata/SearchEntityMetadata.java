@@ -24,7 +24,7 @@ public enum SearchEntityMetadata {
     /**
      * Mappings for different entity types.
      */
-    APPLICATION(EntityType.APPLICATION, getApplicationMetadata()),
+    APPLICATION_COMPONENT(EntityType.APPLICATION_COMPONENT, getApplicationComponentMetadata()),
     BUSINESS_ACCOUNT(EntityType.BUSINESS_ACCOUNT, getBusinessAccountMetadata()),
     BUSINESS_APPLICATION(EntityType.BUSINESS_APPLICATION, getBusinessApplicationMetadata()),
     BUSINESS_TRANSACTION(EntityType.BUSINESS_TRANSACTION, getBusinessTransactionMetadata()),
@@ -150,7 +150,7 @@ public enum SearchEntityMetadata {
      *
      * @return Application mappings
      */
-    private static Map<FieldApiDTO, SearchMetadataMapping> getApplicationMetadata() {
+    private static Map<FieldApiDTO, SearchMetadataMapping> getApplicationComponentMetadata() {
         return ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
                 // common fields
                 .putAll(Constants.ENTITY_COMMON_FIELDS)
@@ -474,6 +474,8 @@ public enum SearchEntityMetadata {
                 // commodities
                 .put(CommodityFieldApiDTO.used(CommodityType.RESPONSE_TIME), SearchMetadataMapping.COMMODITY_RESPONSE_TIME_USED)
                 .put(CommodityFieldApiDTO.utilization(CommodityType.RESPONSE_TIME), SearchMetadataMapping.COMMODITY_RESPONSE_TIME_UTILIZATION)
+                .put(CommodityFieldApiDTO.used(CommodityType.TRANSACTION), SearchMetadataMapping.COMMODITY_TRANSACTION_USED)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.TRANSACTION), SearchMetadataMapping.COMMODITY_TRANSACTION_UTILIZATION)
                 // related entities
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.BUSINESS_APPLICATION), SearchMetadataMapping.RELATED_BUSINESS_APPLICATION)
                 .build();
