@@ -71,13 +71,11 @@ public class ReservationRpcServiceTest {
 
     @Before
     public void setup() throws Exception {
-        planDao = Mockito.mock(PlanDao.class);
         templatesDao = Mockito.mock(TemplatesDao.class);
         reservationDao = Mockito.mock(ReservationDao.class);
-        planRpcService = Mockito.mock(PlanRpcService.class);
         reservationManager = Mockito.mock(ReservationManager.class);
-        reservationRpcService = new ReservationRpcService(planDao, templatesDao, reservationDao,
-                planRpcService, reservationManager);
+        reservationRpcService = new ReservationRpcService(templatesDao,
+                reservationDao, reservationManager);
         grpcTestServerReservation = GrpcTestServer.newServer(reservationRpcService);
         grpcTestServerReservation.start();
         reservationServiceBlockingStub =

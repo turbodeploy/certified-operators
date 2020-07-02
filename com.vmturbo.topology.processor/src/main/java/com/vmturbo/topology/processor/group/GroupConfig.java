@@ -30,7 +30,6 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
-import com.vmturbo.topology.processor.group.policy.ReservationPolicyFactory;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
@@ -132,18 +131,7 @@ public class GroupConfig {
     @Bean
     public PolicyManager policyManager() {
         return new PolicyManager(policyRpcService(), groupServiceBlockingStub(), policyFactory(),
-            initialPlacementPolicyFactory(), reservationServiceBlockingStub(),
             policyApplicator());
-    }
-
-    /**
-     * gRPC stub for the reservation service in the plan orchestrator.
-     *
-     * @return The stub.
-     */
-    @Bean
-    public ReservationServiceBlockingStub reservationServiceBlockingStub() {
-        return ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
     }
 
     /**
@@ -182,10 +170,6 @@ public class GroupConfig {
                 discoveredClusterConstraintCache(), targetConfig.targetStore());
     }
 
-    @Bean
-    public ReservationPolicyFactory initialPlacementPolicyFactory() {
-        return new ReservationPolicyFactory(groupServiceBlockingStub());
-    }
 
     @Bean
     public DiscoveredClusterConstraintCache discoveredClusterConstraintCache() {

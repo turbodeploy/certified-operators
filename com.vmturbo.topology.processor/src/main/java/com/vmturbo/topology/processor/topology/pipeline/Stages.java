@@ -84,8 +84,6 @@ import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
 import com.vmturbo.topology.processor.reservation.GenerateConstraintMap;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
-import com.vmturbo.topology.processor.reservation.ReservationTrimmer;
-import com.vmturbo.topology.processor.reservation.ReservationTrimmer.TrimmingSummary;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
@@ -895,23 +893,6 @@ public class Stages {
         }
     }
 
-    /**
-     * This stage is specific to the reservation plan - it creates a new {@link TopologyGraph} which
-     * contains ONLY the entities the market will need for reservation processing.
-     *
-     * <p/>Note - it should be run AFTER any logic that requires the full graph (e.g. scoping,
-     * policy application).
-     */
-    public static class ReservationTrimStage extends Stage<TopologyGraph<TopologyEntity>, TopologyGraph<TopologyEntity>> {
-
-        @Nonnull
-        @Override
-        public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull final TopologyGraph<TopologyEntity> input) {
-            final TrimmingSummary trimmingSummary = new ReservationTrimmer().trimTopologyGraph(input);
-            return StageResult.withResult(trimmingSummary.getNewGraph())
-                .andStatus(Status.success(trimmingSummary.toString()));
-        }
-    }
     /**
      * This stage applies policies to a {@link TopologyGraph<TopologyEntity>}. This makes changes
      * to the commodities of entities in the {@link TopologyGraph<TopologyEntity>} to reflect the

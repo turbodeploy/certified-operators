@@ -208,7 +208,7 @@ public class PlanDaoImplTest {
         // verify that a plan project plan created without a user in the calling context will be
         // attributed to SYSTEM.
         PlanInstance planInstance = planDao.createPlanInstance(Scenario.getDefaultInstance(),
-                PlanProjectType.RESERVATION_PLAN);
+                PlanProjectType.CLUSTER_HEADROOM);
 
         // should have the created by user set to SYSTEM.
         assertEquals(AuditLogUtils.SYSTEM, planInstance.getCreatedByUser());
@@ -375,7 +375,7 @@ public class PlanDaoImplTest {
                 .setTopologyId(1L)
                 .build());
         PlanInstance inst2 = planDao.createPlanInstance(Scenario.getDefaultInstance(),
-                PlanProjectType.RESERVATION_PLAN);
+                PlanProjectType.USER);
 
         // User plan instance should always be queued.
         Optional<PlanDTO.PlanInstance> inst = planDao.queuePlanInstance(inst1);

@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -15,8 +14,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-
-import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,10 +29,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -46,14 +40,10 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
@@ -82,22 +72,16 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * We also kickoff a new reservation plan if no other plan is running.
  * All the state transition logic is handled by this class.
  */
-public class ReservationManager implements PlanStatusListener, ReservationDeletedListener {
+public class ReservationManager implements ReservationDeletedListener {
     private final Logger logger = LogManager.getLogger();
 
     private final ReservationDao reservationDao;
 
     private final TemplatesDao templatesDao;
 
-    private final PlanDao planDao;
-
-    private final PlanRpcService planService;
-
     private final ReservationNotificationSender reservationNotificationSender;
 
     private final InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub;
-
-    private static final String DISABLED = "DISABLED";
 
     private static final Object reservationSetLock = new Object();
 
@@ -105,23 +89,17 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
 
     /**
      * constructor for ReservationManager.
-     * @param planDao input plan dao.
      * @param reservationDao input reservation dao.
-     * @param planRpcService input plan service.
      * @param reservationNotificationSender the reservation notification sender.
      * @param initialPlacementServiceBlockingStub for grpc call to market component.
      * @param templatesDao  input template dao
      */
-    public ReservationManager(@Nonnull final PlanDao planDao,
-                              @Nonnull final ReservationDao reservationDao,
-                              @Nonnull final PlanRpcService planRpcService,
+    public ReservationManager(@Nonnull final ReservationDao reservationDao,
                               @Nonnull final ReservationNotificationSender reservationNotificationSender,
                               @Nonnull final InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub,
                               @Nonnull final TemplatesDao templatesDao
     ) {
-        this.planDao = Objects.requireNonNull(planDao);
         this.reservationDao = Objects.requireNonNull(reservationDao);
-        this.planService = Objects.requireNonNull(planRpcService);
         this.reservationNotificationSender = Objects.requireNonNull(reservationNotificationSender);
         this.reservationDao.addListener(this);
         this.initialPlacementServiceBlockingStub = Objects.requireNonNull(initialPlacementServiceBlockingStub);
@@ -137,39 +115,17 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
         constraintIDToCommodityTypeMap.put(id, reservationConstraintInfo);
     }
 
+    /**
+     * Checks if the constraint id is valud and populated in constraintIDToCommodityTypeMap.
+     * @param constraintId the constraint id of interest.
+     * @return true if the constraintIDToCommodityTypeMap keyset contains constraintId.
+     */
+    public boolean isConstraintIdValid(Long constraintId) {
+        return constraintIDToCommodityTypeMap.containsKey(constraintId);
+    }
 
     public ReservationDao getReservationDao() {
         return reservationDao;
-    }
-
-    public PlanDao getPlanDao() {
-        return planDao;
-    }
-
-    /**
-     * Update all inprogress reservations to placement_failed on plan failure.
-     * Also kick start a new reservation plan by calling checkAndStartReservationPlan.
-     */
-    private void updateReservationsOnPlanFailure() {
-        synchronized (reservationSetLock) {
-            final Set<Reservation> inProgressSet =
-                    reservationDao.getAllReservations().stream()
-                            .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
-                            .collect(Collectors.toSet());
-            Set<Reservation> updatedReservation = new HashSet<>();
-            for (ReservationDTO.Reservation reservation : inProgressSet) {
-                updatedReservation.add(ReservationProtoUtil.invalidateReservation(reservation));
-            }
-            try {
-                reservationDao.updateReservationBatch(updatedReservation);
-                logger.info("Marked reservations {} as invalid.", () -> inProgressSet.stream()
-                    .map(reservation -> reservation.getId() + "(" + reservation.getName() + ")")
-                    .collect(Collectors.joining(",")));
-            } catch (NoSuchObjectException e) {
-                logger.error("Reservation update failed" + e);
-            }
-        }
-        checkAndStartReservationPlan();
     }
 
     /**
@@ -208,7 +164,8 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                     buildIntialPlacementRequest(currentReservations);
             FindInitialPlacementResponse response = initialPlacementServiceBlockingStub
                     .findInitialPlacement(initialPlacementRequest);
-            Set<Reservation> updatedReservations = updateProviderInfoForReservations(response);
+            Set<Reservation> updatedReservations = updateProviderInfoForReservations(response,
+                    currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
             updateReservationResult(updatedReservations);
         }
 
@@ -218,12 +175,16 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
      * Update the provider info of the reservation using the initial placement response.
      *
      * @param response initial placement response from market.
+     * @param currentReservations reservations which are sent to the market. We have to make sure
+     *                          we only update the reservations which are part of the request.
      * @return all in-progress reservations with the provider info updated.
      */
-    public Set<Reservation> updateProviderInfoForReservations(final FindInitialPlacementResponse response) {
+    public Set<Reservation> updateProviderInfoForReservations(final FindInitialPlacementResponse response,
+                                                              Set<Long> currentReservations) {
         Map<Long, Reservation> updatedReservations = new HashMap<>();
         reservationDao.getAllReservations().stream()
                 .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
+                .filter(res -> currentReservations.contains(res.getId()))
                 .forEach(inProgressRes -> updatedReservations.put(inProgressRes.getId(), inProgressRes));
         Map<Long, Reservation> buyerIdToReservation = new HashMap<>();
         for (Reservation reservation : updatedReservations.values()) {
@@ -634,106 +595,6 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
         return true;
     }
 
-    /**
-     * Send request to run initial placement plan.
-     */
-    public void runPlanForBatchReservation() {
-        try {
-            final List<ScenarioChange> settingOverrides = createPlacementActionSettingOverride();
-            ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
-                    .build();
-            Map<Long, String> scopeIds = getAllScopeEntities();
-            PlanScope.Builder planScopeBuilder = PlanScope.newBuilder();
-            if (!scopeIds.isEmpty()) {
-                for (Entry<Long, String> scopeid : scopeIds.entrySet()) {
-                    PlanScopeEntry planScopeEntry = PlanScopeEntry
-                            .newBuilder().setScopeObjectOid(scopeid.getKey())
-                            .setClassName(scopeid.getValue()).build();
-                    planScopeBuilder.addScopeEntries(planScopeEntry);
-                }
-            }
-            final Scenario scenario = Scenario.newBuilder()
-                    .setScenarioInfo(ScenarioInfo.newBuilder(scenarioInfo)
-                            .clearChanges()
-                            .addAllChanges(settingOverrides)
-                            .setScope(planScopeBuilder))
-                    .build();
-
-            final PlanInstance planInstance = planDao
-                    .createPlanInstance(scenario, PlanProjectType.RESERVATION_PLAN);
-            planService.runPlan(
-                    PlanId.newBuilder()
-                            .setPlanId(planInstance.getPlanId())
-                            .build(),
-                    new StreamObserver<PlanInstance>() {
-                        @Override
-                        public void onNext(PlanInstance value) {
-                        }
-
-                        @Override
-                        public void onError(Throwable t) {
-                            logger.error("Error occurred while executing plan {}.",
-                                    planInstance.getPlanId());
-                        }
-
-                        @Override
-                        public void onCompleted() {
-                        }
-                    });
-        } catch (Exception e) {
-            logger.error("Failed to create a plan instance for initial placement: ", e);
-        }
-    }
-
-    /**
-     * Create settingOverride in order to disable move and
-     * provision for placed entity and only unplaced entity could move.
-     *
-     * @return list of {@link ScenarioChange}.
-     */
-    @VisibleForTesting
-    List<ScenarioChange> createPlacementActionSettingOverride() {
-        // disable all actions
-        List<EntitySettingSpecs> placementPlanSettingsToDisable =
-                Arrays.asList(EntitySettingSpecs.Move,
-                EntitySettingSpecs.Provision, EntitySettingSpecs.StorageMove,
-                EntitySettingSpecs.Resize, EntitySettingSpecs.Suspend,
-                EntitySettingSpecs.Reconfigure,
-                EntitySettingSpecs.Activate);
-        ArrayList<ScenarioChange> placementSettingOverrides =
-                new ArrayList<>(placementPlanSettingsToDisable.size());
-        placementPlanSettingsToDisable.forEach(settingSpec -> {
-            // disable setting
-            placementSettingOverrides.add(ScenarioChange.newBuilder()
-                    .setSettingOverride(SettingOverride.newBuilder()
-                            .setSetting(Setting.newBuilder()
-                                    .setSettingSpecName(settingSpec.getSettingName())
-                                    .setEnumSettingValue(EnumSettingValue
-                                            .newBuilder().setValue(DISABLED))))
-                    .build());
-        });
-        return placementSettingOverrides;
-    }
-
-    @Override
-    public void onPlanStatusChanged(@Nonnull final PlanInstance plan) throws PlanStatusListenerException {
-        if (plan.getProjectType() == PlanProjectType.RESERVATION_PLAN) {
-            if (plan.getStatus() == PlanStatus.FAILED) {
-                logger.error("Reservation plan {} failed. Message: {}." +
-                    " Marking reservations as INVALID.", plan.getPlanId(), plan.getStatusMessage());
-                // We know that the failed plan relates to the current in-progress
-                // reservations because successful reservations delete the plan they relate
-                // to while holding a lock.
-                updateReservationsOnPlanFailure();
-            }
-        }
-    }
-
-    @Override
-    public void onPlanDeleted(@Nonnull final PlanInstance plan) throws PlanStatusListenerException {
-        // We ignore plan deletions for reservations, since we delete them very eagerly.
-    }
-
     private CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, double used) {
         return createCommodityBoughtDTO(commodityType, Optional.empty(), used);
     }
@@ -746,51 +607,6 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                 .setActive(true)
                 .setCommodityType(commType)
                 .build();
-    }
-
-    /**
-     * Get all the constraint ids of inprogress reservation.
-     * If one of the in-progress reservation is un -constrained (full scope) the return empty list.
-     *
-     * @return Map of constraint id and the type of constraint.
-     */
-    private Map<Long, String> getAllScopeEntities() {
-        Map<Long, String> scope = new HashMap<>();
-        final Set<Reservation> reservations =
-                reservationDao.getAllReservations().stream()
-                        .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
-                        .collect(Collectors.toSet());
-        for (Reservation reservation : reservations) {
-            if (!reservation.hasConstraintInfoCollection() ||
-                    reservation
-                            .getConstraintInfoCollection()
-                            .getReservationConstraintInfoList() == null ||
-                    reservation.getConstraintInfoCollection()
-                            .getReservationConstraintInfoList().isEmpty()) {
-                return new HashMap<>();
-            } else {
-                List<ReservationConstraintInfo> reservationConstraintInfos = reservation
-                        .getConstraintInfoCollection().getReservationConstraintInfoList();
-                for (ReservationConstraintInfo reservationConstraintInfo
-                        : reservationConstraintInfos) {
-                    if (reservationConstraintInfo.getType() == Type.CLUSTER) {
-                        scope.put(reservationConstraintInfo
-                                .getConstraintId(), StringConstants.CLUSTER);
-                    } else if (reservationConstraintInfo.getType() ==
-                            Type.VIRTUAL_DATA_CENTER) {
-                        scope.put(reservationConstraintInfo
-                                .getConstraintId(), StringConstants.VDC);
-                    } else if (reservationConstraintInfo
-                            .getType() == Type.DATA_CENTER) {
-                        scope.put(reservationConstraintInfo
-                                .getConstraintId(), StringConstants.DATA_CENTER);
-                    } else {
-                        return new HashMap<>();
-                    }
-                }
-            }
-        }
-        return scope;
     }
 
     @Override

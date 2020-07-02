@@ -59,7 +59,6 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable.UpdateFailure;
-import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
 
 /**
  * Tests the methods in the plan progress listener.
@@ -109,11 +108,9 @@ public class PlanProgressListenerTest {
 
     private PlanRpcService planRpcService = mock(PlanRpcService.class);
 
-    private ReservationPlacementHandler reservationPlacementHandler =
-        mock(ReservationPlacementHandler.class);
 
     private PlanProgressListener planProgressListener = new PlanProgressListener(
-        planDao, planRpcService, reservationPlacementHandler, REALTIME_CONTEXT_ID);
+        planDao, planRpcService, REALTIME_CONTEXT_ID);
 
     @Captor
     private ArgumentCaptor<Consumer<PlanInstance.Builder>> builderCaptor;
@@ -889,8 +886,6 @@ public class PlanProgressListenerTest {
         Mockito.verify(planDao, Mockito.never()).updatePlanInstance(Mockito.anyLong(), Mockito.any());
         planProgressListener.onProjectedTopologyAvailable(0, REALTIME_CONTEXT_ID);
         Mockito.verify(planDao, Mockito.never()).updatePlanInstance(Mockito.anyLong(), Mockito.any());
-        Mockito.verify(reservationPlacementHandler, Mockito.times(1))
-            .updateReservationsFromLiveTopology(Mockito.anyLong(), Mockito.anyLong());
         planProgressListener.onProjectedTopologyFailure(0, REALTIME_CONTEXT_ID, "");
         Mockito.verify(planDao, Mockito.never()).updatePlanInstance(Mockito.anyLong(), Mockito.any());
     }

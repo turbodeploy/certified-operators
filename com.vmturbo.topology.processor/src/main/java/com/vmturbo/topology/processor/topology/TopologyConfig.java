@@ -315,7 +315,6 @@ public class TopologyConfig {
             entityConfig.entityStore(),
             apiConfig.topologyProcessorNotificationSender(),
             targetConfig.targetStore(),
-            useReservationPipeline,
             clockConfig.clock(),
             startupDiscoveryMaxDiscoveryWaitMinutes,
             TimeUnit.MINUTES);

@@ -31,10 +31,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationByIdRequ
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceImplBase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
-import com.vmturbo.plan.orchestrator.plan.PlanDao;
-import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 
 /**
@@ -43,26 +40,18 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 public class ReservationRpcService extends ReservationServiceImplBase {
     private final Logger logger = LogManager.getLogger();
 
-    private final PlanDao planDao;
-
     private final ReservationDao reservationDao;
 
     private final TemplatesDao templatesDao;
 
-    private final PlanRpcService planService;
-
     private final ReservationManager reservationManager;
 
 
-    public ReservationRpcService(@Nonnull final PlanDao planDao,
-                                 @Nonnull final TemplatesDao templateDao,
+    public ReservationRpcService(@Nonnull final TemplatesDao templateDao,
                                  @Nonnull final ReservationDao reservationDao,
-                                 @Nonnull final PlanRpcService planRpcService,
                                  @Nonnull final ReservationManager reservationManager) {
-        this.planDao = Objects.requireNonNull(planDao);
         this.templatesDao = Objects.requireNonNull(templateDao);
         this.reservationDao = Objects.requireNonNull(reservationDao);
-        this.planService = Objects.requireNonNull(planRpcService);
         this.reservationManager = Objects.requireNonNull(reservationManager);
 
     }
@@ -195,6 +184,13 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                     "invalid").asException());
             return;
         }
+        final Set<Long> constraintIds = getConstraintIds(request.getReservation());
+        // check input constraint ids are valid
+        if (!isValidConstraintIds(constraintIds)) {
+            logger.error("Input constraintIds are invalid: " + constraintIds);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("constraint Ids are "
+                    + "invalid").asException());
+        }
         try {
             final Reservation reservation =
                     reservationDao.updateReservation(request.getReservationId(), request.getReservation());
@@ -214,7 +210,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
 
     @Override
     public void updateFutureAndExpiredReservations(UpdateFutureAndExpiredReservationsRequest request,
-                                        StreamObserver<UpdateFutureAndExpiredReservationsResponse> responseObserver) {
+                                                   StreamObserver<UpdateFutureAndExpiredReservationsResponse> responseObserver) {
         try {
             final Set<Reservation> reservationsToStart = new HashSet<>();
             final Set<Reservation> reservationsToRemove = new HashSet<>();
@@ -244,9 +240,9 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                 reservationManager.checkAndStartReservationPlan();
             }
             responseObserver.onNext(UpdateFutureAndExpiredReservationsResponse.newBuilder()
-                .setActivatedReservations(reservationsToStart.size())
-                .setExpiredReservationsRemoved(reservationsToRemove.size())
-                .build());
+                    .setActivatedReservations(reservationsToStart.size())
+                    .setExpiredReservationsRemoved(reservationsToRemove.size())
+                    .build());
             responseObserver.onCompleted();
         } catch (DataAccessException e) {
             responseObserver.onError(Status.INTERNAL
@@ -272,6 +268,16 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Template Ids are " +
                     "invalid").asException());
             return;
+        }
+        final Set<Long> constraintIds = request.getReservationList().stream()
+                .map(this::getConstraintIds)
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
+        // check input constraint ids are valid
+        if (!isValidConstraintIds(constraintIds)) {
+            logger.error("Input constraintIds are invalid: " + constraintIds);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("constraint Ids are "
+                    + "invalid").asException());
         }
         try {
             final Set<Reservation> reservations = request.getReservationList().stream()
@@ -301,6 +307,13 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Template Ids are " +
                     "invalid").asException());
         }
+        final Set<Long> constraintIds = getConstraintIds(request.getReservation());
+        // check input constraint ids are valid
+        if (!isValidConstraintIds(constraintIds)) {
+            logger.error("Input constraintIds are invalid: " + constraintIds);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("constraint Ids are "
+                    + "invalid").asException());
+        }
         try {
             final Reservation reservation = reservationDao.createReservation(request.getReservation());
             final Reservation queuedReservation = reservationManager.intializeReservationStatus(reservation);
@@ -314,7 +327,6 @@ public class ReservationRpcService extends ReservationServiceImplBase {
         }
         reservationManager.checkAndStartReservationPlan();
     }
-
 
 
     /**
@@ -332,9 +344,42 @@ public class ReservationRpcService extends ReservationServiceImplBase {
         return retrieveTemplatesCount == templateIds.size();
     }
 
+    /**
+     * Check if input constraint ids are all valid constraint ids. If there is any id which can not find
+     * related constraint, it return false.
+     *
+     * @param constraintIds a set of constraint ids.
+     * @return boolean indicates if all input constraint ids are valid.
+     */
+    private boolean isValidConstraintIds(@Nonnull final Set<Long> constraintIds) {
+        if (constraintIds.isEmpty()) {
+            return true;
+        }
+        for (Long constraintId : constraintIds) {
+            if (!reservationManager.isConstraintIdValid(constraintId)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private Set<Long> getTemplateIds(@Nonnull final Reservation reservation) {
         return reservation.getReservationTemplateCollection().getReservationTemplateList().stream()
                 .map(ReservationTemplate::getTemplateId)
                 .collect(Collectors.toSet());
     }
+
+    /**
+     * get the constraint id associated with the reservation.
+     *
+     * @param reservation the reservation of interest.
+     * @return set of constraint ids.
+     */
+    private Set<Long> getConstraintIds(@Nonnull final Reservation reservation) {
+        return reservation.getConstraintInfoCollection()
+                .getReservationConstraintInfoList().stream().map(a -> a.getConstraintId())
+                .collect(Collectors.toSet());
+    }
+
+
 }

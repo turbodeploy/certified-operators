@@ -16,8 +16,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Sets;
-
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -26,6 +24,8 @@ import org.mockito.Captor;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
@@ -36,9 +36,6 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementSucce
 import com.vmturbo.common.protobuf.market.InitialPlacementMoles.InitialPlacementServiceMole;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementFailureInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -56,8 +53,6 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
-import com.vmturbo.plan.orchestrator.plan.PlanDao;
-import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 
 /**
@@ -65,11 +60,7 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
  */
 public class ReservationManagerTest {
 
-    private PlanDao planDao;
-
     private ReservationDao reservationDao;
-
-    private PlanRpcService planRpcService;
 
     private ReservationManager reservationManager;
 
@@ -239,15 +230,13 @@ public class ReservationManagerTest {
     @Before
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
-        planDao = Mockito.mock(PlanDao.class);
         reservationDao = Mockito.mock(ReservationDao.class);
-        planRpcService = Mockito.mock(PlanRpcService.class);
         initialPlacementServiceBlockingStub = InitialPlacementServiceGrpc.newBlockingStub(mockServer.getChannel());
         templatesDao = Mockito.mock(TemplatesDao.class);
         sender = Mockito.mock(IMessageSender.class);
         resNotificationSender = new ReservationNotificationSender(sender);
 
-        reservationManager = new ReservationManager(planDao, reservationDao, planRpcService, resNotificationSender, initialPlacementServiceBlockingStub, templatesDao);
+        reservationManager = new ReservationManager(reservationDao, resNotificationSender, initialPlacementServiceBlockingStub, templatesDao);
     }
 
     /**
@@ -290,7 +279,6 @@ public class ReservationManagerTest {
     @Test
     public void testCheckAndStartReservationPlanSuccess() {
         ReservationManager reservationManagerSpy = spy(reservationManager);
-        Mockito.doNothing().when(reservationManagerSpy).runPlanForBatchReservation();
         Mockito.doNothing().when(reservationManagerSpy).updateReservationResult(anySet());
         when(reservationDao.getAllReservations())
                 .thenReturn(new HashSet<>(Arrays.asList(unfulfilledReservation)));
@@ -319,7 +307,6 @@ public class ReservationManagerTest {
     @Test
     public void testCheckAndStartReservationPlanFailure() {
         ReservationManager reservationManagerSpy = spy(reservationManager);
-        Mockito.doNothing().when(reservationManagerSpy).runPlanForBatchReservation();
         when(reservationDao.getAllReservations())
                 .thenReturn(new HashSet<>(Arrays.asList(inProgressReservation1, unfulfilledReservation)));
         reservationManagerSpy.checkAndStartReservationPlan();
@@ -376,7 +363,8 @@ public class ReservationManagerTest {
         FindInitialPlacementResponse findInitialPlacementResponse =
                 findInitialPlacementResponseBuilder.build();
         Set<Reservation> updatedReservations = reservationManagerSpy
-                .updateProviderInfoForReservations(findInitialPlacementResponse);
+                .updateProviderInfoForReservations(findInitialPlacementResponse,
+                        reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
         ArgumentCaptor<HashSet<Reservation>> captor =
                 ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
                         .class);
@@ -460,7 +448,8 @@ public class ReservationManagerTest {
         FindInitialPlacementResponse findInitialPlacementResponse =
                 findInitialPlacementResponseBuilder.build();
         Set<Reservation> updatedReservations = reservationManagerSpy
-                .updateProviderInfoForReservations(findInitialPlacementResponse);
+                .updateProviderInfoForReservations(findInitialPlacementResponse,
+                        reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
         ArgumentCaptor<HashSet<Reservation>> captor =
                 ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
                         .class);
@@ -558,41 +547,6 @@ public class ReservationManagerTest {
         assert (statusUpdatedReservations.contains(1003L));
         assert (statusUpdatedReservations.contains(1004L));
 
-    }
-
-    /**
-     * Test that a reservation plan failure marks in-progress reservations as invalid.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testPlanFailure() throws Exception {
-        when(reservationDao.getAllReservations())
-            .thenReturn(Sets.newHashSet(inProgressReservation1, inProgressReservation2, inProgressReservation3, unfulfilledReservation));
-
-        reservationManager.onPlanStatusChanged(PlanInstance.newBuilder()
-                .setPlanId(1)
-                .setProjectType(PlanProjectType.RESERVATION_PLAN)
-                .setStatus(PlanStatus.FAILED)
-                .build());
-
-        verify(reservationDao).updateReservationBatch(updateBatchCaptor.capture());
-
-        final Set<Reservation> updatedReservations = updateBatchCaptor.getValue();
-
-        // We should have updated the in-progress reservation to invalid.
-        for (Reservation reservation : updatedReservations) {
-            assertTrue(reservation.getStatus() == ReservationStatus.INVALID);
-            for (ReservationTemplate reservationTemplate
-                    : reservation.getReservationTemplateCollection().getReservationTemplateList()) {
-                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
-                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
-                        assertFalse(placementInfo.hasProviderId());
-                    }
-                }
-            }
-
-        }
     }
 
     /**

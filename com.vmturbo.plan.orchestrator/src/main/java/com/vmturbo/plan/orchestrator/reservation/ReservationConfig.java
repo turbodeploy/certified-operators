@@ -7,14 +7,10 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ReservationDTOREST.ReservationServiceController;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
-import com.vmturbo.plan.orchestrator.market.PlanOrchestratorMarketConfig;
-import com.vmturbo.plan.orchestrator.plan.PlanConfig;
-import com.vmturbo.plan.orchestrator.repository.RepositoryConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 
 /**
@@ -22,15 +18,11 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
  */
 @Configuration
 @Import({PlanOrchestratorDBConfig.class,
-    RepositoryConfig.class,
-    TemplatesConfig.class,
-    BaseKafkaProducerConfig.class,
-    PlanOrchestratorMarketConfig.class,
+        TemplatesConfig.class,
+        BaseKafkaProducerConfig.class,
         MarketClientConfig.class
 })
 public class ReservationConfig {
-    @Autowired
-    private PlanConfig planConfig;
 
     @Autowired
     private TemplatesConfig templatesConfig;
@@ -39,21 +31,15 @@ public class ReservationConfig {
     private PlanOrchestratorDBConfig dbConfig;
 
     @Autowired
-    private RepositoryConfig repositoryConfig;
-
-    @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
-
-    @Autowired
-    private PlanOrchestratorMarketConfig planOrchestratorMarketConfig;
 
     @Autowired
     private MarketClientConfig marketClientConfig;
 
     @Bean
     public ReservationRpcService reservationRpcService() {
-        return new ReservationRpcService(planConfig.planDao(), templatesConfig.templatesDao(),
-                dbConfig.reservationDao(), planConfig.planService(), reservationManager());
+        return new ReservationRpcService(templatesConfig.templatesDao(),
+                dbConfig.reservationDao(), reservationManager());
     }
 
     /**
@@ -64,7 +50,7 @@ public class ReservationConfig {
     @Bean
     public ReservationNotificationSender reservationNotificationSender() {
         return new ReservationNotificationSender(kafkaProducerConfig.kafkaMessageSender()
-            .messageSender(PlanOrchestratorClientImpl.RESERVATION_NOTIFICATION_TOPIC));
+                .messageSender(PlanOrchestratorClientImpl.RESERVATION_NOTIFICATION_TOPIC));
     }
 
     /**
@@ -79,27 +65,14 @@ public class ReservationConfig {
 
     /**
      * create a ReservationManager.
+     *
      * @return a new ReservationManager
      */
     @Bean
     public ReservationManager reservationManager() {
-        ReservationManager reservationManager = new ReservationManager(planConfig.planDao(),
-                dbConfig.reservationDao(), planConfig.planService(), reservationNotificationSender(), initialPlacementService(), templatesConfig.templatesDao());
-        planConfig.planDao().addStatusListener(reservationManager);
+        ReservationManager reservationManager = new ReservationManager(dbConfig.reservationDao(),
+                reservationNotificationSender(), initialPlacementService(),
+                templatesConfig.templatesDao());
         return reservationManager;
-    }
-
-    @Bean
-    public ReservationServiceController reservationServiceController() {
-        return new ReservationServiceController(reservationRpcService());
-    }
-
-    @Bean
-    public ReservationPlacementHandler reservationPlacementHandler() {
-        ReservationPlacementHandler placementHandler = new ReservationPlacementHandler(reservationManager(),
-                repositoryConfig.repositoryServiceBlockingStub());
-        // Register to handle projected topology of reservation plans.
-        planOrchestratorMarketConfig.planProjectedTopologyListener().addProjectedTopologyProcessor(placementHandler);
-        return placementHandler;
     }
 }

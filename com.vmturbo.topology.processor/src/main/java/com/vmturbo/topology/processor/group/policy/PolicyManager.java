@@ -3,7 +3,6 @@ package com.vmturbo.topology.processor.group.policy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -17,12 +16,8 @@ import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
-import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -33,19 +28,11 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.TopologyEntity;
@@ -72,19 +59,12 @@ public class PolicyManager {
 
     private final GroupServiceBlockingStub groupServiceBlockingStub;
 
-    private final ReservationServiceBlockingStub reservationService;
-
     /**
      * The factory to use to create policies.
      */
     private final PolicyFactory policyFactory;
 
     private final PolicyApplicator policyApplicator;
-
-    /**
-     * The factory to create policy for initial placement and reservation purpose.
-     */
-    private final ReservationPolicyFactory reservationPolicyFactory;
 
     private static final DataMetricSummary POLICY_APPLICATION_SUMMARY = DataMetricSummary.builder()
         .withName("tp_policy_application_duration_seconds")
@@ -102,14 +82,10 @@ public class PolicyManager {
     public PolicyManager(@Nonnull final PolicyServiceBlockingStub policyService,
                          @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
                          @Nonnull final PolicyFactory policyFactory,
-                         @Nonnull final ReservationPolicyFactory reservationPolicyFactory,
-                         @Nonnull final ReservationServiceBlockingStub reservationService,
                          @Nonnull final PolicyApplicator policyApplicator) {
         this.policyService = Objects.requireNonNull(policyService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
         this.policyFactory = Objects.requireNonNull(policyFactory);
-        this.reservationPolicyFactory = Objects.requireNonNull(reservationPolicyFactory);
-        this.reservationService = Objects.requireNonNull(reservationService);
         this.policyApplicator = Objects.requireNonNull(policyApplicator);
     }
 
@@ -184,15 +160,11 @@ public class PolicyManager {
 
             final Map<PolicyDetailCase, Integer> policyTypeCounts = Maps.newEnumMap(PolicyDetailCase.class);
 
-            // Reservations affect policies because we use policies to enforce reservation
-            // constraints.
-            final ReservationResults reservationResults =
-                handleReservationConstraints(graph, changes, topologyInfo);
 
             final List<PlacementPolicy> policiesToApply =
-                new ArrayList<>(reservationResults.getReservationPolicies());
+                new ArrayList<>();
 
-            getServerPolicies(changes, livePolicies, groupsById, reservationResults)
+            getServerPolicies(changes, livePolicies, groupsById)
                 .forEach(policiesToApply::add);
 
             getPlanOnlyPolicies(planOnlyPolicies, groupsById)
@@ -243,7 +215,7 @@ public class PolicyManager {
         final List<PlacementPolicy> policiesToApply =
                 new ArrayList<>();
 
-        getServerPolicies(new ArrayList<>(), livePolicies, groupsById, new ReservationResults())
+        getServerPolicies(new ArrayList<>(), livePolicies, groupsById)
                 .forEach(policiesToApply::add);
 
         Map<Long, TopologyDTO.CommodityType> results = new HashMap<>();
@@ -258,121 +230,6 @@ public class PolicyManager {
         return results;
     }
 
-    /**
-     * Get the reservation status set that are active for the current topology.
-     * @param topologyInfo the topologyInfo for which we need to find the active reservation status.
-     * @return the set of active reservation statuses.
-     */
-    @Nonnull
-    private Set<ReservationStatus> activeReservationTypes(@Nonnull final TopologyInfo topologyInfo) {
-        final Set<ReservationStatus> ret;
-        if (topologyInfo.getTopologyType() == TopologyType.REALTIME
-                || topologyInfo.getPlanInfo().getPlanProjectType() ==
-                PlanProjectType.CLUSTER_HEADROOM) {
-            // In the cluster headroom plan we only want to consider already-placed reservations,
-            // because they don't count as "placed".
-            ret = ImmutableSet.of(
-                    // We want to account for existing already-placed reservations...
-                    ReservationStatus.RESERVED,
-                    // As well as reservations that couldn't be placed earlier, but MAY be able to
-                    // be placed now.
-                    ReservationStatus.PLACEMENT_FAILED);
-
-        } else if (topologyInfo.getPlanInfo().getPlanProjectType() ==
-                PlanProjectType.RESERVATION_PLAN) {
-            // In the reservation plan we only want to look at the constraints of the in-progress
-            // reservations.
-            ret = ImmutableSet.of(ReservationStatus.INPROGRESS);
-        } else {
-            // In other plans, we don't want to account for reservations at all.
-            ret = Collections.emptySet();
-        }
-
-        return ret;
-    }
-
-    /**
-     * Handle initial placement and reservation constraints logic. For policy constraint, initial
-     * placement and reservation entity will be added to related service policy's default consumer.
-     * For Cluster, DataCenter, VDC constraints, it will be handled separately by adding a BindToGroup
-     * policy to related consumer and providers.
-     *
-     * @param graph The topology graph on which to apply the policies.
-     * @param scenarioChanges list of plan changes to be applied to the policies
-     * @param topologyInfo Information about the topology under construction.
-     * @return a Map the key is policy id, value is related initial placement or reservation entity ids.
-     */
-    @VisibleForTesting
-    ReservationResults handleReservationConstraints(@Nonnull final TopologyGraph<TopologyEntity> graph,
-                                                    @Nonnull final List<ScenarioChange> scenarioChanges,
-                                                    @Nonnull final TopologyInfo topologyInfo) {
-
-        final GetAllReservationsRequest allReservationsRequest = GetAllReservationsRequest
-                .newBuilder().build();
-        final List<Reservation> activeReservations = new ArrayList<>();
-
-        final Set<ReservationStatus> activeReservationTypes = activeReservationTypes(topologyInfo);
-
-        try {
-            reservationService.getAllReservations(allReservationsRequest).forEachRemaining(reservation -> {
-                if (activeReservationTypes.contains(reservation.getStatus())) {
-                    activeReservations.add(reservation);
-                }
-            });
-        } catch (StatusRuntimeException e) {
-            if (topologyInfo.getPlanInfo().getPlanProjectType() != PlanProjectType.RESERVATION_PLAN) {
-                // In the live pipeline not having reservations is bad, but we shouldn't stop the
-                // broadcast completely if there is a plan orchestrator error or if the plan orchestrator is down.
-                logger.error("Failed to fetch reservations." +
-                    " Will continue to run broadcast without reservation constraints in topology. Error: {}", e.getMessage());
-            } else {
-                // In a reservation plan, failure to respect reservation constraints is fatal.
-                throw e;
-            }
-        }
-
-        final ReservationResults results = new ReservationResults();
-
-        // get and add reservation policy constraint to map
-        getReservationPolicyConstraint(activeReservations, results);
-
-        createPoliciesForReservation(graph, activeReservations, results);
-        return results;
-    }
-
-    /**
-     * Get policy constraint for active reservations.
-     *
-     * @param activeReservations all active reservations.
-     * @param reservationResults container for the results of the reservations. Modified by the function!
-     */
-    private void getReservationPolicyConstraint(@Nonnull final List<Reservation> activeReservations,
-                                                @Nonnull final ReservationResults reservationResults) {
-        activeReservations.forEach(reservation -> {
-            final Set<Long> reservationEntityIds = getReservationEntityId(reservation);
-            reservation.getConstraintInfoCollection().getReservationConstraintInfoList().stream()
-                .filter(ReservationConstraintInfo::hasType)
-                .filter(constraint ->
-                    constraint.getType() == ReservationConstraintInfo.Type.POLICY)
-                .forEach(constraint -> {
-                    reservationResults.addExtraConsumers(constraint.getConstraintId(), reservationEntityIds);
-                });
-        });
-    }
-
-    /**
-     * Get all reservation entity id belong to input {@link Reservation}.
-     *
-     * @param reservation input {@link Reservation}.
-     * @return a set of reservation entity ids.
-     */
-    private Set<Long> getReservationEntityId(@Nonnull final Reservation reservation) {
-        return reservation.getReservationTemplateCollection().getReservationTemplateList().stream()
-                .map(ReservationTemplate::getReservationInstanceList)
-                .flatMap(List::stream)
-                .map(ReservationInstance::getEntityId)
-                .collect(Collectors.toSet());
-    }
 
     private Map<Long, Grouping> policyGroupsById(@Nonnull final Stream<Policy> policies) {
         final Set<Long> groupIds = policies.map(GroupProtoUtil::getPolicyGroupIds)
@@ -398,8 +255,7 @@ public class PolicyManager {
     private Stream<PlacementPolicy> getServerPolicies(
                     @Nonnull List<ScenarioChange> changes,
                     @Nonnull List<Policy> livePolicies,
-                    @Nonnull Map<Long, Grouping> groupsById,
-                    @Nonnull ReservationResults reservationResults) {
+                    @Nonnull Map<Long, Grouping> groupsById) {
         // Map from policy ID to whether it is enabled or disabled in the plan
         Map<Long, Boolean> policyOverrides = changes.stream()
                 .filter(ScenarioChange::hasPlanChanges)
@@ -412,7 +268,7 @@ public class PolicyManager {
         return livePolicies.stream()
             .map(policyProto -> {
                 PlacementPolicy policy = policyFactory.newPolicy(policyProto, groupsById,
-                    reservationResults.getExtraConsumersForPolicy(policyProto.getId()),
+                        Collections.emptySet(),
                     Collections.emptySet());
                 final Policy policyDef = policy.getPolicyDefinition();
                 final long policyId = policyDef.getId();
@@ -426,7 +282,7 @@ public class PolicyManager {
                                 .setEnabled(enabledOverride))
                             .build();
                         policy = policyFactory.newPolicy(altPolicyDef, groupsById,
-                            reservationResults.getExtraConsumersForPolicy(altPolicyDef.getId()),
+                                Collections.emptySet(),
                             Collections.emptySet());
                     }
                 }
@@ -454,87 +310,5 @@ public class PolicyManager {
             .filter(PolicyChange::hasPlanOnlyPolicy)
             .map(PolicyChange::getPlanOnlyPolicy)
             .collect(Collectors.toList());
-    }
-
-    private void createPoliciesForReservation(@Nonnull final TopologyGraph<TopologyEntity> graph,
-                                              @Nonnull List<Reservation> activeReservations,
-                                              @Nonnull final ReservationResults reservationResults) {
-        activeReservations.stream()
-            .filter(reservation -> reservation.getConstraintInfoCollection()
-                .getReservationConstraintInfoList().stream()
-                // filter out policy constraint, because all policy constraint will been applied
-                // along with service policy.
-                .filter(ReservationConstraintInfo::hasType)
-                .anyMatch(constraint -> constraint.getType() != ReservationConstraintInfo.Type.POLICY))
-            .forEach(reservation -> {
-                final List<ReservationConstraintInfo> constraintInfos =
-                        reservation.getConstraintInfoCollection()
-                            .getReservationConstraintInfoList();
-                try {
-                    final PlacementPolicy policy = reservationPolicyFactory.generatePolicyForReservation(graph,
-                        constraintInfos, reservation);
-                    reservationResults.addPolicy(policy);
-                } catch (RuntimeException e) {
-                    // We don't expect failures here, because the reservation constraints should
-                    // have been validated by the ReservationManager. We may still get errors if the
-                    // topology is modified between the reservation stage and the policy stage in
-                    // a way that makes previously-valid constraints invalid. But if a single reservation
-                    // fails we don't want to stop the whole broadcast!
-                    logger.error("Failed to generate policy for reservation " + reservation.getId(), e);
-                    reservationResults.recordError(reservation.getId(), e.getMessage());
-                }
-            });
-    }
-
-    /**
-     * Data object to contain the results of handling reservation constraints.
-     */
-    public static class ReservationResults {
-
-        /**
-         * The extra consumers that will be tacked on to specific policies.
-         * i.e. if a reserved entity is constrained by an existing policy, that reserved entity
-         * will be added there.
-         */
-        private final Map<Long, Set<Long>> extraConsumersForPolicies = new HashMap<>();
-
-        /**
-         * Additional policies required to satisfy reservations.
-         * e.g. if a reserved entity is constrained by a network, we create a new policy to ensure
-         * that it will only be placed on hosts related to the network.
-         */
-        private final List<PlacementPolicy> additionalPolicies = new ArrayList<>();
-
-        /**
-         * Errors encountered during reservation handling, arranged by reservation ID.
-         */
-        private final Map<Long, List<String>> errorsByReservationId = new HashMap<>();
-
-        void addExtraConsumers(final Long policyId, @Nonnull final Set<Long> extraConsumers) {
-            extraConsumersForPolicies.computeIfAbsent(policyId, k -> new HashSet<>())
-                .addAll(extraConsumers);
-        }
-
-        void addPolicy(final PlacementPolicy policy) {
-            additionalPolicies.add(policy);
-        }
-
-        void recordError(final Long reservationId, @Nonnull final String errMsg) {
-            errorsByReservationId.computeIfAbsent(reservationId, k -> new ArrayList<>()).add(errMsg);
-        }
-
-        @Nonnull
-        Set<Long> getExtraConsumersForPolicy(final long policyId) {
-            return extraConsumersForPolicies.getOrDefault(policyId, Collections.emptySet());
-        }
-
-        @Nonnull
-        List<? extends PlacementPolicy> getReservationPolicies() {
-            return additionalPolicies;
-        }
-
-        boolean hasErrors() {
-            return !errorsByReservationId.isEmpty();
-        }
     }
 }
