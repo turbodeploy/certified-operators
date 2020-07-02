@@ -8,6 +8,7 @@ import java.util.EnumSet;
 import java.util.function.Function;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -727,9 +728,22 @@ public class ActionInterpreter {
             // TODO: We are considering the destination AZ as the first AZ of the destination
             // region. In case of zonal RIs, we need to get the zone of the RI.
             List<TopologyEntityDTO> connectedEntities = TopologyDTOUtil.getConnectedEntitiesOfType(
-                destinationRegion, EntityType.AVAILABILITY_ZONE_VALUE, originalTopology);
-            destAzOrRegion = connectedEntities.isEmpty() ?
-                destinationRegion : connectedEntities.get(0);
+                    destinationRegion, EntityType.AVAILABILITY_ZONE_VALUE, originalTopology);
+
+            // Try to use the regionId in the moveContext if possible- this is the actual destination
+            if (move.hasMoveContext() && move.getMoveContext().hasRegionId()) {
+                ProjectedTopologyEntity projectedTopologyRegion = projectedTopology.get(
+                        move.getMoveContext().getRegionId());
+                if (Objects.nonNull(projectedTopologyRegion)) {
+                    destAzOrRegion = projectedTopologyRegion.getEntity();
+                }
+            }
+            // We weren't able to get this from the moveContext...
+            if (Objects.isNull(destAzOrRegion)) {
+                destAzOrRegion = connectedEntities.isEmpty()
+                        ? destinationRegion
+                        : connectedEntities.get(0);
+            }
             destTier = destMarketTier.getTier();
         }
 

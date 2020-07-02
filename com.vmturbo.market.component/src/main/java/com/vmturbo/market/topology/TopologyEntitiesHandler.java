@@ -20,6 +20,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.javatuples.Triplet;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -32,8 +33,11 @@ import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
@@ -235,18 +239,24 @@ public class TopologyEntitiesHandler {
         final @NonNull ReplayActions seedActions = isRealtime ? analysis.getReplayActions()
                                                               : new ReplayActions();
 
+        boolean isCloudMigrationPlan = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
         // Set isResize to false for migration to cloud use case. Set isResize to true otherwise.
-        boolean isResize = !TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
+        boolean isResize = !isCloudMigrationPlan;
         // trigger suspension throttling in XL
-        actions = ede.generateActions(economy, true, true, true, isResize,
+        List<Action> marketActions = ede.generateActions(economy, true, true, true, isResize,
                 true, seedActions, marketId, isRealtime,
                 isRealtime ? analysisConfig.getSuspensionsThrottlingConfig() : SuspensionsThrottlingConfig.DEFAULT);
         final long stop = System.nanoTime();
 
+        // TODO: Remove this once shopTogether for Cloud Migration plans is implemented (OM-58943)
+        // This is temporary code that merges associated move actions into CompoundMoves
+        actions = isCloudMigrationPlan
+                ? getProcessedMarketActions(marketActions, economy)
+                : marketActions;
+
         results = AnalysisToProtobuf.analysisResults(actions, topology.getTraderOids(),
             topology.getShoppingListOids(), stop - start,
             topology, startPriceStatement);
-
         if (isRealtime) {
             // run another round of analysis on the new state of the economy with provisions enabled
             // and resize disabled. We add only the provision recommendations to the list of actions generated.
@@ -351,6 +361,55 @@ public class TopologyEntitiesHandler {
                 results.getActionsCount(), results.getProjectedTopoEntityTOCount());
         return results;
     }
+
+    // TODO: Remove this once shopTogether for Cloud Migration plans is implemented (OM-58943)
+    // This is temporary code that merges associated move actions into CompoundMoves
+    private static List<Action> getProcessedMarketActions(
+            @Nonnull final List<Action> marketActions,
+            @Nonnull final Economy economy) {
+        List<Action> actions = Lists.newArrayList();
+        final Map<Boolean, List<Action>> isMoveToActions = marketActions.stream().collect(
+                Collectors.partitioningBy(actionObj -> actionObj.getType() == ActionType.MOVE));
+        List<Action> moveActions = isMoveToActions.get(true);
+        if (!CollectionUtils.isEmpty(moveActions)) {
+            final Map<Integer, List<Action>> economyIndexToMoveActions = moveActions.stream().collect(Collectors.groupingBy(
+                    actionObj -> actionObj.getActionTarget().getEconomyIndex()));
+            final Map<Boolean, Map<Integer, List<Action>>> hasMultipleMovesToEconomyIndexToMoves =
+                    economyIndexToMoveActions.entrySet().stream().collect(
+                            Collectors.partitioningBy(entry -> entry.getValue().size() > 1,
+                                    Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            final Map<Integer, List<Action>> multipleMoveEconomyIndexToMoves =
+                    hasMultipleMovesToEconomyIndexToMoves.get(true);
+            if (!CollectionUtils.isEmpty(multipleMoveEconomyIndexToMoves)) {
+                final List<Action> compoundMoves =
+                        multipleMoveEconomyIndexToMoves.entrySet().stream().map(
+                                economyIndexToMoveAction -> {
+                                    List<ShoppingList> shoppingLists = Lists.newArrayList();
+                                    List<Trader> sources = Lists.newArrayList();
+                                    List<Trader> destinations = Lists.newArrayList();
+                                    economyIndexToMoveAction.getValue().forEach(moveAction -> {
+                                        Move move = (Move)moveAction;
+                                        shoppingLists.add(move.getTarget());
+                                        sources.add(move.getSource());
+                                        destinations.add(move.getDestination());
+                                    });
+                                    return CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
+                                            economy,
+                                            shoppingLists,
+                                            sources,
+                                            destinations);
+                                }).collect(Collectors.toList());
+                actions.addAll(compoundMoves);
+            }
+            final Map<Integer, List<Action>> singleMoveEconomyIndexToMoves =
+                    hasMultipleMovesToEconomyIndexToMoves.get(false);
+            singleMoveEconomyIndexToMoves.values()
+                    .forEach(moveList -> actions.addAll(moveList));
+        }
+        actions.addAll(isMoveToActions.get(false));
+        return actions;
+    }
+
 
     /**
      * Create TraderTOs from provisioned traders from second round
