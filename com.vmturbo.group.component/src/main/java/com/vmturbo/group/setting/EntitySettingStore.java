@@ -198,14 +198,14 @@ public class EntitySettingStore {
             final Predicate<SettingToPolicyId> namePredicate =
                     s -> settingSpecsToSave.contains(s.getSetting().getSettingSpecName());
 
-            final Multimap<Long, Setting> entityToSettingMap = HashMultimap.create();
-            final Multimap<Setting, Long> settingToEntityMap = HashMultimap.create();
+            final Multimap<Long, SettingToPolicyId> entityToSettingMap = HashMultimap.create();
+            final Multimap<SettingToPolicyId, Long> settingToEntityMap = HashMultimap.create();
 
             for (EntitySettings userSettings : newSnapshot.settingsByEntity.values()) {
                 newSnapshot.getEntitySettings(userSettings.getEntityOid(), namePredicate)
                         .forEach(s -> {
-                            entityToSettingMap.put(userSettings.getEntityOid(), s.getSetting());
-                            settingToEntityMap.put(s.getSetting(), userSettings.getEntityOid());
+                            entityToSettingMap.put(userSettings.getEntityOid(), s);
+                            settingToEntityMap.put(s, userSettings.getEntityOid());
                         });
             }
             settingStore.savePlanEntitySettings(topologyContextId, entityToSettingMap, settingToEntityMap);

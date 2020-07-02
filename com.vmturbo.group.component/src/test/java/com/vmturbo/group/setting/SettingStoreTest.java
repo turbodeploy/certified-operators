@@ -1045,16 +1045,22 @@ public class SettingStoreTest {
      */
     @Test
     public void testSaveGetAndDeletePlanSettings() throws Exception {
-        final Setting setting = Setting.newBuilder()
-                .setSettingSpecName("maxObservationPeriodVirtualMachine")
-                .setNumericSettingValue(NumericSettingValue.getDefaultInstance())
-                .build();
         final long planId = 1L;
         final long vmId = 100L;
-        final Multimap<Long, Setting> entityToSettingMap = HashMultimap.create();
-        final Multimap<Setting, Long> settingToEntityMap = HashMultimap.create();
-        entityToSettingMap.put(vmId, setting);
-        settingToEntityMap.put(setting, vmId);
+        final long policyId1 = 481516L;
+        final long policyId2 = 2342L;
+        final Setting setting = Setting.newBuilder()
+            .setSettingSpecName("maxObservationPeriodVirtualMachine")
+            .setNumericSettingValue(NumericSettingValue.getDefaultInstance())
+            .build();
+        final SettingToPolicyId settingToPolicyId = SettingToPolicyId.newBuilder()
+            .setSetting(setting)
+            .addAllSettingPolicyId(Arrays.<Long>asList(policyId1, policyId2))
+            .build();
+        final Multimap<Long, SettingToPolicyId> entityToSettingMap = HashMultimap.create();
+        final Multimap<SettingToPolicyId, Long> settingToEntityMap = HashMultimap.create();
+        entityToSettingMap.put(vmId, settingToPolicyId);
+        settingToEntityMap.put(settingToPolicyId, vmId);
         settingStore.savePlanEntitySettings(planId, entityToSettingMap, settingToEntityMap);
 
         Map<Long, Collection<SettingToPolicyId>> settingsMap =
@@ -1062,7 +1068,14 @@ public class SettingStoreTest {
         Collection<SettingToPolicyId> settingToPolicyIds = settingsMap.get(vmId);
         assertNotNull(settingToPolicyIds);
         assertEquals(1, settingsMap.keySet().size());
+        assertEquals(1, settingToPolicyIds.size());
+
+        List<Long> policyIdList = settingToPolicyId.getSettingPolicyIdList();
+        assertTrue(policyIdList.contains(policyId1));
+        assertTrue(policyIdList.contains(policyId2));
+
         assertEquals(vmId, settingsMap.keySet().stream().findFirst().get().longValue());
+
         assertThat(settingStore.getContextsWithSettings(), containsInAnyOrder(planId));
 
         settingStore.deletePlanSettings(planId);

@@ -38,7 +38,6 @@ import com.google.gson.Gson;
 import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -362,7 +361,7 @@ public class TopologyConverter {
                              @Nonnull final MarketPriceTable marketPriceTable,
                              @Nonnull final CloudCostData cloudCostData,
                              @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @NonNull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory
                                      consistentScalingHelperFactory) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
@@ -399,7 +398,7 @@ public class TopologyConverter {
                              @Nonnull final MarketPriceTable marketPriceTable,
                              @Nonnull CommodityConverter incomingCommodityConverter,
                              @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @NonNull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory
                                      consistentScalingHelperFactory) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
@@ -448,7 +447,7 @@ public class TopologyConverter {
                              @Nonnull final MarketPriceTable marketPriceTable,
                              @Nonnull final CloudCostData cloudCostData,
                              @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @NonNull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory
                                      consistentScalingHelperFactory) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
@@ -793,7 +792,7 @@ public class TopologyConverter {
      * @return The {@link Action} describing the recommendation in a topology-specific way.
      */
     @Nonnull
-    public List<Action> interpretAllActions(@NonNull final List<ActionTO> actionTOs,
+    public List<Action> interpretAllActions(@Nonnull final List<ActionTO> actionTOs,
                                               @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
                                               @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
                                               @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
@@ -836,8 +835,8 @@ public class TopologyConverter {
      *
      * @return The {@link Action} describing the recommendation in a topology-specific way.
      */
-    @NonNull
-    Optional<Action> interpretAction(@NonNull final ActionTO actionTO,
+    @Nonnull
+    Optional<Action> interpretAction(@Nonnull final ActionTO actionTO,
                                      @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
                                      @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
                                      @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
@@ -2515,6 +2514,8 @@ public class TopologyConverter {
             }
             // Create template exclusion commodity bought
             values.addAll(createTierExclusionCommodityBoughtForCloudEntity(providerOid, entityForSLOid));
+        } else if (isCloudMigration) {
+            values.addAll(createTierExclusionCommodityBoughtForMigratingEntity(providerOid, entityForSLOid));
         }
         final long id = shoppingListId++;
         // Check if the provider of the shopping list is UNKNOWN. If true, set movable false.
@@ -2691,22 +2692,53 @@ public class TopologyConverter {
      * @param buyerOid the cloud consumer
      * @return the list of template exclusion commodities the cloud consumer needs to buy
      */
+    @Nonnull
     private Set<CommodityBoughtTO> createTierExclusionCommodityBoughtForCloudEntity(
             long providerOid, long buyerOid) {
         MarketTier marketTier = cloudTc.getMarketTier(providerOid);
         int providerEntityType = marketTier.getTier().getEntityType();
         if (TopologyDTOUtil.isPrimaryTierEntityType(providerEntityType)) {
-            return tierExcluder.getTierExclusionCommoditiesToBuy(buyerOid).stream()
-                .map(ct -> {
-                    final CommoditySpecificationTO commoditySpec =
-                            commodityConverter.commoditySpecification(ct);
-                    return CommodityBoughtTO.newBuilder()
-                                .setSpecification(commoditySpec)
-                            .build();
-                })
-                .collect(Collectors.toSet());
+            return createTierExclusionCommodityBought(buyerOid);
         }
         return Collections.emptySet();
+    }
+
+    /**
+     * Creates template exclusion commodities bought for cloud consumer that is
+     * currently on-prem.
+     *
+     * @param providerOid oid of the provider
+     * @param buyerOid the cloud consumer
+     * @return the list of template exclusion commodities the consumer needs to buy
+     */
+    @Nonnull
+    private Set<CommodityBoughtTO> createTierExclusionCommodityBoughtForMigratingEntity(
+        long providerOid, long buyerOid) {
+
+        TopologyEntityDTO provider = entityOidToDto.get(providerOid);
+        if (provider != null && provider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+            return createTierExclusionCommodityBought(buyerOid);
+        }
+        return Collections.emptySet();
+    }
+
+    /**
+     * Creates template exclusion commodities which need to be bought to exclude tiers.
+     *
+     * @param buyerOid the consumer
+     * @return the list of template exclusion commodities the consumer needs to buy
+     */
+    @Nonnull
+    private Set<CommodityBoughtTO> createTierExclusionCommodityBought(final long buyerOid) {
+        return tierExcluder.getTierExclusionCommoditiesToBuy(buyerOid).stream()
+            .map(ct -> {
+                final CommoditySpecificationTO commoditySpec =
+                    commodityConverter.commoditySpecification(ct);
+                return CommodityBoughtTO.newBuilder()
+                    .setSpecification(commoditySpec)
+                    .build();
+            })
+            .collect(Collectors.toSet());
     }
 
     /**

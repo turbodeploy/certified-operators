@@ -4,6 +4,7 @@ import static com.vmturbo.group.db.Tables.ENTITY_SETTINGS;
 import static com.vmturbo.group.db.Tables.GLOBAL_SETTINGS;
 import static com.vmturbo.group.db.Tables.SETTINGS;
 import static com.vmturbo.group.db.Tables.SETTINGS_OIDS;
+import static com.vmturbo.group.db.Tables.SETTINGS_POLICIES;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_GROUPS;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_SETTING;
@@ -96,6 +97,7 @@ import com.vmturbo.group.db.tables.records.SettingPolicySettingOidsRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingScheduleIdsRecord;
 import com.vmturbo.group.db.tables.records.SettingsOidsRecord;
+import com.vmturbo.group.db.tables.records.SettingsPoliciesRecord;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.sdk.common.util.Pair;
 
@@ -1439,12 +1441,12 @@ public class SettingStore implements DiagsRestorable {
      * @param settingToEntityMap a multimap that maps settings to list of entities that use it.
      */
     public void savePlanEntitySettings(final long topologyContextId,
-                                       @Nonnull Multimap<Long, Setting> entityToSettingMap,
-                                       @Nonnull Multimap<Setting, Long> settingToEntityMap) {
+                                       @Nonnull Multimap<Long, SettingToPolicyId> entityToSettingMap,
+                                       @Nonnull Multimap<SettingToPolicyId, Long> settingToEntityMap) {
         // Insert unique settings into database
-        final Map<Setting, Integer> settingToIdMap = new HashMap<>();
-        settingToEntityMap.keySet().forEach(setting -> {
-            final SettingAdapter settingAdapter = new SettingAdapter(setting);
+        final Map<SettingToPolicyId, Integer> settingToIdMap = new HashMap<>();
+        settingToEntityMap.keySet().forEach(settingToPolicy -> {
+            final SettingAdapter settingAdapter = new SettingAdapter(settingToPolicy.getSetting());
             final Record record = dslContext.insertInto(SETTINGS, SETTINGS.TOPOLOGY_CONTEXT_ID,
                     SETTINGS.SETTING_NAME, SETTINGS.SETTING_TYPE, SETTINGS.SETTING_VALUE)
                     .values(topologyContextId, settingAdapter.getSettingName(),
@@ -1458,8 +1460,19 @@ public class SettingStore implements DiagsRestorable {
                     oidRecords.add(new SettingsOidsRecord(settingId, oid));
                 }
                 dslContext.batchInsert(oidRecords).execute();
+
+                // Save the policy(s) that are responsible for the setting. It can be multiple,
+                // for example in the case of compute tier exclusions where excluded compute tiers
+                // are the union of the exclusions from each policy.
+                final List<TableRecord<?>> policyRecords =
+                    new ArrayList<>(settingToPolicy.getSettingPolicyIdList().size());
+                for (Long policyId : settingToPolicy.getSettingPolicyIdList()) {
+                    policyRecords.add(new SettingsPoliciesRecord(settingId, policyId));
+                }
+                dslContext.batchInsert(policyRecords).execute();
             }
-            settingToIdMap.put(setting, settingId);
+
+            settingToIdMap.put(settingToPolicy, settingId);
         });
 
         // Insert entity to setting association to plan_entity_settings table.
@@ -1510,8 +1523,17 @@ public class SettingStore implements DiagsRestorable {
             }
             final SettingAdapter settingAdapter = new SettingAdapter(settingName, settingType,
                     value, oids);
+            final List<Long> policyIds = new ArrayList<>();
+            final Result<?> settingsPolicies = dslContext.select().from(SETTINGS_POLICIES)
+                .where(SETTINGS_POLICIES.SETTING_ID.eq(settingId))
+                .orderBy(SETTINGS_POLICIES.POLICY_ID)
+                .fetch();
+            for (Record settingsPoliciesRecord : settingsPolicies) {
+                policyIds.add(settingsPoliciesRecord.get(SETTINGS_POLICIES.POLICY_ID));
+            }
             final SettingToPolicyId settingToPolicyId = SettingToPolicyId.newBuilder()
                     .setSetting(settingAdapter.getSetting())
+                    .addAllSettingPolicyId(policyIds)
                     .build();
             entityToSettingsMap.put(entityId, settingToPolicyId);
         }
