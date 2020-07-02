@@ -44,6 +44,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -94,7 +95,6 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
@@ -135,6 +135,7 @@ public class ActionExecutionSecureRpcTest {
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
+    private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
@@ -167,15 +168,9 @@ public class ActionExecutionSecureRpcTest {
         mock(InvolvedEntitiesExpander.class);
 
     private final ActionsRpcService actionsRpcService =
-        new ActionsRpcService(clock,
-            actionStorehouse,
-            actionApprovalManager,
-            actionTranslator,
-            paginatorFactory,
-            statReader,
-            currentActionStatReader,
-            userSessionContext, acceptedActionsStore,
-            500);
+            new ActionsRpcService(clock, actionStorehouse, actionApprovalManager, actionTranslator,
+                    paginatorFactory, statReader, currentActionStatReader, userSessionContext,
+                    acceptedActionsStore, rejectedActionsStore, 500);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
     private ActionStore actionStoreSpy;
@@ -274,13 +269,12 @@ public class ActionExecutionSecureRpcTest {
 
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-            actionHistoryDao, actionsStatistician, actionTranslator, atomicActionFactory,
-            clock, userSessionContext,
-            licenseCheckClient, acceptedActionsStore, actionIdentityService,
-            involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class)));
+                RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+                actionsStatistician, actionTranslator, atomicActionFactory, clock,
+                userSessionContext, licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
+                actionIdentityService, involvedEntitiesExpander,
+                Mockito.mock(ActionAuditSender.class)));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

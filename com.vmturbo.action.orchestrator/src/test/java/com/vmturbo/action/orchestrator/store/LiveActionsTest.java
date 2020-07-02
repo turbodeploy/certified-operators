@@ -31,6 +31,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -51,6 +53,8 @@ import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.RejectedActionInfo;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
@@ -77,6 +81,7 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.identity.ArrayOidSet;
@@ -89,8 +94,6 @@ public class LiveActionsTest {
 
     private ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
 
-    private EntitiesAndSettingsSnapshot entitiesCache = mock(EntitiesAndSettingsSnapshot.class);
-
     private ActionTargetSelector actionTargetSelector = Mockito.mock(ActionTargetSelector.class);
 
     private Clock clock = new MutableFixedClock(1_000_000);
@@ -99,6 +102,7 @@ public class LiveActionsTest {
 
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
+    private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
 
     private final InvolvedEntitiesExpander involvedEntitiesExpander = mock(InvolvedEntitiesExpander.class);
 
@@ -109,9 +113,9 @@ public class LiveActionsTest {
      */
     @Before
     public void setup() {
-        liveActions = new LiveActions(
-            actionHistoryDao, acceptedActionsStore, clock, queryFilterFactory, userSessionContext,
-            involvedEntitiesExpander);
+        liveActions =
+                new LiveActions(actionHistoryDao, acceptedActionsStore, rejectedActionsStore, clock,
+                        queryFilterFactory, userSessionContext, involvedEntitiesExpander);
         when(involvedEntitiesExpander.expandInvolvedEntitiesFilter(anyCollection())).thenAnswer(
             (Answer<InvolvedEntitiesFilter>)invocationOnMock -> {
                 Set<Long> oids = new HashSet<>(
@@ -192,8 +196,8 @@ public class LiveActionsTest {
 
     /**
      * Test action state's recovery after restarting action-orchestration component.
-     * Accepted actions updates their states from READY to ACCEPTED.
-     * Actions with removed acceptance updates their states from ACCEPTED to READY.
+     * Accepted actions update their states from READY to ACCEPTED.
+     * Actions with removed acceptance update their states from ACCEPTED to READY.
      *
      * @throws UnsupportedActionException if something goes wrong
      */
@@ -204,7 +208,7 @@ public class LiveActionsTest {
 
         final Action acceptedAction = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         acceptedAction.getActionTranslation().setPassthroughTranslationSuccess();
-        final Action actionWithRemovedAcceptance = createActionWithRemovedAcceptance();
+        final Action actionWithRemovedAcceptance = createActionWithCertainState(ActionState.ACCEPTED);
 
         final EntitiesAndSettingsSnapshot entityCacheSnapshot =
                 mock(EntitiesAndSettingsSnapshot.class);
@@ -263,6 +267,50 @@ public class LiveActionsTest {
     }
 
     /**
+     * Test action state's recovery after restarting action-orchestration component.
+     * Rejected actions update their states from READY to REJECTED.
+     * Actions with removed rejection update their states from REJECTED to READY.
+     */
+    @Test
+    public void testUpdatingActionStatesForRejectedActions() {
+        final Action rejectedAction = ActionOrchestratorTestUtils.createMoveAction(1, 2);
+        rejectedAction.getActionTranslation().setPassthroughTranslationSuccess();
+        final Action actionWithRemovedRejection =
+                createActionWithCertainState(ActionState.REJECTED);
+
+        final EntitiesAndSettingsSnapshot entityCacheSnapshot =
+                mock(EntitiesAndSettingsSnapshot.class);
+        Mockito.when(entityCacheSnapshot.getOwnerAccountOfEntity(anyLong()))
+                .thenReturn(Optional.empty());
+        Mockito.when(entityCacheSnapshot.getAcceptingUserForAction(anyLong()))
+                .thenReturn(Optional.empty());
+
+        Mockito.when(rejectedActionsStore.getAllRejectedActions())
+                .thenReturn(Collections.singletonList(
+                        new RejectedActionInfo(rejectedAction.getRecommendationOid(), "Rejector",
+                                LocalDateTime.now(), StringConstants.TURBO_USER_TYPE,
+                                Collections.singleton(1121L))));
+
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,
+                rejectedAction);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,
+                actionWithRemovedRejection);
+
+        Assert.assertEquals(ActionState.READY, rejectedAction.getState());
+        Assert.assertEquals(ActionState.REJECTED, actionWithRemovedRejection.getState());
+
+        // ACT
+        liveActions.updateMarketActions(Collections.emptyList(),
+                Arrays.asList(rejectedAction, actionWithRemovedRejection), entityCacheSnapshot,
+                actionTargetSelector);
+
+        Assert.assertThat(liveActions.getAll().collect(Collectors.toList()),
+                containsInAnyOrder(rejectedAction, actionWithRemovedRejection));
+        Assert.assertEquals(ActionState.REJECTED, rejectedAction.getState());
+        Assert.assertEquals(ActionState.READY, actionWithRemovedRejection.getState());
+    }
+
+    /**
      * Tests updating latest recommendation time for accepted actions.
      *
      * @throws Exception if something goes wrong
@@ -316,7 +364,6 @@ public class LiveActionsTest {
         Mockito.verify(acceptedActionsStore)
                 .updateLatestRecommendationTime(
                         Collections.singletonList(acceptedAction.getRecommendationOid()));
-        Mockito.verifyNoMoreInteractions(acceptedActionsStore);
     }
 
     @Test
@@ -583,9 +630,9 @@ public class LiveActionsTest {
             ActionOrchestratorTestUtils.createMoveRecommendation(3, 13, 23, 0, 33, 0),
             1);
 
-        liveActions = new LiveActions(
-            actionHistoryDao, acceptedActionsStore, clock, QueryFilter::new, userSessionContext,
-            involvedEntitiesExpander);
+        liveActions =
+                new LiveActions(actionHistoryDao, acceptedActionsStore, rejectedActionsStore, clock,
+                        QueryFilter::new, userSessionContext, involvedEntitiesExpander);
         liveActions.replaceMarketActions(Stream.of(
             moveActionInTarget, moveActionInSource, moveActionInDestination));
 
@@ -796,13 +843,13 @@ public class LiveActionsTest {
         assertThat(liveActions.getAction(move13Action.getId()).get(), is(move13Action));
     }
 
-    private Action createActionWithRemovedAcceptance() {
+    private Action createActionWithCertainState(@Nonnull ActionState actionState) {
         final ActionDTO.Action recommendation =
                 ActionOrchestratorTestUtils.createMoveRecommendation(2);
 
         final SerializationState actionSerializedState =
                 new SerializationState(2L, recommendation, LocalDateTime.now(),
-                        ActionDecision.getDefaultInstance(), null, ActionState.ACCEPTED,
+                        ActionDecision.getDefaultInstance(), null, actionState,
                         new ActionTranslation(recommendation), null, null,
                         "Move VM action".getBytes(), 2244L);
         return ActionOrchestratorTestUtils.createActionFromSerializedState(actionSerializedState);

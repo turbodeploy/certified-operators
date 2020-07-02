@@ -16,6 +16,7 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
@@ -57,7 +58,8 @@ public class ActionApprovalSender {
         final ActionApprovalRequests.Builder builder = ActionApprovalRequests.newBuilder();
         for (Action action : store.getActions()
                 .values()) {
-            if (action.getMode() == ActionMode.EXTERNAL_APPROVAL) {
+            if (action.getMode() == ActionMode.EXTERNAL_APPROVAL
+                    && action.getState() != ActionState.REJECTED) {
                 final Optional<ActionDTO.Action> recommendationOptional =
                         action.getActionTranslation()
                                 .getTranslatedRecommendation();

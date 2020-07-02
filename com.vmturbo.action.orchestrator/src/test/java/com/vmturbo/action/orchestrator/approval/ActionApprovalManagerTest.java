@@ -95,8 +95,7 @@ public class ActionApprovalManagerTest {
             actionTargetSelector,
             entitiesAndSettingsSnapshotFactory,
             actionTranslator,
-            workflowStore,
-            acceptedActionsDAO);
+            workflowStore, acceptedActionsDAO);
     }
 
     /**

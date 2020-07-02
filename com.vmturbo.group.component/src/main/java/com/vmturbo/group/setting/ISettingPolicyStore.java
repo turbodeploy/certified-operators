@@ -75,8 +75,8 @@ public interface ISettingPolicyStore {
      *
      * @param id the policy id
      * @param newPolicyInfo new policy info overwriting the previous one
-     * @return pair of updated setting policy and flag describing should we remove accepted actions
-     * associated with policy or not
+     * @return pair of updated setting policy and flag describing should we remove accepted and
+     * rejected actions associated with policy or not
      * @throws StoreOperationException if store operation failed
      */
     @Nonnull

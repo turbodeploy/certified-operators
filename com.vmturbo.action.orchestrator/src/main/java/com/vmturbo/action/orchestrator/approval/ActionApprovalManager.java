@@ -17,7 +17,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
-import com.vmturbo.action.orchestrator.exception.AcceptedActionStoreOperationException;
+import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -235,9 +235,9 @@ public class ActionApprovalManager {
                 final LocalDateTime currentTime = LocalDateTime.now();
                 final String acceptingUserType;
                 if (action.getMode() == ActionMode.EXTERNAL_APPROVAL) {
-                    acceptingUserType = StringConstants.EXTERNAL_ORCHESTRATOR_ACCEPTING_USER_TYPE;
+                    acceptingUserType = StringConstants.EXTERNAL_ORCHESTRATOR_USER_TYPE;
                 } else {
-                    acceptingUserType = StringConstants.TURBO_ACCEPTING_USER_TYPE;
+                    acceptingUserType = StringConstants.TURBO_USER_TYPE;
                 }
                 acceptedActionsStore.persistAcceptedAction(action.getRecommendationOid(),
                         currentTime, acceptingUser, currentTime, acceptingUserType,
@@ -254,7 +254,7 @@ public class ActionApprovalManager {
                                 + " was not persisted.", action.getId());
                 isFailedPersisting = true;
             }
-        } catch (AcceptedActionStoreOperationException e) {
+        } catch (ActionStoreOperationException e) {
             logger.error("Failed to persist acceptance for action {}", action.getId(), e);
             isFailedPersisting = true;
         }
@@ -282,6 +282,4 @@ public class ActionApprovalManager {
                     + "associated schedule.", action.toString());
         }
     }
-
-
 }

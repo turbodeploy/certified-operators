@@ -36,6 +36,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -57,7 +58,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -108,8 +108,6 @@ public class LiveActionStore implements ActionStore {
 
     private final ActionTranslator actionTranslator;
 
-    private final UserSessionContext userSessionContext;
-
     private final LicenseCheckClient licenseCheckClient;
 
     private final IdentityService<ActionInfo> actionIdentityService;
@@ -120,8 +118,6 @@ public class LiveActionStore implements ActionStore {
 
     private final EntitiesWithNewStateCache entitiesWithNewStateCache;
     private final ActionAuditSender actionAuditSender;
-
-    private final AcceptedActionsDAO acceptedActionStore;
 
     /**
      * A mutable (real-time) action is considered visible (from outside the Action Orchestrator's perspective)
@@ -155,11 +151,11 @@ public class LiveActionStore implements ActionStore {
      * @param involvedEntitiesExpander used for expanding entities and determining how involved
      *                                 entities should be filtered.
      * @param acceptedActionsStore dao layer working with accepted actions
+     * @param rejectedActionsStore dao layer working with rejected actions
      * @param actionAuditSender action audit sender to receive new generated actions
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
-                           @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
                            @Nonnull final RepositoryServiceBlockingStub repositoryService,
                            @Nonnull final ActionTargetSelector actionTargetSelector,
                            @Nonnull final ProbeCapabilityCache probeCapabilityCache,
@@ -172,29 +168,31 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final UserSessionContext userSessionContext,
                            @Nonnull final LicenseCheckClient licenseCheckClient,
                            @Nonnull final AcceptedActionsDAO acceptedActionsStore,
+                           @Nonnull final RejectedActionsDAO rejectedActionsStore,
                            @Nonnull final IdentityService<ActionInfo> actionIdentityService,
                            @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander,
                            @Nonnull final ActionAuditSender actionAuditSender
     ) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
-        this.severityCache = new EntitySeverityCache(repositoryService, true);
-        this.actionTargetSelector = actionTargetSelector;
-        this.probeCapabilityCache = probeCapabilityCache;
-        this.entitySettingsCache = entitySettingsCache;
-        this.actionHistoryDao = actionHistoryDao;
-        this.clock = clock;
-        this.actions = new LiveActions(
-            actionHistoryDao, acceptedActionsStore, clock, userSessionContext,
-            involvedEntitiesExpander);
+        this.severityCache =
+                new EntitySeverityCache(Objects.requireNonNull(repositoryService), true);
+        this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
+        this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
+        this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
+        this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
+        this.clock = Objects.requireNonNull(clock);
+        this.actions =
+                new LiveActions(actionHistoryDao, Objects.requireNonNull(acceptedActionsStore),
+                        Objects.requireNonNull(rejectedActionsStore), clock,
+                        Objects.requireNonNull(userSessionContext),
+                        Objects.requireNonNull(involvedEntitiesExpander));
         this.actionsStatistician = Objects.requireNonNull(liveActionsStatistician);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.atomicActionFactory = Objects.requireNonNull(atomicActionFactory);
-        this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.actionIdentityService = Objects.requireNonNull(actionIdentityService);
         this.entitiesWithNewStateCache = new EntitiesWithNewStateCache(actions);
-        this.acceptedActionStore = acceptedActionsStore;
         this.actionAuditSender = Objects.requireNonNull(actionAuditSender);
     }
 
@@ -331,7 +329,8 @@ public class LiveActionStore implements ActionStore {
             final List<Action> actionsToRemove = new ArrayList<>();
 
             actions.doForEachMarketAction(action -> {
-                // Only retain IN-PROGRESS, QUEUED, ACCEPTED and READY actions which are re-recommended.
+                // Only retain IN-PROGRESS, QUEUED, ACCEPTED, REJECTED and READY actions which are
+                // re-recommended.
                 switch (action.getState()) {
                     case IN_PROGRESS:
                     case QUEUED:
@@ -339,6 +338,7 @@ public class LiveActionStore implements ActionStore {
                         break;
                     case READY:
                     case ACCEPTED:
+                    case REJECTED:
                         recommendations.add(action);
                         actionsToRemove.add(action);
                         break;
@@ -387,11 +387,13 @@ public class LiveActionStore implements ActionStore {
                     // If we are re-using an existing action, we should update the recommendation
                     // so other properties that may have changed (e.g. importance, executability)
                     // reflect the most recent recommendation from the market. However, we only
-                    // do this for "READY" or "ACCEPTED" actions. An IN_PROGRESS or QUEUED action
-                    // is considered "fixed" until it either succeeds or fails.
+                    // do this for "READY", "ACCEPTED", "REJECTED" actions.
+                    // An IN_PROGRESS or QUEUED action is considered "fixed" until it either succeeds or fails.
                     // TODO (roman, Oct 31 2018): If a QUEUED action becomes non-executable, it
                     // may be worth clearing it.
-                    if (action.getState() == ActionState.READY || action.getState() == ActionState.ACCEPTED) {
+                    if (action.getState() == ActionState.READY
+                            || action.getState() == ActionState.ACCEPTED
+                            || action.getState() == ActionState.REJECTED) {
                         action.updateRecommendation(recommendedAction);
                     }
                 } else {
@@ -400,7 +402,7 @@ public class LiveActionStore implements ActionStore {
                     newActionIds.add(action.getId());
                 }
                 final ActionState actionState = action.getState();
-                if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED) {
+                if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED || actionState == ActionState.REJECTED) {
                     actionsToTranslate.add(action);
                 }
             }

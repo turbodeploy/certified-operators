@@ -54,19 +54,16 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFac
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -118,10 +115,6 @@ public class ActionQueryRpcTest {
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
-    private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
-    private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
-    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache = mock(EntitiesAndSettingsSnapshotFactory.class);
-    private final WorkflowStore workflowStore = mock(WorkflowStore.class);
     private final HistoricalActionStatReader historicalStatReader = mock(HistoricalActionStatReader.class);
     private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
@@ -140,6 +133,7 @@ public class ActionQueryRpcTest {
 
     private final Clock clock = new MutableFixedClock(1_000_000);
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
+    private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
 
 
     private ActionsRpcService actionsRpcService;
@@ -160,15 +154,18 @@ public class ActionQueryRpcTest {
     @Before
     public void setup() throws Exception {
         approvalManager = Mockito.mock(ActionApprovalManager.class);
-        actionsRpcService = new ActionsRpcService(clock, actionStorehouse, approvalManager,
-                actionTranslator, paginatorFactory, historicalStatReader, liveStatReader,
-                userSessionContext, acceptedActionsStore, 500);
+        actionsRpcService =
+                new ActionsRpcService(clock, actionStorehouse, approvalManager, actionTranslator,
+                        paginatorFactory, historicalStatReader, liveStatReader, userSessionContext,
+                        acceptedActionsStore, rejectedActionsStore, 500);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
 
-        actionsRpcServiceWithFailedTranslator = new ActionsRpcService(clock, actionStorehouse,
-                approvalManager, actionTranslatorWithFailedTranslation, paginatorFactory,
-                historicalStatReader, liveStatReader, userSessionContext, acceptedActionsStore, 500);
+        actionsRpcServiceWithFailedTranslator =
+                new ActionsRpcService(clock, actionStorehouse, approvalManager,
+                        actionTranslatorWithFailedTranslation, paginatorFactory,
+                        historicalStatReader, liveStatReader, userSessionContext,
+                        acceptedActionsStore, rejectedActionsStore, 500);
         IdentityGenerator.initPrefix(0);
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         grpcServerForFailedTranslation = GrpcTestServer.newServer(actionsRpcServiceWithFailedTranslator);

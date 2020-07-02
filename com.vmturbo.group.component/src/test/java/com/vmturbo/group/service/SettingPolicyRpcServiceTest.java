@@ -39,7 +39,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesAndRejectionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -527,8 +527,8 @@ public class SettingPolicyRpcServiceTest {
     }
 
     /**
-     * Test that after deleting settingPolicy we cancel queued actions and remove acceptance for
-     * actions associated with this policy.
+     * Test that after deleting settingPolicy we cancel queued actions and remove acceptance and
+     * rejection for actions associated with this policy.
      *
      * @throws Exception if something goes wrong
      */
@@ -546,8 +546,8 @@ public class SettingPolicyRpcServiceTest {
 
         verify(actionServiceMole).cancelQueuedActions(
                 CancelQueuedActionsRequest.getDefaultInstance());
-        verify(actionServiceMole).removeActionsAcceptances(
-                RemoveActionsAcceptancesRequest.newBuilder()
+        verify(actionServiceMole).removeActionsAcceptancesAndRejections(
+                RemoveActionsAcceptancesAndRejectionsRequest.newBuilder()
                         .setPolicyId(automationSettingPolicy.getId())
                         .build());
     }
