@@ -35,6 +35,11 @@ public class ShoppingListInfo {
     public final Long resourceId;
 
     /**
+     *  The collapsed buyer id. For eg. cloud volume id.
+     */
+    public final Long collapsedBuyerId;
+
+    /**
      * The entity type of seller of the shopping list and it could be null when the shopping list
      * is from newly provisioned trader.
      */
@@ -49,12 +54,14 @@ public class ShoppingListInfo {
                             final long buyerId,
                             @Nullable final Long sellerId,
                             @Nullable final Long resourceId,
+                            @Nullable final Long collapsedBuyerId,
                             @Nullable final Integer sellerEntityType,
                             @Nonnull final List<CommodityBoughtDTO> commodities) {
         this.id = id;
         this.buyerId = buyerId;
         this.sellerId = sellerId;
         this.resourceId = resourceId;
+        this.collapsedBuyerId = collapsedBuyerId;
         this.sellerEntityType = sellerEntityType;
         this.commodities = commodities;
     }
@@ -76,5 +83,15 @@ public class ShoppingListInfo {
      */
     public Optional<Long> getResourceId() {
         return Optional.ofNullable(this.resourceId);
+    }
+
+    /**
+     * Get collapsedBuyerId for a shoppingList. For example, cloud volume id.
+     *
+     * @return collapsed buyer id.
+     */
+    @Nullable
+    public Long getCollapsedBuyerId() {
+        return collapsedBuyerId;
     }
 }

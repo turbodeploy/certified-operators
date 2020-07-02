@@ -1679,4 +1679,50 @@ public class TopologyConverterToMarketTest {
             }
         }
     }
+
+    /**
+     * The intent of this test is to ensure that for entities which have collapsed relationship, shoppingLists
+     * are created based on the collapsed entities.
+     * For example, for cloud VMs which consume from cloud volumes, VMs will be trader and volumes are collapsed.
+     * @throws IOException when one of the files cannot be load
+     */
+    @Test
+    public void testConvertEntityWithCollapsing() throws IOException {
+        final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
+                messageFromJsonFile("protobuf/messages/cloud-volume.json"),
+                messageFromJsonFile("protobuf/messages/cloud-vm.json"),
+                messageFromJsonFile("protobuf/messages/cloud-storageTier.json"))
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
+                MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable,
+                ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
+        Set<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
+        assertEquals(2, traderTOs.size());
+        // One of the trader is for StorageTier.
+        Optional<TraderTO> storageTierTraderTO = traderTOs.stream().filter(t -> t.getType() == EntityType.STORAGE_TIER_VALUE).findAny();
+        assertTrue(storageTierTraderTO.isPresent());
+        // The other trader is for VirtualMachine.
+        TraderTO entityTraderTO = traderTOs.stream().filter(t -> t.getType() != EntityType.STORAGE_TIER_VALUE).findAny().orElse(null);
+        assertNotNull(entityTraderTO);
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, entityTraderTO.getType());
+
+        // Test the shoppingList within the VM trader which represents cloud volume.
+        ShoppingListTO volumeSL = entityTraderTO.getShoppingListsCount() > 0 ? entityTraderTO.getShoppingLists(0) : null;
+        assertNotNull(volumeSL);
+        // shoppingList provider is storageTier
+        assertEquals(storageTierTraderTO.get().getOid(), volumeSL.getSupplier());
+        CommodityBoughtTO commodityBoughtTO = volumeSL.getCommoditiesBoughtCount() > 0 ? volumeSL.getCommoditiesBought(0) : null;
+        assertNotNull(commodityBoughtTO);
+        assertEquals(1506, commodityBoughtTO.getAssignedCapacityForBuyer(), 0.01f);
+        assertEquals(1506 * 0.01f, commodityBoughtTO.getQuantity(), 0.01f);
+        // Test ShoppingListInfo
+        assertEquals(1, topologyConverter.getShoppingListOidToInfos().size());
+        ShoppingListInfo shoppingListInfo = topologyConverter.getShoppingListOidToInfos().values().iterator().next();
+        assertNotNull(shoppingListInfo.getCollapsedBuyerId());
+        // Test collapsedBuyerId
+        assertEquals(73442089143125L, shoppingListInfo.getCollapsedBuyerId().longValue());
+
+    }
 }
