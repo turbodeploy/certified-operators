@@ -17,12 +17,14 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 import org.skyscreamer.jsonassert.JSONAssert;
 
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition.AssociatedEntitySelectionCriteria;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Tests for {@link TopologyDataDefinitionMapper}.
@@ -45,7 +47,10 @@ public class TopologyDataDefinitionMapperTest {
     private TopologyDataDefinition manualProto;
     private TopologyDataDefinition automatedProto;
 
-    private TopologyDataDefinitionMapper mapper = new TopologyDataDefinitionMapper();
+    private EntityFilterMapper filterMapper = new EntityFilterMapper(
+            new GroupUseCaseParser("groupBuilderUsecases.json"),
+            Mockito.mock(ThinTargetCache.class));
+    private TopologyDataDefinitionMapper mapper = new TopologyDataDefinitionMapper(filterMapper);
 
     /**
      * Setting up.

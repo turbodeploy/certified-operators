@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.DynamicConnectionFilters;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.UNKNOWN;
 
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.ParametersAreNonnullByDefault;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
@@ -32,9 +34,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.AutomatedEntityDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.AutomatedEntityDefinition.TagBasedGenerationAndConnection;
-import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.DynamicConnectionFilters;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition.AssociatedEntitySelectionCriteria;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters.FilterSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
@@ -55,10 +57,10 @@ public class TopologyDataDefinitionMapper {
 
     private static final BiMap<CommonDTO.EntityDTO.EntityType, EntityType> USER_DEFINED_ENTITY_TYPES_MAP =
             ImmutableBiMap.<CommonDTO.EntityDTO.EntityType, EntityType>builder()
-                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, EntityType.BUSINESS_APPLICATION)
-                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_TRANSACTION, EntityType.BUSINESS_TRANSACTION)
-                    .put(CommonDTO.EntityDTO.EntityType.SERVICE, EntityType.SERVICE)
-                    .build();
+                .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, EntityType.BUSINESS_APPLICATION)
+                .put(CommonDTO.EntityDTO.EntityType.BUSINESS_TRANSACTION, EntityType.BUSINESS_TRANSACTION)
+                .put(CommonDTO.EntityDTO.EntityType.SERVICE, EntityType.SERVICE)
+                .build();
 
     private static final BiMap<CommonDTO.EntityDTO.EntityType, EntityType> CONNECTED_ENTITY_TYPES_MAP =
             ImmutableBiMap.<CommonDTO.EntityDTO.EntityType, EntityType>builder()
@@ -84,6 +86,17 @@ public class TopologyDataDefinitionMapper {
                     .put(CommonDTO.EntityDTO.EntityType.SERVICE, SERVICES_BY_TAG)
                     .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE, VIRTUAL_MACHINES_BY_TAG)
                     .build();
+
+    private final EntityFilterMapper entityFilterMapper;
+
+    /**
+     * Constructor.
+     *
+     * @param entityFilterMapper - a converted between API filters and search filters.
+     */
+    public TopologyDataDefinitionMapper(@Nonnull final EntityFilterMapper entityFilterMapper) {
+        this.entityFilterMapper = entityFilterMapper;
+    }
 
     /**
      * Logs text and throws {@link IllegalArgumentException}.
@@ -258,11 +271,12 @@ public class TopologyDataDefinitionMapper {
                     break;
                 case DYNAMIC_CONNECTION_FILTERS:
                     connections = new ManualDynamicConnections();
-                    List<FilterApiDTO> dynamicConnectionsCriteria = new ArrayList<>();
-                    DynamicConnectionFilters filters = criteria.getDynamicConnectionFilters();
-                    for (FilterSpecs filter : filters.getEntityFiltersList()) {
-                        dynamicConnectionsCriteria.add(mapFilterSpecsToFilterApiDTO(filter));
-                    }
+                    DynamicConnectionFilters connectionFilters = criteria.getDynamicConnectionFilters();
+                    List<FilterApiDTO> dynamicConnectionsCriteria = connectionFilters.getSearchParametersList()
+                            .stream()
+                            .map(SearchParameters::getSourceFilterSpecs)
+                            .map(this::mapFilterSpecsToFilterApiDTO)
+                            .collect(Collectors.toList());
                     ((ManualDynamicConnections)connections).setDynamicConnectionCriteria(dynamicConnectionsCriteria);
                     break;
                 case SELECTIONTYPE_NOT_SET:
@@ -309,47 +323,6 @@ public class TopologyDataDefinitionMapper {
         }
         filterApiDTO.setSingleLine(false);
         return filterApiDTO;
-    }
-
-    /**
-     * Maps {@link FilterApiDTO} to {@link FilterSpecs}.
-     *
-     * @param filterApiDTO filter API DTO
-     * @return filter specs
-     */
-    private FilterSpecs mapFilterApiDtoToFilterSpecs(@Nonnull final FilterApiDTO filterApiDTO) {
-        if (filterApiDTO.getExpType() == null
-                || filterApiDTO.getExpVal() == null
-                || filterApiDTO.getFilterType() == null) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("Incorrectly set filter API DTO, 'null' fields: ");
-            boolean firstNullFieldSet = false;
-            if (filterApiDTO.getExpType() == null) {
-                sb.append("expType");
-                firstNullFieldSet = true;
-            }
-            if (filterApiDTO.getExpVal() == null) {
-                if (firstNullFieldSet) {
-                    sb.append(", ");
-                }
-                sb.append("expVal");
-                firstNullFieldSet = true;
-            }
-            if (filterApiDTO.getFilterType() == null) {
-                if (firstNullFieldSet) {
-                    sb.append(", ");
-                }
-                sb.append("filterType");
-            }
-            processException(sb.toString());
-        }
-
-        return FilterSpecs.newBuilder()
-                .setExpressionType(filterApiDTO.getExpType())
-                .setExpressionValue(filterApiDTO.getExpVal())
-                .setFilterType(filterApiDTO.getFilterType())
-                .setIsCaseSensitive(filterApiDTO.getCaseSensitive())
-                .build();
     }
 
     /**
@@ -462,7 +435,7 @@ public class TopologyDataDefinitionMapper {
                         criteriaBuilder = getStaticCriteria((ManualStaticConnections)connectionsData, connectedEntityType);
                         break;
                     case DYNAMIC:
-                        criteriaBuilder = getDynamicCriteria((ManualDynamicConnections)connectionsData);
+                        criteriaBuilder = getDynamicCriteria((ManualDynamicConnections)connectionsData, entry.getKey());
                         break;
                     default:
                         processException(String.format("Incorrect connection type: %s",
@@ -526,16 +499,20 @@ public class TopologyDataDefinitionMapper {
     /**
      * Get dynamic connections criteria from API DTO.
      *
-     * @param dynamicConnections API DTO for dynamic connections
+     * @param dynamicConnections API DTO for dynamic connections.
+     * @param entityType API entity type of dynamic connection members.
      * @return criteria for dynamic connections
      */
-    private AssociatedEntitySelectionCriteria.Builder getDynamicCriteria(@Nonnull final ManualDynamicConnections dynamicConnections) {
-        List<FilterSpecs> filters = dynamicConnections.getDynamicConnectionCriteria().stream()
-                .map(this::mapFilterApiDtoToFilterSpecs)
-                .collect(Collectors.toList());
+    @Nonnull
+    @ParametersAreNonnullByDefault
+    private AssociatedEntitySelectionCriteria.Builder getDynamicCriteria(final ManualDynamicConnections dynamicConnections,
+                                                                         final EntityType entityType) {
+        final List<SearchParameters> searchParameters = entityFilterMapper
+                .convertToSearchParameters(dynamicConnections.getDynamicConnectionCriteria(),
+                        entityType.getDisplayName(), null);
         return AssociatedEntitySelectionCriteria.newBuilder()
                 .setDynamicConnectionFilters(DynamicConnectionFilters.newBuilder()
-                        .addAllEntityFilters(filters));
+                        .addAllSearchParameters(searchParameters).build());
     }
 
 }
