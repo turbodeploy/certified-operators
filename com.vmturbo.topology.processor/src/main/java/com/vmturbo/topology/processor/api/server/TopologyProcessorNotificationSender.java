@@ -48,6 +48,7 @@ import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.OperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
 import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -106,6 +107,7 @@ public class TopologyProcessorNotificationSender
         operationsListeners.put(ActionApproval.class, operation -> { });
         operationsListeners.put(ActionAudit.class, operation -> { });
         operationsListeners.put(GetActionState.class, operation -> { });
+        operationsListeners.put(ActionUpdateState.class, operation -> { });
     }
 
     /**

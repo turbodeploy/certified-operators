@@ -107,8 +107,11 @@ public class ActionApprovalManager {
     @Nonnull
     public AcceptActionResponse attemptAndExecute(@Nonnull ActionStore store,
             @Nonnull String userNameAndUuid, @Nonnull Action action) {
-        if (action.getState() == ActionState.ACCEPTED) {
-            return acceptanceError("Action " + action.getId() + " was already accepted");
+        final ActionState actionState = action.getState();
+        if (actionState != ActionState.READY) {
+            return acceptanceError(
+                    "Only action with READY state can be accepted. Action " + action.getId()
+                            + " has " + actionState + " state.");
         }
 
         final AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,

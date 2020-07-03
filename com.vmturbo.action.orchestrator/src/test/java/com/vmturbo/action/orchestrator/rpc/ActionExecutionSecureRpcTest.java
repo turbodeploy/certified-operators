@@ -14,11 +14,14 @@ import java.io.PrintStream;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
 
 import io.grpc.Context;
 import io.grpc.ManagedChannel;
@@ -124,9 +127,11 @@ import com.vmturbo.components.common.identity.ArrayOidSet;
  * {@link SecurityConstant}
  */
 public class ActionExecutionSecureRpcTest {
-    private final static long ACTION_PLAN_ID = 2;
-    private final static long TOPOLOGY_CONTEXT_ID = 3;
-    private final static long ACTION_ID = 9999;
+    private static final long ACTION_PLAN_ID = 2;
+    private static final long TOPOLOGY_CONTEXT_ID = 3;
+    private static final long ACTION_ID_1 = 9999;
+    private static final long ACTION_ID_2 = 8888;
+
 
     // Have the translator pass-through translate all actions.
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
@@ -212,7 +217,7 @@ public class ActionExecutionSecureRpcTest {
         IdentityGenerator.initPrefix(0);
     }
 
-    private static ActionPlan actionPlan(ActionDTO.Action recommendation) {
+    private static ActionPlan actionPlan(@Nonnull Collection<ActionDTO.Action> recommendations) {
         return ActionPlan.newBuilder()
             .setId(ACTION_PLAN_ID)
             .setInfo(ActionPlanInfo.newBuilder()
@@ -220,7 +225,7 @@ public class ActionExecutionSecureRpcTest {
                     .setSourceTopologyInfo(TopologyInfo.newBuilder()
                         .setTopologyId(123)
                         .setTopologyContextId(TOPOLOGY_CONTEXT_ID))))
-            .addAction(recommendation)
+            .addAllAction(recommendations)
             .build();
     }
 
@@ -293,10 +298,11 @@ public class ActionExecutionSecureRpcTest {
      */
     @Test
     public void testAcceptAction() throws Exception {
-        ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
-        final ActionPlan plan = actionPlan(recommendation);
+        ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(
+                ACTION_ID_1);
+        final ActionPlan plan = actionPlan(Collections.singleton(recommendation));
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID)
+            .setActionId(ACTION_ID_1)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
@@ -313,7 +319,7 @@ public class ActionExecutionSecureRpcTest {
 
         assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
-        assertEquals(ACTION_ID, response.getActionSpec().getRecommendation().getId());
+        assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
         // verify log message includes admin user.
         // redirect System.out is not working when running in a test suite. Comment out for now.
@@ -329,10 +335,10 @@ public class ActionExecutionSecureRpcTest {
      */
     @Test
     public void testAcceptActionWithClientInterceptor() throws Exception {
-        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
-        final ActionPlan plan = actionPlan(recommendation);
+        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID_1);
+        final ActionPlan plan = actionPlan(Collections.singleton(recommendation));
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID)
+            .setActionId(ACTION_ID_1)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
@@ -347,7 +353,7 @@ public class ActionExecutionSecureRpcTest {
 
         assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
-        assertEquals(ACTION_ID, response.getActionSpec().getRecommendation().getId());
+        assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
         // verify log message include admin user
         // redirect System.out is not working when running in a test suite. Comment out for now.
@@ -362,10 +368,10 @@ public class ActionExecutionSecureRpcTest {
      */
     @Test
     public void testAcceptActionWithInvalidJwtToken() throws Exception {
-        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
-        final ActionPlan plan = actionPlan(recommendation);
+        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID_1);
+        final ActionPlan plan = actionPlan(Collections.singleton(recommendation));
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID)
+            .setActionId(ACTION_ID_1)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
@@ -389,10 +395,10 @@ public class ActionExecutionSecureRpcTest {
      */
     @Test
     public void testAcceptActionWithoutJwtToken() throws Exception {
-        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
-        final ActionPlan plan = actionPlan(recommendation);
+        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID_1);
+        final ActionPlan plan = actionPlan(Collections.singleton(recommendation));
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID)
+            .setActionId(ACTION_ID_1)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
@@ -407,7 +413,7 @@ public class ActionExecutionSecureRpcTest {
 
         assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
-        assertEquals(ACTION_ID, response.getActionSpec().getRecommendation().getId());
+        assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
     }
 
@@ -433,10 +439,10 @@ public class ActionExecutionSecureRpcTest {
         ActionsServiceBlockingStub actionOrchestratorServiceTestClient = ActionsServiceGrpc.newBlockingStub(managedChannel);
 
         // perform actual action execution test
-        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
-        final ActionPlan plan = actionPlan(recommendation);
+        Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID_1);
+        final ActionPlan plan = actionPlan(Collections.singleton(recommendation));
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID)
+            .setActionId(ACTION_ID_1)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
@@ -453,7 +459,7 @@ public class ActionExecutionSecureRpcTest {
 
         assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
-        assertEquals(ACTION_ID, response.getActionSpec().getRecommendation().getId());
+        assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
 
         // clean up
@@ -469,39 +475,53 @@ public class ActionExecutionSecureRpcTest {
      */
     @Test
     public void testAcceptActionWithScopedUser() throws Exception {
-        final Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID, 10L, 0, 1, 1, 1 );
-        final ActionPlan plan = actionPlan(recommendation);
-        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
+        final Action recommendation1 =
+                ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID_1, 10L, 0, 1, 1, 1);
+        final Action recommendation2 =
+                ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID_2, 10L, 0, 1, 1, 1);
+        final ActionPlan plan = actionPlan(Arrays.asList(recommendation1, recommendation2));
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(
+                snapshot);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation1);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation2);
         actionStorehouse.storeActions(plan);
 
         when(userSessionContext.isUserScoped()).thenReturn(true);
 
-        final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID)
-            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-            .build();
-        EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
+        final SingleActionRequest acceptActionRequest1 = SingleActionRequest.newBuilder()
+                .setActionId(ACTION_ID_1)
+                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                .build();
+        final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(
+                snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         // a user WITH access CAN execute the action
-        EntityAccessScope accessScopeOK = new EntityAccessScope(null, null,
-            new ArrayOidSet(Arrays.asList(10L, 0L, 1L)), null);
+        EntityAccessScope accessScopeOK =
+                new EntityAccessScope(null, null, new ArrayOidSet(Arrays.asList(10L, 0L, 1L)),
+                        null);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScopeOK);
 
-        AcceptActionResponse response = actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
-        assertFalse(response.hasError());
+        final AcceptActionResponse response1 =
+                actionOrchestratorServiceClient.acceptAction(acceptActionRequest1);
+        assertFalse(response1.hasError());
 
-        // A user WITHOUT access to entity 10L CANNOT execute the action.
-        EntityAccessScope accessScopeFail = new EntityAccessScope(null, null,
-            new ArrayOidSet(Arrays.asList(0L, 1L, 2L)), null);
+        final SingleActionRequest acceptActionRequest2 = SingleActionRequest.newBuilder()
+                .setActionId(ACTION_ID_2)
+                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                .build();
+        // A user WITHOUT access to at least one entity related to this action CANNOT execute it.
+        final EntityAccessScope accessScopeFail =
+                new EntityAccessScope(null, null, new ArrayOidSet(Arrays.asList(11L, 12L)), null);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScopeFail);
 
         // verify that a grpc runtime exception is thrown. In the actual runtime env we expect the
         // JwtServerInterceptor to translate the status code for us, but not applying that for
         // this test.
-        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.UNKNOWN).anyDescription());
-        response = actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
-        assertTrue(response.hasError());
+        expectedException.expect(
+                GrpcRuntimeExceptionMatcher.hasCode(Code.UNKNOWN).anyDescription());
+        final AcceptActionResponse response2 =
+                actionOrchestratorServiceClient.acceptAction(acceptActionRequest2);
+        assertTrue(response2.hasError());
     }
 }
