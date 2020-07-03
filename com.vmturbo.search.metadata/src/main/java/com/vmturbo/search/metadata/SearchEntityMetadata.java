@@ -69,8 +69,22 @@ public enum SearchEntityMetadata {
         return entityType;
     }
 
+    /**
+     * Gets an immutable map representing the mappings for fields specific to this entity type.
+     *
+     * @return an immutable map representing the mappings for fields specific to this entity type
+     */
     public Map<FieldApiDTO, SearchMetadataMapping> getMetadataMappingMap() {
         return metadataMappingMap;
+    }
+
+    /**
+     * Gets an immutable map representing the mappings for fields common to all entities.
+     *
+     * @return an immutable map representing the mappings for fields common to all entities
+     */
+    public static Map<FieldApiDTO, SearchMetadataMapping> getEntityCommonFieldsMappingMap() {
+        return Constants.ENTITY_COMMON_FIELDS;
     }
 
     /**

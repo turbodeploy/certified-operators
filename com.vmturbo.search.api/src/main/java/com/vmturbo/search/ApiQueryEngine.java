@@ -1,12 +1,16 @@
 package com.vmturbo.search;
 
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.api.dto.searchquery.EntityCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.GroupCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -62,6 +66,24 @@ public class ApiQueryEngine implements IApiQueryEngine {
             throw new UnsupportedOperationException("Search API is not yet enabled!");
         }
         return getQueryFactory().performGroupQuery(request);
+    }
+
+    @Override
+    public List<SearchCountRecordApiDTO> countEntites(
+            final EntityCountRequestApiDTO request) throws Exception {
+        if (!enableSearchApi) {
+            throw new UnsupportedOperationException("Search API is not yet enabled!");
+        }
+        return getQueryFactory().performEntityCount(request);
+    }
+
+    @Override
+    public List<SearchCountRecordApiDTO> countGroups(
+            final GroupCountRequestApiDTO request) throws Exception {
+        if (!enableSearchApi) {
+            throw new UnsupportedOperationException("Search API is not yet enabled!");
+        }
+        return getQueryFactory().performGroupCount(request);
     }
 
     /**

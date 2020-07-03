@@ -54,8 +54,22 @@ public enum SearchGroupMetadata {
         return groupType;
     }
 
+    /**
+     * Gets an immutable map representing the mappings for fields specific to this group type.
+     *
+     * @return an immutable map representing the mappings for fields specific to this group type
+     */
     public Map<FieldApiDTO, SearchMetadataMapping> getMetadataMappingMap() {
         return metadataMappingMap;
+    }
+
+    /**
+     * Gets an immutable map representing the mappings for fields common to all groups.
+     *
+     * @return an immutable map representing the mappings for fields common to all groups
+     */
+    public static Map<FieldApiDTO, SearchMetadataMapping> getGroupCommonFieldsMappingMap() {
+        return GROUP_COMMON_FIELDS;
     }
 
     private static Map<FieldApiDTO, SearchMetadataMapping> getRegularMetadata() {

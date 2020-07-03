@@ -3,7 +3,6 @@ package com.vmturbo.search;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.collect.Lists;
@@ -30,15 +29,15 @@ import com.vmturbo.search.metadata.SearchMetadataMapping;
 /**
  * A representation of a single API group query, mapped to a SQL query.
  */
-public class GroupQuery extends AbstractQuery {
-
-    private final GroupQueryApiDTO request;
+public class GroupQuery extends AbstractSearchQuery {
 
     /**
-     * Provides a mapping from String -> SearchEntityMetadata.
+     * Provides a mapping from GroupType(string) -> SearchEntityMetadata.
      */
     public static final EnumMapper<SearchGroupMetadata> SEARCH_GROUP_METADATA_ENUM_MAPPER =
-            new EnumMapper<>(SearchGroupMetadata.class);
+        new EnumMapper<>(SearchGroupMetadata.class);
+
+    private final GroupQueryApiDTO request;
 
     /**
      * Create a group query instance.
@@ -48,9 +47,8 @@ public class GroupQuery extends AbstractQuery {
      */
     public GroupQuery(@NonNull GroupQueryApiDTO groupQueryApiDTO,
             @NonNull final DSLContext readOnlyDSLContext) {
-        super(readOnlyDSLContext);
-        this.request = Objects.requireNonNull(groupQueryApiDTO);
-        this.setType(request.getSelect().getGroupType().name());
+        super(groupQueryApiDTO.getSelect().getGroupType().name(), readOnlyDSLContext);
+        this.request = groupQueryApiDTO;
     }
 
     @Override
@@ -59,6 +57,14 @@ public class GroupQuery extends AbstractQuery {
         GroupType type = selectGroup.getGroupType();
         return Lists.newArrayList(
             SearchEntity.SEARCH_ENTITY.TYPE.eq(GroupTypeMapper.fromApiToSearchSchema(type)));
+    }
+
+    @Override
+    protected Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping(final String groupType) {
+        return SEARCH_GROUP_METADATA_ENUM_MAPPER.valueOf(groupType)
+            .map(SearchGroupMetadata::getMetadataMappingMap)
+            .orElseThrow(() -> new IllegalArgumentException(
+                "No data for metadataMappingKey: " + groupType));
     }
 
     @Override
@@ -87,14 +93,6 @@ public class GroupQuery extends AbstractQuery {
     @Override
     protected PaginationApiDTO getPaginationApiDto() {
         return this.getRequest().getPagination();
-    }
-
-    @Override
-    protected Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping() {
-        return SEARCH_GROUP_METADATA_ENUM_MAPPER.valueOf(getType())
-                .map(SearchGroupMetadata::getMetadataMappingMap)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "No data for metadataMappingKey: " + getType()));
     }
 
     private GroupQueryApiDTO getRequest() {
