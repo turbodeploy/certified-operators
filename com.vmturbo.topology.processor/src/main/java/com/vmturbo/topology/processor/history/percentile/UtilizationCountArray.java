@@ -19,6 +19,9 @@ import com.vmturbo.topology.processor.history.percentile.PercentileDto.Percentil
  * - assume the result precision in integers (fractional percents will not be supported)
  * - configurable once (and unchangeable) percent buckets, each of possibly more than single percent
  * - maintain the counts per-bucket and give out the score on request
+ * Expected consistency state: 0 capacity and 0 timestamps - uninitialized.
+ * (such entries are required to exist to mark them for later processing)
+ * Once a point is added, the timestamps and capacity should also be present i.e. > 0.
  */
 public class UtilizationCountArray {
     /**
@@ -27,10 +30,10 @@ public class UtilizationCountArray {
     protected static final String EMPTY = "{empty}";
     private static final Logger logger = LogManager.getLogger();
     // change of capacity for more than half a % requires rescaling
-    private static final float EPSILON = 0.005f;
+    private static final float EPSILON = 0.005F;
 
     private final PercentileBuckets buckets;
-    private float capacity = 0f;
+    private float capacity;
     private int[] counts;
     private long startTimestamp;
     private long endTimestamp;
@@ -119,14 +122,15 @@ public class UtilizationCountArray {
      */
     public void addPoint(float usage, float newCapacity, String key, boolean add, long timestamp) throws HistoryCalculationException {
         final boolean remove = !add;
-        if (capacity <= 0d && remove) {
+        if (capacity <= 0F && remove) {
             logger.trace("No percentile counts defined to subtract yet for {}", key);
             return;
         }
-        if (newCapacity <= 0d) {
-            throw new HistoryCalculationException("Non-positive capacity provided " + newCapacity);
+        if (newCapacity <= 0F) {
+            logger.warn("Skipping non-positive capacity usage point for " + key + ": " + newCapacity);
+            return;
         }
-        if (usage < 0) {
+        if (usage < 0F) {
             logger.warn("Skipping negative percentile usage point {} for {}", usage, key);
             return;
         }
@@ -147,7 +151,7 @@ public class UtilizationCountArray {
             rescaleCountsIfNecessary(newCapacity, key);
             capacity = newCapacity;
             endTimestamp = timestamp;
-        } else if (capacity != 0d && Math.abs(capacity - newCapacity) > EPSILON) {
+        } else if (capacity != 0F && Math.abs(capacity - newCapacity) > EPSILON) {
             // reverse-rescale the value being subtracted
             percent = Math.min(100, (int)Math.ceil(buckets.average(percent) * newCapacity / capacity));
         }
@@ -211,10 +215,20 @@ public class UtilizationCountArray {
                                                   + buckets.size());
         }
 
+        if (record.getCapacity() <= 0F) {
+            // we may sometimes have 0 capacity uninitialized records in the db
+            // but they should also have no counts, consequently there's nothing to add up
+            logger.trace("Skipping deserialization of a record {} with non-positive capacity {}",
+                            () -> key, () -> capacity);
+            return;
+        }
+
         final Iterator<Integer> recordUtilization;
 
         if (overwrite) {
             rescaleCountsIfNecessary(record.getCapacity(), key);
+        }
+        if (overwrite || capacity <= 0F) {
             capacity = record.getCapacity();
         }
 
@@ -266,13 +280,16 @@ public class UtilizationCountArray {
      * Clean up the data.
      */
     public void clear() {
-        logger.trace("Cleared array with capacity {}, startTimestamp {} and endTimestamp {}",
-                     capacity,
-                     startTimestamp,
-                     endTimestamp);
+        if (logger.isTraceEnabled()) {
+            logger.trace("Cleared array with capacity {}, startTimestamp {} and endTimestamp {}",
+                            capacity,
+                            startTimestamp,
+                            endTimestamp);
+        }
         Arrays.fill(counts, 0);
-        capacity = 0f;
+        capacity = 0F;
         startTimestamp = 0;
+        endTimestamp = 0;
     }
 
     /**
