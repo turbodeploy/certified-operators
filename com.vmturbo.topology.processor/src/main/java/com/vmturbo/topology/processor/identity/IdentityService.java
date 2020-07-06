@@ -114,7 +114,7 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
      *            (e.g. if it's a newly assigned OID, or if volatile properties changed), this
      *            method will add the entryData and the associated ID to this map.
      * @return The OID to use for the input entryData.
-     * @throws IdentityServiceOperationException In the case of an error interacting with the
+     * @throws IdentityServiceStoreOperationException In the case of an error interacting with the
      *                                              underlying store.
      * @throws IdentityUninitializedException If the identity service initialization is incomplete.
      */

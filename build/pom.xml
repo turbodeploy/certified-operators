@@ -1406,7 +1406,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
-                    <version>3.0.0</version>
+                    <version>3.1.1</version>
                     <dependencies>
                         <dependency>
                             <groupId>com.puppycrawl.tools</groupId>
@@ -1432,7 +1432,7 @@
                         <configLocation>vmt-checkstyle.xml</configLocation>
                         <encoding>UTF-8</encoding>
                         <violationSeverity>info</violationSeverity>
-                        <failOnViolation>false</failOnViolation>
+                        <failOnViolation>true</failOnViolation>
                         <failsOnError>false</failsOnError>
                         <sourceDirectories>
                             <sourceDirectory>${basedir}</sourceDirectory>

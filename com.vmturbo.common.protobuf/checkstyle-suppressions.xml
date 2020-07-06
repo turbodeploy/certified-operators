@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]CostProtoUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]GroupProtoUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]PaginationProtoUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]PlanDTOUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]RepositoryDTOUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]StringUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]TemplateProtoUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]action[/\\]ActionDTOUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]action[/\\]ActionEnvironmentType.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]action[/\\]UnsupportedActionException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]cluster[/\\]ComponentStatusProtoUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]search[/\\]SearchFilterResolver.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]search[/\\]SearchProtoUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]search[/\\]SearchableProperties.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]StitchingErrors.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]TopologyDTOUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]UICommodityType.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]UIEntityState.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]UIEnvironmentType.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]utils[/\\]HCIUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]utils[/\\]StringConstants.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]protobuf[/\\]ncm[/\\]Matrix.proto" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]ActionDTOUtilTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]CostProtoUtilTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]GroupProtoUtilTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]PlanDTOUtilTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]RepositoryDTOUtilTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]StringUtilTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]TopologyDTOUtilTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]action[/\\]ActionEnvironmentTypeTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]search[/\\]SearchProtoUtilTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]StitchingErrorsTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]UICommodityTypeTest.java" />
+</suppressions>

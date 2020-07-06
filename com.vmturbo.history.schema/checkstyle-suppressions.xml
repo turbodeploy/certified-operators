@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]schema[/\\]DayOfWeekConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]schema[/\\]EnvironmentTypeConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]schema[/\\]PeriodConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]schema[/\\]RelationType.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]schema[/\\]RelationTypeConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]schema[/\\]ReportOutputFormatConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]schema[/\\]ReportTypeConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]db[/\\]migration[/\\]V1_28_1__Initialize_available_history_times_table.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]db[/\\]migration[/\\]V1_35_1__Initialize_available_history_times_table.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]resources[/\\]db[/\\]migration[/\\]V1.15__recreate_aggregate_procedure_single_pass_prevent_simtaneous_executions.sql" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]resources[/\\]db[/\\]migration[/\\]V1.6__recreate_aggregate_procedure_single_pass.sql" />
+</suppressions>
