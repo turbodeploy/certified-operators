@@ -5,7 +5,6 @@ defaultProperties:
     clustermgr_retry_delay_sec : 10
     kafkaServers : kafka:9092
     deadlockCheckIntervalSecs: 900
-    maxHealthyUsedMemoryRatio: 0.95
     scheduledMetricsIntervalMs: 60000
     grpcPingIntervalSeconds: 300
     realtimeTopologyContextId: 777777

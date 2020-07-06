@@ -16,7 +16,6 @@ data:
         kafkaServers : kafka:9092
         kafkaNamespace : {{ .Release.Namespace }}
         deadlockCheckIntervalSecs: 900
-        maxHealthyUsedMemoryRatio: 0.95
         scheduledMetricsIntervalMs: 60000
         grpcPingIntervalSeconds: 300
         realtimeTopologyContextId: 777777
