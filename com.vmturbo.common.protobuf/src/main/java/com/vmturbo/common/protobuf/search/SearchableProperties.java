@@ -125,6 +125,18 @@ public class SearchableProperties {
 
 
     /**
+     * Support hot-add memory filter property.
+     */
+    public static final String HOT_ADD_MEMORY = "hotAddMemory";
+    /**
+     * Support hot-add cpu filter property.
+     */
+    public static final String HOT_ADD_CPU = "hotAddCPU";
+    /**
+     * Support hot-remove cpu filter property.
+     */
+    public static final String HOT_REMOVE_CPU = "hotRemoveCPU";
+    /**
      * Status of a target.
      */
     public static final String TARGET_VALIDATION_STATUS = "validationStatus";

@@ -10,6 +10,9 @@
         <relativePath>../build/pom.xml</relativePath>
     </parent>
 
+    <artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
+    <description>Mediation client bootstraping code</description>
+
     <build>
         <plugins>
             <plugin>
@@ -24,9 +27,14 @@
                     </archive>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
-    <artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
-    <description>Mediation client bootstraping code</description>
 
 </project>

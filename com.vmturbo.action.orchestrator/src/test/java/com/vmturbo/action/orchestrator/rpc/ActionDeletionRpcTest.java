@@ -18,6 +18,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
@@ -44,6 +45,7 @@ public class ActionDeletionRpcTest {
     private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
     private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
+    private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
 
     private final long topologyContextId = 3;
 
@@ -67,15 +69,9 @@ public class ActionDeletionRpcTest {
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
         approvalManager = Mockito.mock(ActionApprovalManager.class);
-        actionsRpcService = new ActionsRpcService(clock, actionStorehouse,
-                        approvalManager,
-                        mock(ActionTranslator.class),
-                        paginatorFactory,
-                        statReader,
-                        liveStatReader,
-                        userSessionContext,
-                        acceptedActionsStore,
-                        500);
+        actionsRpcService = new ActionsRpcService(clock, actionStorehouse, approvalManager,
+                mock(ActionTranslator.class), paginatorFactory, statReader, liveStatReader,
+                userSessionContext, acceptedActionsStore, rejectedActionsStore, 500);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());

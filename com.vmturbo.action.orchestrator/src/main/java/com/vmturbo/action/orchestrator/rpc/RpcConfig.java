@@ -90,6 +90,7 @@ public class RpcConfig {
             actionStatsConfig.currentActionStatReader(),
             userSessionConfig.userSessionContext(),
             actionStoreConfig.acceptedActionsStore(),
+            actionStoreConfig.rejectedActionsStore(),
             actionPaginationMaxLimit);
     }
 
@@ -116,7 +117,7 @@ public class RpcConfig {
         return new ExternalActionApprovalManager(actionApprovalManager(),
                 actionStoreConfig.actionStorehouse(),
                 topologyProcessorClientConfig.createActionStateReceiver(),
-                topologyProcessorConfig.realtimeTopologyContextId());
+                topologyProcessorConfig.realtimeTopologyContextId(), actionStoreConfig.rejectedActionsStore());
     }
 
     @Bean

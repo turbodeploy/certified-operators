@@ -367,6 +367,48 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Mockito.verify(cacheBackup, Mockito.times(1)).keepCacheOnClose();
     }
 
+    /**
+     * Tests the case were the capacity for percentile data changes and we the lookback period
+     * changes. We need to ensure that we used new capacity rather than outdated capacity in DB.
+     *
+     * @throws InterruptedException when interrupted
+     * @throws HistoryCalculationException when failed
+     */
+    @Test
+    public void checkObservationPeriodMaintenanceWindowChanged()
+            throws InterruptedException, HistoryCalculationException {
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
+        final HistoryAggregationContext firstContext =
+            new HistoryAggregationContext(topologyInfo, graphWithSettings, false);
+        // First initializing history from db.
+        percentileEditor.initContext(firstContext, Collections.emptyList());
+        // Necessary to set last checkpoint timestamp.
+        percentileEditor.completeBroadcast(firstContext);
+
+        // Change the capacity
+        UtilizationCountStore store =
+            percentileEditor.getCache().get(VCPU_COMMODITY_REFERENCE).getUtilizationCountStore();
+        store.addPoints(Collections.singletonList(20d), CAPACITY * 2,
+            TIMESTAMP_INIT_START_SEP_1_2019);
+
+        // Change observation periods.
+        entitySettings.put(VIRTUAL_MACHINE_OID,
+            createEntitySetting(VIRTUAL_MACHINE_OID,
+                NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD,
+                EntitySettingSpecs.MaxObservationPeriodVirtualMachine));
+
+        // Check observation periods changed.
+        final HistoryAggregationContext secondContext =
+            new HistoryAggregationContext(topologyInfo, graphWithSettings, false);
+        percentileEditor.initContext(secondContext,
+            Collections.emptyList());
+
+        // Ensure the capacity it the updated one
+        Assert.assertThat(store.getLatestCountsRecord().getCapacity(), Matchers.is(CAPACITY * 2));
+        PercentileRecord.Builder fullRecord = store.checkpoint(Collections.emptyList());
+        Assert.assertThat(fullRecord.getCapacity(), Matchers.is(CAPACITY * 2));
+    }
+
     private void checkMaintenance(long periodMsForTotalBlob,
                                   List<List<Integer>> expectedTotalUtilizations,
                                   boolean enforceMaintenanceIsExpected)

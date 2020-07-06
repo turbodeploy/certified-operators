@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
@@ -124,7 +125,8 @@ public class GroupDaoTest {
         Assert.assertEquals(Collections.singleton(group1.getOid()),
                 groupStore.getDiscoveredGroupsIds()
                         .stream()
-                        .map(DiscoveredGroupId::getOid)
+                        .map(DiscoveredGroupId::getIdentity)
+                        .map(DiscoveredObjectVersionIdentity::getOid)
                         .collect(Collectors.toSet()));
         final GroupDTO.Grouping agroup1 = getGroupFromStore(group1.getOid());
         assertGroupsEqual(group1, agroup1);
@@ -136,7 +138,8 @@ public class GroupDaoTest {
         Assert.assertEquals(Sets.newHashSet(group2.getOid(), group3.getOid()),
                 groupStore.getDiscoveredGroupsIds()
                         .stream()
-                        .map(DiscoveredGroupId::getOid)
+                        .map(DiscoveredGroupId::getIdentity)
+                        .map(DiscoveredObjectVersionIdentity::getOid)
                         .collect(Collectors.toSet()));
         final GroupDTO.Grouping agroup2 = getGroupFromStore(group2.getOid());
         final GroupDTO.Grouping agroup3 = getGroupFromStore(group3.getOid());
@@ -153,7 +156,8 @@ public class GroupDaoTest {
         Assert.assertEquals(Sets.newHashSet(group1.getOid(), group2.getOid(), group3.getOid()),
                 groupStore.getDiscoveredGroupsIds()
                         .stream()
-                        .map(DiscoveredGroupId::getOid)
+                        .map(DiscoveredGroupId::getIdentity)
+                        .map(DiscoveredObjectVersionIdentity::getOid)
                         .collect(Collectors.toSet()));
     }
 
@@ -580,16 +584,20 @@ public class GroupDaoTest {
         final String tagName1 = "tag1";
         final String tagValue11 = "tag1-1";
         final String tagValue12 = tagValue11;
+        final String tagName2 = "tag1 ";
 
         final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition())
                 .setTags(Tags.newBuilder()
                         .putTags(tagName1, TagValuesDTO.newBuilder()
-                                .addAllValues(Arrays.asList(tagValue11, tagValue12)).build())).build();
-                       // .putTags(tagName2, TagValuesDTO.newBuilder().addValues(tagValue22).build())).build();
+                                .addAllValues(Arrays.asList(tagValue11, tagValue12)).build())
+                        .putTags(tagName2, TagValuesDTO.newBuilder()
+                            .addAllValues(Collections.singletonList(tagValue11)).build())).build();
 
+        Assert.assertEquals(2, groupDefinition.getTags().getTagsCount());
         groupStore.createGroup(OID2, origin, groupDefinition, EXPECTED_MEMBERS, true);
         final Map<Long, Map<String, Set<String>>> actualAllTags =
                 groupStore.getTags(Collections.emptyList());
+        Assert.assertEquals(1, actualAllTags.size());
         Assert.assertEquals(1, actualAllTags.entrySet().iterator().next().getValue()
                 .entrySet().iterator().next().getValue().size());
     }

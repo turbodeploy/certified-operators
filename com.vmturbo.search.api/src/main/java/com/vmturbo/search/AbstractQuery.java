@@ -1,8 +1,6 @@
 package com.vmturbo.search;
 
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -10,7 +8,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -22,44 +19,22 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.DataType;
 import org.jooq.Field;
-import org.jooq.GroupField;
 import org.jooq.Record;
 import org.jooq.RecordMapper;
-import org.jooq.Result;
-import org.jooq.Select;
-import org.jooq.SortField;
-import org.jooq.SortOrder;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 
-import com.vmturbo.api.dto.searchquery.BooleanConditionApiDTO;
-import com.vmturbo.api.dto.searchquery.ConditionApiDTO;
-import com.vmturbo.api.dto.searchquery.ConditionApiDTO.Operator;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO;
-import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
-import com.vmturbo.api.dto.searchquery.InclusionConditionApiDTO;
-import com.vmturbo.api.dto.searchquery.IntegerConditionApiDTO;
-import com.vmturbo.api.dto.searchquery.NumberConditionApiDTO;
-import com.vmturbo.api.dto.searchquery.OrderByApiDTO;
-import com.vmturbo.api.dto.searchquery.PaginationApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.RelatedActionFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
-import com.vmturbo.api.dto.searchquery.TextConditionApiDTO;
-import com.vmturbo.api.dto.searchquery.WhereApiDTO;
-import com.vmturbo.api.enums.EntitySeverity;
-import com.vmturbo.api.enums.EntityState;
-import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
-import com.vmturbo.common.api.mappers.EnumMapper;
 import com.vmturbo.extractor.schema.tables.SearchEntity;
 import com.vmturbo.extractor.schema.tables.records.SearchEntityRecord;
 import com.vmturbo.search.mappers.EntitySeverityMapper;
@@ -76,13 +51,10 @@ public abstract class AbstractQuery {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final Table<SearchEntityRecord>
-        searchEntityTable = SearchEntity.SEARCH_ENTITY;
-
     /**
-     * String representing request type {@link com.vmturbo.api.enums.GroupType} or {@link com.vmturbo.api.enums.EntityType}.
+     * The JOOQ table to use for search queries.
      */
-    private String type;
+    protected static final Table<SearchEntityRecord> searchTable = SearchEntity.SEARCH_ENTITY;
 
     /**
      * Mapping of common dtos to database columns.
@@ -102,12 +74,12 @@ public abstract class AbstractQuery {
             put(RelatedActionFieldApiDTO.actionCount(), SearchEntity.SEARCH_ENTITY.NUM_ACTIONS);
         }};
 
-
-    private static final Set<PrimitiveFieldApiDTO> ENUMERATED_PRIMITIVE_FIELDS = new HashSet<PrimitiveFieldApiDTO>(){{
-        add(PrimitiveFieldApiDTO.entityType());
-        add(PrimitiveFieldApiDTO.severity());
-        add(PrimitiveFieldApiDTO.entityState());
-        add(PrimitiveFieldApiDTO.environmentType());
+    private static final Map<PrimitiveFieldApiDTO, Function> ENUM_FIELD_JOOQ_TO_API_MAPPER = new HashMap<PrimitiveFieldApiDTO, Function>() {{
+        put(PrimitiveFieldApiDTO.entityType(), EntityTypeMapper.fromSearchSchemaToApiFunction);
+        put(PrimitiveFieldApiDTO.groupType(), GroupTypeMapper.fromSearchSchemaToApiFunction);
+        put(PrimitiveFieldApiDTO.severity(), EntitySeverityMapper.fromSearchSchemaToApiFunction);
+        put(PrimitiveFieldApiDTO.entityState(), EntityStateMapper.fromSearchSchemaToApiFunction);
+        put(PrimitiveFieldApiDTO.environmentType(), EnvironmentTypeMapper.fromSearchSchemaToApiFunction);
     }};
 
     /**
@@ -131,11 +103,16 @@ public abstract class AbstractQuery {
      */
     private Map<SearchMetadataMapping, FieldApiDTO> requestedColumns = new HashMap<>();
 
+    /**
+     * Creates a query to retrieve data from the search db.
+     *
+     * @param readOnlyDSLContext a context for making read-only database queries
+     */
     protected AbstractQuery(@NonNull final DSLContext readOnlyDSLContext) {
         this.readOnlyDSLContext = Objects.requireNonNull(readOnlyDSLContext);
     }
 
-    private Map<FieldApiDTO, SearchMetadataMapping> getMetadataMapping() {
+    protected Map<FieldApiDTO, SearchMetadataMapping> getMetadataMapping() {
         if (metadataMapping == null) {
             metadataMapping = lookupMetadataMapping();
         }
@@ -149,39 +126,6 @@ public abstract class AbstractQuery {
      */
     protected abstract Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping();
 
-    protected SearchQueryPaginationResponse<SearchQueryRecordApiDTO> readQueryAndExecute() {
-        Select<Record> query = this.readOnlyDSLContext
-            .select(this.buildSelectFields())
-            .from(searchEntityTable)
-            .where(this.buildWhereClauses())
-            .orderBy(this.buildOrderByFields())
-            .limit(20);
-
-        //Decouple fetch from query chain for testing purposes
-        Result<Record> records = this.readOnlyDSLContext.fetch(query);
-        List<SearchQueryRecordApiDTO> results = records.map(this.recordMapper());
-
-        final int totalRecordCount = 0; // Adding mock data
-        return paginateResponse(results, totalRecordCount);
-    }
-
-    /**
-     *Returns a {@link SearchQueryPaginationResponse} containing pagination results.
-     *
-     * @param results to be returned in paginated response
-     * @param totalRecordCount total number of records available
-     * @return {@link SearchQueryPaginationResponse}
-     */
-    @VisibleForTesting
-    SearchQueryPaginationResponse<SearchQueryRecordApiDTO> paginateResponse(
-        @Nonnull List<SearchQueryRecordApiDTO> results,
-        @Nonnull Integer totalRecordCount) {
-
-        String nextCursor = null; // If results available nextCursor will point to some designation
-//        of last record in results
-        return new SearchQueryPaginationResponse<>(results, nextCursor, totalRecordCount);
-    }
-
     /**
      * Maps fetched {@link Record}s into {@link SearchQueryRecordApiDTO}.
      *
@@ -189,14 +133,11 @@ public abstract class AbstractQuery {
      */
     @VisibleForTesting
     RecordMapper<Record, SearchQueryRecordApiDTO> recordMapper() {
-        return new RecordMapper<Record, SearchQueryRecordApiDTO>() {
-            @Override
-            public SearchQueryRecordApiDTO map(@Nonnull final Record record) {
-                Long oid = record.get(SearchEntity.SEARCH_ENTITY.OID);
-                return SearchQueryRecordApiDTO.entityOrGroupResult(oid)
-                    .values(mapValues(record))
-                    .build();
-            }
+        return record -> {
+            Long oid = record.get(SearchEntity.SEARCH_ENTITY.OID);
+            return SearchQueryRecordApiDTO.entityOrGroupResult(oid)
+                .values(mapValues(record))
+                .build();
         };
     }
 
@@ -247,28 +188,11 @@ public abstract class AbstractQuery {
 
         switch (columnMetadata.getApiDatatype()) {
             case TEXT:
-                fieldValue = fieldApiDto.value((String)value);
-                break;
             case ENUM:
-                if (fieldApiDto.equals(PrimitiveFieldApiDTO.environmentType())) {
+                if (ENUM_FIELD_JOOQ_TO_API_MAPPER.containsKey(fieldApiDto)) {
+                    Function jooqToApiEnumMapper = ENUM_FIELD_JOOQ_TO_API_MAPPER.get(fieldApiDto);
                     fieldValue = fieldApiDto.enumValue(
-                        readEnumRecordAndMap(record, columnAlias, EnvironmentTypeMapper.fromSearchSchemaToApiFunction));
-                } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.severity())) {
-                    fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
-                        columnAlias,
-                        EntitySeverityMapper.fromSearchSchemaToApiFunction));
-                } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityState())) {
-                    fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
-                        columnAlias,
-                        EntityStateMapper.fromSearchSchemaToApiFunction));
-                } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityType())) {
-                    fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
-                        columnAlias,
-                        EntityTypeMapper.fromSearchSchemaToApiFunction));
-                } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.groupType())) {
-                    fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
-                            columnAlias,
-                            GroupTypeMapper.fromSearchSchemaToApiFunction));
+                            readEnumRecordAndMap(record, columnAlias, jooqToApiEnumMapper));
                 } else {
                     fieldValue = fieldApiDto.value((String)value);
                 }
@@ -305,49 +229,13 @@ public abstract class AbstractQuery {
         return enumMapper.apply(enumValue);
     }
 
-//    Pass the record, get the value, cast it to enum
-//    and then do all this
-
     /**
      * Build list of tableField from {@link EntityQueryApiDTO}.
      *
      * @return List of expected {@link TableField}
      */
     @VisibleForTesting
-    Set<Field> buildSelectFields() {
-        Set<Field> tableFields = buildCommonFields();
-        tableFields.addAll(buildNonCommonFields());
-        return tableFields;
-    }
-
-    /**
-     * Returns collection of {@link Field}s mapped from {@link PrimitiveFieldApiDTO}.
-     *
-     * <p>Excludes basic fields i.e, oid, name, type</p>
-     *
-     * @return collection of {@link Field}s fields
-     */
-    @VisibleForTesting
-    Set<Field> buildNonCommonFields() {
-        return getSelectedFields()
-            .stream()
-            .map(entityField -> this.buildAndTrackSelectFieldFromEntityType(entityField) )
-            .collect(Collectors.toSet());
-    }
-
-    /**
-     * Returns collection of {@link Field}s to always include in query fetch.
-     *
-     * <p>We always return these fields regardless of user requesting them or not</p>
-     *
-     * @return collection of {@link Field}s fields
-     */
-    protected Set<Field> buildCommonFields() {
-        return new HashSet<Field>() {{
-            add(buildAndTrackSelectFieldFromEntityType(PrimitiveFieldApiDTO.oid()));
-            add(buildAndTrackSelectFieldFromEntityType(PrimitiveFieldApiDTO.name()));
-        }};
-    }
+    protected abstract Set<Field> buildSelectFields();
 
     /**
      * Get {@link Field} configuration for entityField from mappings.
@@ -358,8 +246,12 @@ public abstract class AbstractQuery {
     @VisibleForTesting
     Field buildAndTrackSelectFieldFromEntityType(FieldApiDTO apiField) {
         SearchMetadataMapping columnMetadata = getMetadataMapping().get(apiField);
+        trackField(columnMetadata, apiField);
+        return buildFieldForApiField(apiField, true);
+    }
+
+    protected void trackField(final SearchMetadataMapping columnMetadata, final FieldApiDTO apiField) {
         requestedColumns.put(columnMetadata, apiField);
-        return buildFieldForEntityField(apiField, true);
     }
 
     /**
@@ -369,8 +261,8 @@ public abstract class AbstractQuery {
      * @return Field
      */
     @VisibleForTesting
-    Field<?> buildFieldForEntityField(@Nonnull FieldApiDTO apiField) {
-        return buildFieldForEntityField(apiField, false);
+    Field<?> buildFieldForApiField(@Nonnull FieldApiDTO apiField) {
+        return buildFieldForApiField(apiField, false);
     }
 
     /**
@@ -381,11 +273,11 @@ public abstract class AbstractQuery {
      * @return Field
      */
     @VisibleForTesting
-    Field<?> buildFieldForEntityField(@Nonnull FieldApiDTO apiField, @Nonnull boolean aliasColumn) {
+    Field<?> buildFieldForApiField(@Nonnull FieldApiDTO apiField, @Nonnull boolean aliasColumn) {
         final SearchMetadataMapping mapping = getMetadataMapping().get(apiField);
         if (mapping == null) {
             throw new IllegalArgumentException("Field " + apiField.toString()
-                    + " does not apply to selected type " + this.type );
+                    + " does not apply to selected type. ");
         }
         final String columnName = mapping.getColumnName();
         final String jsonKey = mapping.getJsonKeyName();
@@ -436,217 +328,11 @@ public abstract class AbstractQuery {
         return Objects.isNull(jsonKey) ? columnName : jsonKey;
     }
 
-    protected abstract List<Condition> buildTypeSpecificConditions();
-
-    /**
-     * Build where {@link Condition}s.
-     *
-     * @return a list of {@link Condition}
-     */
-    @VisibleForTesting
-    List<Condition> buildWhereClauses() {
-        List<Condition> conditions = new LinkedList<>();
-        conditions.addAll(buildTypeSpecificConditions());
-        conditions.addAll(buildGenericConditions());
-        return conditions;
+    protected DSLContext getReadOnlyDSLContext() {
+        return readOnlyDSLContext;
     }
 
-    @VisibleForTesting
-    List<SortField<?>> buildOrderByFields() {
-        List<OrderByApiDTO> orderBys = getOrderBy();
-        if (orderBys.isEmpty()) {
-            return Collections.singletonList(defaultOrderByName());
-        }
-
-        return orderBys.stream()
-                .map(orderby -> {
-                    Field<?> field = buildFieldForEntityField(orderby.getField());
-                    return orderby.isAscending() ? field.sort(SortOrder.ASC) : field.sort(SortOrder.DESC);
-                })
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Returns default sort order by name.
-     *
-     * @return {@link SortField} by name
-     */
-    private SortField<String> defaultOrderByName() {
-        return SearchEntity.SEARCH_ENTITY.NAME.desc();
-    }
-
-    /**
-     * If {@link Type#ENUM} conditions this maps api enums to jooq equivalents.
-     *
-     * @param fieldApiDto Corresponding {@link FieldApiDTO} of configered condition.
-     * @param values request api values, enums will be converted to jooq enums
-     * @return jooq enum references.
-     *         If Field is not {@link Type#ENUM} original values returned
-     */
-    List<String> parseTextAndInclusionConditions(FieldApiDTO fieldApiDto, List<String> values ) {
-        SearchMetadataMapping mapping = getMetadataMapping().get(fieldApiDto);
-
-        if (!mapping.getApiDatatype().equals(Type.ENUM)) {
-            return values;
-        }
-
-        final EnumMapper apiEnumMapper;
-        final Function enumMappingFunction;
-
-        if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityType())) {
-            throw new IllegalArgumentException("EntityType condition should only exist on Select Query");
-        } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.severity())) {
-            apiEnumMapper = new EnumMapper(EntitySeverity.class);
-            enumMappingFunction = EntitySeverityMapper.fromApiToSearchSchemaFunction;
-        } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityState())) {
-            apiEnumMapper = new EnumMapper(EntityState.class);
-            enumMappingFunction = EntityStateMapper.fromApiToSearchSchemaFunction;
-        } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.environmentType())) {
-            apiEnumMapper = new EnumMapper(EnvironmentType.class);
-            enumMappingFunction = EnvironmentTypeMapper.fromApiToSearchSchemaFunction;
-        } else {
-            return values;
-        }
-
-        return values.stream()
-            .map(apiEnumLiteral -> apiEnumMapper.valueOf(apiEnumLiteral).get())
-            .map(obj -> enumMappingFunction.apply(obj).toString())
-            .collect(Collectors.toList());
-    }
-
-    protected abstract List<FieldApiDTO> getSelectedFields();
-
-    protected abstract WhereApiDTO getWhere();
-
-    @Nullable
-    protected abstract PaginationApiDTO getPaginationApiDto();
-
-    protected abstract List<OrderByApiDTO> getOrderBy();
-
-    private List<Condition> buildGenericConditions() {
-        final WhereApiDTO whereEntity = getWhere();
-        if (Objects.isNull(whereEntity )) {
-            return Collections.EMPTY_LIST;
-        }
-        final List<Condition> conditions = new LinkedList<>();
-        for (ConditionApiDTO condition: whereEntity.getConditions()) {
-            Field field = this.buildFieldForEntityField(condition.getField());
-
-            if (condition instanceof TextConditionApiDTO) {
-                conditions.add(parseCondition((TextConditionApiDTO)condition, field));
-            } else if (condition instanceof InclusionConditionApiDTO) {
-                conditions.add(parseCondition((InclusionConditionApiDTO)condition, field));
-            } else if (condition instanceof NumberConditionApiDTO) {
-                conditions.add(parseCondition((NumberConditionApiDTO)condition, field));
-            } else if (condition instanceof IntegerConditionApiDTO) {
-                conditions.add(parseCondition((IntegerConditionApiDTO)condition, field));
-            } else if (condition instanceof BooleanConditionApiDTO) {
-                conditions.add(parseCondition((BooleanConditionApiDTO)condition, field));
-            }
-        }
-        return conditions;
-    }
-
-    /**
-     * Builds {@link Condition} from {@link TextConditionApiDTO}.
-     *
-     * @param entityCondition to build from
-     * @param field the field to compare against the provided condition
-     * @return constructed {@link Condition}
-     */
-    private Condition parseCondition(@Nonnull TextConditionApiDTO entityCondition, @Nonnull Field field) {
-        String value = entityCondition.getValue();
-        FieldApiDTO fieldApiDTO = entityCondition.getField();
-        List<String> parsedValues = parseTextAndInclusionConditions(fieldApiDTO, Collections.singletonList(value));
-        String caseInsensitiveRegex = "(?i)";
-        return isEnumeratedField(fieldApiDTO) ? field.eq(parsedValues.get(0)) : field.likeRegex(caseInsensitiveRegex.concat(parsedValues.get(0)));
-    }
-
-    private boolean isEnumeratedField(FieldApiDTO field) {
-        return ENUMERATED_PRIMITIVE_FIELDS.contains(field);
-    }
-
-    /**
-     * Builds {@link Condition} from {@link InclusionConditionApiDTO}.
-     *
-     * @param entityCondition to build from
-     * @param field the field to compare against the provided condition
-     * @return constructed {@link Condition}
-     */
-    private Condition parseCondition(@Nonnull InclusionConditionApiDTO entityCondition, @Nonnull Field field) {
-        List<String> values = entityCondition.getValue(); //List of enumLiterals only
-        List<String> jooqEnumValues = parseTextAndInclusionConditions(entityCondition.getField(), values);
-        //InclusionCondition can only be configured for IN operator
-        return field.in(jooqEnumValues);
-    }
-
-    /**
-     * Builds {@link Condition} from {@link NumberConditionApiDTO}.
-     *
-     * @param entityCondition to build from
-     * @param field the field to compare against the provided condition
-     * @return constructed {@link Condition}
-     */
-    @Nonnull
-    private Condition parseCondition(@Nonnull NumberConditionApiDTO entityCondition, @Nonnull Field field) {
-        Double value = entityCondition.getValue();
-        return applyNumericOperators(field, entityCondition.getOperator(), value);
-    }
-
-    /**
-     * Builds {@link Condition} from {@link IntegerConditionApiDTO}.
-     *
-     * @param entityCondition to build from
-     * @param field the field to compare against the provided condition
-     * @return constructed {@link Condition}
-     */
-    @NonNull
-    private Condition parseCondition(@Nonnull IntegerConditionApiDTO entityCondition, @Nonnull Field field) {
-        Long value = entityCondition.getValue();
-        return applyNumericOperators(field, entityCondition.getOperator(), value);
-    }
-
-    /**
-     * Builds {@link Condition} from {@link BooleanConditionApiDTO}.
-     *
-     * @param entityCondition to build from
-     * @param field the field to compare against the provided condition
-     * @return constructed {@link Condition}
-     */
-    private Condition parseCondition(@Nonnull BooleanConditionApiDTO entityCondition, @Nonnull Field field) {
-        boolean value = entityCondition.getValue();
-        return field.eq(value);
-    }
-
-    @Nonnull
-    private Condition applyNumericOperators(@Nonnull Field field, @Nonnull Operator operator, @NonNull Object value ) {
-        Condition condition = null;
-        switch (operator) {
-            case EQ:
-                return field.eq(value);
-            case NEQ:
-                return field.ne(value);
-            case GT:
-                return field.gt(value);
-            case LT:
-                return field.lt(value);
-            case GE:
-                return field.ge(value);
-            case LE:
-                return field.le(value);
-        }
-        return condition;
-    }
-
-    private List<GroupField> buildGroupByClauses() {
-        return Collections.emptyList();
-    }
-
-    protected String getType() {
-        return type;
-    }
-
-    protected void setType(String type) {
-        this.type = type;
+    protected Table<SearchEntityRecord> getSearchTable() {
+        return searchTable;
     }
 }

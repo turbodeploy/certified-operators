@@ -20,8 +20,10 @@ import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
-import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
+import com.vmturbo.action.orchestrator.action.RejectedActionsStore;
 import com.vmturbo.action.orchestrator.approval.ApprovalCommunicationConfig;
 import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
@@ -122,6 +124,9 @@ public class ActionStoreConfig {
 
     @Value("${minsActionAcceptanceTTL:1440}")
     private long minsActionAcceptanceTTL;
+
+    @Value("${minsActionRejectionTTL:10080}")
+    private long minsActionRejectionTTL;
 
     @Value("${minsFrequencyOfCleaningAcceptedActionsStore:60}")
     private long minsFrequencyOfCleaningAcceptedActionsStore;
@@ -228,7 +233,8 @@ public class ActionStoreConfig {
             .withSupplyChainService(SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
             .withRepositoryService(RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
             .withLicenseCheckClient(licenseCheckClientConfig.licenseCheckClient())
-            .withAcceptedActionStore(acceptedActionsStore())
+            .withAcceptedActionsStore(acceptedActionsStore())
+            .withRejectedActionsStore(rejectedActionsStore())
             .withActionIdentityService(actionIdentityService())
             .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
             .withActionAuditSender(auditCommunicationConfig.actionAuditSender())
@@ -236,18 +242,19 @@ public class ActionStoreConfig {
     }
 
     /**
-     * Creates instance of {@link RegularAcceptedActionsStoreCleaner} which has internal logic
-     * of regularly checking accepted actions and deleting expired acceptances.
+     * Creates instance of {@link RegularActionsStoreCleaner} which has internal logic
+     * of regularly checking accepted and rejection actions and deleting expired of them.
      *
-     * @return instance of {@link RegularAcceptedActionsStoreCleaner}.
+     * @return instance of {@link RegularActionsStoreCleaner}.
      */
     @Bean
-    public RegularAcceptedActionsStoreCleaner regularAcceptedActionsStoreCleaner() {
+    public RegularActionsStoreCleaner regularActionsStoreCleaner() {
         final ThreadFactory threadFactory =
-                new ThreadFactoryBuilder().setNameFormat("acceptedActions-cleaner-%d").build();
-        return new RegularAcceptedActionsStoreCleaner(
+                new ThreadFactoryBuilder().setNameFormat("actionStore-cleaner-%d").build();
+        return new RegularActionsStoreCleaner(
                 Executors.newSingleThreadScheduledExecutor(threadFactory), acceptedActionsStore(),
-                minsActionAcceptanceTTL, minsFrequencyOfCleaningAcceptedActionsStore);
+                rejectedActionsStore(), minsActionAcceptanceTTL, minsActionRejectionTTL,
+                minsFrequencyOfCleaningAcceptedActionsStore);
     }
 
     @Bean
@@ -302,5 +309,15 @@ public class ActionStoreConfig {
     @Bean
     public AcceptedActionsDAO acceptedActionsStore() {
         return new AcceptedActionsStore(databaseConfig.dsl());
+    }
+
+    /**
+     * Creates DAO implementation for working with rejected actions.
+     *
+     * @return instance of {@link RejectedActionsDAO}
+     */
+    @Bean
+    public RejectedActionsDAO rejectedActionsStore() {
+        return new RejectedActionsStore(databaseConfig.dsl());
     }
 }

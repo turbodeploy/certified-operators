@@ -44,22 +44,22 @@ public enum SearchMetadataMapping {
     PRIMITIVE_OID("oid", Type.INTEGER, null,
             entity -> Optional.of(entity.getOid())),
 
-    PRIMITIVE_ENTITY_TYPE("type", Type.ENUM, EntityType.class,
+    PRIMITIVE_ENTITY_TYPE("type", Type.TEXT, EntityType.class,
             entity -> Optional.of(entity.getEntityType())),
 
     PRIMITIVE_NAME("name", Type.TEXT, null,
             entity -> Optional.of(entity.getDisplayName())),
 
-    PRIMITIVE_STATE("state", Type.ENUM, EntityState.class,
+    PRIMITIVE_STATE("state", Type.TEXT, EntityState.class,
             entity -> Optional.of(entity.getEntityState())),
 
-    PRIMITIVE_ENVIRONMENT_TYPE("environment", Type.ENUM, EnvironmentType.class,
+    PRIMITIVE_ENVIRONMENT_TYPE("environment", Type.TEXT, EnvironmentType.class,
             entity -> Optional.of(entity.getEnvironmentType())),
 
     /**
      * Severity. Used for both entity and group.
      */
-    PRIMITIVE_SEVERITY("severity", Type.ENUM, EntitySeverity.class),
+    PRIMITIVE_SEVERITY("severity", Type.TEXT, EntitySeverity.class),
 
     /**
      * Related action count. Used for both entity and group.
@@ -132,6 +132,12 @@ public enum SearchMetadataMapping {
             CommodityTypeUnits.BALLOONING, Type.NUMBER),
 
     COMMODITY_BALLOONING_UTILIZATION("attrs", "ballooning_utilization", CommodityType.BALLOONING, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_CONNECTION_USED("attrs", "connection_used", CommodityType.CONNECTION, CommodityAttribute.USED,
+            CommodityTypeUnits.CONNECTION, Type.NUMBER),
+
+    COMMODITY_CONNECTION_UTILIZATION("attrs", "connection_utilization", CommodityType.CONNECTION, CommodityAttribute.UTILIZATION,
             null, Type.NUMBER),
 
     COMMODITY_COOLING_UTILIZATION("attrs", "cooling_utilization", CommodityType.COOLING, CommodityAttribute.UTILIZATION,
@@ -287,7 +293,7 @@ public enum SearchMetadataMapping {
     RELATED_ACCOUNT("attrs", "related_account", Collections.singleton(EntityType.BUSINESS_ACCOUNT),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_APPLICATION("attrs", "related_application", Collections.singleton(EntityType.APPLICATION),
+    RELATED_APPLICATION_COMPONENT("attrs", "related_application_component", Collections.singleton(EntityType.APPLICATION_COMPONENT),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
     RELATED_BUSINESS_APPLICATION("attrs", "related_business_application", Collections.singleton(EntityType.BUSINESS_APPLICATION),
@@ -345,7 +351,7 @@ public enum SearchMetadataMapping {
     PRIMITIVE_GROUP_OID("oid", group -> Optional.of(group.getId()), Type.INTEGER, null),
 
     PRIMITIVE_GROUP_TYPE("type", group -> Optional.of(group.getDefinition().getType()),
-            Type.ENUM, EntityType.class),
+            Type.TEXT, EntityType.class),
 
     PRIMITIVE_GROUP_NAME("name", group -> Optional.of(group.getDefinition().getDisplayName()),
             Type.TEXT, null),
@@ -401,7 +407,7 @@ public enum SearchMetadataMapping {
     private String jsonKeyName;
     // type of the value for this field
     private final Type apiDatatype;
-    // enum class if Type is enum
+    // Enum class
     private Class<? extends Enum<?>> enumClass;
     // entity fields
     private Function<TopologyEntityDTO, Optional<Object>> topoFieldFunction;
@@ -765,7 +771,7 @@ public enum SearchMetadataMapping {
      *          if not set returns null
      */
     public String getUnitsString() {
-        return Objects.isNull(commodityUnit) ? null : commodityUnit.toString();
+        return Objects.isNull(commodityUnit) ? null : commodityUnit.getUnits();
     }
 
     public GroupType getRelatedGroupType() {

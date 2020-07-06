@@ -114,7 +114,7 @@ public class GroupQueryTest {
         //GIVEN
         final GroupType type = GroupType.COMPUTE_HOST_CLUSTER;
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
-        final FieldApiDTO primitiveTextField = getAnyGroupKeyField(type, PrimitiveFieldApiDTO.class, Type.TEXT);
+        final FieldApiDTO primitiveTextField = PrimitiveFieldApiDTO.origin();
         final FieldApiDTO aggregatedCommodityNumericField = getAnyGroupKeyField(type, AggregateCommodityFieldApiDTO.class, Type.NUMBER);
         final FieldApiDTO memberFieldApiDTO = getAnyGroupKeyField(type, MemberFieldApiDTO.class, Type.INTEGER);
 

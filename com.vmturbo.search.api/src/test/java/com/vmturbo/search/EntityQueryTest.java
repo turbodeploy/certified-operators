@@ -159,7 +159,7 @@ public class EntityQueryTest {
         Set<Field> fields = query.buildNonCommonFields();
 
         //THEN
-        Field primiField = query.buildFieldForEntityField(primitiveEntityField, true);
+        Field primiField = query.buildFieldForApiField(primitiveEntityField, true);
         assertTrue("Duplicates should have been filtered out", fields.size() == 1);
         assertTrue("Field created from FieldApiDTO", fields.contains(primiField));
     }
@@ -234,7 +234,7 @@ public class EntityQueryTest {
 
         //THEN
         assertFalse(fields.isEmpty());
-        Field comField = query.buildFieldForEntityField(commodityField, true);
+        Field comField = query.buildFieldForApiField(commodityField, true);
         assertTrue(fields.contains(comField));
     }
 
@@ -257,7 +257,7 @@ public class EntityQueryTest {
 
         //THEN
         assertFalse(fields.isEmpty());
-        Field relField = query.buildFieldForEntityField(relatedEntityField, true);
+        Field relField = query.buildFieldForApiField(relatedEntityField, true);
         assertTrue(fields.contains(relField));
     }
 
@@ -274,7 +274,7 @@ public class EntityQueryTest {
         //GIVEN
         final EntityType type = EntityType.VIRTUAL_MACHINE;
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
-        final FieldApiDTO primitiveTextField = getAnyEntityKeyField(type, PrimitiveFieldApiDTO.class, Type.TEXT);
+        final FieldApiDTO primitiveTextField = PrimitiveFieldApiDTO.primitive("guestOsType");
         final FieldApiDTO commodityNumericField = getAnyEntityKeyField(type, CommodityFieldApiDTO.class, Type.NUMBER);
         final FieldApiDTO relatedEntityMultiTextField = getAnyEntityKeyField(type, RelatedEntityFieldApiDTO.class, Type.MULTI_TEXT);
 

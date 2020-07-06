@@ -27,7 +27,7 @@ import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.Topolo
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters.FilterSpecs;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -95,14 +95,13 @@ public class DataProvider {
      * Make a request to the Repository Component looking for topology entities by
      * defined filters.
      *
-     * @param filters - filters using for search entities.
-     * @param entityType - type of entity.
+     * @param searchParameters - parameters for the query.
      * @return a set of DTOs.
      */
     @Nonnull
     @ParametersAreNonnullByDefault
-    public Set<TopologyEntityDTO> searchEntities(List<FilterSpecs> filters, EntityType entityType) {
-        SearchEntitiesRequest request = requests.createFilterEntityRequest(filters, entityType);
+    public Set<TopologyEntityDTO> searchEntities(List<SearchParameters> searchParameters) {
+        SearchEntitiesRequest request = requests.createFilterEntityRequest(searchParameters);
         SearchEntitiesResponse response = requestExecutor.searchEntities(request);
         return response.getEntitiesList().stream()
                 .map(PartialEntity::getFullEntity).collect(Collectors.toSet());

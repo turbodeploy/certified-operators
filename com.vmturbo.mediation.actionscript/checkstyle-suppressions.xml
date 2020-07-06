@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]AcceptAnyOrGivenServerKeyVerifier.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ActionScriptDiscovery.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ActionScriptProbe.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ActionScriptProbeAccount.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ActionScriptsManifest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]SshUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]exception[/\\]KeyValidationException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]exception[/\\]ParameterMappingException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]exception[/\\]RemoteExecutionException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]executor[/\\]ActionScriptExecutionStatus.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]executor[/\\]ActionScriptExecutor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]executor[/\\]OutputHandler.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]executor[/\\]SignalingSshChannelExec.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]executor[/\\]SshScriptExecutor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]parameter[/\\]ActionScriptParameterDefinition.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]parameter[/\\]ActionScriptParameterMapper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ActionScriptDiscoveryTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ActionScriptParameterMapperTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ActionScriptTestBase.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ApacheSshdBuilder.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]SystemSshdLauncher.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]executor[/\\]ActionScriptExecutorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]executor[/\\]ScriptRunner.java" />
+</suppressions>

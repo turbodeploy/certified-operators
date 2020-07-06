@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]performance[/\\]action[/\\]orchestrator[/\\]ActionOrchestratorPerformanceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]performance[/\\]group[/\\]GroupPerformanceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]performance[/\\]history[/\\]HistoryLivePerformanceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]performance[/\\]history[/\\]HistoryPerformanceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]performance[/\\]history[/\\]HistoryPlanPerformanceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]performance[/\\]market[/\\]MarketPerformanceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]performance[/\\]repository[/\\]RepositoryPerformanceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]performance[/\\]topology[/\\]processor[/\\]TopologyProcessorPerformanceTest.java" />
+</suppressions>

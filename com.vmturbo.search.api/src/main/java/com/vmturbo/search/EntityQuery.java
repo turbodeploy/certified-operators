@@ -3,7 +3,6 @@ package com.vmturbo.search;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.collect.Lists;
@@ -30,15 +29,15 @@ import com.vmturbo.search.metadata.SearchMetadataMapping;
 /**
  * A representation of a single API entity query, mapped to a SQL query.
  */
-public class EntityQuery extends AbstractQuery {
-
-    private final EntityQueryApiDTO request;
+public class EntityQuery extends AbstractSearchQuery {
 
     /**
-     * Provides a mapping from String -> SearchEntityMetadata.
+     * Provides a mapping from EntityType(string) -> SearchEntityMetadata.
      */
     public static final EnumMapper<SearchEntityMetadata> SEARCH_ENTITY_METADATA_ENUM_MAPPER =
-            new EnumMapper<>(SearchEntityMetadata.class);
+        new EnumMapper<>(SearchEntityMetadata.class);
+
+    private final EntityQueryApiDTO request;
 
     /**
      * Create an entity query instance.
@@ -48,9 +47,8 @@ public class EntityQuery extends AbstractQuery {
      */
     public EntityQuery(@NonNull final EntityQueryApiDTO entityQueryApiDTO,
             @NonNull final DSLContext readOnlyDSLContext) {
-        super(readOnlyDSLContext);
-        this.request = Objects.requireNonNull(entityQueryApiDTO);
-        this.setType(request.getSelect().getEntityType().name());
+        super(entityQueryApiDTO.getSelect().getEntityType().name(), readOnlyDSLContext);
+        this.request = entityQueryApiDTO;
     }
 
     @Override
@@ -90,11 +88,11 @@ public class EntityQuery extends AbstractQuery {
     }
 
     @Override
-    protected Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping() {
-        return SEARCH_ENTITY_METADATA_ENUM_MAPPER.valueOf(getType())
-                .map(SearchEntityMetadata::getMetadataMappingMap)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "No data for metadataMappingKey: " + getType()));
+    protected Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping(final String entityType) {
+        return SEARCH_ENTITY_METADATA_ENUM_MAPPER.valueOf(entityType)
+            .map(SearchEntityMetadata::getMetadataMappingMap)
+            .orElseThrow(() -> new IllegalArgumentException(
+                "No data for metadataMappingKey: " + entityType));
     }
 
     private EntityQueryApiDTO getRequest() {

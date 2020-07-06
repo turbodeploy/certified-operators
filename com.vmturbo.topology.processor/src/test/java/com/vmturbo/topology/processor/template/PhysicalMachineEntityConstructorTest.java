@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -162,7 +163,7 @@ public class PhysicalMachineEntityConstructorTest {
             CommodityType.Q4_VCPU, CommodityType.Q8_VCPU, CommodityType.Q16_VCPU);
         int numCpus = 1;
         for (CommodityType type : qxVcpus) {
-            assertEquals(PhysicalMachineEntityConstructor.QX_VCPU_BASE_COEFFICIENT * numCpus,
+            assertEquals(TopologyDTOUtil.QX_VCPU_BASE_COEFFICIENT * numCpus,
                 getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(), type.getNumber()), epsilon);
             numCpus <<= 1; // Double the number of CPUs.
         }

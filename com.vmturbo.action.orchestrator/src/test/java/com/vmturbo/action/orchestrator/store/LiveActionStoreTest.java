@@ -37,6 +37,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -54,6 +55,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
@@ -86,7 +88,6 @@ import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.ResizeMergeSpec.Com
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -199,6 +200,7 @@ public class LiveActionStoreTest {
         repositoryServiceMole);
 
     private final AcceptedActionsDAO acceptedActionsStore = mock(AcceptedActionsDAO.class);
+    private final RejectedActionsDAO rejectedActionsStore = mock(RejectedActionsDAO.class);
 
     final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
     final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
@@ -216,12 +218,12 @@ public class LiveActionStoreTest {
                 new IdentityServiceImpl(idDataStore, new ActionInfoModelCreator(),
                         Clock.systemUTC(), 1000);
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID,
-            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            targetSelector, probeCapabilityCache, entitySettingsCache,
-            actionHistoryDao, actionsStatistician, actionTranslator, atomicActionFactory,
-            clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
-            actionIdentityService, involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class));
+                RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()), targetSelector,
+                probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
+                actionTranslator, atomicActionFactory, clock, userSessionContext,
+                licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
+                actionIdentityService, involvedEntitiesExpander,
+                Mockito.mock(ActionAuditSender.class));
 
         when(targetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -328,6 +330,11 @@ public class LiveActionStoreTest {
 
         actionStore.populateRecommendedActions(plan);
         assertEquals(2, actionStore.size());
+        final Action action = actionStore.getActions().values().iterator().next();
+        final Optional<Action> actionOpt =
+                actionStore.getActionByRecommendationId(action.getRecommendationOid());
+        Assert.assertTrue(actionOpt.isPresent());
+        Assert.assertEquals(action, actionOpt.get());
     }
 
     @Test
@@ -389,14 +396,14 @@ public class LiveActionStoreTest {
     public void testPopulateNotRecommendedAreClearedAndRemoved() throws Exception {
         // Can't use spies when checking for action state because action state machine will call
         // methods in the original action, not in the spy.
-        ActionStore actionStore = new LiveActionStore(
-            new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
-            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-            actionsStatistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
-            licenseCheckClient, acceptedActionsStore, actionIdentityService,
-                involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class));
+        final ActionStore actionStore =
+                new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
+                        RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                        targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+                        actionsStatistician, actionTranslator, atomicActionFactory, clock,
+                        userSessionContext, licenseCheckClient, acceptedActionsStore,
+                        rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
+                        Mockito.mock(ActionAuditSender.class));
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

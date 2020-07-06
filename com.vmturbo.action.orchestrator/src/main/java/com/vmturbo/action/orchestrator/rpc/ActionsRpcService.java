@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -31,10 +30,11 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
+import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
-import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
@@ -45,7 +45,6 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionExcep
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
-import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
@@ -82,8 +81,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRespons
 import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesAndRejectionsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesAndRejectionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
@@ -93,7 +92,6 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -119,7 +117,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     private final ActionTranslator actionTranslator;
 
     /**
-     * For paginating views of actions
+     * For paginating views of actions.
      */
     private final ActionPaginatorFactory paginatorFactory;
 
@@ -134,6 +132,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final AcceptedActionsDAO acceptedActionsStore;
 
+    private final RejectedActionsDAO rejectedActionsStore;
+
     private final int actionPaginationMaxLimit;
 
     /**
@@ -141,13 +141,14 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      *
      * @param clock the {@link Clock}
      * @param actionStorehouse the storehouse containing action stores.
+     * @param actionApprovalManager action approval manager
      * @param actionTranslator the translator for translating actions (from market to real-world).
      * @param paginatorFactory for paginating views of actions
      * @param historicalActionStatReader reads stats of historical actions
      * @param currentActionStatReader reads stats of current actions
      * @param userSessionContext the user session context
      * @param acceptedActionsStore dao layer working with accepted actions
-     * @param actionApprovalManager action approval manager
+     * @param rejectedActionsStore dao layer working with rejected actions
      * @param actionPaginationMaxLimit max number of actions to return in a single pagination page
      */
     public ActionsRpcService(@Nonnull final Clock clock,
@@ -159,6 +160,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             @Nonnull final CurrentActionStatReader currentActionStatReader,
             @Nonnull final UserSessionContext userSessionContext,
             @Nonnull final AcceptedActionsDAO acceptedActionsStore,
+            @Nonnull final RejectedActionsDAO rejectedActionsStore,
             final int actionPaginationMaxLimit) {
         this.clock = clock;
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
@@ -169,6 +171,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         this.currentActionStatReader = Objects.requireNonNull(currentActionStatReader);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsStore);
+        this.rejectedActionsStore = Objects.requireNonNull(rejectedActionsStore);
         this.actionPaginationMaxLimit = actionPaginationMaxLimit;
     }
 
@@ -199,9 +202,15 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
 
         final ActionStore store = optionalStore.get();
+        final Optional<Action> actionOpt = store.getAction(request.getActionId());
+        if (!actionOpt.isPresent()) {
+            responseObserver.onNext(acceptanceError("Action " + request.getActionId() + " doesn't exist."));
+            responseObserver.onCompleted();
+            return;
+        }
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
         final AcceptActionResponse response = actionApprovalManager.attemptAndExecute(store,
-                userNameAndUuid, request.getActionId());
+                userNameAndUuid, actionOpt.get());
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
@@ -609,16 +618,20 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     }
 
     @Override
-    public void removeActionsAcceptances(RemoveActionsAcceptancesRequest request,
-            StreamObserver<RemoveActionsAcceptancesResponse> responseObserver) {
+    public void removeActionsAcceptancesAndRejections(
+            RemoveActionsAcceptancesAndRejectionsRequest request,
+            StreamObserver<RemoveActionsAcceptancesAndRejectionsResponse> responseObserver) {
         try {
             acceptedActionsStore.removeAcceptanceForActionsAssociatedWithPolicy(
                     request.getPolicyId());
-            responseObserver.onNext(RemoveActionsAcceptancesResponse.getDefaultInstance());
+            rejectedActionsStore.removeRejectionsForActionsAssociatedWithPolicy(
+                    request.getPolicyId());
+            responseObserver.onNext(
+                    RemoveActionsAcceptancesAndRejectionsResponse.getDefaultInstance());
             responseObserver.onCompleted();
         } catch (DataAccessException e) {
-            logger.error("Failed to remove acceptances for actions associated with policy {}",
-                    request.getPolicyId(), e);
+            logger.error("Failed to remove acceptances and rejections for actions associated with "
+                    + "policy {}", request.getPolicyId(), e);
             responseObserver.onError(e);
         }
     }

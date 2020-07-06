@@ -4,11 +4,9 @@ import static com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import static com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import static com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import static com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import static com.vmturbo.common.protobuf.search.Search.SearchParameters.FilterSpecs;
 import static com.vmturbo.common.protobuf.search.Search.SearchParameters.newBuilder;
 import static com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import static com.vmturbo.common.protobuf.search.SearchProtoUtil.entityTypeFilter;
-import static com.vmturbo.common.protobuf.search.SearchableProperties.DISPLAY_NAME;
 import static com.vmturbo.common.protobuf.search.SearchableProperties.TAGS_TYPE_PROPERTY_NAME;
 
 import java.util.List;
@@ -22,7 +20,6 @@ import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.GetTop
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
-import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -73,30 +70,17 @@ public class DataRequests {
     /**
      * Request: get topology entities by defined filters.
      *
-     * @param filters - filters for search request.
-     * @param entityType - type of entity.
+     * @param searchParameters - parameters for search request.
      * @return an instance of {@link SearchEntitiesRequest}.
      */
     @Nonnull
     @ParametersAreNonnullByDefault
-    SearchEntitiesRequest createFilterEntityRequest(List<FilterSpecs> filters, EntityType entityType) {
-        SearchQuery.Builder searchQuery = Search.SearchQuery.newBuilder();
-        filters.forEach(filter -> searchQuery.addSearchParameters(SearchParameters.newBuilder()
-                .setStartingFilter(entityTypeFilter(entityType.getNumber()))
-                .setSourceFilterSpecs(filter)
-                // In the first implementation we support the filter by name.
-                // A search filter should be part of a definition data model and will be added
-                // in the further versions.
-                .addSearchFilter(SearchProtoUtil.searchFilterProperty(PropertyFilter.newBuilder()
-                        .setPropertyName(DISPLAY_NAME)
-                        .setStringFilter(PropertyFilter.StringFilter.newBuilder()
-                                .setStringPropertyRegex(filter.getExpressionValue())
-                                .setCaseSensitive(false)
-                                .build())
-                        .build()))
-                .build()));
+    SearchEntitiesRequest createFilterEntityRequest(List<SearchParameters> searchParameters) {
         return SearchEntitiesRequest.newBuilder()
-                .setSearch(searchQuery)
+                .setSearch(Search.SearchQuery
+                        .newBuilder()
+                        .addAllSearchParameters(searchParameters)
+                        .build())
                 .build();
     }
 

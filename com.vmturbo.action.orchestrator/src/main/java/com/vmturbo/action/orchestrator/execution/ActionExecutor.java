@@ -131,7 +131,7 @@ public class ActionExecutor implements ActionExecutionListener {
     @Nonnull
     public static ExecuteActionRequest createRequest(final long targetId, @Nonnull final ActionDTO.Action action,
                                                      @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt) {
-        return createRequest(targetId, action, workflowOpt, null);
+        return createRequest(targetId, action, workflowOpt, null, action.getId());
     }
 
     /**
@@ -140,20 +140,23 @@ public class ActionExecutor implements ActionExecutionListener {
      * @param targetId target to execute action on
      * @param action action to execute
      * @param workflowOpt workflow associated with this target (if any)
-     * @param explanation the explanation string describing the action.
+     * @param explanation the explanation string describing the action
+     * @param actionId the action identifier (actionId or recommendationId used for external
+     *        audit/approve operations)
      * @return DTO to send request to topology processor
      */
     @Nonnull
-    public static ExecuteActionRequest createRequest(final long targetId, @Nonnull final ActionDTO.Action action,
-            @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt,
-            @Nullable String explanation) {
+    public static ExecuteActionRequest createRequest(final long targetId,
+            @Nonnull final ActionDTO.Action action,
+            @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt, @Nullable String explanation,
+            final long actionId) {
         Objects.requireNonNull(action);
         Objects.requireNonNull(workflowOpt);
 
         final ActionType actionType = ActionDTOUtil.getActionInfoActionType(action);
 
         final ExecuteActionRequest.Builder executionRequestBuilder = ExecuteActionRequest.newBuilder()
-                .setActionId(action.getId())
+                .setActionId(actionId)
                 .setActionInfo(action.getInfo())
                 .setActionType(actionType);
         if (explanation != null) {

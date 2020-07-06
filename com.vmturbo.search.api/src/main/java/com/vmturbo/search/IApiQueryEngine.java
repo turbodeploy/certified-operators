@@ -1,9 +1,14 @@
 package com.vmturbo.search;
 
+import java.util.List;
+
 import javax.annotation.Nonnull;
 
+import com.vmturbo.api.dto.searchquery.EntityCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.GroupCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 
@@ -33,4 +38,23 @@ public interface IApiQueryEngine {
     SearchQueryPaginationResponse<SearchQueryRecordApiDTO> processGroupQuery(
         @Nonnull GroupQueryApiDTO request) throws Exception;
 
+    /**
+     * Processes a {@link EntityCountRequestApiDTO} and returns an (unpaginated) list of results.
+     *
+     * @param entityCountRequestApiDTO describes the group by parameters of the request
+     * @return a list of results
+     * @throws Exception when the query cannot be processed
+     */
+    List<SearchCountRecordApiDTO> countEntites(
+        @Nonnull EntityCountRequestApiDTO entityCountRequestApiDTO) throws  Exception;
+
+    /**
+     * Processes a {@link GroupCountRequestApiDTO} and returns an (unpaginated) list of results.
+     *
+     * @param groupCountRequestApiDTO describes the group by parameters of the request
+     * @return a list of results
+     * @throws Exception when the query cannot be processed
+     */
+    List<SearchCountRecordApiDTO> countGroups(
+        @Nonnull GroupCountRequestApiDTO groupCountRequestApiDTO) throws Exception;
 }

@@ -74,6 +74,7 @@ public class HistoryAggregator {
 
     private final ExecutorService executorService;
     private final Set<IHistoricalEditor<?>> editors;
+    private final Map<String, DataMetricSummary> registeredPerEditorMetrics = new HashMap<>();
 
     /**
      * Construct the history aggregation stage instance.
@@ -167,11 +168,11 @@ public class HistoryAggregator {
                                @Nonnull String description, @Nonnull String metricHelpFormat) throws PipelineStageException {
         for (IHistoricalEditor<?> editor : editorsToRun) {
             String editorName = editor.getClass().getSimpleName();
-            DataMetricSummary metric =
-                            DataMetricSummary.builder()
-                    .withName(String.format("tp_historical_%s_time_%s", description, editorName))
-                    .withHelp(String.format(metricHelpFormat, editorName))
-                    .build();
+            String metricName = String.format("tp_historical_%s_time_%s", description, editorName);
+            DataMetricSummary metric = registeredPerEditorMetrics.computeIfAbsent(metricName,
+                            (name) -> DataMetricSummary.builder().withName(metricName)
+                                            .withHelp(String.format(metricHelpFormat, editorName))
+                                            .build().register());
             try (DataMetricTimer timer = metric.startTimer()) {
                 try {
                     task.accept(editor);

@@ -4,13 +4,11 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.dto.searchquery.EntityCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
-import com.vmturbo.api.dto.searchquery.GroupCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.ISearchQueryService;
@@ -76,10 +74,9 @@ public class SearchQueryService implements ISearchQueryService {
      */
     @Override
     @Nonnull
-    public List<EntityCountRecordApiDTO> countEntities(@Nonnull EntityCountRequestApiDTO input)
+    public List<SearchCountRecordApiDTO> countEntities(@Nonnull EntityCountRequestApiDTO input)
             throws Exception {
-        // TODO
-        throw ApiUtils.notImplementedInXL();
+        return apiQueryEngine.countEntites(input);
     }
 
 
@@ -92,9 +89,8 @@ public class SearchQueryService implements ISearchQueryService {
      */
     @Override
     @Nonnull
-    public List<GroupCountRecordApiDTO> countGroups(@Nonnull GroupCountRequestApiDTO input)
+    public List<SearchCountRecordApiDTO> countGroups(@Nonnull GroupCountRequestApiDTO input)
             throws Exception {
-        // TODO
-        throw ApiUtils.notImplementedInXL();
+        return apiQueryEngine.countGroups(input);
     }
 }

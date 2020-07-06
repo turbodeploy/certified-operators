@@ -8,15 +8,16 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.sql.utils.DbException;
 
 /**
  * This class is used to manage the entity cost table. It store calculated entity cost (after discount).
  */
-public interface EntityCostStore {
+public interface EntityCostStore extends MultiStoreDiagnosable {
 
     /**
      * Persist bulk entity costs based on {@link CostJournal}s.

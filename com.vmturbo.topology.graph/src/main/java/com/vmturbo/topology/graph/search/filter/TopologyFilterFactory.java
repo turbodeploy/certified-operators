@@ -291,6 +291,30 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                         return PropertyFilter.typeSpecificFilter(propsTest, SearchableProps.class);
                 }
             }
+            case SearchableProperties.HOT_ADD_MEMORY:
+                if (stringCriteria.getOptionsCount() == 1) {
+                    final boolean expectedValue = Boolean.parseBoolean(
+                            stringCriteria.getOptions(0));
+                    return PropertyFilter.typeSpecificFilter(
+                            v -> v.isHotAddSupported(CommodityType.VMEM.getNumber())
+                                    == expectedValue, VmProps.class);
+                }
+            case SearchableProperties.HOT_ADD_CPU:
+                if (stringCriteria.getOptionsCount() == 1) {
+                    final boolean expectedValue = Boolean.parseBoolean(
+                            stringCriteria.getOptions(0));
+                    return PropertyFilter.typeSpecificFilter(
+                            v -> v.isHotAddSupported(CommodityType.VCPU.getNumber())
+                                    == expectedValue, VmProps.class);
+                }
+            case SearchableProperties.HOT_REMOVE_CPU:
+                if (stringCriteria.getOptionsCount() == 1) {
+                    final boolean expectedValue = Boolean.parseBoolean(
+                            stringCriteria.getOptions(0));
+                    return PropertyFilter.typeSpecificFilter(
+                            v -> v.isHotRemoveSupported(CommodityType.VCPU.getNumber())
+                                    == expectedValue, VmProps.class);
+                }
             case SearchableProperties.DELETABLE:
                 // to use this filter, presentation layer needs to send true or false for options,
                 // we need to only depend on the optionsList. When both true and false are send then

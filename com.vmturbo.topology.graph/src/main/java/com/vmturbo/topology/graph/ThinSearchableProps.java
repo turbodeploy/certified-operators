@@ -48,6 +48,15 @@ public class ThinSearchableProps implements SearchableProps {
         return commodities.getCommodityUsed(type);
     }
 
+    @Override
+    public boolean isHotAddSupported(int commodityType) {
+        return commodities.isHotAddSupported(commodityType);
+    }
+
+    @Override
+    public boolean isHotRemoveSupported(int commodityType) {
+        return commodities.isHotRemoveSupported(commodityType);
+    }
 
     /**
      * Helper interface to support commodity value lookups.
@@ -71,6 +80,22 @@ public class ThinSearchableProps implements SearchableProps {
          *         such commodity.
          */
         float getCommodityUsed(int type);
+
+        /**
+         * Checks whether the VM supports hot add feature for the selected type of commodity.
+         *
+         * @param commodityType commodity type number.
+         * @return Returns true if the feature is supported, otherwise false.
+         */
+        boolean isHotAddSupported(int commodityType);
+
+        /**
+         * Checks whether the VM supports hot remove feature for the selected type of commodity.
+         *
+         * @param commodityType commodity type number
+         * @return Returns true if the feature is supported, otherwise false.
+         */
+        boolean isHotRemoveSupported(int commodityType);
     }
 
     /**

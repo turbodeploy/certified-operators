@@ -119,8 +119,6 @@ public class SearchEntityMetadataTest {
             assertNotNull(metadata.getApiDatatype());
             if (metadata.getApiDatatype() == Type.ENUM) {
                 assertNotNull(metadata.getEnumClass());
-            } else {
-                assertNull(metadata.getEnumClass());
             }
         }
     }

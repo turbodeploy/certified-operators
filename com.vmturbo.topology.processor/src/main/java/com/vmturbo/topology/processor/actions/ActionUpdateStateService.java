@@ -76,40 +76,54 @@ public class ActionUpdateStateService extends AbstractActionApprovalService {
         }
         this.updateBatchSize = updateBatchSize;
         actionStateUpdates.addListener(this::actionStateUpdateReceived);
-        scheduler.schedule(this::sendStateUpdates, actionUpdatePeriod, TimeUnit.SECONDS);
+        scheduler.scheduleWithFixedDelay(this::sendStateUpdates, actionUpdatePeriod,
+                actionUpdatePeriod, TimeUnit.SECONDS);
     }
 
     private void sendStateUpdates() {
-        if (actionUpdateStateOperation != null) {
-            getLogger().trace(
-                    "ActionUpdateState operation {} is in progress, will wait until it is finished: {}",
-                    actionUpdateStateOperation::getId, actionUpdateStateOperation::toString);
-            return;
-        }
-        final Collection<Pair<ActionResponse, Runnable>> batch = new ArrayList<>(updateBatchSize);
-        synchronized (stateUpdatesLock) {
-            final Iterator<Pair<ActionResponse, Runnable>> iterator =
-                    stateUpdates.values().iterator();
-            for (int i = 0; iterator.hasNext() && i < updateBatchSize; i++) {
-                batch.add(iterator.next());
+        try {
+            if (actionUpdateStateOperation != null) {
+                getLogger().trace(
+                        "ActionUpdateState operation {} is in progress, will wait until it is finished: {}",
+                        actionUpdateStateOperation::getId, actionUpdateStateOperation::toString);
+                return;
             }
-        }
-        final Collection<ActionResponse> actionStates = Collections2.transform(batch,
-                Pair::getFirst);
-        final Optional<Long> targetId = getTargetId();
-        if (!targetId.isPresent()) {
-            getLogger().warn("Action state updates available but no external approval backend"
-                            + " target found: [{}]",
-                    Collections2.transform(actionStates, ActionResponse::getActionOid));
-        } else {
-            try {
-                actionUpdateStateOperation = operationManager.updateExternalAction(targetId.get(),
-                        actionStates, new ActionStateUpdateCallback(targetId.get(), batch));
-            } catch (TargetNotFoundException | InterruptedException | ProbeException | CommunicationException e) {
-                getLogger().warn(
-                        "Failed sending action state updates to external action approval target",
-                        e);
+            final Collection<Pair<ActionResponse, Runnable>> batch =
+                    new ArrayList<>(updateBatchSize);
+            synchronized (stateUpdatesLock) {
+                final Iterator<Pair<ActionResponse, Runnable>> iterator =
+                        stateUpdates.values().iterator();
+                for (int i = 0; iterator.hasNext() && i < updateBatchSize; i++) {
+                    batch.add(iterator.next());
+                }
             }
+            final Collection<ActionResponse> actionStates =
+                    Collections2.transform(batch, Pair::getFirst);
+            final Optional<Long> targetId = getTargetId();
+            if (!targetId.isPresent()) {
+                getLogger().warn("Action state updates available but no external approval backend"
+                                + " target found: [{}]",
+                        Collections2.transform(actionStates, ActionResponse::getActionOid));
+            } else {
+                if (!actionStates.isEmpty()) {
+                    try {
+                        actionUpdateStateOperation =
+                                operationManager.updateExternalAction(targetId.get(), actionStates,
+                                        new ActionStateUpdateCallback(targetId.get(), batch));
+                    } catch (TargetNotFoundException | InterruptedException | ProbeException | CommunicationException e) {
+                        getLogger().warn(
+                                "Failed sending action state updates to external action approval target",
+                                e);
+                    }
+                } else {
+                    getLogger().debug("There is no action states to update.");
+                }
+            }
+        } catch (RuntimeException e) {
+            // Do not rethrow the exception. This prevents rescheduling of all future
+            // ScheduledExecutorService.scheduleWithFixedDelay(this::sendStateUpdates())
+            // As a result, without this catch, this method would never run again.
+            getLogger().error("Unable to send state updates due to exception", e);
         }
     }
 

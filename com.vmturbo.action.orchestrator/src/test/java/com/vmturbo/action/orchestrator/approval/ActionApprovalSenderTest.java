@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
@@ -72,8 +73,8 @@ public class ActionApprovalSenderTest {
      */
     @Test
     public void testSuccessfulFlow() throws Exception {
-        createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL);
-        createAction(ACTION2, ActionMode.MANUAL);
+        createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL, ActionState.READY);
+        createAction(ACTION2, ActionMode.MANUAL, ActionState.READY);
         aas.sendApprovalRequests(actionStore);
         final ArgumentCaptor<ActionApprovalRequests> captor = ArgumentCaptor.forClass(
                 ActionApprovalRequests.class);
@@ -107,7 +108,20 @@ public class ActionApprovalSenderTest {
     public void testActionNotExecutable() throws Exception {
         Mockito.when(actionStore.allowsExecution())
                 .thenReturn(false);
-        createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL);
+        createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL, ActionState.READY);
+        aas.sendApprovalRequests(actionStore);
+        Mockito.verifyZeroInteractions(requestSender);
+    }
+
+    /**
+     * Tests that there is no message sent when action has REJECTED state.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testRejectedAction() throws Exception {
+        Mockito.when(actionStore.allowsExecution()).thenReturn(true);
+        createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL, ActionState.REJECTED);
         aas.sendApprovalRequests(actionStore);
         Mockito.verifyZeroInteractions(requestSender);
     }
@@ -119,8 +133,8 @@ public class ActionApprovalSenderTest {
      */
     @Test
     public void testOneFailureOneSuccess() throws Exception {
-        final Action action1 = createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL);
-        final Action action2 = createAction(ACTION2, ActionMode.EXTERNAL_APPROVAL);
+        final Action action1 = createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL, ActionState.READY);
+        final Action action2 = createAction(ACTION2, ActionMode.EXTERNAL_APPROVAL, ActionState.READY);
         Mockito.doThrow(new CommunicationException("something went wrong"))
                 .doNothing()
                 .when(requestSender)
@@ -137,18 +151,20 @@ public class ActionApprovalSenderTest {
 
         Mockito.verify(requestSender, Mockito.times(2))
                 .sendMessage(captor.capture());
-        Assert.assertEquals(Collections.singleton(ACTION1), captor.getAllValues()
-                .get(0)
-                .getActionsList()
-                .stream()
-                .map(ExecuteActionRequest::getActionId)
-                .collect(Collectors.toSet()));
-        Assert.assertEquals(Collections.singleton(ACTION2), captor.getAllValues()
-                .get(1)
-                .getActionsList()
-                .stream()
-                .map(ExecuteActionRequest::getActionId)
-                .collect(Collectors.toSet()));
+        Assert.assertEquals(Collections.singleton(action1.getRecommendationOid()),
+                captor.getAllValues()
+                        .get(0)
+                        .getActionsList()
+                        .stream()
+                        .map(ExecuteActionRequest::getActionId)
+                        .collect(Collectors.toSet()));
+        Assert.assertEquals(Collections.singleton(action2.getRecommendationOid()),
+                captor.getAllValues()
+                        .get(1)
+                        .getActionsList()
+                        .stream()
+                        .map(ExecuteActionRequest::getActionId)
+                        .collect(Collectors.toSet()));
 
         // all actions should have an explanation
         Assert.assertTrue(
@@ -162,30 +178,26 @@ public class ActionApprovalSenderTest {
         );
     }
 
-    private Action createAction(long oid, @Nonnull ActionMode actionMode) {
+    private Action createAction(long oid, @Nonnull ActionMode actionMode,
+            @Nonnull ActionState actionState) {
         final ActionDTO.Action actionDTO = ActionDTO.Action.newBuilder()
                 .setId(oid)
                 .setInfo(ActionInfo.newBuilder()
                         .setDelete(Delete.newBuilder()
-                                .setTarget(ActionEntity.newBuilder()
-                                        .setId(10)
-                                        .setType(12)
-                                        .build())))
+                                .setTarget(
+                                        ActionEntity.newBuilder().setId(10).setType(12).build())))
                 .setExplanation(Explanation.newBuilder()
-                        .setDeactivate(DeactivateExplanation.newBuilder()
-                                .build())
+                        .setDeactivate(DeactivateExplanation.newBuilder().build())
                         .build())
                 .setDeprecatedImportance(23)
                 .build();
         final Action action = Mockito.spy(
                 new Action(actionDTO, ACTION_PLAN_ID, Mockito.mock(ActionModeCalculator.class),
                         oid));
-        action.getActionTranslation()
-                .setTranslationSuccess(actionDTO);
-        Mockito.when(action.getMode())
-            .thenReturn(actionMode);
-        Mockito.when(action.getDescription())
-            .thenReturn(EXPLANATION);
+        action.getActionTranslation().setTranslationSuccess(actionDTO);
+        Mockito.when(action.getMode()).thenReturn(actionMode);
+        Mockito.when(action.getState()).thenReturn(actionState);
+        Mockito.when(action.getDescription()).thenReturn(EXPLANATION);
         storeActions.put(oid, action);
         return action;
     }

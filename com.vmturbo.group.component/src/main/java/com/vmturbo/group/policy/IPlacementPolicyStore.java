@@ -6,6 +6,7 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.service.StoreOperationException;
 
 /**
@@ -20,7 +21,8 @@ public interface IPlacementPolicyStore {
      * @throws StoreOperationException if store failed to operate
      */
     @Nonnull
-    Map<Long, Map<String, Long>> getDiscoveredPolicies() throws StoreOperationException;
+    Map<Long, Map<String, DiscoveredObjectVersionIdentity>> getDiscoveredPolicies()
+            throws StoreOperationException;
 
     /**
      * Deletes the specified policies in the store.

@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -25,6 +26,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
@@ -248,6 +250,22 @@ public class RepoGraphEntity implements TopologyGraphSearchableEntity<RepoGraphE
             .filter(comm -> comm.getType() == type)
             .mapToDouble(SoldCommodity::getUsed)
             .findFirst().orElse(-1);
+    }
+
+    @Override
+    public boolean isHotAddSupported(int commodityType) {
+        return isHotChangeSupported(commodityType, c -> c.supportsHotAdd);
+    }
+
+    @Override
+    public boolean isHotRemoveSupported(int commodityType) {
+        return isHotChangeSupported(commodityType, c -> c.supportsHotRemove);
+    }
+
+    private boolean isHotChangeSupported(int commodityType,
+            Function<SoldCommodity, Boolean> function) {
+        return soldCommoditiesByType(new IntOpenHashSet(Collections.singleton(commodityType))).map(
+                function).findAny().orElse(false);
     }
 
     /**
@@ -627,6 +645,8 @@ public class RepoGraphEntity implements TopologyGraphSearchableEntity<RepoGraphE
         private final String key;
         private final float capacity;
         private final float used;
+        private final boolean supportsHotAdd;
+        private final boolean supportsHotRemove;
 
         // Need this for AO.
         private final boolean supportsHotReplace;
@@ -636,7 +656,16 @@ public class RepoGraphEntity implements TopologyGraphSearchableEntity<RepoGraphE
             this.key = fromCmmSold.getCommodityType().getKey().intern();
             capacity = (float)fromCmmSold.getCapacity();
             used = (float)fromCmmSold.getUsed();
-            supportsHotReplace = fromCmmSold.getHotResizeInfo().getHotReplaceSupported();
+            if (fromCmmSold.hasHotResizeInfo()) {
+                final HotResizeInfo hotResizeInfo = fromCmmSold.getHotResizeInfo();
+                supportsHotAdd = hotResizeInfo.getHotAddSupported();
+                supportsHotRemove = hotResizeInfo.getHotRemoveSupported();
+                supportsHotReplace = hotResizeInfo.getHotReplaceSupported();
+            } else {
+                supportsHotAdd = false;
+                supportsHotRemove = false;
+                supportsHotReplace = false;
+            }
         }
 
         public int getType() {

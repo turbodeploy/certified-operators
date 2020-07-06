@@ -10,11 +10,13 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 
 /**
- * Class checks accepted actions store and removed acceptance for action if it was expired.
+ * Class checks accepted and rejected actions stores and removed acceptances/rejections for
+ * action if it was expired.
  */
-public class RegularAcceptedActionsStoreCleaner {
+public class RegularActionsStoreCleaner {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -24,28 +26,37 @@ public class RegularAcceptedActionsStoreCleaner {
     private static final Long INITIAL_DELAY = 10L;
 
     /**
-     * Constructor of {@link RegularAcceptedActionsStoreCleaner}.
+     * Constructor of {@link RegularActionsStoreCleaner}.
      *
      * @param scheduledExecutorService schedule executor service
      * @param acceptedActionsStore dao layer for working with accepted actions
+     * @param rejectedActionsStore dao layer for working with rejected actions
      * @param actionAcceptanceTTL time to live for accepted actions
+     * @param actionRejectionTTL time to live for rejected actions
      * @param frequencyOfCleaningAcceptedActionsStore frequency of checking accepted actions
-     * store for finding expired acceptances
      */
-    public RegularAcceptedActionsStoreCleaner(
+    public RegularActionsStoreCleaner(
             @Nonnull final ScheduledExecutorService scheduledExecutorService,
-            @Nonnull final AcceptedActionsDAO acceptedActionsStore, final long actionAcceptanceTTL,
+            @Nonnull final AcceptedActionsDAO acceptedActionsStore,
+            @Nonnull final RejectedActionsDAO rejectedActionsStore,
+            final long actionAcceptanceTTL, long actionRejectionTTL,
             final long frequencyOfCleaningAcceptedActionsStore) {
         logger.info("Action acceptance TTL is set at {} minutes", actionAcceptanceTTL);
+        logger.info("Action rejection TTL is set at {} minutes", actionRejectionTTL);
+
         scheduledExecutorService.scheduleWithFixedDelay(
-                () -> removeExpiredActionsAcceptances(acceptedActionsStore, actionAcceptanceTTL),
+                () -> removeExpiredActionsAcceptancesAndRejections(acceptedActionsStore,
+                        rejectedActionsStore, actionAcceptanceTTL, actionRejectionTTL),
                 INITIAL_DELAY, frequencyOfCleaningAcceptedActionsStore, TimeUnit.MINUTES);
     }
 
-    private static void removeExpiredActionsAcceptances(
-            @Nonnull final AcceptedActionsDAO acceptedActionsStore, long minActionAcceptanceTTL) {
+    private static void removeExpiredActionsAcceptancesAndRejections(
+            @Nonnull final AcceptedActionsDAO acceptedActionsStore,
+            @Nonnull final RejectedActionsDAO rejectedActionsStore, long minActionAcceptanceTTL,
+            long minActionRejectionTTL) {
         try {
             acceptedActionsStore.removeExpiredActions(minActionAcceptanceTTL);
+            rejectedActionsStore.removeExpiredRejectedActions(minActionRejectionTTL);
         } catch (DataAccessException ex) {
             logger.error("Failed to remove all action with expired acceptances", ex);
         }

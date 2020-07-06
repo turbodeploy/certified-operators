@@ -254,6 +254,18 @@ public class PlanActionStore implements ActionStore {
                 action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()));
     }
 
+    @Nonnull
+    @Override
+    public Optional<Action> getActionByRecommendationId(long recommendationId) {
+        // this method shouldn't be called for plans, so we don't implement special loading
+        // of market action by recommendation id (in market actions table there is no
+        // recommendationId field, because it isn't required information for plans)
+        return getActions().values()
+                .stream()
+                .filter(action -> action.getRecommendationOid() == recommendationId)
+                .findFirst();
+    }
+
     /**
      * {@inheritDoc}
      */
