@@ -39,6 +39,7 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
@@ -215,6 +216,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                             requestBuilder.setAccountFilter(
                                     AccountFilter.newBuilder()
                                             .addAllAccountId(entityOids)
+                                            .setAccountFilterType(AccountFilterType.PURCHASED_BY)
                                             .build());
                             break;
                         default:

@@ -51,6 +51,10 @@ public class LicenseDeserializer {
 
     private static final Pattern CWOM_VM_COUNT_PATTERN = Pattern.compile("<Count>([\\d]*)</Count>", Pattern.DOTALL);
     private static final XmlMapper XML_MAPPER = createXmlMapper();
+    private static final String DISALLOW_DOCTYPE_DECL =
+            "http://apache.org/xml/features/disallow-doctype-decl";
+    private static final String EXTERNAL_GENERAL_ENTITIES =
+            "http://xml.org/sax/features/external-general-entities";
 
     /**
      * Deserialize three flavors of licenses to LicenseApiDTO.
@@ -198,11 +202,21 @@ public class LicenseDeserializer {
             SAXParserFactory factory = SAXParserFactory.newInstance();
             factory.setValidating(false);
             factory.setNamespaceAware(true);
+            factory.setFeature(EXTERNAL_GENERAL_ENTITIES, false);
+            factory.setFeature(DISALLOW_DOCTYPE_DECL, true);
             SimpleErrorHandler errorHandler = new SimpleErrorHandler();
             XMLReader reader = factory.newSAXParser().getXMLReader();
+            reader.setFeature(EXTERNAL_GENERAL_ENTITIES, false);
             reader.setErrorHandler(errorHandler);
             reader.parse(new InputSource(IOUtils.toInputStream(text, "UTF-8")));
             return !errorHandler.isHasError();
+
+        } catch (SAXParseException e) {
+            logger.error("License parse exception.", e);
+            if (e.getMessage().contains(DISALLOW_DOCTYPE_DECL)) {
+                throw new SecurityException("License parse exception", e);
+            }
+            return false;
         } catch (ParserConfigurationException | SAXException | IOException e) {
             return false;
         }

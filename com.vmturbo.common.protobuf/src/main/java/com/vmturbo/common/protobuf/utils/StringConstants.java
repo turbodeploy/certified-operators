@@ -443,13 +443,12 @@ public class StringConstants {
     public static final String TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS = "Validated";
 
     /**
-     * Accepting user type for actions accepted from turbo.
+     * Accepting/rejecting user type for actions accepted/rejected from turbo.
      */
-    public static final String TURBO_ACCEPTING_USER_TYPE = "TURBO_USER";
+    public static final String TURBO_USER_TYPE = "TURBO_USER";
 
     /**
-     * Accepting user type for actions accepted from turbo.
+     * Accepting/rejecting user type for actions accepted/rejected from external orchestrator.
      */
-    public static final String EXTERNAL_ORCHESTRATOR_ACCEPTING_USER_TYPE =
-            "EXTERNAL_ORCHESTRATOR_USER";
+    public static final String EXTERNAL_ORCHESTRATOR_USER_TYPE = "EXTERNAL_ORCHESTRATOR_USER";
 }

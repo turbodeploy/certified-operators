@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Stack;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -16,11 +15,11 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -61,7 +60,7 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
      * A map permitting lookup from OID to {@link TopologyGraphEntity}.
      */
     @Nonnull
-    private final Map<Long, E> graph;
+    private final Long2ObjectMap<E> graph;
 
     /**
      * An index permitting lookup from entity type to all the entities of that type in the graph.
@@ -75,8 +74,8 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
      * @param graph           The graph of entities in the {@link TopologyGraph}.
      * @param entityTypeIndex entities organized by entity type
      */
-    public TopologyGraph(@Nonnull final Map<Long, E> graph,
-            @Nonnull final Map<Integer, Collection<E>> entityTypeIndex) {
+    public TopologyGraph(@Nonnull final Long2ObjectMap<E> graph,
+                         @Nonnull final Map<Integer, Collection<E>> entityTypeIndex) {
         this.graph = Objects.requireNonNull(graph);
         this.entityTypeIndex = Objects.requireNonNull(entityTypeIndex);
     }
@@ -251,29 +250,6 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
     }
 
     /**
-     * Get all the consumers recursively of entityOid.
-     * Its implemented as a DFS traversal of the graph starting from entity oid.
-     * For ex., If there is a Data center, which has a PM on it, which then has a VM on it.
-     * If we pass in the DC's oid, we will get the PM and the VM as results.
-     * @param entityOid the entity oid
-     * @return all the consumers up the chain of the entity.
-     */
-    @Nonnull
-    public Stream<E> getAllConsumersRecursively(long entityOid) {
-        Map<Long, E> allConsumers = Maps.newHashMap();
-        Stack<E> traversalStack = new Stack<>();
-        getConsumers(entityOid).forEach(consumer -> traversalStack.push(consumer));
-        while (!traversalStack.isEmpty()) {
-            E consumer = traversalStack.pop();
-            if (!allConsumers.containsKey(consumer.getOid())) {
-                allConsumers.put(consumer.getOid(), consumer);
-                getConsumers(consumer).forEach(c -> traversalStack.push(c));
-            }
-        }
-        return allConsumers.values().stream();
-    }
-
-    /**
      * Retrieve all providers for a given entity in the graph. If no {@link TopologyGraphEntity}
      * with the given OID exists, returns empty.
      *
@@ -284,7 +260,7 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
      * @return All providers for a {@link TopologyGraphEntity} in the graph by its OID.
      */
     @Nonnull
-    public Stream<E> getProviders(Long oid) {
+    public Stream<E> getProviders(long oid) {
         // Because this is high-performance code, do not call getEntity which allocates
         // an additional object.
         final E topologyEntity = graph.get(oid);

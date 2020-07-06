@@ -12,7 +12,7 @@
     <artifactId>xl-sdk-probe-parent</artifactId>
     <packaging>pom</packaging>
     <groupId>com.vmturbo</groupId>
-    <version>7.22.4-SNAPSHOT</version>
+    <version>7.22.5-SNAPSHOT</version>
 
     <properties>
         <swagger.component.name>GCP Conversion Mediation Component</swagger.component.name>
@@ -63,6 +63,45 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.1.1</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.puppycrawl.tools</groupId>
+                        <artifactId>checkstyle</artifactId>
+                        <version>8.23</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>com.vmturbo</groupId>
+                        <artifactId>com.vmturbo.checkstyle.config</artifactId>
+                        <version>${vmturbo.mt.branch.version}</version>
+                    </dependency>
+                </dependencies>
+                <executions>
+                    <execution>
+                        <id>validate</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <configLocation>vmt-checkstyle.xml</configLocation>
+                    <encoding>UTF-8</encoding>
+                    <violationSeverity>info</violationSeverity>
+                    <failOnViolation>true</failOnViolation>
+                    <failsOnError>false</failsOnError>
+                    <sourceDirectories>
+                        <sourceDirectory>${basedir}</sourceDirectory>
+                    </sourceDirectories>
+                    <includes>src/**,*.xml,*.md</includes>
+                </configuration>
+            </plugin>
+        </plugins>
     </build>
 
     <dependencies>

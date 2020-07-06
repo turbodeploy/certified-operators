@@ -26,18 +26,56 @@ manual_entity_definition {
   }
   associated_entities {
     dynamic_connection_filters {
-      entity_filters {
-        expression_type: "RXEQ"
-        expression_value: "*-vm"
-        filter_type: "virtualMachinesByName"
-        is_case_sensitive: false
+      search_parameters {
+    starting_filter {
+      property_name: "entityType"
+      numeric_filter {
+        comparison_operator: EQ
+        value: 10
       }
-      entity_filters {
-        expression_type: "RXNEQ"
-        expression_value: "vm-*"
-        filter_type: "virtualMachinesByName"
-        is_case_sensitive: true
+    }
+    search_filter {
+      property_filter {
+        property_name: "displayName"
+        string_filter {
+          string_property_regex: "^*-vm$"
+          positive_match: true
+          case_sensitive: false
+        }
       }
+    }
+    source_filter_specs {
+      expression_type: "RXEQ"
+      expression_value: "*-vm"
+      filter_type: "vmsByName"
+      is_case_sensitive: false
+    }
+  }
+  search_parameters {
+    starting_filter {
+      property_name: "entityType"
+      numeric_filter {
+        comparison_operator: EQ
+        value: 10
+      }
+    }
+    search_filter {
+      property_filter {
+        property_name: "displayName"
+        string_filter {
+          string_property_regex: "^vm-*$"
+          positive_match: false
+          case_sensitive: true
+        }
+      }
+    }
+    source_filter_specs {
+      expression_type: "RXNEQ"
+      expression_value: "vm-*"
+      filter_type: "vmsByName"
+      is_case_sensitive: true
+    }
+  }
     }
     connected_entity_type: VIRTUAL_MACHINE
   }

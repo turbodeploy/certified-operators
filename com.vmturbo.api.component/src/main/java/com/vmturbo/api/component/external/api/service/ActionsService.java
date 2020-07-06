@@ -3,14 +3,15 @@ package com.vmturbo.api.component.external.api.service;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Spliterators;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -456,20 +457,6 @@ public class ActionsService implements IActionsService {
     }
 
     /**
-     * Gets details for a list of actions.
-     *
-     * @param actions collection of actions
-     * @param topologyContextId the topology in which the action resides
-     * @return details of the action
-     */
-    @Nonnull
-    private Map<String, ActionDetailsApiDTO> getActionDetails(@Nonnull Collection<ActionOrchestratorAction> actions, final Long topologyContextId) {
-
-        Long contextId = Objects.isNull(topologyContextId) ? realtimeTopologyContextId : topologyContextId;
-        return actionSpecMapper.createActionDetailsApiDTO(actions, contextId);
-    }
-
-    /**
      * Get the list of action details by multiple action uuids.
      *
      * @param inputDto contains information about requested action uuids
@@ -488,10 +475,10 @@ public class ActionsService implements IActionsService {
         String inputDtoTopologyContextId = inputDto.getTopologyContextId();
         Long topologyContextId = !Strings.isNullOrEmpty(inputDtoTopologyContextId)
                 ? Long.parseLong(inputDtoTopologyContextId) : null;
-
-        List<ActionOrchestratorAction> actions = Lists.newArrayList(actionsIterator);
-
-        return getActionDetails(actions, topologyContextId);
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(actionsIterator, 0), false)
+                .collect(Collectors.toMap(
+                        action -> Long.toString(action.getActionId()),
+                        action -> getActionDetails(action, topologyContextId)));
     }
 
     private MultiActionRequest multiActionRequest(@Nonnull final List<Long> uuids,

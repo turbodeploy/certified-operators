@@ -19,8 +19,11 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 import org.skyscreamer.jsonassert.JSONAssert;
 
+import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.TopologyDataDefinitionMapper;
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -37,6 +40,7 @@ import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.Update
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.UpdateTopologyDataDefinitionResponse;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Testing topology definition service.
@@ -56,7 +60,10 @@ public class TopologyDataDefinitionServiceTest {
 
     private TopologyDataDefinitionServiceMole spy = spy(new TopologyDataDefinitionServiceMole());
 
-    private TopologyDataDefinitionMapper mapper = new TopologyDataDefinitionMapper();
+    private EntityFilterMapper filterMapper = new EntityFilterMapper(
+            new GroupUseCaseParser("groupBuilderUsecases.json"),
+            Mockito.mock(ThinTargetCache.class));
+    private TopologyDataDefinitionMapper mapper = new TopologyDataDefinitionMapper(filterMapper);
 
     private TopologyDataDefinitionService service;
 

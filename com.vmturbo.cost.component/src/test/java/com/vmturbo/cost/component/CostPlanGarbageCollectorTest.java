@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.vmturbo.cost.component.entity.cost.SqlEntityCostStore;
 import org.junit.Test;
 
 import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
@@ -28,9 +29,11 @@ public class CostPlanGarbageCollectorTest {
 
     private PlanReservedInstanceStore planReservedInstanceStore = mock(PlanReservedInstanceStore.class);
 
+    private SqlEntityCostStore sqlEntityCostStore = mock(SqlEntityCostStore.class);
+
     private CostPlanGarbageCollector garbageCollector =
         new CostPlanGarbageCollector(actionContextRIBuyStore, planProjectedEntityCostStore,
-            planReservedInstanceStore);
+            planReservedInstanceStore, sqlEntityCostStore);
 
     /**
      * Test listing active ids.
@@ -62,6 +65,7 @@ public class CostPlanGarbageCollectorTest {
         verify(actionContextRIBuyStore).deleteRIBuyContextData(1L);
         verify(planProjectedEntityCostStore).deletePlanProjectedCosts(1L);
         verify(planReservedInstanceStore).deletePlanReservedInstanceStats(1L);
+        verify(sqlEntityCostStore).deleteEntityCosts(1L);
     }
 
 }

@@ -556,6 +556,74 @@ public class GroupMapperTest {
     }
 
     /**
+     * Tests that when converting to GroupApiDto, entities not present in the repository are
+     * excluded from the entitiesCount for a group of clusters.
+     *
+     * @throws InterruptedException from toGroupApiDto
+     * @throws ConversionException from toGroupApiDto
+     * @throws InvalidOperationException from toGroupApiDto
+     */
+    @Test
+    public void testToGroupApiDtoExcludesEntitiesNotPresentInLiveTopology()
+            throws InterruptedException, ConversionException, InvalidOperationException {
+        // GIVEN
+        final ArrayList<Long> memberIds = new ArrayList<>();
+        memberIds.add(1L);
+        memberIds.add(2L);
+        final ArrayList<Long> entityIds = new ArrayList<>();
+        entityIds.add(11L);
+        entityIds.add(12L);
+        entityIds.add(21L);
+        entityIds.add(22L);
+        final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(Grouping.newBuilder()
+                        .setDefinition(GroupDefinition.newBuilder()
+                                .setStaticGroupMembers(StaticMembers.newBuilder()
+                                        .addMembersByType(StaticMembersByType.newBuilder()
+                                                .setType(MemberType.newBuilder()
+                                                        .setGroup(GroupType.COMPUTE_HOST_CLUSTER)
+                                                        .build())
+                                                .addMembers(1L)
+                                                .addMembers(2L)
+                                                .build())
+                                        .build())
+                                .build())
+                        .addExpectedTypes(MemberType.newBuilder()
+                                .setGroup(GroupType.COMPUTE_HOST_CLUSTER)
+                                .build())
+                        .build())
+                .members(memberIds)
+                .entities(entityIds)
+                .build();
+        // suppose entities 21 & 22 don't exist in repository
+        final ArrayList<MinimalEntity> minimalEntitiesRequest = new ArrayList<>();
+        minimalEntitiesRequest.add(MinimalEntity.newBuilder()
+                .setOid(11)
+                .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+                .build());
+        minimalEntitiesRequest.add(MinimalEntity.newBuilder()
+                .setOid(12)
+                .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+                .build());
+        MultiEntityRequest multiEntityRequest =
+                ApiTestUtils.mockMultiMinEntityReq(minimalEntitiesRequest);
+        when(repositoryApi.entitiesRequest(new HashSet<>(entityIds)))
+                .thenReturn(multiEntityRequest);
+
+        // WHEN
+        ObjectsPage<GroupApiDTO> objectsPage = groupMapper.toGroupApiDto(
+                Collections.singletonList(groupAndMembers),
+                false,
+                null,
+                null);
+
+        //THEN
+        assertEquals(1, objectsPage.getObjects().size());
+        assertEquals(minimalEntitiesRequest.size(),
+                objectsPage.getObjects().get(0).getEntitiesCount().longValue());
+    }
+
+    /**
      * Tests that when we have multiple targets as source for a discovered group, the correct one
      * will be returned. (This will probably be removed when proper handling for multiple targets
      * is implemented). See GroupMapper.chooseTarget() for the logic.
@@ -2337,6 +2405,8 @@ public class GroupMapperTest {
          * As a result, the final member count should be 1.
          */
         Assert.assertEquals(Integer.valueOf(1), billingFamilyApiDTO.getMembersCount());
+        Assert.assertEquals(Integer.valueOf(1), billingFamilyApiDTO.getEntitiesCount());
+        Assert.assertTrue(billingFamilyApiDTO.getMemberUuidList().contains("2"));
     }
 
     /**

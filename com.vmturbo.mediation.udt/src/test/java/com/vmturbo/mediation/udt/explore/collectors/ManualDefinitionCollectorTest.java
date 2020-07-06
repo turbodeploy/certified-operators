@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.DynamicConnectionFilters;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition.AssociatedEntitySelectionCriteria;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters.FilterSpecs;
 import com.vmturbo.mediation.udt.explore.DataProvider;
 import com.vmturbo.mediation.udt.inventory.UdtChildEntity;
@@ -123,7 +124,9 @@ public class ManualDefinitionCollectorTest {
                 .setExpressionValue("exp_value")
                 .build();
         DynamicConnectionFilters dynamicConnectionFilters = DynamicConnectionFilters.newBuilder()
-                .addEntityFilters(filterSpecs)
+                .addSearchParameters(SearchParameters.newBuilder()
+                        .setSourceFilterSpecs(filterSpecs)
+                        .build())
                 .build();
         ManualEntityDefinition definition = ManualEntityDefinition
                 .newBuilder()
@@ -136,10 +139,10 @@ public class ManualDefinitionCollectorTest {
                 .build();
         ManualDefinitionCollector collector = new ManualDefinitionCollector(1000L, definition);
         DataProvider dataProvider = Mockito.mock(DataProvider.class);
-        Mockito.when(dataProvider.searchEntities(dynamicConnectionFilters.getEntityFiltersList(), EntityType.APPLICATION_COMPONENT))
+        Mockito.when(dataProvider.searchEntities(dynamicConnectionFilters.getSearchParametersList()))
                 .thenReturn(Sets.newSet(
-                   createTopologyDto(1L, "some-name-a", EntityType.APPLICATION_COMPONENT),
-                   createTopologyDto(2L, "some-name-b", EntityType.APPLICATION_COMPONENT)
+                        createTopologyDto(1L, "some-name-a", EntityType.APPLICATION_COMPONENT),
+                        createTopologyDto(2L, "some-name-b", EntityType.APPLICATION_COMPONENT)
                 ));
         Set<UdtEntity> udtEntities = collector.collectEntities(dataProvider);
         Assert.assertFalse(udtEntities.isEmpty());

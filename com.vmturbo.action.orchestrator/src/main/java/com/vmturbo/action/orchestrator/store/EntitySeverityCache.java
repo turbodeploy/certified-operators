@@ -21,8 +21,11 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Streams;
 
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -35,17 +38,8 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -71,20 +65,39 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 @ThreadSafe
 public class EntitySeverityCache {
 
-    /**
-     * BusinessApp, BusinessTransaction, and Service can directly connect to ApplicationComponent,
-     * DatabaseServer, Container, and VirtualMachine. In order to efficiently compute the
-     * breakdowns, we must first compute the breakdowns for these entities. After computing
-     * the breakdowns for these, we can use their breakdowns to build up the breakdowns for
-     * Service then BusinessTransaction then BusinessApp.
-     */
-    private static final RetrieveTopologyEntitiesRequest GET_ENTITIES_DIRECTLY_ATTACHED_TO_BAPP =
-        RetrieveTopologyEntitiesRequest.newBuilder()
-            .addEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
-            .addEntityType(EntityType.DATABASE_SERVER_VALUE)
-            .addEntityType(EntityType.CONTAINER_VALUE)
-            .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setReturnType(Type.MINIMAL)
+    private static final List<TraversalConfig> RETRIEVAL_ORDER =
+        ImmutableList.<TraversalConfig>builder()
+            // entityType, includeSelf, persist, traverseProducers
+            .add(new TraversalConfig(EntityType.STORAGE, true, false, false))
+            // Do not traverse producers. A physical machine's producers has ALL storages useD by all
+            // VMs hosted on that PM. As a result, unrelated storages would get counted if we
+            // traversed the PM's producers.
+            .add(new TraversalConfig(EntityType.PHYSICAL_MACHINE, true, false, false))
+            // Storage must be processed before Virtual Volume, because Virtual Volume uses storage.
+            // Do not traverse the producers because the storage producer will already be connected
+            // to the VM. This double count doesn't make sense.
+            .add(new TraversalConfig(EntityType.VIRTUAL_VOLUME, true, false, false))
+            // VIRTUAL_DATACENTER not needed because it double counts.
+            // There is always a link between VM->VDC->PM and VM->PM
+            // Virtual Machine must process after STORAGE, PHYSICAL_MACHINE, and VIRTUAL_VOLUME
+            // because those results are used in the Virtual Machine's calculation.
+            .add(new TraversalConfig(EntityType.VIRTUAL_MACHINE, true, false, true,
+                // VIRTUAL_VOLUME producer is not available in the producers list from the repository.
+                // It's in the connected to list. All other entity types have the needed producers
+                // in the api producers list.
+                ImmutableSet.of(EntityType.VIRTUAL_VOLUME)))
+            // database/app could be hosted on container
+            .add(new TraversalConfig(EntityType.CONTAINER_POD, true, false, true))
+            // container's producer is container pod
+            .add(new TraversalConfig(EntityType.CONTAINER, true, false, true))
+            .add(new TraversalConfig(EntityType.DATABASE_SERVER, true, false, true))
+            // A database can be an instance running on a database server
+            .add(new TraversalConfig(EntityType.DATABASE, true, false, true))
+            // Application can have Database/Database Server as a producer
+            .add(new TraversalConfig(EntityType.APPLICATION_COMPONENT, true, false, true))
+            .add(new TraversalConfig(EntityType.SERVICE, false, true, true))
+            .add(new TraversalConfig(EntityType.BUSINESS_TRANSACTION, false, true, true))
+            .add(new TraversalConfig(EntityType.BUSINESS_APPLICATION, false, true, true))
             .build();
 
     private final Logger logger = LogManager.getLogger();
@@ -94,15 +107,12 @@ public class EntitySeverityCache {
         Collections.synchronizedMap(new HashMap<>());
 
     private final SeverityComparator severityComparator = new SeverityComparator();
-    private final SupplyChainServiceBlockingStub supplyChainService;
     private final RepositoryServiceBlockingStub repositoryService;
     private final boolean isCalculatingBreakdowns;
 
     /**
      * Constructs the EntitySeverityCache that uses grpc to calculation risk propagation.
      *
-     * @param supplyChainService the service that provides supply chain info used in risk
-     *                           propagation.
      * @param repositoryService the service that provides entities by type used as the seeds in risk
      *                          propagation.
      * @param isCalculatingBreakdowns true for instances that calculate severity breakdowns. When
@@ -110,10 +120,8 @@ public class EntitySeverityCache {
      *                                {@link #getSeverityCounts(List)} will not consider severity
      *                                breakdowns.
      */
-    public EntitySeverityCache(@Nonnull final SupplyChainServiceBlockingStub supplyChainService,
-                               @Nonnull final RepositoryServiceBlockingStub repositoryService,
+    public EntitySeverityCache(@Nonnull final RepositoryServiceBlockingStub repositoryService,
                                final boolean isCalculatingBreakdowns) {
-        this.supplyChainService = supplyChainService;
         this.repositoryService = repositoryService;
         this.isCalculatingBreakdowns = isCalculatingBreakdowns;
     }
@@ -196,108 +204,137 @@ public class EntitySeverityCache {
     @GuardedBy("severities")
     private void calculateSeverityBreakdowns() {
         entitySeverityBreakdowns.clear();
-        final Iterator<PartialEntityBatch> batchedIterator =
-            repositoryService.retrieveTopologyEntities(GET_ENTITIES_DIRECTLY_ATTACHED_TO_BAPP);
-
-        final Set<Long> oids = Streams.stream(batchedIterator)
-            .map(PartialEntityBatch::getEntitiesList)
-            .flatMap(List::stream)
-            .map(PartialEntity::getMinimal)
-            .map(MinimalEntity::getOid)
-            .collect(Collectors.toSet());
-
-        final List<SupplyChainSeed> oidSeeds = oids.stream()
-            .map(oid -> SupplyChainSeed.newBuilder()
-                .setSeedOid(oid)
-                .setScope(SupplyChainScope.newBuilder()
-                    .addStartingEntityOid(oid)
-                    .addAllEntityTypesToInclude(
-                        InvolvedEntitiesExpander.PROPAGATED_ARM_ENTITY_TYPES)
-                    .build())
-                .build())
-            .collect(Collectors.toList());
-
-        final GetMultiSupplyChainsRequest getMultiSupplyChainsRequest =
-            GetMultiSupplyChainsRequest.newBuilder()
-                .addAllSeeds(oidSeeds)
-                .build();
-
-        final Iterator<GetMultiSupplyChainsResponse> multiSupplyChainIterator =
-            supplyChainService.getMultiSupplyChains(getMultiSupplyChainsRequest);
-
-        multiSupplyChainIterator.forEachRemaining(getMultiSupplyChainsResponse -> {
-            long oid = getMultiSupplyChainsResponse.getSeedOid();
-            SeverityCount severityBreakdown = new SeverityCount();
-            for (SupplyChainNode node : getMultiSupplyChainsResponse.getSupplyChain()
-                .getSupplyChainNodesList()) {
-                for (MemberList memberList : node.getMembersByStateMap().values()) {
-                    for (long entityOid : memberList.getMemberOidsList()) {
-                        Severity entitySeverity = severities.get(entityOid);
-                        if (entitySeverity == null) {
-                            entitySeverity = Severity.NORMAL;
-                        }
-                        severityBreakdown.addSeverity(entitySeverity);
-                    }
-                }
-            }
-            entitySeverityBreakdowns.put(oid, severityBreakdown);
-        });
-        // At this point we have the breakdowns for Application Component, Database Server,
-        // Container, and Virtual Machine. We can use these for Service, BusinessTransaction, and
-        // BusinessApplication.
-
-        // Build up the severity breakdowns starting from Service. Since BTxn depends on Service, we
-        // compute BTxn next. Finally we finish off with BApp. We build up in this way so that we
-        // do not need to repeat the calculation for the lower levels of the supply chain.
-        calculateSeverityBreakdown(EntityType.SERVICE);
-        calculateSeverityBreakdown(EntityType.BUSINESS_TRANSACTION);
-        calculateSeverityBreakdown(EntityType.BUSINESS_APPLICATION);
-
-        // Remove the Application Component, Database Server, Container, and Virtual Machine because
-        // they are not used. It would be a waste of memory to keep them.
-        oids.forEach(entitySeverityBreakdowns::remove);
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        Map<Long, SeverityCount> temporarySeverities = new HashMap<>();
+        for (TraversalConfig traversalConfig : RETRIEVAL_ORDER) {
+            accumulateCounts(temporarySeverities, traversalConfig);
+        }
+        stopWatch.stop();
+        logger.info("completed calculateSeverityBreakdowns in " + stopWatch.toString());
     }
 
     /**
-     * Compute the breakdowns for all the entities that have the provided entity type, using the
-     * already computed breakdowns. The breakdowns for the entities under the provided entityType
-     * in the supply chain must have their breakdowns already computed.
-     * For instance,
-     * <ol>
-     *     <li>Service requires ApplicationComponent, DatabaseServer, Container, and VirtualMachines
-     *         to have their breakdown in entitySeverityBreakdowns.</li>
-     *     <li>BusinessTransaction requires the same as Service and requires Service to be
-     *         computed</li>
-     *     <li>Finally, BusinessApplication requires the same as BusinessTransaction and requires
-     *         BusinessTransaction to be computed.</li>
-     * </ol>
-     * You must grab the monitor for severities before calling this method.
+     * Accumulates the severity counts in temporarySeverities for only entities of type entityType.
      *
-     * @param entityType Computes the severities for the provided entity type. Severity breakdowns
-     *                  for all the types that this entity depends on must already be computed.
+     * @param temporarySeverities The map to temporarily store the severity counts in.
+     * @param traversalConfig The type of the entities to compute the severity counts for and how
+     *                        the traversal should happen. For instance, we should not traverse
+     *                        a physical machines producers or else we will hit unrelated storages.
      */
-    @GuardedBy("severities")
-    private void calculateSeverityBreakdown(@Nonnull EntityType entityType) {
+    private void accumulateCounts(Map<Long, SeverityCount> temporarySeverities,
+                                  TraversalConfig traversalConfig) {
+        StopWatch stopWatchMethod = new StopWatch();
+        stopWatchMethod.start();
+
         Iterator<PartialEntityBatch> batchedIterator =
             repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                .addEntityType(entityType.getNumber())
+                .addEntityType(traversalConfig.entityType.getNumber())
                 .setReturnType(Type.API)
                 .build());
-
         Streams.stream(batchedIterator)
             .map(PartialEntityBatch::getEntitiesList)
             .flatMap(List::stream)
             .filter(PartialEntity::hasApi)
             .map(PartialEntity::getApi)
             .forEach(apiPartialEntity -> {
+                // add the counts from all the entities before this one
                 long oid = apiPartialEntity.getOid();
                 SeverityCount severityBreakdown = new SeverityCount();
-                for (RelatedEntity providerRelatedEntity : apiPartialEntity.getProvidersList()) {
-                    severityBreakdown.combine(
-                        entitySeverityBreakdowns.get(providerRelatedEntity.getOid()));
+
+                if (traversalConfig.traverseProducers) {
+                    for (RelatedEntity connectedEntity : apiPartialEntity.getProvidersList()) {
+                        severityBreakdown.combine(
+                            temporarySeverities.get(connectedEntity.getOid()));
+                    }
                 }
-                entitySeverityBreakdowns.put(oid, severityBreakdown);
+
+                if (!traversalConfig.connectedEntities.isEmpty()) {
+                    for (RelatedEntity connectedEntity : apiPartialEntity.getConnectedToList()) {
+                        if (traversalConfig.connectedEntities.contains(EntityType.forNumber(connectedEntity.getEntityType()))) {
+                            severityBreakdown.combine(
+                                temporarySeverities.get(connectedEntity.getOid()));
+                        }
+                    }
+                }
+
+                // add the count from the entity itself
+                if (traversalConfig.includeSelf) {
+                    Severity entitySeverity = severities.get(oid);
+                    if (entitySeverity == null) {
+                        entitySeverity = Severity.NORMAL;
+                    }
+                    severityBreakdown.addSeverity(entitySeverity);
+                }
+                temporarySeverities.put(oid, severityBreakdown);
+
+                // persist to in memory store
+                if (traversalConfig.persist) {
+                    entitySeverityBreakdowns.put(oid, severityBreakdown);
+                }
             });
+
+        stopWatchMethod.stop();
+        logger.trace("completed accumulateCounts({}) in {}",
+            traversalConfig.entityType.name(),
+            stopWatchMethod.toString());
+
+    }
+
+    /**
+     * Describes how the entities of TraversalConfig's entity type should be used in the
+     * {@link EntitySeverityCache#accumulateCounts(Map, TraversalConfig)} traversal.
+     */
+    private static class TraversalConfig {
+
+        @Nonnull
+        public final EntityType entityType;
+        public final boolean includeSelf;
+        public final boolean persist;
+        public final boolean traverseProducers;
+        public final Set<EntityType> connectedEntities;
+
+        /**
+         * Creates an instances that configures how we handle severity breakdown calculations for
+         * entities of type {@link EntityType}.
+         *
+         * @param entityType the {@link EntityType} configured by this {@link TraversalConfig}.
+         * @param includeSelf true if each entity with the {@link EntityType} should include it's
+         *                    direct severity in the severity break down. For instance, Business
+         *                    Application should only include the severities below it, not it's own
+         *                    severity.
+         * @param persist true if the severity breakdown of the entity should be persisted to
+         *                the in memory store, making it visible through
+         *                {@link com.vmturbo.action.orchestrator.rpc.EntitySeverityRpcService}.
+         * @param traverseProducers true if we should accumulate the severity breakdowns from the
+         *                          producers of the entity.
+         * @param connectedEntities The types of the connected entities we should accumulate
+         *                          severity breakdowns from. Sometimes the relationship we need
+         *                          for gather severity breakdowns is not available in the
+         *                          producers. Additionally, we must specify which type instead of
+         *                          a boolean to traversal all to prevent double counting entities
+         *                          that are already in the producer list.
+         */
+        private TraversalConfig(
+            @Nonnull final EntityType entityType,
+            final boolean includeSelf,
+            final boolean persist,
+            final boolean traverseProducers,
+            @Nonnull Set<EntityType> connectedEntities) {
+            this.entityType = entityType;
+            this.includeSelf = includeSelf;
+            this.persist = persist;
+            this.traverseProducers = traverseProducers;
+            this.connectedEntities = connectedEntities;
+        }
+
+        private TraversalConfig(
+            final EntityType entityType,
+            final boolean includeSelf,
+            final boolean persist,
+            final boolean traverseProducers) {
+            this(entityType, includeSelf, persist, traverseProducers, Collections.emptySet());
+        }
     }
 
     /**

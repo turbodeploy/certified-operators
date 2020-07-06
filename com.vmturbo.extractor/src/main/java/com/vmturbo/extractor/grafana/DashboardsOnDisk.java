@@ -37,6 +37,7 @@ public class DashboardsOnDisk {
      */
     private static final String PERMISSIONS_FILE = "permissions.json";
     private static final String FOLDER_FILE = "folder.json";
+    private static final String GENERAL_FOLDER = "general";
 
     private final String dashboardsPath;
 
@@ -59,7 +60,7 @@ public class DashboardsOnDisk {
         private final JsonObject permissions;
 
         private FolderData(@Nonnull final String fileName,
-                @Nonnull final FolderInput folder,
+                @Nullable final FolderInput folder,
                 @Nonnull final List<DashboardSpec> dashboards,
                 @Nullable final JsonObject permissions) {
             this.fileName = fileName;
@@ -81,10 +82,12 @@ public class DashboardsOnDisk {
          * Get the specifications for the folder to create in Grafana.
          *
          * @return The {@link FolderInput} object, which can be serialized and sent to the Grafana API.
+         *         May return an optional folder, in which case all the dashboards should go into
+         *         the "general" folder.
          */
         @Nonnull
-        public FolderInput getFolderSpec() {
-            return folder;
+        public Optional<FolderInput> getFolderSpec() {
+            return Optional.ofNullable(folder);
         }
 
         /**
@@ -166,7 +169,7 @@ public class DashboardsOnDisk {
                         // Skip irrelevant file. Probably something useless, like documentation.
                     }
                 }
-                if (folder == null) {
+                if (folder == null && !fileName.equalsIgnoreCase(GENERAL_FOLDER)) {
                     throw new IllegalArgumentException(
                         FormattedString.format("No {} found in folder {}", FOLDER_FILE, file.getPath()));
                 }

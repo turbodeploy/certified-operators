@@ -77,6 +77,18 @@ public enum SearchMetadataMapping {
     RELATED_STORAGE_CLUSTER_NAME("attrs", "related_storage_cluster", GroupType.STORAGE_CLUSTER,
             EntityType.STORAGE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
+    RELATED_BILLING_FAMILY_NAME("attrs", "related_billing_family", GroupType.BILLING_FAMILY,
+            EntityType.BUSINESS_ACCOUNT, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+
+    RELATED_RESOURCE_GROUP_NAME_FOR_VM("attrs", "related_resource_group", GroupType.RESOURCE,
+            EntityType.VIRTUAL_MACHINE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+
+    RELATED_RESOURCE_GROUP_NAME_FOR_VV("attrs", "related_resource_group", GroupType.RESOURCE,
+            EntityType.VIRTUAL_VOLUME, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+
+    RELATED_RESOURCE_GROUP_NAME_FOR_DB("attrs", "related_resource_group", GroupType.RESOURCE,
+            EntityType.DATABASE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+
     /**
      * Entity type specific fields.
      */
@@ -91,6 +103,9 @@ public enum SearchMetadataMapping {
 
     PRIMITIVE_GUEST_OS_TYPE("attrs", "guest_os_type", Type.ENUM, OSType.class,
             entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType())),
+
+    PRIMITIVE_IS_LOCAL("attrs", "is_local", Type.BOOLEAN, null,
+            entity -> Optional.of(entity.getTypeSpecificInfo().getStorage().getIsLocal())),
 
     PRIMITIVE_MODEL("attrs", "model", Type.TEXT, null,
             entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getModel())),
@@ -107,32 +122,65 @@ public enum SearchMetadataMapping {
     /**
      * Commodities for entity.
      */
+    COMMODITY_ACTIVE_SESSIONS_USED("attrs", "active_sessions_used", CommodityType.ACTIVE_SESSIONS, CommodityAttribute.USED,
+            CommodityTypeUnits.ACTIVE_SESSIONS, Type.NUMBER),
+
+    COMMODITY_ACTIVE_SESSIONS_UTILIZATION("attrs", "active_sessions_utilization", CommodityType.ACTIVE_SESSIONS, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
     COMMODITY_BALLOONING_PERCENTILE("attrs", "ballooning_percentile", CommodityType.BALLOONING, CommodityAttribute.PERCENTILE,
             CommodityTypeUnits.BALLOONING, Type.NUMBER),
 
     COMMODITY_BALLOONING_UTILIZATION("attrs", "ballooning_utilization", CommodityType.BALLOONING, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.BALLOONING, Type.NUMBER),
+            null, Type.NUMBER),
 
-    COMMODITY_VCPU_PERCENTILE_UTILIZATION("attrs", "vcpu_percentile_utilization", CommodityType.VCPU,
-            CommodityAttribute.PERCENTILE, CommodityTypeUnits.VCPU, Type.NUMBER),
+    COMMODITY_COOLING_UTILIZATION("attrs", "cooling_utilization", CommodityType.COOLING, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
 
     COMMODITY_CPU_USED("attrs", "cpu_used", CommodityType.CPU, CommodityAttribute.USED,
             CommodityTypeUnits.CPU, Type.NUMBER),
 
     COMMODITY_CPU_UTILIZATION("attrs", "cpu_utilization", CommodityType.CPU, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.CPU, Type.NUMBER),
+            null, Type.NUMBER),
+
+    COMMODITY_DB_HIT_RATE_USED("attrs", "db_hit_rate_used", CommodityType.DB_CACHE_HIT_RATE, CommodityAttribute.USED,
+            CommodityTypeUnits.DB_CACHE_HIT_RATE, Type.NUMBER),
+
+    COMMODITY_DB_HIT_RATE_UTILIZATION("attrs", "db_hit_rate_utilization", CommodityType.DB_CACHE_HIT_RATE, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_DB_MEM_CAPACITY("attrs", "db_mem_capacity", CommodityType.DB_MEM, CommodityAttribute.CAPACITY,
+            CommodityTypeUnits.MEM, Type.NUMBER),
+
+    COMMODITY_DB_MEM_USED("attrs", "db_mem_used", CommodityType.DB_MEM, CommodityAttribute.USED,
+            CommodityTypeUnits.MEM, Type.NUMBER),
+
+    COMMODITY_DB_MEM_UTILIZATION("attrs", "db_mem_utilization", CommodityType.DB_MEM, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_IMAGE_CPU_USED("attrs", "image_cpu_used", CommodityType.IMAGE_CPU, CommodityAttribute.USED,
+            CommodityTypeUnits.IMAGE_CPU, Type.NUMBER),
+
+    COMMODITY_IMAGE_CPU_UTILIZATION("attrs", "image_cpu_utilization", CommodityType.IMAGE_CPU, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_IMAGE_MEM_USED("attrs", "image_mem_used", CommodityType.IMAGE_MEM, CommodityAttribute.USED,
+            CommodityTypeUnits.IMAGE_MEM, Type.NUMBER),
+
+    COMMODITY_IMAGE_MEM_UTILIZATION("attrs", "image_mem_utilization", CommodityType.IMAGE_MEM, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_IMAGE_STORAGE_USED("attrs", "image_storage_used", CommodityType.IMAGE_STORAGE, CommodityAttribute.USED,
+            CommodityTypeUnits.IMAGE_STORAGE, Type.NUMBER),
+
+    COMMODITY_IMAGE_STORAGE_UTILIZATION("attrs", "image_storage_utilization", CommodityType.IMAGE_STORAGE, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
 
     COMMODITY_IO_THROUGHPUT_USED("attrs", "io_throughput_used", CommodityType.IO_THROUGHPUT, CommodityAttribute.USED,
             CommodityTypeUnits.IO_THROUGHPUT, Type.NUMBER),
 
     COMMODITY_IO_THROUGHPUT_UTILIZATION("attrs", "io_throughput_utilization", CommodityType.IO_THROUGHPUT, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.NET_THROUGHPUT, Type.NUMBER),
-
-    COMMODITY_NET_THROUGHPUT_USED("attrs", "net_throughput_used", CommodityType.NET_THROUGHPUT, CommodityAttribute.USED,
-            CommodityTypeUnits.IO_THROUGHPUT, Type.NUMBER),
-
-    COMMODITY_NET_THROUGHPUT_UTILIZATION("attrs", "net_throughput_utilization", CommodityType.NET_THROUGHPUT, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.NET_THROUGHPUT, Type.NUMBER),
+            null, Type.NUMBER),
 
     COMMODITY_MEM_CAPACITY("attrs", "mem_capacity", CommodityType.MEM, CommodityAttribute.CAPACITY,
             CommodityTypeUnits.MEM, Type.NUMBER),
@@ -141,22 +189,82 @@ public enum SearchMetadataMapping {
             CommodityTypeUnits.MEM, Type.NUMBER),
 
     COMMODITY_MEM_UTILIZATION("attrs", "mem_utilization", CommodityType.MEM, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.MEM, Type.NUMBER),
+            null, Type.NUMBER),
+
+    COMMODITY_NET_THROUGHPUT_USED("attrs", "net_throughput_used", CommodityType.NET_THROUGHPUT, CommodityAttribute.USED,
+            CommodityTypeUnits.NET_THROUGHPUT, Type.NUMBER),
+
+    COMMODITY_NET_THROUGHPUT_UTILIZATION("attrs", "net_throughput_utilization", CommodityType.NET_THROUGHPUT, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_POOL_CPU_UTILIZATION("attrs", "pool_cpu_utilization", CommodityType.POOL_CPU, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_POOL_MEM_UTILIZATION("attrs", "pool_mem_utilization", CommodityType.POOL_MEM, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_POOL_STORAGE_UTILIZATION("attrs", "pool_storage_utilization", CommodityType.POOL_STORAGE, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_PORT_CHANNEL_UTILIZATION("attrs", "port_channel_utilization", CommodityType.PORT_CHANNEL, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_POWER_UTILIZATION("attrs", "power_utilization", CommodityType.POWER, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_RESPONSE_TIME_USED("attrs", "response_time_used", CommodityType.RESPONSE_TIME, CommodityAttribute.USED,
+            CommodityTypeUnits.RESPONSE_TIME, Type.NUMBER),
+
+    COMMODITY_RESPONSE_TIME_UTILIZATION("attrs", "response_time_utilization", CommodityType.RESPONSE_TIME, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_SPACE_UTILIZATION("attrs", "space_utilization", CommodityType.SPACE, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_STORAGE_ACCESS_USED("attrs", "storage_access_used", CommodityType.STORAGE_ACCESS, CommodityAttribute.USED,
+            CommodityTypeUnits.STORAGE_ACCESS, Type.NUMBER),
+
+    COMMODITY_STORAGE_ACCESS_UTILIZATION("attrs", "storage_access_utilization", CommodityType.STORAGE_ACCESS, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
 
     COMMODITY_STORAGE_AMOUNT_CAPACITY("attrs", "storage_amount_capacity", CommodityType.STORAGE_AMOUNT, CommodityAttribute.CAPACITY,
             CommodityTypeUnits.STORAGE_AMOUNT, Type.NUMBER),
+
+    COMMODITY_STORAGE_AMOUNT_USED("attrs", "storage_amount_used", CommodityType.STORAGE_AMOUNT, CommodityAttribute.USED,
+            CommodityTypeUnits.STORAGE_AMOUNT, Type.NUMBER),
+
+    COMMODITY_STORAGE_AMOUNT_UTILIZATION("attrs", "storage_amount_utilization", CommodityType.STORAGE_AMOUNT, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_STORAGE_LATENCY_USED("attrs", "storage_latency_used", CommodityType.STORAGE_LATENCY, CommodityAttribute.USED,
+            CommodityTypeUnits.STORAGE_LATENCY, Type.NUMBER),
+
+    COMMODITY_STORAGE_LATENCY_UTILIZATION("attrs", "storage_latency_utilization", CommodityType.STORAGE_LATENCY, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
+    COMMODITY_STORAGE_PROVISIONED_USED("attrs", "storage_provisioned_used", CommodityType.STORAGE_PROVISIONED, CommodityAttribute.USED,
+            CommodityTypeUnits.STORAGE_PROVISIONED, Type.NUMBER),
+
+    COMMODITY_STORAGE_PROVISIONED_UTILIZATION("attrs", "storage_provisioned_utilization", CommodityType.STORAGE_PROVISIONED, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
 
     COMMODITY_SWAPPING_PERCENTILE("attrs", "swapping_percentile", CommodityType.SWAPPING, CommodityAttribute.PERCENTILE,
             CommodityTypeUnits.SWAPPING, Type.NUMBER),
 
     COMMODITY_SWAPPING_UTILIZATION("attrs", "swapping_utilization", CommodityType.SWAPPING, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.SWAPPING, Type.NUMBER),
+            null, Type.NUMBER),
+
+    COMMODITY_TRANSACTION_USED("attrs", "transaction_used", CommodityType.TRANSACTION, CommodityAttribute.USED,
+            CommodityTypeUnits.TRANSACTION, Type.NUMBER),
+
+    COMMODITY_TRANSACTION_UTILIZATION("attrs", "transaction_utilization", CommodityType.TRANSACTION, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
 
     COMMODITY_VCPU_USED("attrs", "vcpu_used", CommodityType.VCPU, CommodityAttribute.USED,
             CommodityTypeUnits.VCPU, Type.NUMBER),
 
     COMMODITY_VCPU_UTILIZATION("attrs", "vcpu_utilization", CommodityType.VCPU, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.VCPU, Type.NUMBER),
+            null, Type.NUMBER),
 
     COMMODITY_VMEM_CAPACITY("attrs", "vmem_capacity", CommodityType.VMEM, CommodityAttribute.CAPACITY,
             CommodityTypeUnits.VMEM, Type.NUMBER),
@@ -165,13 +273,13 @@ public enum SearchMetadataMapping {
             CommodityTypeUnits.VMEM, Type.NUMBER),
 
     COMMODITY_VMEM_UTILIZATION("attrs", "vmem_utilization", CommodityType.VMEM, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.VMEM, Type.NUMBER),
+            null, Type.NUMBER),
 
     COMMODITY_VSTORAGE_USED("attrs", "vstorage_used", CommodityType.VSTORAGE, CommodityAttribute.USED,
             CommodityTypeUnits.VSTORAGE, Type.NUMBER),
 
     COMMODITY_VSTORAGE_UTILIZATION("attrs", "vstorage_utilization", CommodityType.VSTORAGE, CommodityAttribute.UTILIZATION,
-            CommodityTypeUnits.VSTORAGE, Type.NUMBER),
+            null, Type.NUMBER),
 
     /**
      * Related entities.
@@ -180,6 +288,15 @@ public enum SearchMetadataMapping {
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
     RELATED_APPLICATION("attrs", "related_application", Collections.singleton(EntityType.APPLICATION),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    RELATED_BUSINESS_APPLICATION("attrs", "related_business_application", Collections.singleton(EntityType.BUSINESS_APPLICATION),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    RELATED_BUSINESS_TRANSACTION("attrs", "related_business_transaction", Collections.singleton(EntityType.BUSINESS_TRANSACTION),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    RELATED_CONTAINER_POD("attrs", "related_container_pod", Collections.singleton(EntityType.CONTAINER_POD),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
     RELATED_DISKARRAY("attrs", "related_diskarray", Collections.singleton(EntityType.DISKARRAY),
@@ -191,7 +308,13 @@ public enum SearchMetadataMapping {
     RELATED_DATA_CENTER("attrs", "related_dc", Collections.singleton(EntityType.DATACENTER),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
+    RELATED_NAMESPACE("attrs", "related_namespace", Collections.singleton(EntityType.NAMESPACE),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
     RELATED_REGION("attrs", "related_region", Collections.singleton(EntityType.REGION),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    RELATED_SERVICE("attrs", "related_service", Collections.singleton(EntityType.SERVICE),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
     RELATED_STORAGE("attrs", "related_storage", Collections.singleton(EntityType.STORAGE),
@@ -203,15 +326,18 @@ public enum SearchMetadataMapping {
     RELATED_SWITCH("attrs", "related_switch", Collections.singleton(EntityType.SWITCH),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
+    RELATED_TRANSACTION("attrs", "related_transaction", Collections.singleton(EntityType.BUSINESS_TRANSACTION),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
     RELATED_VM("attrs", "related_vm", Collections.singleton(EntityType.VIRTUAL_MACHINE),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
     NUM_VMS("attrs", "num_vms", Collections.singleton(EntityType.VIRTUAL_MACHINE),
-            RelatedEntitiesProperty.COUNT, Type.NUMBER),
+            RelatedEntitiesProperty.COUNT, Type.INTEGER),
 
     NUM_WORKLOADS("attrs", "num_workloads",
-        ImmutableSet.of(EntityType.VIRTUAL_MACHINE, EntityType.APPLICATION, EntityType.DATABASE),
-        RelatedEntitiesProperty.COUNT, Type.INTEGER),
+            ImmutableSet.of(EntityType.VIRTUAL_MACHINE, EntityType.APPLICATION, EntityType.DATABASE),
+            RelatedEntitiesProperty.COUNT, Type.INTEGER),
 
     /**
      * Basic fields for group.
@@ -251,10 +377,10 @@ public enum SearchMetadataMapping {
             Type.INTEGER),
     // related vms count (only used by cluster for now)
     RELATED_MEMBER_COUNT_VM("attrs", "vm_count", ImmutableSet.of(EntityType.VIRTUAL_MACHINE),
-            Property.COUNT, Type.INTEGER),
+            RelatedEntitiesProperty.COUNT, Type.INTEGER),
     // related storages count (only used by cluster for now)
     RELATED_MEMBER_COUNT_ST("attrs", "st_count", ImmutableSet.of(EntityType.STORAGE),
-            Property.COUNT, Type.INTEGER),
+            RelatedEntitiesProperty.COUNT, Type.INTEGER),
 
     /**
      * Commodities for group. For now, this is only used by cluster, and is only for leaf entities
@@ -394,13 +520,13 @@ public enum SearchMetadataMapping {
                           @Nonnull String jsonKeyName,
                           @Nonnull CommodityType commodityType,
                           @Nonnull CommodityAttribute commodityAttribute,
-                          @Nonnull CommodityTypeUnits commodityUnit,
+                          @Nullable CommodityTypeUnits commodityUnit,
                           @Nonnull Type apiDatatype) {
         this.columnName = Objects.requireNonNull(columnName);
         this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
         this.commodityType = Objects.requireNonNull(commodityType);
         this.commodityAttribute = Objects.requireNonNull(commodityAttribute);
-        this.commodityUnit = Objects.requireNonNull(commodityUnit);
+        this.commodityUnit = commodityUnit;
         this.apiDatatype = Objects.requireNonNull(apiDatatype);
     }
 
@@ -509,7 +635,7 @@ public enum SearchMetadataMapping {
                           @Nonnull CommodityType commodityType,
                           @Nonnull CommodityAttribute commodityAttribute,
                           @Nonnull Aggregation commodityAggregation,
-                          @Nonnull CommodityTypeUnits commodityUnit,
+                          @Nullable CommodityTypeUnits commodityUnit,
                           @Nonnull Type apiDatatype) {
         this.columnName = Objects.requireNonNull(columnName);
         this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
@@ -517,7 +643,7 @@ public enum SearchMetadataMapping {
         this.commodityType = Objects.requireNonNull(commodityType);
         this.commodityAttribute = Objects.requireNonNull(commodityAttribute);
         this.commodityAggregation = Objects.requireNonNull(commodityAggregation);
-        this.commodityUnit = Objects.requireNonNull(commodityUnit);
+        this.commodityUnit = commodityUnit;
         this.apiDatatype = Objects.requireNonNull(apiDatatype);
     }
 

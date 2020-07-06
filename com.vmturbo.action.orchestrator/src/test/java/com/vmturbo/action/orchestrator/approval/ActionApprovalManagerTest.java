@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,6 +27,7 @@ import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
@@ -95,8 +97,7 @@ public class ActionApprovalManagerTest {
             actionTargetSelector,
             entitiesAndSettingsSnapshotFactory,
             actionTranslator,
-            workflowStore,
-            acceptedActionsDAO);
+            workflowStore, acceptedActionsDAO);
     }
 
     /**
@@ -112,10 +113,30 @@ public class ActionApprovalManagerTest {
             ACTION_RECOMMENDATION_OID);
         action.getActionTranslation().setTranslationSuccess(
             ActionDTO.Action.newBuilder().buildPartial());
-        when(actionStore.getAction(ACTION_ID)).thenReturn(Optional.of(action));
-        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, ACTION_ID);
+        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
         // after accepting, the action should have transitioned from READY to IN_PROGRESS
         Assert.assertEquals(ActionState.IN_PROGRESS, action.getState());
+    }
+
+    /**
+     * Test failed acceptance for action not in {@link ActionState#READY} state.
+     */
+    @Test
+    public void testFailedAcceptExternalApproval() {
+        final Action action =
+                new MockedAction(ActionDTO.Action.newBuilder().setId(ACTION_ID).buildPartial(),
+                        ACTION_PLAN_ID, ACTION_RECOMMENDATION_OID);
+        action.getActionTranslation()
+                .setTranslationSuccess(ActionDTO.Action.newBuilder().buildPartial());
+        when(actionStore.getAction(ACTION_ID)).thenReturn(Optional.of(action));
+        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
+        Assert.assertEquals(ActionState.IN_PROGRESS, action.getState());
+        final AcceptActionResponse acceptActionResponse =
+                actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
+        Assert.assertTrue(acceptActionResponse.hasError());
+        Assert.assertThat(acceptActionResponse.getError(), Matchers.containsString(
+                "Only action with READY state can be accepted. Action " + ACTION_ID + " has "
+                        + ActionState.IN_PROGRESS + " state."));
     }
 
     /**

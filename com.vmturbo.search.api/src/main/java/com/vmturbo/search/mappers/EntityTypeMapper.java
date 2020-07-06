@@ -54,7 +54,7 @@ public class EntityTypeMapper {
      * @return The associated {@link com.vmturbo.api.enums.EntityType}, or null
      */
     public static com.vmturbo.api.enums.EntityType fromSearchSchemaToApi(@Nullable final EntityType entityType) {
-        return ENTITY_TYPE_MAPPINGS.getOrDefault(entityType, null);
+        return ENTITY_TYPE_MAPPINGS.getOrDefault(entityType, com.vmturbo.api.enums.EntityType.UNKNOWN);
     }
 
     /**

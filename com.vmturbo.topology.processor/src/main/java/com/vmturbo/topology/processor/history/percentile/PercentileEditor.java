@@ -298,15 +298,15 @@ public class PercentileEditor extends
             if (observationPeriod != null) {
                 final UtilizationCountStore store = entry.getValue().getUtilizationCountStore();
                 // We are only interested in "changes" but not in handling the new entities.
-                if (store.getPeriodDays() != observationPeriod) {
+                if (entry.getValue().needsReinitialization(entry.getKey(), context, getConfig())) {
                     changedPeriodEntries.put(entry.getKey(), entry.getValue());
                     // Update percentile data with observation windows values.
-                    store.setPeriodDays(observationPeriod);
                     // Latest counts is already in memory, copy to full to load 1 window less.
                     store.copyCountsFromLatestToFull();
                     // The needed pages count to load will be determined by the max observation period.
                     maxOfChangedPeriods = Math.max(maxOfChangedPeriods, observationPeriod);
                 }
+                store.setPeriodDays(observationPeriod);
             }
         }
 

@@ -47,8 +47,6 @@ defaultProperties:
         # string, with individual settings separated by "&". No initial "&" or "?" should appear
         mariadbDriverProperties: useServerPrepStmts=true
         mysqlDriverProperties:
-        # OM-58310: Improve handling partially discovered cloud environment feature flag.
-        riSupportInPartialCloudEnvironment: false
     extractor:
         dbHost: timescaledb
         dbPort: 5432
@@ -130,8 +128,12 @@ defaultProperties:
         statsRecordsUpdateBatchSize : 5000
         # Number of results to return when fetching lazily.
         statsRecordsQueryBatchSize : 5000
+        # Import cost diags
+        saveCostDiags: true
         # Save Allocation Demand Tables in Diags
         saveAllocationDemandStores: true
+        # Save historical stats table in Diags
+        saveHistoricalStatsDiags: false
         # Record allocation data for workloads.
         recordCloudAllocationData: true
         reservedInstanceStatCleanup.corePoolSize: 1

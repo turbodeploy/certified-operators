@@ -21,9 +21,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.TypeCase;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 
 /**
@@ -128,8 +128,8 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
         snapshot.getEntityFromOid(workloadTier.getId())
                 .map(ActionPartialEntity::getTypeSpecificInfo)
                 .filter(typeInfo -> typeInfo.getTypeCase() == TypeCase.COMPUTE_TIER)
-                .map(TypeSpecificInfo::getComputeTier)
-                .map(ComputeTierInfo::getFamily)
+                .map(ActionEntityTypeSpecificInfo::getComputeTier)
+                .map(ActionComputeTierInfo::getFamily)
                 .ifPresent(explanation::setInstanceSizeFamily);
 
         return actionDto.toBuilder()

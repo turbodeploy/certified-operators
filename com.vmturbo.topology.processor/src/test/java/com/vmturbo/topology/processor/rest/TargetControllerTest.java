@@ -71,6 +71,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.topology.processor.TestIdentityStore;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
@@ -136,7 +137,7 @@ public class TargetControllerTest {
 
         @Bean
         ProbeStore probeStore() {
-            return new RemoteProbeStore(keyValueStore(), identityService(), stitchingOperationStore());
+            return new RemoteProbeStore(keyValueStore(), identityService(), stitchingOperationStore(),  new ActionMergeSpecsRepository());
         }
 
         @Bean

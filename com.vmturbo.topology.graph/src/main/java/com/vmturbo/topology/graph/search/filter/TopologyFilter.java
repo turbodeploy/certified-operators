@@ -5,7 +5,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.graph.TopologyGraphEntity;
+import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
 
 /**
  * A generic filter that can be applied to a stream of entities in the graph
@@ -25,10 +25,10 @@ import com.vmturbo.topology.graph.TopologyGraphEntity;
  * That is, no filter application may maintain any internal state that would
  * make its {@link #apply(Stream, TopologyGraph)} method unsafe to run concurrently.
  *
- * @param <E> The type of {@link TopologyGraphEntity} the filter works with.
+ * @param <E> The type of {@link TopologyGraphSearchableEntity} the filter works with.
  */
 @FunctionalInterface
-public interface TopologyFilter<E extends TopologyGraphEntity<E>> {
+public interface TopologyFilter<E extends TopologyGraphSearchableEntity<E>> {
     /**
      * Apply the filter to the stream input entities to generate a stream of output entities
      * that match certain criteria related to the filter instance.

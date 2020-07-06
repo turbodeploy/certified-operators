@@ -27,9 +27,9 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
 class TargetRegistration {
 
     private static final Logger LOGGER = LogManager.getLogger();
-    private static final String UDT_PROBE_TYPE = "User-Defined-Topology";
+    private static final String UDT_PROBE_TYPE = "User-defined entities";
     private static final String UDT_TARGET_FIELD_NAME = "targetName";
-    private static final String UDT_TARGET_FIELD_VALUE = "User Defined Topology";
+    private static final String UDT_TARGET_FIELD_VALUE = "User-defined entities";
 
     private final TopologyProcessor topologyProcessor;
 

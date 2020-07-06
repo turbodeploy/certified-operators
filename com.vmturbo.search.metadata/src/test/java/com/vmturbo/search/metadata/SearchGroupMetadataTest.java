@@ -17,7 +17,7 @@ import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.enums.GroupType;
 
 /**
- * Unit tests verify that all fields in SearchEntityMetadataMapping for different field types
+ * Unit tests verify that all fields in {@link SearchMetadataMapping} for different field types
  * are set as expected. This is needed to ensure correct data ingestion and search query.
  */
 public class SearchGroupMetadataTest {
@@ -30,6 +30,7 @@ public class SearchGroupMetadataTest {
                     .put(FieldType.PRIMITIVE, new PrimitiveMetadataVerifier())
                     .put(FieldType.AGGREGATE_COMMODITY, new CommodityMetadataVerifier())
                     .put(FieldType.RELATED_ACTION, new RelatedActionMetadataVerifier())
+                    .put(FieldType.RELATED_ENTITY, new RelatedEntityMetadataVerifier())
                     .put(FieldType.MEMBER, new MemberMetadataVerifier())
                     .build();
 
@@ -124,6 +125,16 @@ public class SearchGroupMetadataTest {
         public void verify(SearchMetadataMapping metadata) {
             commonVerify(metadata);
             assertNull(metadata.getJsonKeyName());
+        }
+    }
+
+    public static class RelatedEntityMetadataVerifier implements MetadataVerifier {
+        @Override
+        public void verify(SearchMetadataMapping metadata) {
+            commonVerify(metadata);
+            assertNotNull(metadata.getJsonKeyName());
+            assertNotNull(metadata.getRelatedEntityTypes());
+            assertNotNull(metadata.getRelatedEntityProperty());
         }
     }
 

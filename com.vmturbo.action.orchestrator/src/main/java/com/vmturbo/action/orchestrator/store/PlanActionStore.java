@@ -182,7 +182,7 @@ public class PlanActionStore implements ActionStore {
         this.actionPlanIdByActionPlanType = Maps.newHashMap();
         this.recommendationTimeByActionPlanId = Maps.newHashMap();
         this.topologyContextId = topologyContextId;
-        this.severityCache = new EntitySeverityCache(supplyChainService, repositoryService, false);
+        this.severityCache = new EntitySeverityCache(repositoryService, false);
         this.entitySettingsCache = entitySettingsCache;
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -252,6 +252,18 @@ public class PlanActionStore implements ActionStore {
                 recommendationTimeByActionPlanId.get(action.getActionPlanId()),
                 action.getActionPlanId(), action.getDescription(),
                 action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()));
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Action> getActionByRecommendationId(long recommendationId) {
+        // this method shouldn't be called for plans, so we don't implement special loading
+        // of market action by recommendation id (in market actions table there is no
+        // recommendationId field, because it isn't required information for plans)
+        return getActions().values()
+                .stream()
+                .filter(action -> action.getRecommendationOid() == recommendationId)
+                .findFirst();
     }
 
     /**

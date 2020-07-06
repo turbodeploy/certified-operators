@@ -42,6 +42,8 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -59,6 +61,7 @@ import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
@@ -88,7 +91,6 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -111,10 +113,13 @@ public class ActionExecutionRpcTest {
 
     // Have the translator pass-through translate all actions.
     private final ActionTranslator actionTranslator = passthroughTranslator();
+    final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
+    final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
 
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
+    private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
@@ -175,17 +180,9 @@ public class ActionExecutionRpcTest {
         actionIdentityService = Mockito.mock(IdentityServiceImpl.class);
         Mockito.when(actionIdentityService.getOidsForObjects(Mockito.any()))
                 .thenReturn(Arrays.asList(1L, 2L, 3L, 4L, 5L, 6L, 7L));
-        actionsRpcService =
-                new ActionsRpcService(clock,
-                        actionStorehouse,
-                        actionApprovalManager,
-                        actionTranslator,
-                        paginatorFactory,
-                        statReader,
-                        liveStatReader,
-                        userSessionContext,
-                        acceptedActionsStore,
-                        500);
+        actionsRpcService = new ActionsRpcService(clock, actionStorehouse, actionApprovalManager,
+                actionTranslator, paginatorFactory, statReader, liveStatReader, userSessionContext,
+                acceptedActionsStore, rejectedActionsStore, 500);
         grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole,
                 supplyChainServiceMole, repositoryServiceMole);
         grpcServer.start();
@@ -200,13 +197,11 @@ public class ActionExecutionRpcTest {
         when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(targetInfo);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
-        actionStoreSpy =
-            Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+        actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                actionTargetSelector, probeCapabilityCache,
-                entitySettingsCache, actionHistoryDao, statistician, actionTranslator,
-                clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
+                actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+                statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
+                licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
                 Mockito.mock(ActionAuditSender.class)));
 
@@ -251,7 +246,6 @@ public class ActionExecutionRpcTest {
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
-        Mockito.verifyZeroInteractions(acceptedActionsStore);
     }
 
     /**
@@ -347,7 +341,6 @@ public class ActionExecutionRpcTest {
         Assert.assertTrue(response.hasError());
         Assert.assertThat(response.getError(), CoreMatchers.containsString(
                 "Failed to persist acceptance for action " + ACTION_ID));
-        Mockito.verifyZeroInteractions(acceptedActionsStore);
     }
 
     /**
@@ -534,31 +527,29 @@ public class ActionExecutionRpcTest {
                 return actionStream;
             }
         }, grpcServer.getChannel()));
+
+        final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
+        final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
+        ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
                 executor, actionStoreLoader, Mockito.mock(ActionApprovalSender.class));
         final ActionsRpcService actionsRpcService =
-                new ActionsRpcService(clock,
-                    actionStorehouse,
-                    actionApprovalManager,
-                    actionTranslator,
-                    paginatorFactory,
-                    statReader,
-                    liveStatReader,
-                    userSessionContext, acceptedActionsStore, 500);
+                new ActionsRpcService(clock, actionStorehouse, actionApprovalManager,
+                        actionTranslator, paginatorFactory, statReader, liveStatReader,
+                        userSessionContext, acceptedActionsStore, rejectedActionsStore, 500);
         GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService,
                 supplyChainServiceMole, repositoryServiceMole);
         grpcServer.start();
         ActionsServiceBlockingStub actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(
             grpcServer.getChannel());
         IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
-        actionStoreSpy =
-            Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+        actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-                actionHistoryDao, statistician, actionTranslator, clock, userSessionContext,
-                licenseCheckClient, acceptedActionsStore, actionIdentityService,
-                    involvedEntitiesExpander, Mockito.mock(ActionAuditSender.class)));
+                actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+                statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
+                licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
+                actionIdentityService, involvedEntitiesExpander,
+                Mockito.mock(ActionAuditSender.class)));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);

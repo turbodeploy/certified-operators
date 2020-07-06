@@ -21,6 +21,9 @@ import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
+import com.vmturbo.action.orchestrator.action.RejectedActionsStore;
 import com.vmturbo.action.orchestrator.approval.ApprovalCommunicationConfig;
 import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
@@ -37,6 +40,7 @@ import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
@@ -121,6 +125,9 @@ public class ActionStoreConfig {
     @Value("${minsActionAcceptanceTTL:1440}")
     private long minsActionAcceptanceTTL;
 
+    @Value("${minsActionRejectionTTL:10080}")
+    private long minsActionRejectionTTL;
+
     @Value("${minsFrequencyOfCleaningAcceptedActionsStore:60}")
     private long minsFrequencyOfCleaningAcceptedActionsStore;
 
@@ -130,6 +137,26 @@ public class ActionStoreConfig {
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator());
+    }
+
+    /**
+     * Class with the {@link AtomicActionSpec} received from the topology processor.
+     *
+     * @return {@link AtomicActionSpecsCache}
+     */
+    @Bean
+    public AtomicActionSpecsCache actionMergeSpecsCache() {
+        return new AtomicActionSpecsCache();
+    }
+
+    /**
+     * Create atomic action factory.
+     *
+     * @return @link AtomicActionFactory}
+     */
+    @Bean
+    public AtomicActionFactory atomicActionFactory() {
+        return new AtomicActionFactory(actionMergeSpecsCache());
     }
 
     @Bean
@@ -200,12 +227,14 @@ public class ActionStoreConfig {
             .withEntitySettingsCache(entitySettingsCache())
             .withActionsStatistician(actionStatsConfig.actionsStatistician())
             .withActionTranslator(actionTranslationConfig.actionTranslator())
+            .withAtomicActionFactory(atomicActionFactory())
             .withClock(actionOrchestratorGlobalConfig.actionOrchestratorClock())
             .withUserSessionContext(userSessionConfig.userSessionContext())
             .withSupplyChainService(SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
             .withRepositoryService(RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
             .withLicenseCheckClient(licenseCheckClientConfig.licenseCheckClient())
-            .withAcceptedActionStore(acceptedActionsStore())
+            .withAcceptedActionsStore(acceptedActionsStore())
+            .withRejectedActionsStore(rejectedActionsStore())
             .withActionIdentityService(actionIdentityService())
             .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
             .withActionAuditSender(auditCommunicationConfig.actionAuditSender())
@@ -213,18 +242,19 @@ public class ActionStoreConfig {
     }
 
     /**
-     * Creates instance of {@link RegularAcceptedActionsStoreCleaner} which has internal logic
-     * of regularly checking accepted actions and deleting expired acceptances.
+     * Creates instance of {@link RegularActionsStoreCleaner} which has internal logic
+     * of regularly checking accepted and rejection actions and deleting expired of them.
      *
-     * @return instance of {@link RegularAcceptedActionsStoreCleaner}.
+     * @return instance of {@link RegularActionsStoreCleaner}.
      */
     @Bean
-    public RegularAcceptedActionsStoreCleaner regularAcceptedActionsStoreCleaner() {
+    public RegularActionsStoreCleaner regularActionsStoreCleaner() {
         final ThreadFactory threadFactory =
-                new ThreadFactoryBuilder().setNameFormat("acceptedActions-cleaner-%d").build();
-        return new RegularAcceptedActionsStoreCleaner(
+                new ThreadFactoryBuilder().setNameFormat("actionStore-cleaner-%d").build();
+        return new RegularActionsStoreCleaner(
                 Executors.newSingleThreadScheduledExecutor(threadFactory), acceptedActionsStore(),
-                minsActionAcceptanceTTL, minsFrequencyOfCleaningAcceptedActionsStore);
+                rejectedActionsStore(), minsActionAcceptanceTTL, minsActionRejectionTTL,
+                minsFrequencyOfCleaningAcceptedActionsStore);
     }
 
     @Bean
@@ -279,5 +309,15 @@ public class ActionStoreConfig {
     @Bean
     public AcceptedActionsDAO acceptedActionsStore() {
         return new AcceptedActionsStore(databaseConfig.dsl());
+    }
+
+    /**
+     * Creates DAO implementation for working with rejected actions.
+     *
+     * @return instance of {@link RejectedActionsDAO}
+     */
+    @Bean
+    public RejectedActionsDAO rejectedActionsStore() {
+        return new RejectedActionsStore(databaseConfig.dsl());
     }
 }

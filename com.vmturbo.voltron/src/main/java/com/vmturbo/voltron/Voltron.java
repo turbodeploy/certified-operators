@@ -6,6 +6,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +33,7 @@ import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.websocket.jsr356.server.deploy.WebSocketServerContainerInitializer;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -200,6 +202,35 @@ public class Voltron extends BaseVmtComponent {
         Optional.ofNullable(context.getComponents().get(Component.CLUSTERMGR)).ifPresent(clustermgr ->
             clustermgr.getBean(ClusterMgrService.class)
                 .setClusterKvStoreInitialized(true));
+    }
+
+    static void configureMemUsageCalculator(@Nonnull final VoltronContext context) {
+        logger.info("Starting...");
+        final List<Object> springManagedObjects =
+            new ArrayList<>(context.getRootContext().getBeanDefinitionCount());
+        ConfigurableListableBeanFactory clbf = context.getRootContext().getBeanFactory();
+        for (String name : clbf.getSingletonNames()) {
+            Object singletonBean = clbf.getSingleton(name);
+            if (singletonBean != null) {
+                springManagedObjects.add(singletonBean);
+            } else {
+                logger.info("Null bean: {}", name);
+            }
+        }
+
+        context.getComponents().values().forEach(ctx -> {
+            final ConfigurableListableBeanFactory beanFactory = ctx.getBeanFactory();
+            for (String name : beanFactory.getSingletonNames()) {
+                Object singletonBean = beanFactory.getSingleton(name);
+                if (singletonBean != null) {
+                    springManagedObjects.add(singletonBean);
+                } else {
+                    logger.info("Null bean: {}", name);
+                }
+            }
+        });
+
+        logger.info("Done {}!", springManagedObjects.size());
     }
 
     /**

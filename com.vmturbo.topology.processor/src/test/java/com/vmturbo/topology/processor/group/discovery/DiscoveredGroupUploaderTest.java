@@ -77,6 +77,9 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.GroupTestUtils;
 
+/**
+ * Unit test for {@link DiscoveredGroupUploader}.
+ */
 @ThreadSafe
 public class DiscoveredGroupUploaderTest {
     private static final String VM_ASG_POLICY_NAME = "CSP:VMs_Accelerated Networking Enabled_EA - Development:1";
@@ -147,6 +150,10 @@ public class DiscoveredGroupUploaderTest {
         assertFalse(recorderSpy.getDataByTarget().isEmpty());
     }
 
+    /**
+     * Tests the behaviour when a target has been removed. It is expected, that it is removed
+     * from the internal map and no longer sent do anybody.
+     */
     @Test
     public void testTargetRemoved() {
         when(converter.interpretSdkGroupList(eq(Collections.singletonList(STATIC_MEMBER_DTO)),
@@ -157,8 +164,7 @@ public class DiscoveredGroupUploaderTest {
             .collect(Collectors.toList()).isEmpty());
 
         recorderSpy.targetRemoved(TARGET_ID);
-        assertTrue(recorderSpy.getDataByTarget().get(TARGET_ID).getGroups()
-            .collect(Collectors.toList()).isEmpty());
+        Assert.assertNull(recorderSpy.getDataByTarget().get(TARGET_ID));
     }
 
     /**

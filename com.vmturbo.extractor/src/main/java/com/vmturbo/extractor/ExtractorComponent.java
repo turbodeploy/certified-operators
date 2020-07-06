@@ -2,12 +2,9 @@ package com.vmturbo.extractor;
 
 import java.sql.SQLException;
 import java.time.temporal.ChronoUnit;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
+import java.util.zip.ZipOutputStream;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,11 +15,11 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.PostgreSQLHealthMonitor;
+import com.vmturbo.extractor.diags.ExtractorDiagnosticsConfig;
 import com.vmturbo.extractor.grafana.GrafanaConfig;
 import com.vmturbo.extractor.schema.ExtractorDbConfig;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
  * The Extractor component receiving information broadcast from various components in the system. It
@@ -31,19 +28,19 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 @Configuration("theComponent")
 @Import({TopologyListenerConfig.class,
         ExtractorDbConfig.class,
-        SQLDatabaseConfig2.class,
-        GrafanaConfig.class})
+        GrafanaConfig.class,
+        ExtractorDiagnosticsConfig.class})
 public class ExtractorComponent extends BaseVmtComponent {
     private static final Logger logger = LogManager.getLogger();
+
+    @Autowired
+    private ExtractorDiagnosticsConfig diagnosticsConfig;
 
     @Autowired
     private TopologyListenerConfig listenerConfig;
 
     @Autowired
     private ExtractorDbConfig extractorDbConfig;
-
-    @Autowired
-    private SQLDatabaseConfig2 sqlDatabaseConfig;
 
     @Value("${timescaledbHealthCheckIntervalSeconds:60}")
     private int timescaledbHealthCheckIntervalSeconds;
@@ -67,6 +64,11 @@ public class ExtractorComponent extends BaseVmtComponent {
         }
     }
 
+    @Override
+    public void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
+        diagnosticsConfig.diagnosticsHandler().dump(diagnosticZip);
+    }
+
     /**
      * Starts the component.
      *
@@ -79,28 +81,19 @@ public class ExtractorComponent extends BaseVmtComponent {
     @Override
     protected void onStartComponent() {
         logger.debug("Writer config: {}", listenerConfig.writerConfig());
-        // Initialize the database in a separate thread, so that we don't need to block while
-        // waiting for the auth component (to get db password) to be available.
-        ThreadFactory threadFactory = new ThreadFactoryBuilder()
-                .setNameFormat("db-init")
-                .setDaemon(true)
-                .build();
-        final ExecutorService executorService = Executors.newSingleThreadExecutor(threadFactory);
-        executorService.submit((Callable<Void>)() -> {
-            sqlDatabaseConfig.initAll();
+        try {
             setupHealthMonitor();
-
             // change retention policy if custom period is provided
             if (reportingMetricTableRetentionMonths != null) {
-                try {
-                    extractorDbConfig.ingesterEndpoint().getAdapter().setupRetentionPolicy(
-                            "metric", ChronoUnit.MONTHS, reportingMetricTableRetentionMonths);
-                } catch (UnsupportedDialectException | SQLException e) {
-                    logger.error("Failed to create retention policy", e);
-                }
+                extractorDbConfig.ingesterEndpoint().getAdapter().setupRetentionPolicy(
+                        "metric", ChronoUnit.MONTHS, reportingMetricTableRetentionMonths);
             }
-            return null;
-        });
-        executorService.shutdown();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("Failed to set up health monitor -"
+                + "interrupted while waiting for endpoint initialization", e);
+        } catch (UnsupportedDialectException | SQLException e) {
+            logger.error("Failed to create retention policy", e);
+        }
     }
 }

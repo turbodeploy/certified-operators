@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
@@ -39,6 +40,7 @@ public class LiveTopologyStoreTest {
 
     private final TopologyEntityDTO storage = TopologyEntityDTO.newBuilder()
         .setOid(1)
+        .setTypeSpecificInfo(TypeSpecificInfo.getDefaultInstance())
         .setEntityType(ApiEntityType.STORAGE.typeNumber())
         .setEntityState(EntityState.POWERED_ON)
         .setDisplayName("storage")
@@ -46,6 +48,7 @@ public class LiveTopologyStoreTest {
 
     private final TopologyEntityDTO host1 = TopologyEntityDTO.newBuilder()
         .setOid(2)
+        .setTypeSpecificInfo(TypeSpecificInfo.getDefaultInstance())
         .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
         .setEntityState(EntityState.POWERED_ON)
         .setDisplayName("pm")
@@ -59,6 +62,7 @@ public class LiveTopologyStoreTest {
 
     private final TopologyEntityDTO host2 = TopologyEntityDTO.newBuilder()
         .setOid(3)
+        .setTypeSpecificInfo(TypeSpecificInfo.getDefaultInstance())
         .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
         .setEntityState(EntityState.POWERED_ON)
         .setDisplayName("pm")

@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -13,20 +14,18 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
@@ -49,18 +48,9 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
-import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -79,7 +69,6 @@ public class EntitySeverityCacheTest {
     private static final long DEFAULT_SOURCE_ID = 1;
     private static final long ACTION_PLAN_ID = 9876;
 
-    private final SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
     private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
 
     /**
@@ -87,14 +76,12 @@ public class EntitySeverityCacheTest {
      */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(
-        supplyChainServiceMole,
         repositoryServiceMole);
 
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
         entitySeverityCache = new EntitySeverityCache(
-            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             true);
     }
@@ -183,31 +170,68 @@ public class EntitySeverityCacheTest {
      * VMs, Hosts, etc should only count actions where they are directly the source.
      * BusinessApp should count actions in entities below them in the supply chain.
      * <pre>
+     *                                               /------------\
+     *                                              /             v
      *     BusinessApp1 -> BTx1 -> Srv1 -> App1 -> VM1 -> PM1 -> Storage1
      *                                            Minor  Minor    Major
+     *                                               /------------\
+     *                                              /             v
      *     BusinessApp2 -> BTx2 -> Srv2 -> DB1 -> VM2 -> PM2 -> Storage2
      *                                   Critical               Major
      *                                                          Minor
      * BusinessTxn ends up using same host:
-     *      --> Service1 --> App1 --> VM1 ---
-     *     /                         Minor   \
+     *                                   /--------------\
+     *                                  /                \
+     *      --> Service1 --> App1 --> VM1 ---             \
+     *     /                         Minor   \            V
      * BTxn3                                  --> PM1 -> Storage1
      *     \                                 /    Minor   Major
-     *      --> Service3 --> App2 --> VM3 ---
+     *      --> Service3 --> App2 --> VM3 ---              ^
+     *                                  \                  |
+     *                                   \________________/
      *
      * Service can have multiple App/DB:
-     * Service4 ----> App1 -> VM1----
-     *           \            Minor  \
-     *           \--> App2 -> VM3--   \
-     *                             \   \
-     *                              ------> PM1 -> Storage1
-     *                                     Minor   Major
+     *                           /--------------\
+     *                          /                \
+     * Service4 ----> App1 -> VM1----             \
+     *           \            Minor  \             \
+     *           \--> App2 -> VM3--   \            |
+     *                         \    \   \           v
+     *                          \    ------> PM1 -> Storage1
+     *                           \          Minor   Major
+     *                            \                  ^
+     *                             \_________________/
+     * </pre>
+     * Virtual Volume is not in producer relationship and Application can have database as
+     * a producer:
+     * <pre>
+     *            Service5
+     *                |
+     *                v
+     *        Application Component5
+     *       /            |
+     *       v            |
+     * Database4          |
+     *      |             |
+     *      |             |
+     *      v             v
+     *    VM4 --         VM5 - -
+     *     | \ \          |   \ \
+     *     v  \  \        v    \ \
+     * Volume4 \  \   Volume5   \ \
+     *     |   |   \ /           \ \
+     *     |   |    o---         | \
+     *     |   |   /    \        / |
+     *     v   v  v     v       /  |
+     *     Storage4 <- Host4 <--  /
+     *     Major ^    Minor      /
+     *            \_____________/
      * </pre>
      */
     @Test
     public void testSeverityBreakdownAndSeverityCounts() {
         SeverityBreakdownScenario severityBreakdownScenario = new SeverityBreakdownScenario(
-            actionStore, supplyChainServiceMole, repositoryServiceMole);
+            actionStore, repositoryServiceMole);
 
         // trigger the recomputation of severity and severity breakdown
         entitySeverityCache.refresh(actionStore);
@@ -221,21 +245,6 @@ public class EntitySeverityCacheTest {
                 Optional.of(Severity.MINOR), 2L,
                 Optional.of(Severity.MAJOR), 1L,
                 Optional.empty(), 1L));
-
-        // check that the appropriate request was sent to supply chain service
-        GetMultiSupplyChainsRequest actualSupplyChainRequest =
-            severityBreakdownScenario.getMultiSupplyChainsCaptor.getValue();
-        assertEquals(6, actualSupplyChainRequest.getSeedsCount());
-        assertEquals(
-            severityBreakdownScenario.vmAppDBOids,
-            actualSupplyChainRequest.getSeedsList().stream()
-                .map(SupplyChainSeed::getSeedOid)
-                .collect(Collectors.toSet()));
-        assertEquals(
-            severityBreakdownScenario.vmAppDBOids,
-            actualSupplyChainRequest.getSeedsList().stream()
-                .map(supplyChainSeed -> supplyChainSeed.getScope().getStartingEntityOid(0))
-                .collect(Collectors.toSet()));
 
         // Missing entity should have no breaking.
         Assert.assertFalse(
@@ -299,11 +308,11 @@ public class EntitySeverityCacheTest {
                 Severity.NORMAL, 2));
 
         // BusinessTxn ends up using same host:
-        //      --> Service1 --> App1 --> VM1 ---
-        //     /                         Minor   \
+        //      --> Service1 --> App1 --> VM1 ---------------\
+        //     /                         Minor   \            V
         // BTxn3                                  --> PM1 -> Storage1
-        //     \                                 /    Minor   Major
-        //      --> Service3 --> App2 --> VM3 ---
+        //     \                                 /    Minor   Major  ^
+        //      --> Service3 --> App2 --> VM3 -----------------------/
         // PM1's Minor is counted twice. Once through App1 and again through App2.
         // The same goes for Storage1.
         checkSeverityBreakdown(severityBreakdownScenario.businessTx3Oid,
@@ -326,6 +335,12 @@ public class EntitySeverityCacheTest {
                 Severity.MINOR, 3,
                 Severity.MAJOR, 2,
                 Severity.NORMAL, 3));
+
+        checkSeverityBreakdown(severityBreakdownScenario.service5Oid,
+            ImmutableMap.of(
+                Severity.MINOR, 2,
+                Severity.MAJOR, 2,
+                Severity.NORMAL, 6));
     }
 
     /**
@@ -335,12 +350,11 @@ public class EntitySeverityCacheTest {
     @Test
     public void testSeverityBreakdownDisabled() {
         entitySeverityCache = new EntitySeverityCache(
-            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             false);
 
         SeverityBreakdownScenario severityBreakdownScenario = new SeverityBreakdownScenario(
-            actionStore, supplyChainServiceMole, repositoryServiceMole);
+            actionStore, repositoryServiceMole);
 
         // trigger the recomputation of severity and severity breakdown
         entitySeverityCache.refresh(actionStore);
@@ -389,7 +403,9 @@ public class EntitySeverityCacheTest {
 
         assertEquals(expectedSeveritiesAndCounts.size(), actualBreakdown.getSeverityCounts().size());
         expectedSeveritiesAndCounts.forEach((expectedSeverity, expectedCount) -> {
-            assertEquals(expectedCount, actualBreakdown.getCountOfSeverity(expectedSeverity));
+            assertEquals("expected: " + expectedSeveritiesAndCounts
+                + " actual: " + actualBreakdownOptional,
+                expectedCount, actualBreakdown.getCountOfSeverity(expectedSeverity));
         });
     }
 
@@ -402,46 +418,52 @@ public class EntitySeverityCacheTest {
         // manually assign the oids to make it easier to debug
         public final long storage1Oid = 1001L;
         public final long storage2Oid = 1002L;
+        public final long storage4Oid = 1004L;
         public final long physicalMachine1Oid = 2001L;
         public final long physicalMachine2Oid = 2002L;
+        public final long physicalMachine4Oid = 2004L;
         public final long virtualMachine1Oid = 3001L;
         public final long virtualMachine2Oid = 3002L;
         public final long virtualMachine3Oid = 3003L;
+        public final long virtualMachine4Oid = 3004L;
+        public final long virtualMachine5Oid = 3005L;
         public final long missingId = 9999L;
         public final long application1Oid = 4001L;
         public final long application2Oid = 4002L;
-        public final long databaseOid = 5001L;
+        public final long application5Oid = 4005L;
+        public final long database1Oid = 5001L;
+        public final long database4Oid = 5004L;
         public final long service1Oid = 6001L;
         public final long service2Oid = 6002L;
         public final long service3Oid = 6003L;
         public final long service4Oid = 6004L;
+        public final long service5Oid = 6005L;
         public final long businessTx1Oid = 7001L;
         public final long businessTx2Oid = 7002L;
         public final long businessTx3Oid = 7003L;
         public final long businessApp1Oid = 8001L;
         public final long businessApp2Oid = 8002L;
-        public final Set<Long> vmAppDBOids = ImmutableSet.of(virtualMachine1Oid, application1Oid, virtualMachine2Oid,
-            databaseOid, application2Oid, virtualMachine3Oid);
-        public final ArgumentCaptor<GetMultiSupplyChainsRequest> getMultiSupplyChainsCaptor;
+        public final long virtualVolume4Oid = 9004L;
+        public final long virtualVolume5Oid = 9005L;
 
         /**
-         * Sets up actionStore, supplyChainServiceMole, and repositoryServiceMole with the scenario.
+         * Sets up actionStore, and repositoryServiceMole with the scenario.
          *
          * @param actionStore Sets up actionStore with the scenario.
-         * @param supplyChainServiceMole Sets up supplyChainServiceMole with the scenario.
          * @param repositoryServiceMole Sets up repositoryServiceMole with the scenario.
          */
         private SeverityBreakdownScenario(
             ActionStore actionStore,
-            SupplyChainServiceMole supplyChainServiceMole,
             RepositoryServiceMole repositoryServiceMole) {
             List<ActionView> actions = Arrays.asList(
                 actionView(executableMove(0, virtualMachine1Oid, 1, 2, 1, Severity.MINOR)),
                 actionView(executableMove(3, physicalMachine1Oid, 1, 4, 1, Severity.MINOR)),
                 actionView(executableMove(5, storage1Oid, 1, 6, 1, Severity.MAJOR)),
-                actionView(executableMove(5, databaseOid, 1, 2, 1, Severity.CRITICAL)),
+                actionView(executableMove(5, database1Oid, 1, 2, 1, Severity.CRITICAL)),
                 actionView(executableMove(5, storage2Oid, 1, 2, 1, Severity.MINOR)),
-                actionView(executableMove(5, storage2Oid, 1, 2, 1, Severity.MAJOR))
+                actionView(executableMove(5, storage2Oid, 1, 2, 1, Severity.MAJOR)),
+                actionView(executableMove(5, storage4Oid, 1, 2, 1, Severity.MAJOR)),
+                actionView(executableMove(5, physicalMachine4Oid, 1, 2, 1, Severity.MINOR))
             );
 
             // refresh cache using the above actions
@@ -451,102 +473,109 @@ public class EntitySeverityCacheTest {
                         actionView -> actionView.getRecommendation().getId(),
                         Function.identity()))));
 
-            // repository service will return the apps, dbs, and vms
-            when(repositoryServiceMole.retrieveTopologyEntities(
-                RetrieveTopologyEntitiesRequest.newBuilder()
-                    .addEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
-                    .addEntityType(EntityType.DATABASE_SERVER_VALUE)
-                    .addEntityType(EntityType.CONTAINER_VALUE)
-                    .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setReturnType(Type.MINIMAL)
-                    .build()))
-                .thenReturn(
-                    Arrays.asList(PartialEntityBatch.newBuilder()
-                        .addAllEntities(vmAppDBOids.stream()
-                            .map(oid -> PartialEntity.newBuilder()
-                                .setMinimal(MinimalEntity.newBuilder()
-                                    .setOid(oid)
-                                    .buildPartial())
-                                .buildPartial())
-                            .collect(Collectors.toList()))
-                        .buildPartial()));
+            when(repositoryServiceMole.retrieveTopologyEntities(any()))
+                .thenReturn(Collections.emptyList());
 
-            // listen to the supply chain request that is sent.
-            // later on we verify they it contains a request for bapp1 and another request for bapp2
-            // batched together
-            getMultiSupplyChainsCaptor = ArgumentCaptor.forClass(GetMultiSupplyChainsRequest.class);
-            when(supplyChainServiceMole.getMultiSupplyChains(getMultiSupplyChainsCaptor.capture()))
-                .thenReturn(
-                    Arrays.asList(
-                        makeGetMultiSupplyChainsResponse(application1Oid,
-                            application1Oid, virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
-                        makeGetMultiSupplyChainsResponse(databaseOid,
-                            databaseOid, virtualMachine2Oid, physicalMachine2Oid, storage2Oid),
-                        makeGetMultiSupplyChainsResponse(virtualMachine1Oid,
-                            virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
-                        makeGetMultiSupplyChainsResponse(virtualMachine2Oid,
-                            virtualMachine2Oid, physicalMachine2Oid, storage2Oid),
-                        makeGetMultiSupplyChainsResponse(application2Oid,
-                            application2Oid, virtualMachine3Oid, physicalMachine1Oid, storage1Oid),
-                        makeGetMultiSupplyChainsResponse(virtualMachine3Oid,
-                            virtualMachine3Oid, physicalMachine1Oid, storage1Oid)
-                    ));
+            setupRetrieveTopologyEntities(EntityType.BUSINESS_APPLICATION,
+                makeApiPartialEntity(businessApp1Oid, businessTx1Oid),
+                makeApiPartialEntity(businessApp2Oid, businessTx2Oid));
 
-            // return the services
-            when(repositoryServiceMole.retrieveTopologyEntities(
-                RetrieveTopologyEntitiesRequest.newBuilder()
-                    .addEntityType(EntityType.SERVICE_VALUE)
-                    .setReturnType(Type.API)
-                    .build()))
-                .thenReturn(
-                    Arrays.asList(PartialEntityBatch.newBuilder()
-                        .addEntities(makeApiPartialEntity(service1Oid, application1Oid))
-                        .addEntities(makeApiPartialEntity(service2Oid, databaseOid))
-                        .addEntities(makeApiPartialEntity(service3Oid, application2Oid))
-                        .addEntities(makeApiPartialEntity(service4Oid,
-                            application1Oid, application2Oid))
-                        .buildPartial()));
+            setupRetrieveTopologyEntities(EntityType.BUSINESS_TRANSACTION,
+                makeApiPartialEntity(businessTx1Oid, service1Oid),
+                makeApiPartialEntity(businessTx2Oid, service2Oid),
+                makeApiPartialEntity(businessTx3Oid, service1Oid, service3Oid));
 
-            // return the btxns
-            when(repositoryServiceMole.retrieveTopologyEntities(
-                RetrieveTopologyEntitiesRequest.newBuilder()
-                    .addEntityType(EntityType.BUSINESS_TRANSACTION_VALUE)
-                    .setReturnType(Type.API)
-                    .build()))
-                .thenReturn(
-                    Arrays.asList(PartialEntityBatch.newBuilder()
-                        .addEntities(makeApiPartialEntity(businessTx1Oid, service1Oid))
-                        .addEntities(makeApiPartialEntity(businessTx2Oid, service2Oid))
-                        .addEntities(makeApiPartialEntity(businessTx3Oid, service1Oid, service3Oid))
-                        .buildPartial()));
+            setupRetrieveTopologyEntities(EntityType.SERVICE,
+                makeApiPartialEntity(service1Oid, application1Oid),
+                makeApiPartialEntity(service2Oid, database1Oid),
+                makeApiPartialEntity(service3Oid, application2Oid),
+                makeApiPartialEntity(service4Oid, application1Oid, application2Oid),
+                makeApiPartialEntity(service5Oid, application5Oid));
 
-            // return the bapps
-            when(repositoryServiceMole.retrieveTopologyEntities(
-                RetrieveTopologyEntitiesRequest.newBuilder()
-                    .addEntityType(EntityType.BUSINESS_APPLICATION_VALUE)
-                    .setReturnType(Type.API)
-                    .build()))
-                .thenReturn(
-                    Arrays.asList(PartialEntityBatch.newBuilder()
-                        .addEntities(makeApiPartialEntity(businessApp1Oid, businessTx1Oid))
-                        .addEntities(makeApiPartialEntity(businessApp2Oid, businessTx2Oid))
-                        .buildPartial()));
+            setupRetrieveTopologyEntities(EntityType.APPLICATION_COMPONENT,
+                makeApiPartialEntity(application1Oid, virtualMachine1Oid),
+                makeApiPartialEntity(application2Oid, virtualMachine3Oid),
+                makeApiPartialEntity(application5Oid, virtualMachine5Oid, database4Oid));
+
+            setupRetrieveTopologyEntities(EntityType.DATABASE,
+                makeApiPartialEntity(database1Oid, virtualMachine2Oid),
+                makeApiPartialEntity(database4Oid, virtualMachine4Oid));
+
+            setupRetrieveTopologyEntities(EntityType.VIRTUAL_MACHINE,
+                makeApiPartialEntity(virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
+                makeApiPartialEntity(virtualMachine2Oid, physicalMachine2Oid, storage2Oid),
+                makeApiPartialEntity(virtualMachine3Oid, physicalMachine1Oid, storage1Oid),
+                makeApiPartialEntity(virtualMachine4Oid,
+                    ImmutableList.of(
+                        makeRelatedEntity(EntityType.VIRTUAL_VOLUME, virtualVolume4Oid),
+                        makeRelatedEntity(EntityType.STORAGE, storage4Oid)),
+                    physicalMachine4Oid, storage4Oid),
+                makeApiPartialEntity(virtualMachine5Oid,
+                    ImmutableList.of(
+                        makeRelatedEntity(EntityType.VIRTUAL_VOLUME, virtualVolume5Oid),
+                        makeRelatedEntity(EntityType.STORAGE, storage4Oid)),
+                    physicalMachine4Oid, storage4Oid));
+
+            setupRetrieveTopologyEntities(EntityType.VIRTUAL_VOLUME,
+                makeApiPartialEntity(virtualVolume4Oid, storage4Oid),
+                makeApiPartialEntity(virtualVolume5Oid, storage4Oid));
+
+            setupRetrieveTopologyEntities(EntityType.PHYSICAL_MACHINE,
+                makeApiPartialEntity(physicalMachine1Oid, storage1Oid),
+                makeApiPartialEntity(physicalMachine2Oid, storage2Oid),
+                makeApiPartialEntity(physicalMachine4Oid, storage4Oid));
+
+            setupRetrieveTopologyEntities(EntityType.STORAGE,
+                makeApiPartialEntity(storage1Oid),
+                makeApiPartialEntity(storage2Oid),
+                makeApiPartialEntity(storage4Oid));
         }
+
+
+    }
+
+    private void setupRetrieveTopologyEntities(EntityType entityType,
+                                               PartialEntity... partialEntities) {
+        PartialEntityBatch.Builder partialEntityBatch = PartialEntityBatch.newBuilder();
+        for (PartialEntity partialEntity : partialEntities) {
+            partialEntityBatch.addEntities(partialEntity);
+        }
+
+        when(repositoryServiceMole.retrieveTopologyEntities(
+            RetrieveTopologyEntitiesRequest.newBuilder()
+                .addEntityType(entityType.getNumber())
+                .setReturnType(Type.API)
+                .build()))
+            .thenReturn(Arrays.asList(partialEntityBatch.buildPartial()));
+    }
+
+    private RelatedEntity makeRelatedEntity(EntityType entityType, long oid) {
+        return RelatedEntity.newBuilder()
+            .setOid(oid)
+            .setEntityType(entityType.getNumber())
+            .buildPartial();
     }
 
     @Nonnull
     private PartialEntity makeApiPartialEntity(long entityOid, long... providerOids) {
-        return PartialEntity.newBuilder()
-            .setApi(ApiPartialEntity.newBuilder()
+        return makeApiPartialEntity(entityOid, Collections.emptyList(), providerOids);
+    }
+
+    @Nonnull
+    private PartialEntity makeApiPartialEntity(long entityOid,
+                                                           List<RelatedEntity> connectedEntities,
+                                                           long... providerOids) {
+        ApiPartialEntity.Builder apiPartialEntity = ApiPartialEntity.newBuilder()
                 .setOid(entityOid)
+                .addAllConnectedTo(connectedEntities)
                 .addAllProviders(Arrays.stream(providerOids)
                     .boxed()
                     .map(providerOid -> RelatedEntity.newBuilder()
                         .setOid(providerOid)
                         .buildPartial())
-                    .collect(Collectors.toList()))
-                .buildPartial())
-            .buildPartial();
+                    .collect(Collectors.toList()));
+
+        return PartialEntity.newBuilder().setApi(apiPartialEntity.buildPartial()).buildPartial();
     }
 
     /**
@@ -656,19 +685,6 @@ public class EntitySeverityCacheTest {
         List<Long> actual = new ArrayList<>(thingsToSort);
         Collections.sort(actual, comparator);
         Assert.assertEquals(expectedOrder, actual);
-    }
-
-    private static GetMultiSupplyChainsResponse makeGetMultiSupplyChainsResponse(long seedOid, long...oids) {
-        return GetMultiSupplyChainsResponse.newBuilder()
-            .setSeedOid(seedOid)
-            .setSupplyChain(SupplyChain.newBuilder()
-                .addAllSupplyChainNodes(Arrays.stream(oids).boxed()
-                    .map(oid -> SupplyChainNode.newBuilder()
-                        .putMembersByState(0, MemberList.newBuilder().addMemberOids(oid).buildPartial())
-                        .buildPartial())
-                    .collect(Collectors.toList()))
-                .buildPartial())
-            .buildPartial();
     }
 
     @Nonnull

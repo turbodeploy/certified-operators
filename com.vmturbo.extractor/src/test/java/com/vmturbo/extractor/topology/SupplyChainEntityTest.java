@@ -8,7 +8,6 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIR
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.collection.IsMapWithSize.anEmptyMap;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
 
@@ -18,7 +17,6 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.extractor.topology.SupplyChainEntity.Builder;
 
 /**
@@ -70,13 +68,9 @@ public class SupplyChainEntityTest {
         assertThat(vm.getOid(), is(vmEntity.getOid()));
         assertThat(vm.getDisplayName(), is(vmEntity.getDisplayName()));
         // following are all hard-cded in our class
-        assertThat(vm.getTypeSpecificInfo(), is(TypeSpecificInfo.getDefaultInstance()));
         assertThat(vm.getEnvironmentType(), is(EnvironmentType.ON_PREM));
         assertThat(vm.getEntityState(), is(EntityState.POWERED_ON));
-        assertThat(vm.getTags(), is(anEmptyMap()));
-        assertThat(vm.soldCommoditiesByType(), is(anEmptyMap()));
         assertThat(vm.getDiscoveringTargetIds().count(), is(0L));
-        assertThat(vm.getDeletable(), is(true));
         assertThat(vm.getVendorId(0L), is(""));
         assertThat(vm.getAllVendorIds().count(), is(0L));
         assertThat(vm.toString(), is(vmEntity.getDisplayName() + "@" + vmEntity.getOid()));

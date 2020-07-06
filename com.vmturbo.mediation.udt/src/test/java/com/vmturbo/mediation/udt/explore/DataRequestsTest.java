@@ -3,6 +3,7 @@ package com.vmturbo.mediation.udt.explore;
 import static com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import static com.vmturbo.common.protobuf.search.SearchableProperties.TAGS_TYPE_PROPERTY_NAME;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -66,8 +67,10 @@ public class DataRequestsTest {
                 .setFilterType("f_type")
                 .setExpressionValue("exp_value")
                 .build();
-        List<FilterSpecs> parameters = Lists.newArrayList(filterSpecs);
-        SearchEntitiesRequest request = dataRequests.createFilterEntityRequest(parameters, EntityType.APPLICATION_COMPONENT);
+        SearchParameters searchParameters = SearchParameters.newBuilder()
+                .setSourceFilterSpecs(filterSpecs)
+                .build();
+        SearchEntitiesRequest request = dataRequests.createFilterEntityRequest(Collections.singletonList(searchParameters));
         Assert.assertEquals(filterSpecs, request.getSearch().getSearchParametersList().get(0).getSourceFilterSpecs());
     }
 

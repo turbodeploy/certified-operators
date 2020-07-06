@@ -115,22 +115,17 @@ public class ApplicationCommodityKeyChanger {
 
                 // change app key on apps that are consuming from the vm
                 topologyGraph.getConsumers(vm)
-                    .filter(consumer -> consumer.getEntityType() == EntityType.APPLICATION_VALUE ||
-                        consumer.getEntityType() == EntityType.APPLICATION_SERVER_VALUE ||
-                        consumer.getEntityType() == EntityType.DATABASE_SERVER_VALUE)
-                    .forEach(app -> {
-                        // find the commodity set that is buying from that same vm
-                        CommoditiesBoughtFromProvider.Builder commBoughtFromProv = app.getTopologyEntityDtoBuilder()
-                            .getCommoditiesBoughtFromProvidersBuilderList()
-                            .stream()
-                            .filter(commFromProvider -> commFromProvider.getProviderId() == vm.getOid())
-                            .findFirst().get();
-
-                        // find Application commodity from this set and change key to new one
-                        commBoughtFromProv.getCommodityBoughtBuilderList().stream()
-                            .filter(commodity -> commodity.getCommodityType().getType() ==
-                                CommodityType.APPLICATION_VALUE)
-                            .forEach(comm -> comm.getCommodityTypeBuilder().setKey(newCommKey));
+                    .forEach(consumer -> {
+                        consumer.getTopologyEntityDtoBuilder()
+                            .getCommoditiesBoughtFromProvidersBuilderList().stream()
+                                .filter(commFromProvider -> commFromProvider.getProviderId() == vm.getOid())
+                                .map(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList)
+                                .flatMap(List::stream)
+                                .filter(commodity -> commodity.getCommodityType().getType() ==
+                                            CommodityType.APPLICATION_VALUE)
+                                .filter(appCommodity ->
+                                            oldAppCommKey.equals(appCommodity.getCommodityType().getKey()))
+                                .forEach(appCommodity -> appCommodity.getCommodityTypeBuilder().setKey(newCommKey));
                     });
             }
 
@@ -144,5 +139,4 @@ public class ApplicationCommodityKeyChanger {
         }
         return outcome;
     }
-
 }

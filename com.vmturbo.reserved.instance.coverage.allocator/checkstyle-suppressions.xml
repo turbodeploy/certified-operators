@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]FailedCoverageAllocationException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]ReservedInstanceCoverageAllocation.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]ReservedInstanceCoverageAllocator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]ReservedInstanceCoverageJournal.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]ReservedInstanceCoverageProvider.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]context[/\\]CloudProviderCoverageContext.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]filter[/\\]FirstPassCoverageFilter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]CoverageKey.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]CoverageKeyCreationConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]CoverageKeyCreator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]CoverageKeyMaterial.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]CoverageKeyRepository.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]HashableCoverageKey.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]HashableCoverageKeyCreator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]DataMetricTimerProvider.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]InstrumentedAllocationOperation.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]RICoverageAllocationMetricsCollector.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]RICoverageAllocationMetricsProvider.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]RICoverageAllocationOperation.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]ConfigurableRICoverageRule.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]ConfigurableRICoverageRuleFactory.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]FirstPassCoverageRule.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]RICoverageRuleConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]ReservedInstanceCoverageGroup.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]ReservedInstanceCoverageRule.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]ReservedInstanceCoverageRulesFactory.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]topology[/\\]CoverageTopology.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]topology[/\\]CoverageTopologyFactory.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]topology[/\\]CoverageTopologyImpl.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]utils[/\\]ReservedInstanceHelper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]AbstractReservedInstanceCoverageAllocatorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]AwsAllocationTopologyTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]AzureAllocationTopologyTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]ReservedInstanceCoverageAllocatorAwsFuncTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]ReservedInstanceCoverageAllocatorAzureFuncTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]ReservedInstanceCoverageJournalTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]RICoverageAllocationMetricsCollectorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]RICoverageAllocationMetricsProviderTest.java" />
+</suppressions>

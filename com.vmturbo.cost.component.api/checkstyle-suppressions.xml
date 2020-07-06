@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]api[/\\]CostClientConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]api[/\\]impl[/\\]CostComponentImpl.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]api[/\\]impl[/\\]CostSubscription.java" />
+</suppressions>

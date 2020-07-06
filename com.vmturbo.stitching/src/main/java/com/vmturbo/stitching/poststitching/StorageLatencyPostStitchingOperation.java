@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -29,6 +30,12 @@ import com.vmturbo.stitching.TopologyEntity;
 public abstract class StorageLatencyPostStitchingOperation implements PostStitchingOperation {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final float LATENCY_CAPACITY_GLOBAL_DEFAULT =
+            EntitySettingSpecs.LatencyCapacity.getSettingSpec().getNumericSettingValueType().getDefault();
+    private static final Setting LATENCY_CAPACITY_SETTING_DEFAULT =
+            Setting.newBuilder()
+                    .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(LATENCY_CAPACITY_GLOBAL_DEFAULT).build())
+                    .build();
 
     @Nonnull
     @Override
@@ -49,8 +56,12 @@ public abstract class StorageLatencyPostStitchingOperation implements PostStitch
                     );
                 } else {
                     // TODO switched from warn to debug to reduce logging load - does it need more visibility?
-                    logger.debug("Could not set Storage Latency capacity for entity {} ; " +
-                        "no setting was found", eligible.getOid());
+                    logger.debug("Could not find Storage Latency capacity for entity {} ; "
+                                    + "no setting was found. Using defaulf of {} ", eligible.getOid(),
+                            LATENCY_CAPACITY_GLOBAL_DEFAULT);
+                    resultBuilder.queueUpdateEntityAlone(eligible, entity ->
+                            applyOperationToEntity(LATENCY_CAPACITY_SETTING_DEFAULT, entity)
+                    );
                 }
             });
         return resultBuilder.build();

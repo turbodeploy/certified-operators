@@ -29,6 +29,8 @@ import gnu.trove.list.array.TLongArrayList;
 import gnu.trove.list.linked.TLongLinkedList;
 import gnu.trove.set.TLongSet;
 import gnu.trove.set.hash.TLongHashSet;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -39,7 +41,6 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -195,12 +196,13 @@ public class PlanTopologyScopeEditor {
         cloudProviders.addAll(services);
 
         // union consumers and producers and filter by target
-        final Map<Long, TopologyEntity.Builder> resultEntityMap =
-            Stream.concat(cloudConsumers.stream(), cloudProviders.stream())
-                    .distinct()
-                    .filter(e -> discoveredBy(e, targetIds))
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                    .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder));
+        final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap =
+                new Long2ObjectOpenHashMap<>(cloudConsumers.size() + cloudProviders.size());
+        Stream.concat(cloudConsumers.stream(), cloudProviders.stream())
+                .distinct()
+                .filter(e -> discoveredBy(e, targetIds))
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .forEach(bldr -> resultEntityMap.put(bldr.getOid(), TopologyEntity.newBuilder(bldr)));
         return new TopologyGraphCreator<>(resultEntityMap).build();
     }
 

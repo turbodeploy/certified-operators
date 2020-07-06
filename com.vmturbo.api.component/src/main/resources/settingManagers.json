@@ -282,7 +282,8 @@
     "telemetrymanager": {
       "displayName": "Telemetry Manager",
       "settings": [
-        "telemetryEnabled"
+        "telemetryEnabled",
+        "telemetryTermsAccepted"
       ]
     }
   }

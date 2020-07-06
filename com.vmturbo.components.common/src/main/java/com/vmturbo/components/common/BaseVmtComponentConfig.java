@@ -11,11 +11,14 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
 import com.vmturbo.common.protobuf.logging.LoggingREST.TracingConfigurationServiceController;
+import com.vmturbo.common.protobuf.logging.MemoryMetricsREST.MemoryMetricsServiceController;
+import com.vmturbo.common.protobuf.memory.HeapDumper;
 import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.diagnostics.FileFolderZipper;
 import com.vmturbo.components.common.health.DeadlockHealthMonitor;
 import com.vmturbo.components.common.health.MemoryMonitor;
 import com.vmturbo.components.common.logging.LogConfigurationService;
+import com.vmturbo.components.common.logging.MemoryMetricsRpcService;
 import com.vmturbo.components.common.logging.TracingConfigurationRpcService;
 import com.vmturbo.components.common.metrics.ComponentLifespanMetrics;
 import com.vmturbo.components.common.migration.MigrationController;
@@ -137,6 +140,16 @@ public class BaseVmtComponentConfig {
     }
 
     @Bean
+    public HeapDumper heapDumper() {
+        return new HeapDumper();
+    }
+
+    @Bean
+    public MemoryMetricsRpcService memoryMetricsRpcService() {
+        return new MemoryMetricsRpcService(heapDumper());
+    }
+
+    @Bean
     public TracingConfigurationServiceController tracingConfigurationServiceController() {
         return new TracingConfigurationServiceController(tracingConfigurationRpcService());
     }
@@ -144,6 +157,11 @@ public class BaseVmtComponentConfig {
     @Bean
     public LogConfigurationServiceController logConfigurationServiceController() {
         return new LogConfigurationServiceController(logConfigurationService());
+    }
+
+    @Bean
+    public MemoryMetricsServiceController memoryMetricsServiceController() {
+        return new MemoryMetricsServiceController(memoryMetricsRpcService());
     }
 
     /**

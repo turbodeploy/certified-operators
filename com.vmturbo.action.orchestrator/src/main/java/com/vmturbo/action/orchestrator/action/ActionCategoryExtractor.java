@@ -73,6 +73,15 @@ public class ActionCategoryExtractor {
                     // resize down is to improve efficiency
                     return ActionCategory.EFFICIENCY_IMPROVEMENT;
                 }
+            case ATOMICRESIZE:
+                for (com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo resize
+                            : action.getInfo().getAtomicResize().getResizesList()) {
+                    if (resize.getOldCapacity() <= resize.getNewCapacity()) {
+                        // resize up is to assure performance - performance takes priority
+                        return ActionCategory.PERFORMANCE_ASSURANCE;
+                    }
+                }
+                return ActionCategory.EFFICIENCY_IMPROVEMENT;
             case ACTIVATE:
                 if (SEGMENTATION_COMMODITY_SET
                                 .contains(explanation.getActivate().getMostExpensiveCommodity())) {

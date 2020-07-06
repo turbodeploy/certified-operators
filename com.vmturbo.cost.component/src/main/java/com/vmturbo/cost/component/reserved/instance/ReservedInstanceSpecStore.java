@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -22,6 +23,9 @@ import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
 
@@ -30,7 +34,10 @@ import com.vmturbo.cost.component.identity.IdentityProvider;
  * data which comes from Topology Processor. There are two parts of reserved instance spec data: first
  * part comes from reserved instance bought, second part comes from reserved instance cost price table.
  */
-public class ReservedInstanceSpecStore {
+public class ReservedInstanceSpecStore implements DiagsRestorable {
+
+    private static final String reservedInstanceSpecDumpFile = "reservedInstanceSpec_dump";
+
     private static final Logger logger = LogManager.getLogger();
 
     private final int riBatchSize;
@@ -265,5 +272,33 @@ public class ReservedInstanceSpecStore {
                 reservedInstanceSpecInfo.getTierId(),
                 reservedInstanceSpecInfo.getRegionId(),
                 reservedInstanceSpecInfo));
+    }
+
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        // TODO to be implemented as part of OM-58627
+    }
+
+    @Override
+    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+        dsl.transaction(transactionContext -> {
+            final DSLContext transaction = DSL.using(transactionContext);
+            Stream<ReservedInstanceSpecRecord> latestRecords = transaction.selectFrom(RESERVED_INSTANCE_SPEC).stream();
+            latestRecords.forEach(s -> {
+                try {
+                    appender.appendString(s.formatJSON());
+                } catch (DiagnosticsException e) {
+                    logger.error("Exception encountered while appending reserved instance spec records"
+                            + " to the diags dump", e);
+                }
+            });
+        });
+    }
+
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return reservedInstanceSpecDumpFile;
     }
 }

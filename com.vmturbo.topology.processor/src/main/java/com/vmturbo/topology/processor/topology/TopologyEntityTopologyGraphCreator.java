@@ -4,6 +4,8 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
@@ -25,6 +27,6 @@ public class TopologyEntityTopologyGraphCreator {
      *                           The keys in the map are entity OIDs.
      */
     public static TopologyGraph<TopologyEntity> newGraph(@Nonnull final Map<Long, TopologyEntity.Builder> topologyBuilderMap) {
-        return new TopologyGraphCreator<>(topologyBuilderMap).build();
+        return new TopologyGraphCreator<>(new Long2ObjectOpenHashMap<>(topologyBuilderMap)).build();
     }
 }

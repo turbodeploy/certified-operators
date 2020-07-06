@@ -16,8 +16,8 @@ import com.vmturbo.common.protobuf.PaginationProtoUtil.PaginatedResults;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
 public class LiveTopologyPaginatorTest {

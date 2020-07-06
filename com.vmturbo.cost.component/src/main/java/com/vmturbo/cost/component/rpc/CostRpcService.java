@@ -201,14 +201,14 @@ public class CostRpcService extends CostServiceImplBase {
 
     @Override
     public void getTierPriceForEntities(GetTierPriceForEntitiesRequest request, StreamObserver<GetTierPriceForEntitiesResponse> responseObserver) {
-        Set<Long> entityOids = new HashSet<>(request.getOidsList());
+        Long oid = request.getOid();
         final boolean isPlanRequest = request.hasTopologyContextId()
                 && request.getTopologyContextId() != realtimeTopologyContextId;
         CostCategory category = request.getCostCategory();
         try {
             Map<Long, Map<Long, EntityCost>> queryResult =
                 entityCostStore.getEntityCosts(EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
-                    .entityIds(entityOids)
+                    .entityIds(Collections.singleton(oid))
                     .costCategoryFilter(CostCategoryFilter.newBuilder()
                             .setExclusionFilter(false)
                             .addCostCategory(category)
@@ -217,12 +217,9 @@ public class CostRpcService extends CostServiceImplBase {
                     .costSources(false,
                         Collections.singleton(CostSource.ON_DEMAND_RATE.getNumber()))
                     .build());
-            Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
-            // Because we requested latest timestamp, every entity will have only one record.
-            queryResult.forEach((timestamp, costByIdMap) ->
-                    costByIdMap.forEach((entityId, entityCost) -> {
-                        beforeEntityCostbyOid.put(entityId, entityCost);
-            }));
+            Map<Long, EntityCost> beforeEntityCostbyOid =
+                Iterables.getOnlyElement(queryResult.values(), Collections.emptyMap());
+            Set<Long> entityOids = new HashSet<>(Collections.singletonList(oid));
             Map<Long, EntityCost> afterEntityCostbyOid = isPlanRequest ?
                     planProjectedEntityCostStore
                             .getPlanProjectedEntityCosts(entityOids, request.getTopologyContextId()) :
@@ -240,7 +237,7 @@ public class CostRpcService extends CostServiceImplBase {
                     beforeCurrencyAmountByOid.put(id, amount);
                 } else {
                     logger.error("No costs could be retrieved from database for entity having oid {}" +
-                            " .This may result in the on demand rate not being displayed on the UI.", request.getOidsList());
+                            " .This may result in the on demand rate not being displayed on the UI.", oid);
                 }
             }
             for (Map.Entry<Long, EntityCost> entry : afterEntityCostbyOid.entrySet()) {
@@ -254,7 +251,7 @@ public class CostRpcService extends CostServiceImplBase {
                     afterCurrencyAmountByOid.put(id, componentCost.getAmount());
                 } else {
                     logger.error("Projected costs could not be found for entity having oid {}." +
-                            " This may result in the on demand rate not being displayed on the UI.", request.getOidsList());
+                            " This may result in the on demand rate not being displayed on the UI.", oid);
                 }
             }
             responseObserver.onNext(GetTierPriceForEntitiesResponse.newBuilder()
@@ -746,6 +743,10 @@ public class CostRpcService extends CostServiceImplBase {
 
             filterBuilder = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
                 .latestTimestampRequested(true);
+        }
+
+        if (request.hasTopologyContextId()) {
+            filterBuilder.topologyContextId(request.getTopologyContextId());
         }
 
         if (request.hasEntityFilter()) {

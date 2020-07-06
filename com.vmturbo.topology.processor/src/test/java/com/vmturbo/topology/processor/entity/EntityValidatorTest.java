@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.entity;
 
 import java.util.HashMap;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -16,9 +15,11 @@ import org.junit.rules.ExpectedException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -161,12 +162,12 @@ public class EntityValidatorTest {
     }
 
     /**
-     * Test that we set controllable to false on all consumers of an entity which has a comm sold
-     * with illegal capacity.
+     * Test that we set controllable to false on the entity which has a comm sold with illegal
+     * capacity and its consumers which buy this commodity.
      */
     @Test
     public void testControllableFalseWhenIllegalCapacity() {
-        // PM
+        // VSAN PM
         TopologyEntity.Builder pm = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .addCommoditySoldList(badCommoditySold())
@@ -175,32 +176,29 @@ public class EntityValidatorTest {
         // VM placed on PM
         TopologyEntity.Builder vm = TopologyEntity.newBuilder(entityBuilder()
             .setOid(1)
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder().setProviderId(100)));
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                    CommodityType.newBuilder().setType(CommodityDTO.CommodityType.CPU_VALUE).build()))
+                .setProviderId(100)));
 
-        // App server placed on VM
-        TopologyEntity.Builder appServer = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.APPLICATION_SERVER_VALUE)
+        // Storage placed on VSAN PM
+        TopologyEntity.Builder storage = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE_VALUE)
             .setOid(2)
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder().setProviderId(1)));
-
-        // Application placed on App server
-        TopologyEntity.Builder application = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.APPLICATION_VALUE).setOid(3)
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder().setProviderId(2)));
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(badCommodityBought()).setProviderId(100)));
 
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(
             ImmutableMap.of(
                 pm.getOid(), pm,
                 vm.getOid(), vm,
-                appServer.getOid(), appServer,
-                application.getOid(), application));
+                storage.getOid(), storage));
 
         entityValidator
             .processIllegalCommodityValues(pm.getEntityBuilder(), Optional.empty(), graph);
         Assert.assertFalse(pm.getEntityBuilder().getAnalysisSettings().getControllable());
-        Assert.assertFalse(vm.getEntityBuilder().getAnalysisSettings().getControllable());
-        Assert.assertFalse(appServer.getEntityBuilder().getAnalysisSettings().getControllable());
-        Assert.assertFalse(application.getEntityBuilder().getAnalysisSettings().getControllable());
+        Assert.assertTrue(vm.getEntityBuilder().getAnalysisSettings().getControllable());
+        Assert.assertFalse(storage.getEntityBuilder().getAnalysisSettings().getControllable());
     }
 
     @Test

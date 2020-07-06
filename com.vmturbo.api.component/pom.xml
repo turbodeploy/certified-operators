@@ -7,7 +7,7 @@
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
-        <version>7.22.4-SNAPSHOT</version>
+        <version>7.22.5-SNAPSHOT</version>
     </parent>
 
     <artifactId>com.vmturbo.api.component</artifactId>
@@ -312,6 +312,13 @@
                     <nonFilteredFileExtensions>
                         <nonFilteredFileExtension>jks</nonFilteredFileExtension>
                     </nonFilteredFileExtensions>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
                 </configuration>
             </plugin>
         </plugins>

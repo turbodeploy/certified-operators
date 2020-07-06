@@ -12,6 +12,9 @@ import javax.annotation.Nonnull;
 
 import org.junit.Test;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -97,9 +100,9 @@ public class GlobalSupplyChainCalculatorTest {
                     .setName("region")
                     .setEnvironmentType(EnvironmentType.CLOUD);
 
-    private final Map<Long, TestGraphEntity.Builder> graph =
-            Stream.of(storage, host1, host2, vmSpec, vm, computeTier, cloudVm, region)
-                    .collect(Collectors.toMap(TestGraphEntity.Builder::getOid, Function.identity()));
+    private final Long2ObjectMap<TestGraphEntity.Builder> graph =
+        new Long2ObjectOpenHashMap<>(Stream.of(storage, host1, host2, vmSpec, vm, computeTier, cloudVm, region)
+            .collect(Collectors.toMap(TestGraphEntity.Builder::getOid, Function.identity())));
 
     private final TopologyGraph<TestGraphEntity> topology = TestGraphEntity.newGraph(graph);
 

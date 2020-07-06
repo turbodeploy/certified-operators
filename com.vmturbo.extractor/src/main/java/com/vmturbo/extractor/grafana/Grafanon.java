@@ -1,6 +1,7 @@
 package com.vmturbo.extractor.grafana;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -112,9 +113,12 @@ public class Grafanon implements RequiresDataInitialization {
         final Map<String, Long> existingDashboardsByUid = grafanaClient.dashboardIdsByUid();
         final Map<String, Folder> existingFolders = grafanaClient.foldersByUid();
         dashboardsOnDisk.visit((folderData) -> {
-            final Folder folder = grafanaClient.upsertFolder(folderData.getFolderSpec(), existingFolders, refreshSummary);
-            folderData.getPermissions().ifPresent(permissions -> {
-                grafanaClient.setFolderPermissions(folderData.getFolderSpec().getUid(), permissions, refreshSummary);
+            Optional<Folder> folder = folderData.getFolderSpec().map(folderInput -> {
+                Folder upsertedFolder = grafanaClient.upsertFolder(folderInput, existingFolders, refreshSummary);
+                folderData.getPermissions().ifPresent(permissions -> {
+                    grafanaClient.setFolderPermissions(folderInput.getUid(), permissions, refreshSummary);
+                });
+                return upsertedFolder;
             });
             folderData.getDashboardsByUid().forEach((uid, dashboardSpec) -> {
                 processDashboard(uid, dashboardSpec, folder, existingDashboardsByUid, refreshSummary);
@@ -124,14 +128,14 @@ public class Grafanon implements RequiresDataInitialization {
 
     private void processDashboard(@Nonnull final String uid,
             @Nonnull final DashboardSpec dashboardSpec,
-            @Nonnull final Folder parentFolder,
+            @Nonnull final Optional<Folder> parentFolder,
             @Nonnull final Map<String, Long> existingDashboardsByUid,
             @Nonnull final RefreshSummary refreshSummary) {
         final Long existingDashboardId = existingDashboardsByUid.get(uid);
         final String dashboardCommitMsg = createDashboardCommitMessage();
         final UpsertDashboardRequest upsertRequest = dashboardSpec.creationRequest()
-                .setParentFolder(parentFolder)
                 .setMessage(dashboardCommitMsg);
+        parentFolder.ifPresent(upsertRequest::setParentFolder);
         if (existingDashboardId == null) {
             // Straight-up create.
             grafanaClient.upsertDashboard(upsertRequest, refreshSummary);

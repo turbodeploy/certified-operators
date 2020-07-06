@@ -5,13 +5,15 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.topology.graph.TopologyGraphEntity.Builder;
 
@@ -37,14 +39,19 @@ public class TopologyGraphCreator<BUILDER extends TopologyGraphEntity.Builder<BU
 
     private final Logger logger = LogManager.getLogger();
 
-    private final Map<Long, BUILDER> topoEntities;
+    private final Long2ObjectMap<BUILDER> topoEntities;
 
-    public TopologyGraphCreator(@Nonnull final Map<Long, BUILDER> entities) {
+    /**
+     * Create a new instance with a specific set of input entities.
+     *
+     * @param entities The entities, by id.
+     */
+    public TopologyGraphCreator(@Nonnull final Long2ObjectMap<BUILDER> entities) {
         topoEntities = entities;
     }
 
     public TopologyGraphCreator() {
-        topoEntities = new HashMap<>();
+        topoEntities = new Long2ObjectOpenHashMap<>();
     }
 
     /**
@@ -53,7 +60,7 @@ public class TopologyGraphCreator<BUILDER extends TopologyGraphEntity.Builder<BU
      * @param expectedSize The expected size for the graph.
      */
     public TopologyGraphCreator(int expectedSize) {
-        topoEntities = new HashMap<>(expectedSize);
+        topoEntities = new Long2ObjectOpenHashMap<>(expectedSize);
     }
 
     /**
@@ -162,18 +169,22 @@ public class TopologyGraphCreator<BUILDER extends TopologyGraphEntity.Builder<BU
                 });
         });
 
-        final Map<Long, ENTITY> entities = topoEntities.values().stream()
-            .collect(Collectors.toMap(BUILDER::getOid, BUILDER::build, (e1, e2) -> {
-                throw new IllegalArgumentException("Entity with ID " + e1.getOid() +
-                    " (name " + e1.getDisplayName() + ") appears more than once!");
-                }));
+        final Long2ObjectOpenHashMap<ENTITY> entities = new Long2ObjectOpenHashMap<>(topoEntities.size());
+        topoEntities.values().forEach(e -> {
+            ENTITY newE = e.build();
+            ENTITY oldE = entities.put(e.getOid(), newE);
+            if (oldE != null) {
+                throw new IllegalArgumentException("Entity " + e.getOid()
+                    + " (name: " + newE.getDisplayName() + ") appears multiple times.");
+            }
+        });
+        entities.trim();
 
         final Map<Integer, Collection<ENTITY>> entityTypeIndex = new HashMap<>();
         entities.values().forEach(entity ->
                 entityTypeIndex.computeIfAbsent(entity.getEntityType(),
                     k -> new ArrayList<>()).add(entity));
         entityTypeIndex.values().forEach(entitiesOfType ->
-            // Cast is f
             ((ArrayList<ENTITY>)entitiesOfType).trimToSize());
         return new TopologyGraph<>(entities, entityTypeIndex);
     }

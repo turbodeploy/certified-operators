@@ -5,14 +5,21 @@
         <parent>
             <groupId>com.vmturbo</groupId>
             <artifactId>protoc-spring-rest-test</artifactId>
-            <version>7.22.4-SNAPSHOT</version>
+            <version>7.22.5-SNAPSHOT</version>
             <relativePath>../pom.xml</relativePath>
         </parent>
         <modelVersion>4.0.0</modelVersion>
 
         <artifactId>testProto3</artifactId>
-
-        <properties>
-          <checkstyle.path>${project.basedir}/../../../build/checkstyle.xml</checkstyle.path>
-        </properties>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

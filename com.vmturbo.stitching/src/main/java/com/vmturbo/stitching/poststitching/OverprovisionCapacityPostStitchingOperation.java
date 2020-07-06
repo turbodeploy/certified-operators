@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -43,6 +44,10 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
     private final CommodityType overprovCommodityType;
 
     private static final Logger logger = LogManager.getLogger();
+    private static final float STORAGE_OVERPROVISIONED_PERCENTAGE_DEFAULT =
+            EntitySettingSpecs.StorageOverprovisionedPercentage.getSettingSpec().getNumericSettingValueType().getDefault();
+    private static final Setting STORAGE_OVERPROVISIONED_SETTING_DEFAULT =
+            getNumericSettingValue(STORAGE_OVERPROVISIONED_PERCENTAGE_DEFAULT);
 
     OverprovisionCapacityPostStitchingOperation(@Nonnull final EntitySettingSpecs setting,
                                                 @Nonnull final CommodityType sourceType,
@@ -73,29 +78,23 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
                        commodityPair -> commodityPair.source.get().getCapacity()));
 
            if (!overprovisionedToSourceCapacity.isEmpty()) {
+               Optional<Setting> opSetting = settingsCollection.getEntitySetting(entity, overprovisionSettingType);
                Optional<Setting> overprovisionSetting =
-                   settingsCollection.getEntitySetting(entity, overprovisionSettingType);
-
-               if (!overprovisionSetting.isPresent()) {
-                   // TODO From javadoc, this seems like an anticipated case where this operation
-                   // does not apply, so why are we logging anything?
-                   logger.debug("Could not update {} capacities for entity {} ; no {} setting found",
-                       overprovCommodityType, entityOid, overprovisionSettingType.getSettingName());
-               } else {
-                   resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate ->
-                        overprovisionedToSourceCapacity.forEach((overprov, sourceCapacity) -> {
+                   opSetting.isPresent() ? opSetting : Optional.of(STORAGE_OVERPROVISIONED_SETTING_DEFAULT);
+               resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate ->
+                       overprovisionedToSourceCapacity.forEach((overprov, sourceCapacity) -> {
                            final double overprovisionedCapacity = calculateOverprovisionedCapacity(
-                               sourceCapacity, overprovisionSetting.get());
+                                   sourceCapacity, overprovisionSetting.get());
 
                            overprov.setCapacity(overprovisionedCapacity);
 
                            logger.debug("Setting {} capacity for entity {} to {} " +
-                                   "from {} capacity {}", overprovCommodityType.name(),
-                               entityForUpdate.getOid(), overprovisionedCapacity,
-                               sourceCommodityType.name(), sourceCapacity);
+                                           "from {} capacity {}", overprovCommodityType.name(),
+                                   entityForUpdate.getOid(), overprovisionedCapacity,
+                                   sourceCommodityType.name(), sourceCapacity);
                        })
-                   );
-               }
+               );
+
            }
        });
 
@@ -427,5 +426,11 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
             // We don't match the key - this is consistent with the behaviour in opsmgr.
             return false;
         }
+    }
+
+    private static Setting getNumericSettingValue(float value) {
+        return Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(value).build())
+                .build();
     }
 }

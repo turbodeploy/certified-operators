@@ -1,8 +1,6 @@
 package com.vmturbo.repository.service;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -23,6 +21,9 @@ import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
@@ -273,8 +274,8 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             return;
         }
 
-        final TopologyGraph<RepoGraphEntity> graph =
-            liveTopologyStore.getSourceTopology().get().entityGraph();
+        final SourceRealtimeTopology topology = liveTopologyStore.getSourceTopology().get();
+        final TopologyGraph<RepoGraphEntity> graph = topology.entityGraph();
 
         Tracing.log(() -> {
             try {
@@ -314,16 +315,15 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
                 ? e -> userSessionContext.getUserAccessScope().contains(e.getOid())
                 : e -> true;
 
-        final Map<String, Set<String>> resultWithSetsOfValues = new HashMap<>();
+        LongSet targetEntities = new LongOpenHashSet();
         matchingEntities
             .filter(entityTypeFilter)
             .filter(environmentTypeFilter)
             .filter(accessFilter)
-            .map(RepoGraphEntity::getTags)
-            .forEach(tagsMap -> tagsMap.forEach((key, tagValues) -> {
-                final Set<String> vals = resultWithSetsOfValues.computeIfAbsent(key, k -> new HashSet<>());
-                vals.addAll(tagValues);
-            }));
+            .forEach(e -> targetEntities.add(e.getOid()));
+        final Map<String, Set<String>> resultWithSetsOfValues =
+            topology.globalTags().getTagsForEntities(targetEntities);
+
 
         Tracing.log(() -> "Got " + resultWithSetsOfValues.size() + " tag results");
 
@@ -335,15 +335,10 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             tagsBuilder.putTags(key, tagVals);
         });
 
-        try {
-            responseObserver.onNext(SearchTagsResponse.newBuilder()
-                .setTags(tagsBuilder)
-                .build());
-            responseObserver.onCompleted();
-        } catch (Throwable e) {
-            responseObserver.onError(
-                Status.ABORTED.withCause(e).withDescription(e.getMessage()).asRuntimeException());
-        }
+        responseObserver.onNext(SearchTagsResponse.newBuilder()
+            .setTags(tagsBuilder)
+            .build());
+        responseObserver.onCompleted();
     }
 
     protected Stream<RepoGraphEntity> internalSearch(@Nonnull final List<Long> entityOidList,

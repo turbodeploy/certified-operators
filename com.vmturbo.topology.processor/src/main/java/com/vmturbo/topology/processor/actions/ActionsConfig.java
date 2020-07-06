@@ -16,6 +16,9 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc.ActionConstraintsServiceStub;
+import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
+import com.vmturbo.common.protobuf.action.AtomicActionSpecsUploadServiceGrpc;
+import com.vmturbo.common.protobuf.action.AtomicActionSpecsUploadServiceGrpc.AtomicActionSpecsUploadServiceStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionREST.ActionExecutionServiceController;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
@@ -32,7 +35,9 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
+import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
+import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
 
 /**
  * Configuration for action execution.
@@ -44,7 +49,8 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
         RepositoryConfig.class,
         TargetConfig.class,
         ActionOrchestratorClientConfig.class,
-        BaseKafkaProducerConfig.class})
+        BaseKafkaProducerConfig.class,
+        StitchingConfig.class})
 public class ActionsConfig {
 
     @Autowired
@@ -67,6 +73,12 @@ public class ActionsConfig {
 
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
+
+    @Autowired
+    private ActionMergeSpecsConfig actionMergeSpecsConfig;
+
+    @Autowired
+    private StitchingConfig stitchingConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -110,9 +122,22 @@ public class ActionsConfig {
     }
 
     @Bean
+    public CachedTopology cachedTopology() {
+        return new CachedTopology();
+    }
+
+    /**
+     * Entity retrieber. It is able to retrieve entities from toplogy cached by the previous
+     * broadcast or fall back to repository request.
+     *
+     * @return the bean created
+     */
+    @Bean
     public EntityRetriever entityRetriever() {
-        return new EntityRetriever(topologyToSdkEntityConverter(),
+        return new EntityRetriever(
+                topologyToSdkEntityConverter(),
                 repositoryConfig.repository(),
+                cachedTopology(),
                 realtimeTopologyContextId);
     }
 
@@ -225,5 +250,29 @@ public class ActionsConfig {
         return new ActionAuditService(aoClientConfig.createActionEventsListener(),
                 operationConfig.operationManager(), actionExecutionContextFactory(),
                 actionRelatedScheduler(), actionAuditSendPeriodSec, actionAuditBatchSize, priority);
+    }
+
+    /**
+     * Creates AtomicActionSpecsUploadServiceStub used by the atomic action specs upload service.
+     *
+     * @return AtomicActionSpecsUploadServiceStub
+     */
+    @Bean
+    public AtomicActionSpecsUploadServiceStub atomicActionSpecsUploadServiceStub() {
+        return AtomicActionSpecsUploadServiceGrpc.newStub(
+                aoClientConfig.actionOrchestratorChannel());
+    }
+
+    /**
+     * Service to broadcast and upload the {@link AtomicActionSpec}'s created for entities.
+     *
+     * @return {@link ActionMergeSpecsUploader}
+     */
+    @Bean
+    public ActionMergeSpecsUploader actionMergeSpecsUploader() {
+        return new ActionMergeSpecsUploader(actionMergeSpecsConfig.actionMergeSpecsRepository(),
+                                            probeConfig.probeStore(),
+                                            targetConfig.targetStore(),
+                                            atomicActionSpecsUploadServiceStub());
     }
 }

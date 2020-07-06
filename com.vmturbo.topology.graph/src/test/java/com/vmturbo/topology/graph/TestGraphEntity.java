@@ -8,19 +8,35 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
+import com.vmturbo.topology.graph.ThinSearchableProps.CommodityValueFetcher;
 
-public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
+/**
+ * An implementation of a {@link TopologyGraphSearchableEntity} used for tests in lieu of a complicated
+ * mock object.
+ */
+public class TestGraphEntity implements TopologyGraphSearchableEntity<TestGraphEntity>, CommodityValueFetcher {
     private final long oid;
 
     private final ApiEntityType entityType;
@@ -29,17 +45,19 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
     private String displayName;
 
-    private TypeSpecificInfo typeSpecificInfo = TypeSpecificInfo.getDefaultInstance();
+    private SearchableProps searchableProps;
 
     private EnvironmentType envType = EnvironmentType.ON_PREM;
 
     private final Map<Long, String> discoveringTargetIds = new HashMap<>();
 
-    private final Map<Integer, List<CommoditySoldDTO>> commsSoldByType = new HashMap<>();
+    private TypeSpecificInfo typeSpecificInfo = TypeSpecificInfo.getDefaultInstance();
+
+    private final List<CommoditySoldDTO> commsSoldByType = new ArrayList<>();
 
     private final Map<String, List<String>> tags = new HashMap<>();
 
-    private boolean deletable = true;
+    private AnalysisSettings analysisSettings = AnalysisSettings.getDefaultInstance();
 
     /**
      * Relationships to other entities.
@@ -59,6 +77,7 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
         this.oid = oid;
         this.entityType = type;
         this.displayName = Long.toString(oid);
+        refreshSearchableProps();
     }
 
     @Override
@@ -83,10 +102,14 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
         return displayName;
     }
 
-    @Nonnull
+    @Nullable
     @Override
-    public TypeSpecificInfo getTypeSpecificInfo() {
-        return typeSpecificInfo;
+    public <T extends SearchableProps> T getSearchableProps(@Nonnull Class<T> clazz) {
+        if (clazz.isInstance(searchableProps)) {
+            return (T)searchableProps;
+        } else {
+            return null;
+        }
     }
 
     @Nonnull
@@ -110,18 +133,6 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
     @Override
     public Stream<String> getAllVendorIds() {
         return discoveringTargetIds.values().stream();
-    }
-
-    @Nonnull
-    @Override
-    public Map<Integer, List<CommoditySoldDTO>> soldCommoditiesByType() {
-        return commsSoldByType;
-    }
-
-    @Nonnull
-    @Override
-    public Map<String, List<String>> getTags() {
-        return tags;
     }
 
     @Nonnull
@@ -185,17 +196,6 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
     }
 
     /**
-     * Get deletable state of the topology entity. Default is true.
-     *
-     * @return true, means the Market can delete this entity.
-     *         false, means Market will not generate Delete Actions.
-     */
-    @Override
-    public boolean getDeletable() {
-        return deletable;
-    }
-
-    /**
      * Create a new builder with a specific oid and a specific entity type.
      *
      * @param oid the oid of the new entity builder
@@ -214,7 +214,7 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
      * @return the topology that is comprised of the given entities
      */
     @Nonnull
-    public static TopologyGraph<TestGraphEntity> newGraph(Map<Long, Builder> topology) {
+    public static TopologyGraph<TestGraphEntity> newGraph(Long2ObjectMap<Builder> topology) {
         return new TopologyGraphCreator<>(topology).build();
     }
 
@@ -227,12 +227,70 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
      */
     @Nonnull
     public static TopologyGraph<TestGraphEntity> newGraph(Builder... builders) {
-        Map<Long, Builder> buildersById = new HashMap<>();
+        Long2ObjectMap<Builder> buildersById = new Long2ObjectOpenHashMap<>();
         for (Builder bldr : builders) {
             buildersById.put(bldr.getOid(), bldr);
         }
 
         return newGraph(buildersById);
+    }
+
+    @Override
+    public float getCommodityCapacity(int type) {
+        return (float)commsSoldByType.stream()
+                .filter(comm -> comm.getCommodityType().getType() == type)
+                .filter(CommoditySoldDTO::hasCapacity)
+                .mapToDouble(CommoditySoldDTO::getCapacity)
+                .findFirst()
+                .orElse(-1);
+    }
+
+    @Override
+    public float getCommodityUsed(final int type) {
+        return (float)commsSoldByType.stream()
+            .filter(comm -> comm.getCommodityType().getType() == type)
+            .filter(CommoditySoldDTO::hasUsed)
+            .mapToDouble(CommoditySoldDTO::getUsed)
+            .findFirst()
+            .orElse(-1);
+    }
+
+    @Override
+    public boolean isHotAddSupported(int commodityType) {
+        return isHotChangeSupported(commodityType, HotResizeInfo::getHotAddSupported);
+    }
+
+    @Override
+    public boolean isHotRemoveSupported(int commodityType) {
+        return isHotChangeSupported(commodityType, HotResizeInfo::getHotRemoveSupported);
+    }
+
+    private boolean isHotChangeSupported(int commodityType,
+            @Nonnull Function<HotResizeInfo, Boolean> function) {
+        return commsSoldByType.stream()
+                .filter(c -> c.getCommodityType().getType() == commodityType)
+                .filter(CommoditySoldDTO::hasHotResizeInfo)
+                .map(c -> function.apply(c.getHotResizeInfo()))
+                .findAny()
+                .orElse(false);
+    }
+
+    private void refreshSearchableProps() {
+        Tags.Builder t = Tags.newBuilder();
+        this.tags.forEach((key, values) -> {
+            t.putTags(key, TagValuesDTO.newBuilder()
+                    .addAllValues(values)
+                    .build());
+        });
+        TagIndex tags = DefaultTagIndex.singleEntity(getOid(), t.build());
+        searchableProps = ThinSearchableProps.newProps(tags, this,
+                TopologyEntityDTO.newBuilder()
+                        .setOid(oid)
+                        .setDisplayName(displayName)
+                        .setEntityType(entityType.typeNumber())
+                        .setTypeSpecificInfo(typeSpecificInfo)
+                        .setAnalysisSettings(analysisSettings)
+                        .build());
     }
 
     /**
@@ -267,13 +325,12 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
         }
 
         public Builder addCommSold(final CommoditySoldDTO commSold) {
-            entity.commsSoldByType.computeIfAbsent(commSold.getCommodityType().getType(),
-                k -> new ArrayList<>()).add(commSold);
+            entity.commsSoldByType.add(commSold);
             return this;
         }
 
         public Builder setTypeSpecificInfo(@Nonnull final TypeSpecificInfo typeSpecificInfo) {
-            entity.typeSpecificInfo  = typeSpecificInfo;
+            entity.typeSpecificInfo = typeSpecificInfo;
             return this;
         }
 
@@ -293,7 +350,9 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
         }
 
         public Builder setDeletable(boolean deletable) {
-            entity.deletable = deletable;
+            entity.analysisSettings = entity.analysisSettings.toBuilder()
+                    .setDeletable(deletable)
+                    .build();
             return this;
         }
 
@@ -396,6 +455,7 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
         @Override
         public TestGraphEntity build() {
+            entity.refreshSearchableProps();
             return entity;
         }
     }

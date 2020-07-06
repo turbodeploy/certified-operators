@@ -17,7 +17,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
-import com.vmturbo.action.orchestrator.exception.AcceptedActionStoreOperationException;
+import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -101,20 +101,17 @@ public class ActionApprovalManager {
      *
      * @param store action store
      * @param userNameAndUuid ID of a user accepting the action
-     * @param actionId action OID to accept
+     * @param action the action to accept
      * @return action acceptance response
      */
     @Nonnull
     public AcceptActionResponse attemptAndExecute(@Nonnull ActionStore store,
-            @Nonnull String userNameAndUuid, long actionId) {
-        final Optional<Action> actionOptional = store.getAction(actionId);
-        if (!actionOptional.isPresent()) {
-            return acceptanceError("Action " + actionId + " doesn't exist.");
-        }
-        final Action action = actionOptional.get();
-
-        if (action.getState() == ActionState.ACCEPTED) {
-            return acceptanceError("Action " + actionId + " was already accepted");
+            @Nonnull String userNameAndUuid, @Nonnull Action action) {
+        final ActionState actionState = action.getState();
+        if (actionState != ActionState.READY) {
+            return acceptanceError(
+                    "Only action with READY state can be accepted. Action " + action.getId()
+                            + " has " + actionState + " state.");
         }
 
         final AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
@@ -241,9 +238,9 @@ public class ActionApprovalManager {
                 final LocalDateTime currentTime = LocalDateTime.now();
                 final String acceptingUserType;
                 if (action.getMode() == ActionMode.EXTERNAL_APPROVAL) {
-                    acceptingUserType = StringConstants.EXTERNAL_ORCHESTRATOR_ACCEPTING_USER_TYPE;
+                    acceptingUserType = StringConstants.EXTERNAL_ORCHESTRATOR_USER_TYPE;
                 } else {
-                    acceptingUserType = StringConstants.TURBO_ACCEPTING_USER_TYPE;
+                    acceptingUserType = StringConstants.TURBO_USER_TYPE;
                 }
                 acceptedActionsStore.persistAcceptedAction(action.getRecommendationOid(),
                         currentTime, acceptingUser, currentTime, acceptingUserType,
@@ -260,7 +257,7 @@ public class ActionApprovalManager {
                                 + " was not persisted.", action.getId());
                 isFailedPersisting = true;
             }
-        } catch (AcceptedActionStoreOperationException e) {
+        } catch (ActionStoreOperationException e) {
             logger.error("Failed to persist acceptance for action {}", action.getId(), e);
             isFailedPersisting = true;
         }
@@ -288,6 +285,4 @@ public class ActionApprovalManager {
                     + "associated schedule.", action.toString());
         }
     }
-
-
 }

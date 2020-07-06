@@ -38,7 +38,8 @@ public class CostPlanListenerConfig {
         final CostPlanGarbageCollector collector = new CostPlanGarbageCollector(
             reservedInstanceConfig.actionContextRIBuyStore(),
             entityCostConfig.planProjectedEntityCostStore(),
-            reservedInstanceConfig.planReservedInstanceStore());
+            reservedInstanceConfig.planReservedInstanceStore(),
+            entityCostConfig.entityCostStore());
         return planOrchestratorClientConfig.newPlanGarbageDetector(collector);
     }
 }

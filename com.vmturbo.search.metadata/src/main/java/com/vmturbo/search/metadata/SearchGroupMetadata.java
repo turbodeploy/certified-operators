@@ -14,6 +14,7 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.MemberFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.RelatedActionFieldApiDTO;
+import com.vmturbo.api.dto.searchquery.RelatedEntityFieldApiDTO;
 import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.enums.GroupType;
@@ -53,16 +54,28 @@ public enum SearchGroupMetadata {
         return groupType;
     }
 
+    /**
+     * Gets an immutable map representing the mappings for fields specific to this group type.
+     *
+     * @return an immutable map representing the mappings for fields specific to this group type
+     */
     public Map<FieldApiDTO, SearchMetadataMapping> getMetadataMappingMap() {
         return metadataMappingMap;
+    }
+
+    /**
+     * Gets an immutable map representing the mappings for fields common to all groups.
+     *
+     * @return an immutable map representing the mappings for fields common to all groups
+     */
+    public static Map<FieldApiDTO, SearchMetadataMapping> getGroupCommonFieldsMappingMap() {
+        return GROUP_COMMON_FIELDS;
     }
 
     private static Map<FieldApiDTO, SearchMetadataMapping> getRegularMetadata() {
         return ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
                 // common fields
                 .putAll(GROUP_COMMON_FIELDS)
-                // member counts
-                .put(MemberFieldApiDTO.memberCount(), SearchMetadataMapping.DIRECT_MEMBER_COUNT)
                 .build();
     }
 
@@ -73,12 +86,11 @@ public enum SearchGroupMetadata {
                 // member counts
                 .put(MemberFieldApiDTO.memberCount(EntityType.PHYSICAL_MACHINE),
                         SearchMetadataMapping.DIRECT_MEMBER_COUNT_PM)
-                //todo: add relatedMemberCount to MemberFieldApiDTO, and use it here
-                .put(MemberFieldApiDTO.memberCount(EntityType.VIRTUAL_MACHINE),
+                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE),
                         SearchMetadataMapping.RELATED_MEMBER_COUNT_VM)
-                .put(MemberFieldApiDTO.memberCount(EntityType.STORAGE),
+                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.STORAGE),
                         SearchMetadataMapping.RELATED_MEMBER_COUNT_ST)
-                // aggregated commodity
+                // aggregated commodities
                 .put(AggregateCommodityFieldApiDTO.total(CommodityFieldApiDTO.utilization(CommodityType.CPU)),
                         SearchMetadataMapping.GROUP_COMMODITY_CPU_UTILIZATION_TOTAL)
                 .put(AggregateCommodityFieldApiDTO.total(CommodityFieldApiDTO.utilization(CommodityType.MEM)),
@@ -99,10 +111,12 @@ public enum SearchGroupMetadata {
                 .put(PrimitiveFieldApiDTO.oid(), SearchMetadataMapping.PRIMITIVE_GROUP_OID)
                 .put(PrimitiveFieldApiDTO.groupType(), SearchMetadataMapping.PRIMITIVE_GROUP_TYPE)
                 .put(PrimitiveFieldApiDTO.name(), SearchMetadataMapping.PRIMITIVE_GROUP_NAME)
-                .put(PrimitiveFieldApiDTO.entitySeverity(), SearchMetadataMapping.PRIMITIVE_SEVERITY)
+                .put(PrimitiveFieldApiDTO.severity(), SearchMetadataMapping.PRIMITIVE_SEVERITY)
                 .put(PrimitiveFieldApiDTO.origin(), SearchMetadataMapping.PRIMITIVE_GROUP_ORIGIN)
                 .put(PrimitiveFieldApiDTO.dynamic(), SearchMetadataMapping.PRIMITIVE_GROUP_DYNAMIC)
                 .put(PrimitiveFieldApiDTO.memberTypes(), SearchMetadataMapping.PRIMITIVE_GROUP_MEMBER_TYPES)
+                // MEMBERS
+                .put(MemberFieldApiDTO.memberCount(), SearchMetadataMapping.DIRECT_MEMBER_COUNT)
                 // todo: uncomment if indirect member types is needed
                 // .put(PrimitiveFieldApiDTO.indirectMemberTypes(), SearchMetadataMapping.PRIMITIVE_GROUP_INDIRECT_MEMBER_TYPES)
                 // RELATED ACTION

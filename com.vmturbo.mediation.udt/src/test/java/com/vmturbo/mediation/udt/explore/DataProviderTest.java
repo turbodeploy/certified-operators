@@ -10,7 +10,7 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters.FilterSpecs;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -61,14 +61,14 @@ public class DataProviderTest {
         RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
         DataRequests requests = Mockito.mock(DataRequests.class);
         DataProvider dataProvider = new DataProvider(requestExecutor, requests);
-        List<FilterSpecs> parameters = Collections.emptyList();
         SearchEntitiesResponse response = SearchEntitiesResponse.newBuilder().build();
         Mockito.when(requestExecutor.searchEntities(Mockito.any())).thenReturn(response);
-        dataProvider.searchEntities(parameters, EntityType.VIRTUAL_MACHINE);
-        Mockito.verify(requests, Mockito.times(1)).createFilterEntityRequest(parameters, EntityType.VIRTUAL_MACHINE);
+        SearchParameters searchParameters = SearchParameters.newBuilder().build();
+        List<SearchParameters> searchParametersList = Collections.singletonList(searchParameters);
+        dataProvider.searchEntities(searchParametersList);
+        Mockito.verify(requests, Mockito.times(1)).createFilterEntityRequest(searchParametersList);
         Mockito.verify(requestExecutor, Mockito.times(1)).searchEntities(Mockito.any());
     }
-
 
     /**
      * Tests that 'searchEntities' correctly calls DataRequests.class and RequestExecutor.class.

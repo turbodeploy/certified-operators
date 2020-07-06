@@ -9,7 +9,6 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -25,11 +24,16 @@ import org.jooq.impl.DSL;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 
-public class ComputeTierDemandStatsStore {
+public class ComputeTierDemandStatsStore implements DiagsRestorable {
+
+    private static final String computeTierDemandFile = "computeTierDemand_dump";
 
     private final Logger logger = LogManager.getLogger();
     /**
@@ -209,4 +213,30 @@ public class ComputeTierDemandStatsStore {
                 .fetch();
     }
 
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        // TODO to be implemented as part of OM-58627
+    }
+
+    @Override
+    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+        dslContext.transaction(transactionContext -> {
+            final DSLContext transaction = DSL.using(transactionContext);
+            Stream<ComputeTierTypeHourlyByWeekRecord> latestRecords = transaction.selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK).stream();
+            latestRecords.forEach(s -> {
+                try {
+                    appender.appendString(s.formatJSON());
+                } catch (DiagnosticsException e) {
+                    logger.error("Exception encountered while appending compute tier weekly by hour records" +
+                            " to the diags dump", e);
+                }
+            });
+        });
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return computeTierDemandFile;
+    }
 }

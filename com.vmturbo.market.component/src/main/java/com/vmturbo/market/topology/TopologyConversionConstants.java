@@ -38,8 +38,6 @@ public class TopologyConversionConstants {
 
     public static final float ACCESS_COMMODITY_CAPACITY = 1.0E9f;
 
-    public static final String BICLIQUE = "BICLIQUE";
-
     // a map for the type of the dependent commodity bought by an entity on the cloud to the type of
     // the resizable commodity sold
     public static ImmutableMap<Integer, Integer> commDependancyMapForCloudResize = ImmutableMap.<Integer, Integer>builder()

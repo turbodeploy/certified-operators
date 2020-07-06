@@ -20,6 +20,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -27,6 +28,8 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record2;
 import org.jooq.Record3;
@@ -45,6 +48,9 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
@@ -59,7 +65,12 @@ import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
  * comes from Topology Processor. And it use "probeReservedInstanceId" to tell if the latest reserved instance
  * is same with current existing reserved instance record or not.
  */
-public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore implements ReservedInstanceCostStore {
+public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore implements ReservedInstanceCostStore, DiagsRestorable {
+
+    private static final String reservedInstanceBoughtDumpFile = "reservedInstanceBought_dump";
+
+    private static final Logger logger = LogManager.getLogger();
+
     private final Flux<ReservedInstanceBoughtChangeType> updateEventFlux;
 
     private static final String RI_AMORTIZED_COST = "ri_amortized_cost";
@@ -74,6 +85,33 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
      * The statusEmitter is used to push updates to the statusFlux subscribers.
      */
     private FluxSink<ReservedInstanceBoughtChangeType> updateEventEmitter;
+
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        // TODO to be implemented as part of OM-58627
+    }
+
+    @Override
+    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+        getDsl().transaction(transactionContext -> {
+            final DSLContext transaction = DSL.using(transactionContext);
+            Stream<ReservedInstanceBoughtRecord> latestRecords = transaction.selectFrom(RESERVED_INSTANCE_BOUGHT).stream();
+            latestRecords.forEach(s -> {
+                try {
+                    appender.appendString(s.formatJSON());
+                } catch (DiagnosticsException e) {
+                    logger.error("Exception encountered while appending reserved instance bought records" +
+                            " to the diags dump", e);
+                }
+            });
+        });
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return reservedInstanceBoughtDumpFile;
+    }
 
     /**
      * TODO: JavaDoc: What is this enum needed for?
@@ -516,12 +554,12 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
                     .from(RESERVED_INSTANCE_BOUGHT)
                     .join(RESERVED_INSTANCE_SPEC)
                     .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID.eq(RESERVED_INSTANCE_SPEC.ID))
-                    .where(filter.generateConditions())
+                    .where(filter.generateConditions(context))
                     .fetch()
                     .into(RESERVED_INSTANCE_BOUGHT);
         } else {
             return context.selectFrom(RESERVED_INSTANCE_BOUGHT)
-                    .where(filter.generateConditions())
+                    .where(filter.generateConditions(context))
                     .fetch();
         }
     }

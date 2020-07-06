@@ -17,6 +17,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Before;
@@ -57,6 +59,9 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
+import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost.ActionIds;
 
@@ -78,17 +83,18 @@ public class ActionStateUpdaterTest {
     private final long actionId1 = 123456;
     private final long actionId2 = 12345667;
     private final long notFoundId = 99999;
-    private final ActionDTO.Action recommendation = ActionDTO.Action.newBuilder()
-        .setId(actionId1)
-        .setDeprecatedImportance(0)
-        .setSupportingLevel(SupportLevel.SUPPORTED)
-        .setInfo(TestActionBuilder.makeMoveInfo(3, 2, 1, 1, 1))
-        .setExplanation(Explanation.newBuilder().build())
-        .build();
+    private final long actionTargetId1 = 11;
+    private final long actionTargetId2 = 22;
+    private final ActionDTO.Action recommendation1 =
+            createActionRecommendation(actionId1, actionTargetId1);
+    private final ActionDTO.Action recommendation2 =
+            createActionRecommendation(actionId2, actionTargetId2);
 
     private final EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
     private ActionAuditSender actionAuditSender;
     private ActionStateUpdater actionStateUpdater;
+
+    private IMessageSender<ActionResponse> actionStateUpdatesSender;
 
     private Action testAction;
     private Action testAction2;
@@ -101,18 +107,22 @@ public class ActionStateUpdaterTest {
     @Before
     public void setup() throws UnsupportedActionException {
         actionAuditSender = Mockito.mock(ActionAuditSender.class);
+        actionStateUpdatesSender = Mockito.mock(IMessageSender.class);
         actionStateUpdater =
                 new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao,
                         acceptedActionsStore, actionExecutorMock, workflowStoreMock,
-                        realtimeTopologyContextId, failedCloudVMGroupProcessor, actionAuditSender);
-        when(entitySettingsCache.getSettingsForEntity(eq(3L)))
-            .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
+                        realtimeTopologyContextId, failedCloudVMGroupProcessor, actionAuditSender,
+                        actionStateUpdatesSender);
+        when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId1))).thenReturn(
+                makeActionModeSetting(ActionMode.EXTERNAL_APPROVAL));
+        when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId2))).thenReturn(
+                makeActionModeSetting(ActionMode.MANUAL));
         when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(entitySettingsCache.getResourceGroupForEntity(anyLong())).thenReturn(Optional.empty());
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
-        testAction = makeTestAction(actionId1, recommendation);
-        testAction2 = makeTestAction(actionId2, recommendation);
+        testAction = makeTestAction(actionId1, recommendation1);
+        testAction2 = makeTestAction(actionId2, recommendation2);
     }
 
     private Action makeTestAction(final long actionId, ActionDTO.Action actionRecommendation,
@@ -149,6 +159,12 @@ public class ActionStateUpdaterTest {
         assertEquals(33, (int)testAction.getCurrentExecutableStep().flatMap(ExecutableStep::getProgressPercentage).get());
         assertEquals("Moving vm from foo to bar",
             testAction.getCurrentExecutableStep().flatMap(ExecutableStep::getProgressDescription).get());
+        verify(actionStateUpdatesSender).sendMessage(ActionResponse.newBuilder()
+                .setProgress(progress.getProgressPercentage())
+                .setResponseDescription(progress.getDescription())
+                .setActionOid(testAction.getRecommendationOid())
+                .setActionResponseState(ActionResponseState.IN_PROGRESS)
+                .build());
         verify(notificationSender).notifyActionProgress(progress);
     }
 
@@ -182,8 +198,7 @@ public class ActionStateUpdaterTest {
         verify(notificationSender).notifyActionSuccess(success);
         SerializationState serializedAction = new SerializationState(testAction);
 
-        verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
-                recommendation,
+        verify(actionHistoryDao).persistActionHistory(recommendation1.getId(), recommendation1,
                 realtimeTopologyContextId,
                 serializedAction.getRecommendationTime(),
                 serializedAction.getActionDecision(),
@@ -196,6 +211,37 @@ public class ActionStateUpdaterTest {
         verify(acceptedActionsStore, Mockito.never()).deleteAcceptedAction(
                 testAction.getRecommendationOid());
         Mockito.verify(actionAuditSender).sendActionEvents(Collections.singleton(testAction));
+        verify(actionStateUpdatesSender).sendMessage(ActionResponse.newBuilder()
+                .setProgress(100)
+                .setResponseDescription(success.getSuccessDescription())
+                .setActionOid(testAction.getRecommendationOid())
+                .setActionResponseState(ActionResponseState.SUCCEEDED)
+                .build());
+    }
+
+    /**
+     * Test that we don't send state updates when action mode isn't
+     * {@link ActionMode#EXTERNAL_APPROVAL}.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testOnActionSuccessWithoutSendingStateUpdates() throws Exception {
+        final ActionSuccess success = ActionSuccess.newBuilder()
+                .setActionId(actionId2)
+                .setSuccessDescription("Success!")
+                .build();
+
+        actionStateUpdater.onActionSuccess(success);
+        assertEquals(ActionState.SUCCEEDED, testAction2.getState());
+        assertEquals(Status.SUCCESS, testAction2.getCurrentExecutableStep().get().getStatus());
+
+        verify(actionStateUpdatesSender, Mockito.never()).sendMessage(ActionResponse.newBuilder()
+                .setProgress(100)
+                .setResponseDescription(success.getSuccessDescription())
+                .setActionOid(testAction2.getId())
+                .setActionResponseState(ActionResponseState.SUCCEEDED)
+                .build());
     }
 
     /**
@@ -210,13 +256,8 @@ public class ActionStateUpdaterTest {
         final long recommendationId = 224L;
         final long actionTargetId = 4L;
         final long executionScheduleId = 111L;
-        final ActionDTO.Action actionRecommendation = ActionDTO.Action.newBuilder()
-                .setId(actionWithScheduleId)
-                .setDeprecatedImportance(0)
-                .setSupportingLevel(SupportLevel.SUPPORTED)
-                .setInfo(TestActionBuilder.makeMoveInfo(actionTargetId, 2, 1, 1, 1))
-                .setExplanation(Explanation.newBuilder().build())
-                .build();
+        final ActionDTO.Action actionRecommendation =
+                createActionRecommendation(actionWithScheduleId, actionTargetId);
         final ScheduleProto.Schedule executionSchedule =
                 ActionOrchestratorTestUtils.createActiveSchedule(executionScheduleId);
         final Map<Long, Schedule> scheduleMap =
@@ -273,8 +314,7 @@ public class ActionStateUpdaterTest {
         assertEquals(Status.FAILED, testAction.getCurrentExecutableStep().get().getStatus());
         verify(notificationSender).notifyActionFailure(failure);
         SerializationState serializedAction = new SerializationState(testAction);
-        verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
-            recommendation,
+        verify(actionHistoryDao).persistActionHistory(recommendation1.getId(), recommendation1,
             realtimeTopologyContextId,
             serializedAction.getRecommendationTime(),
             serializedAction.getActionDecision(),
@@ -285,6 +325,12 @@ public class ActionStateUpdaterTest {
             serializedAction.getAssociatedResourceGroupId(),
                 2244L);
         Mockito.verify(actionAuditSender).sendActionEvents(Collections.singleton(testAction));
+        verify(actionStateUpdatesSender).sendMessage(ActionResponse.newBuilder()
+                .setProgress(100)
+                .setResponseDescription(failure.getErrorDescription())
+                .setActionOid(testAction.getRecommendationOid())
+                .setActionResponseState(ActionResponseState.FAILED)
+                .build());
     }
 
     /**
@@ -312,8 +358,7 @@ public class ActionStateUpdaterTest {
             .setErrorDescription("Topology Processor lost action state.")
             .build());
         SerializationState serializedAction = new SerializationState(testAction);
-        verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
-            recommendation,
+        verify(actionHistoryDao).persistActionHistory(recommendation1.getId(), recommendation1,
             realtimeTopologyContextId,
             serializedAction.getRecommendationTime(),
             serializedAction.getActionDecision(),
@@ -359,8 +404,7 @@ public class ActionStateUpdaterTest {
             .setErrorDescription("Topology Processor lost action state.")
             .build());
         SerializationState serializedAction = new SerializationState(testAction);
-        verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
-            recommendation,
+        verify(actionHistoryDao).persistActionHistory(recommendation1.getId(), recommendation1,
             realtimeTopologyContextId,
             serializedAction.getRecommendationTime(),
             serializedAction.getActionDecision(),
@@ -369,8 +413,7 @@ public class ActionStateUpdaterTest {
                 serializedAction.getActionDetailData(), null, null,
                 serializedAction.getRecommendationOid());
         SerializationState serializedAction2 = new SerializationState(testAction);
-        verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
-            recommendation,
+        verify(actionHistoryDao).persistActionHistory(recommendation1.getId(), recommendation1,
             realtimeTopologyContextId,
             serializedAction2.getRecommendationTime(),
             serializedAction2.getActionDecision(),
@@ -424,5 +467,16 @@ public class ActionStateUpdaterTest {
 
         actionStateUpdater.onActionFailure(failure);
         verify(notificationSender, never()).notifyActionFailure(failure);
+    }
+
+    @Nonnull
+    private ActionDTO.Action createActionRecommendation(long actionId1, long actionTargetId) {
+        return ActionDTO.Action.newBuilder()
+                .setId(actionId1)
+                .setDeprecatedImportance(0)
+                .setSupportingLevel(SupportLevel.SUPPORTED)
+                .setInfo(TestActionBuilder.makeMoveInfo(actionTargetId, 2, 1, 1, 1))
+                .setExplanation(Explanation.newBuilder().build())
+                .build();
     }
 }

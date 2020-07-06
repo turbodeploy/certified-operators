@@ -174,8 +174,7 @@ public class TargetActionAuditService {
     }
 
     @Nonnull
-    private ActionEventDTO convert(@Nonnull ActionEvent event) {
-        // TODO conversion is very slow if executed one-by-one. We should batch the conversion.
+    private ActionEventDTO convert(@Nonnull ActionEvent event) throws ContextCreationException {
         final ActionExecutionDTO actionExecution = contextFactory.getActionExecutionContext(
                 event.getActionRequest()).buildActionExecutionDto();
         final ActionEventDTO.Builder builder = ActionEventDTO.newBuilder()

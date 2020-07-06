@@ -37,24 +37,26 @@ import com.vmturbo.stitching.TopologyEntity;
  * Set commodity capacity (auto scaled range).
  * The main algorithm for setting the capacity is as following:
  * if (userPolicyExits) {
- *      if (autoset from user policy == true) {
- * 	         then auto set.
- *      } else {
- * 	         take the value from settings -> this will search for value in user settings
- * 	         and if not found then from default settings
- *      }
+ *     if (autoset from user policy == true) {
+ *         then auto set.
+ *     } else {
+ *         take the value from settings -> this will search for value in user settings
+ *         and if not found then from default settings
+ *     }
  * } else {
- * 	    if (autoset == true) {
- * 		    then auto set.
- *      } else {
- * 		    take value from default settings
- *      }
+ *     if (autoset == true) {
+ *         then auto set.
+ *     } else {
+ *         take value from default settings
+ *     }
  * }
  *
  *<p>** Auto setting is done as the following:
- * Take value from db last 7 days (or hours on initialization) from the stats daily/hourly table,
+ * Take highest capacity value from db last 7 days (or hours on initialization) from the stats daily/hourly table,
  * Then use the weighted avg of:
  * (HISTORICAL_CAPACITY_WEIGHT * db value) + (CURRENT_CAPACITY_WEIGHT * capacity returned from probe)
+ *
+ * If no data returned from the db we will set the 'commodity used' value as the capacity
  */
 public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostStitchingOperation {
 
@@ -157,14 +159,20 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                 .forEachRemaining(response -> {
                     if (response.getEntitiesToCommodityTypeCapacityList() != null) {
                         response.getEntitiesToCommodityTypeCapacityList().forEach(entityToCommodity -> {
-                            resultBuilder.queueUpdateEntityAlone(oidToEntities.get(entityToCommodity.getEntityUuid()),
-                                entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
-                                    .getCommoditySoldListBuilderList().stream()
-                                    .filter(this::commodityTypeMatches)
-                                    .forEach(commSold -> // updating the capacity from the response
-                                        setValidCapacity(commSold, entityToCommodity, entityToUpdate)
-                                    ));
-                            oidToEntities.remove(entityToCommodity.getEntityUuid());
+                            final TopologyEntity topologyEntity = oidToEntities.get(entityToCommodity.getEntityUuid());
+                            if (topologyEntity != null) {
+                                    resultBuilder.queueUpdateEntityAlone(topologyEntity,
+                                        entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
+                                            .getCommoditySoldListBuilderList().stream()
+                                            .filter(this::commodityTypeMatches)
+                                            .forEach(commSold -> // updating the capacity from the response
+                                                setValidCapacity(commSold, entityToCommodity, entityToUpdate)
+                                            ));
+                                    oidToEntities.remove(entityToCommodity.getEntityUuid());
+                                } else {
+                                    logger.error("Was not able to find matching entity for {}",
+                                        entityToCommodity.getEntityUuid());
+                                }
                             }
                         );
                     }

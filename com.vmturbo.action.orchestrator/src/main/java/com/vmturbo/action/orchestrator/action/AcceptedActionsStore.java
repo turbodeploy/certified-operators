@@ -30,7 +30,7 @@ import org.jooq.impl.DSL;
 
 import com.vmturbo.action.orchestrator.db.tables.records.AcceptedActionsPoliciesRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.AcceptedActionsRecord;
-import com.vmturbo.action.orchestrator.exception.AcceptedActionStoreOperationException;
+import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
 
 /**
  * The {@link AcceptedActionsStore} class is used for CRUD operations on accepted/approved actions.
@@ -60,8 +60,7 @@ public class AcceptedActionsStore implements AcceptedActionsDAO {
     public void persistAcceptedAction(long recommendationId,
             @Nonnull LocalDateTime actionLatestRecommendationTime, @Nonnull String acceptedBy,
             @Nonnull LocalDateTime acceptedTime, @Nonnull String acceptorType,
-            @Nonnull Collection<Long> relatedPolicies)
-            throws AcceptedActionStoreOperationException {
+            @Nonnull Collection<Long> relatedPolicies) throws ActionStoreOperationException {
 
         final Collection<TableRecord<?>> inserts = new ArrayList<>(
                 createAcceptedAction(recommendationId, actionLatestRecommendationTime, acceptedBy,
@@ -74,7 +73,7 @@ public class AcceptedActionsStore implements AcceptedActionsDAO {
                                 .where(ACCEPTED_ACTIONS.RECOMMENDATION_ID.eq(recommendationId))
                                 .fetch();
                 if (!existingAcceptanceForAction.isEmpty()) {
-                    throw new AcceptedActionStoreOperationException(
+                    throw new ActionStoreOperationException(
                             "Action " + recommendationId + " has been already accepted by "
                                     + existingAcceptanceForAction.stream()
                                     .findFirst()
@@ -84,8 +83,8 @@ public class AcceptedActionsStore implements AcceptedActionsDAO {
                 context.batchInsert(inserts).execute();
             });
         } catch (DataAccessException ex) {
-            if (ex.getCause() instanceof AcceptedActionStoreOperationException) {
-                throw (AcceptedActionStoreOperationException)ex.getCause();
+            if (ex.getCause() instanceof ActionStoreOperationException) {
+                throw (ActionStoreOperationException)ex.getCause();
             } else {
                 throw ex;
             }
@@ -184,7 +183,7 @@ public class AcceptedActionsStore implements AcceptedActionsDAO {
 
     @Override
     public void updateLatestRecommendationTime(@Nonnull Collection<Long> actionsRecommendationIds)
-            throws AcceptedActionStoreOperationException {
+            throws ActionStoreOperationException {
         try {
             dslContext.transaction(configuration -> {
                 final DSLContext context = DSL.using(configuration);
@@ -194,7 +193,7 @@ public class AcceptedActionsStore implements AcceptedActionsDAO {
                         .execute();
             });
         } catch (DataAccessException exception) {
-            throw new AcceptedActionStoreOperationException(
+            throw new ActionStoreOperationException(
                     "Failed to update latest recommendation time for recommended accepted actions "
                             + StringUtils.join(actionsRecommendationIds, ","));
         }

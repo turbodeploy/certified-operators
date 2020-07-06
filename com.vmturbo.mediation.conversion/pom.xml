@@ -5,13 +5,24 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>Turbonomic-XL</artifactId>
-        <version>7.22.4-SNAPSHOT</version>
+        <version>7.22.5-SNAPSHOT</version>
         <relativePath>../build/pom.xml</relativePath>
     </parent>
 
     <artifactId>com.vmturbo.mediation.conversion</artifactId>
     <description>Common mediation component for converting topology from probes</description>
 
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
     <dependencies>
         <dependency>
             <groupId>com.vmturbo</groupId>

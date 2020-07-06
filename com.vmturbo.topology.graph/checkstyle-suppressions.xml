@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]TopologyGraphCreator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]TopologyGraphEntity.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]SearchResolver.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]filter[/\\]PropertyFilter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]filter[/\\]TopologyFilter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]filter[/\\]TopologyFilterFactory.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]filter[/\\]TraversalFilter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]supplychain[/\\]GlobalSupplyChainCalculator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]supplychain[/\\]TraversalRulesLibrary.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]SimpleCloudTopologyUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]TestGraphEntity.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]TopologyEntityTopologyGraphIT.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]TopologyGraphCreatorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]TopologyGraphTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]SearchResolverTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]filter[/\\]FilterUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]filter[/\\]PropertyFilterTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]filter[/\\]TopologyFilterFactoryTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]filter[/\\]TraversalToDepthFilterTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]filter[/\\]TraversalToPropertyFilterTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]supplychain[/\\]SupplyChainCalculatorTest.java" />
+</suppressions>

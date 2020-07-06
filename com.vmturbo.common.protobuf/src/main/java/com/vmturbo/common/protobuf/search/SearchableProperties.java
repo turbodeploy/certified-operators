@@ -117,7 +117,25 @@ public class SearchableProperties {
      * Deleteable field from virtual volume information.
      */
     public static final String DELETABLE = "deletable";
+    /**
+     * Whether a VM has active sessions in the desktop pool.
+     */
+    public static final String VM_DESKTOP_POOL_ACTIVE_SESSIONS = "activeSessions";
 
+
+
+    /**
+     * Support hot-add memory filter property.
+     */
+    public static final String HOT_ADD_MEMORY = "hotAddMemory";
+    /**
+     * Support hot-add cpu filter property.
+     */
+    public static final String HOT_ADD_CPU = "hotAddCPU";
+    /**
+     * Support hot-remove cpu filter property.
+     */
+    public static final String HOT_REMOVE_CPU = "hotRemoveCPU";
     /**
      * Status of a target.
      */

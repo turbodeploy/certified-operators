@@ -60,8 +60,6 @@ data:
         # string, with individual settings separated by "&". No initial "&" or "?" should appear
         mariadbDriverProperties: useServerPrepStmts=true
         mysqlDriverProperties:
-        # OM-58310: Improve handling partially discovered cloud environment feature flag.
-        riSupportInPartialCloudEnvironment: false
       action-orchestrator:
         identityGeneratorPrefix: 9
         actionPaginationDefaultLimit: 100
@@ -131,8 +129,12 @@ data:
         statsRecordsUpdateBatchSize : 5000
         # Number of results to return when fetching lazily.
         statsRecordsQueryBatchSize : 5000
+        # Import cost diags
+        saveCostDiags: true
         # Save Allocation Demand Tables in Diags
         saveAllocationDemandStores: true
+        # Save historical stats table in Diags
+        saveHistoricalStatsDiags: false
         reservedInstanceStatCleanup.corePoolSize: 1
         # One thread per table - latest, hourly, daily, monthly for RI coverage and utilization
         reservedInstanceStatCleanup.maxPoolSize: 8
@@ -431,6 +433,10 @@ data:
       extractor:
         dbHost: timescaledb
         dbPort: 5432
+{{- if eq (index .Values "grafana" "grafana.ini" "database" "type") "postgres"}}
+        grafanaDb:
+{{ toYaml (index .Values "grafana" "grafana.ini" "database") | indent 12 }}
+{{- end }}
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}

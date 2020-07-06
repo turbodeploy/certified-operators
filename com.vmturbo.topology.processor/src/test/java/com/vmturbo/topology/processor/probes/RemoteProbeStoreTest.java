@@ -26,6 +26,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -53,7 +54,7 @@ public class RemoteProbeStoreTest {
     @Before
     public void setup() {
         idProvider = Mockito.mock(IdentityProvider.class);
-        store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore);
+        store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore,  new ActionMergeSpecsRepository());
     }
 
     @Test

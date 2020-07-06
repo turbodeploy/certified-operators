@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -35,11 +36,13 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
+import com.vmturbo.action.orchestrator.store.AtomicActionFactory.AtomicActionResult;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
@@ -54,9 +57,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -101,11 +102,11 @@ public class LiveActionStore implements ActionStore {
 
     private final ProbeCapabilityCache probeCapabilityCache;
 
+    private final AtomicActionFactory atomicActionFactory;
+
     private final LiveActionsStatistician actionsStatistician;
 
     private final ActionTranslator actionTranslator;
-
-    private final UserSessionContext userSessionContext;
 
     private final LicenseCheckClient licenseCheckClient;
 
@@ -117,8 +118,6 @@ public class LiveActionStore implements ActionStore {
 
     private final EntitiesWithNewStateCache entitiesWithNewStateCache;
     private final ActionAuditSender actionAuditSender;
-
-    private final AcceptedActionsDAO acceptedActionStore;
 
     /**
      * A mutable (real-time) action is considered visible (from outside the Action Orchestrator's perspective)
@@ -146,16 +145,17 @@ public class LiveActionStore implements ActionStore {
      * @param actionHistoryDao dao layer working with executed actions
      * @param liveActionsStatistician works with action stats
      * @param actionTranslator the action translator class
+     * @param atomicActionFactory  the atomic action factory class
      * @param clock the {@link Clock}
      * @param userSessionContext the user session context
      * @param involvedEntitiesExpander used for expanding entities and determining how involved
      *                                 entities should be filtered.
      * @param acceptedActionsStore dao layer working with accepted actions
+     * @param rejectedActionsStore dao layer working with rejected actions
      * @param actionAuditSender action audit sender to receive new generated actions
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
-                           @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
                            @Nonnull final RepositoryServiceBlockingStub repositoryService,
                            @Nonnull final ActionTargetSelector actionTargetSelector,
                            @Nonnull final ProbeCapabilityCache probeCapabilityCache,
@@ -163,32 +163,36 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final ActionHistoryDao actionHistoryDao,
                            @Nonnull final LiveActionsStatistician liveActionsStatistician,
                            @Nonnull final ActionTranslator actionTranslator,
+                           @Nonnull final AtomicActionFactory atomicActionFactory,
                            @Nonnull final Clock clock,
                            @Nonnull final UserSessionContext userSessionContext,
                            @Nonnull final LicenseCheckClient licenseCheckClient,
                            @Nonnull final AcceptedActionsDAO acceptedActionsStore,
+                           @Nonnull final RejectedActionsDAO rejectedActionsStore,
                            @Nonnull final IdentityService<ActionInfo> actionIdentityService,
                            @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander,
                            @Nonnull final ActionAuditSender actionAuditSender
     ) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
-        this.severityCache = new EntitySeverityCache(supplyChainService, repositoryService, true);
-        this.actionTargetSelector = actionTargetSelector;
-        this.probeCapabilityCache = probeCapabilityCache;
-        this.entitySettingsCache = entitySettingsCache;
-        this.actionHistoryDao = actionHistoryDao;
-        this.clock = clock;
-        this.actions = new LiveActions(
-            actionHistoryDao, acceptedActionsStore, clock, userSessionContext,
-            involvedEntitiesExpander);
+        this.severityCache =
+                new EntitySeverityCache(Objects.requireNonNull(repositoryService), true);
+        this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
+        this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
+        this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
+        this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
+        this.clock = Objects.requireNonNull(clock);
+        this.actions =
+                new LiveActions(actionHistoryDao, Objects.requireNonNull(acceptedActionsStore),
+                        Objects.requireNonNull(rejectedActionsStore), clock,
+                        Objects.requireNonNull(userSessionContext),
+                        Objects.requireNonNull(involvedEntitiesExpander));
         this.actionsStatistician = Objects.requireNonNull(liveActionsStatistician);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
-        this.userSessionContext = Objects.requireNonNull(userSessionContext);
+        this.atomicActionFactory = Objects.requireNonNull(atomicActionFactory);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.actionIdentityService = Objects.requireNonNull(actionIdentityService);
         this.entitiesWithNewStateCache = new EntitiesWithNewStateCache(actions);
-        this.acceptedActionStore = acceptedActionsStore;
         this.actionAuditSender = Objects.requireNonNull(actionAuditSender);
     }
 
@@ -257,19 +261,64 @@ public class LiveActionStore implements ActionStore {
 
             final Long topologyId = sourceTopologyInfo.getTopologyId();
 
-            final EntitiesAndSettingsSnapshot snapshot =
-                entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
-                        Collections.emptySet(), topologyContextId, topologyId);
+            // Check if the atomic action factory contains specs to create atomic actions
+            // for the actions received, create atomic actions if the specs are received
+            // from the toplogy processor
+            List<ActionDTO.Action> atomicActions = Collections.emptyList();
+            Map<Long, ActionDTO.Action> mergedActions = new HashMap<>();
+            Collection<Long> atomicActionEntities = Collections.emptyList();
+
+            if (atomicActionFactory.canMerge()) {
+                List<AtomicActionResult> atomicActionResults = atomicActionFactory.merge(actionPlan.getActionList());
+                logger.info("Created {} atomic actions", atomicActionResults.size());
+
+                atomicActions =
+                        atomicActionResults.stream()
+                                .map(atomicActionResult -> atomicActionResult.atomicAction())
+                                .collect(Collectors.toList());
+
+                for (AtomicActionResult result : atomicActionResults) {
+                    result.marketActions().stream().forEach(action -> {
+                        mergedActions.put(action.getId(), action);
+                    });
+                }
+                atomicActionEntities = ActionDTOUtil.getInvolvedEntityIds(atomicActions);
+            }
+
+            Collection<Long> actionEntities = ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList());
+            // adding the target entities from atomic actions to the snapshot
+            Set<Long> involvedEntities = Stream.of(atomicActionEntities, actionEntities)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
+
+            final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(involvedEntities,
+                            Collections.emptySet(), topologyContextId, topologyId);
+
+            List<ActionDTO.Action> allActions = Stream.of(actionPlan.getActionList(), atomicActions)
+                                                        .flatMap(Collection::stream)
+                                                        .collect(Collectors.toList());
 
             // This call requires some computation and an RPC call, so do it outside of the
             // action lock.
-            final List<ActionDTO.Action> actionsWithAdditionalInfo;
+            final List<ActionDTO.Action> allActionsWithAdditionalInfo;
             try {
-                actionsWithAdditionalInfo =
-                        new ArrayList<>(actionsWithAdditionalInfo(actionPlan, snapshot));
+                allActionsWithAdditionalInfo =
+                        new ArrayList<>(actionsWithAdditionalInfo(allActions, mergedActions, snapshot));
             } catch (IdentityServiceException e) {
                 logger.error("Error retrieving OIDs for actions", e);
                 return false;
+            }
+
+            if (logger.isDebugEnabled()) {
+                allActionsWithAdditionalInfo.stream().forEach(
+                        entry -> {
+                            if (entry.getInfo().hasResize()) {
+                                logger.debug("entity {} action {} has support level {}",
+                                        entry.getInfo().getResize().getTarget().getId(),
+                                        entry.getId(), entry.getSupportingLevel());
+                            }
+                        }
+                );
             }
 
             // RecommendationTracker to accelerate lookups of recommendations.
@@ -277,10 +326,11 @@ public class LiveActionStore implements ActionStore {
 
             // Apply addition and removal to the internal store atomically.
             final List<ActionView> completedSinceLastPopulate = new ArrayList<>();
-            final List<Long> actionsToRemove = new ArrayList<>();
+            final List<Action> actionsToRemove = new ArrayList<>();
 
             actions.doForEachMarketAction(action -> {
-                // Only retain IN-PROGRESS, QUEUED, ACCEPTED and READY actions which are re-recommended.
+                // Only retain IN-PROGRESS, QUEUED, ACCEPTED, REJECTED and READY actions which are
+                // re-recommended.
                 switch (action.getState()) {
                     case IN_PROGRESS:
                     case QUEUED:
@@ -288,16 +338,17 @@ public class LiveActionStore implements ActionStore {
                         break;
                     case READY:
                     case ACCEPTED:
+                    case REJECTED:
                         recommendations.add(action);
-                        actionsToRemove.add(action.getId());
+                        actionsToRemove.add(action);
                         break;
                     case SUCCEEDED:
                     case FAILED:
                         completedSinceLastPopulate.add(action);
-                        actionsToRemove.add(action.getId());
+                        actionsToRemove.add(action);
                         break;
                     default:
-                        actionsToRemove.add(action.getId());
+                        actionsToRemove.add(action);
                 }
             });
 
@@ -318,15 +369,15 @@ public class LiveActionStore implements ActionStore {
             final Iterator<Long> recommendationOids;
             try {
                 recommendationOids = actionIdentityService.getOidsForObjects(
-                        Lists.transform(actionsWithAdditionalInfo, ActionDTO.Action::getInfo))
+                        Lists.transform(allActionsWithAdditionalInfo, ActionDTO.Action::getInfo))
                         .iterator();
             } catch (IdentityServiceException e) {
                 logger.error("Error retrieving OIDs for actions", e);
                 return false;
             }
             final List<Action> actionsToTranslate =
-                    new ArrayList<>(actionsWithAdditionalInfo.size());
-            for (ActionDTO.Action recommendedAction : actionsWithAdditionalInfo) {
+                    new ArrayList<>(allActionsWithAdditionalInfo.size());
+            for (ActionDTO.Action recommendedAction : allActionsWithAdditionalInfo) {
                 final long recommendationOid = recommendationOids.next();
                 final Optional<Action> existingActionOpt = recommendations.take(recommendationOid);
                 final Action action;
@@ -336,11 +387,13 @@ public class LiveActionStore implements ActionStore {
                     // If we are re-using an existing action, we should update the recommendation
                     // so other properties that may have changed (e.g. importance, executability)
                     // reflect the most recent recommendation from the market. However, we only
-                    // do this for "READY" or "ACCEPTED" actions. An IN_PROGRESS or QUEUED action
-                    // is considered "fixed" until it either succeeds or fails.
+                    // do this for "READY", "ACCEPTED", "REJECTED" actions.
+                    // An IN_PROGRESS or QUEUED action is considered "fixed" until it either succeeds or fails.
                     // TODO (roman, Oct 31 2018): If a QUEUED action becomes non-executable, it
                     // may be worth clearing it.
-                    if (action.getState() == ActionState.READY || action.getState() == ActionState.ACCEPTED) {
+                    if (action.getState() == ActionState.READY
+                            || action.getState() == ActionState.ACCEPTED
+                            || action.getState() == ActionState.REJECTED) {
                         action.updateRecommendation(recommendedAction);
                     }
                 } else {
@@ -349,7 +402,7 @@ public class LiveActionStore implements ActionStore {
                     newActionIds.add(action.getId());
                 }
                 final ActionState actionState = action.getState();
-                if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED) {
+                if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED || actionState == ActionState.REJECTED) {
                     actionsToTranslate.add(action);
                 }
             }
@@ -367,7 +420,7 @@ public class LiveActionStore implements ActionStore {
                     // Make sure to remove the actions with failed translations.
                     // We don't send NotRecommendedEvent-s because the action is still recommended
                     // but it's useless.
-                    actionsToRemove.add(action.getId());
+                    actionsToRemove.add(action);
                     logger.trace("Removed action {} with failed translation. Full action: {}",
                         action.getId(), action);
                 } else {
@@ -440,14 +493,16 @@ public class LiveActionStore implements ActionStore {
     /**
      * Add additional info to the actions, such as support level and pre-requisites of an action.
      *
-     * @param actionPlan an action plan containing actions
+     * @param allActions action plan and atomic actions
+     * @param mergedActions actions that were merged to create atomic actions
      * @param snapshot the snapshot of entities
      * @return a collection of actions with additional information added to them
      * @throws IdentityServiceException if exceptions occurred while
      */
     @Nonnull
     private Collection<ActionDTO.Action> actionsWithAdditionalInfo(
-            @Nonnull final ActionPlan actionPlan,
+            @Nonnull final List<ActionDTO.Action> allActions,
+            Map<Long, ActionDTO.Action> mergedActions,
             @Nonnull final EntitiesAndSettingsSnapshot snapshot) throws IdentityServiceException {
         try (DataMetricTimer timer = Metrics.SUPPORT_LEVEL_CALCULATION.startTimer()) {
             // Attempt to fully refresh the cache - this gets the most up-to-date target and
@@ -481,12 +536,12 @@ public class LiveActionStore implements ActionStore {
                                 actionView.getRecommendation(), actionView.getActionPlanId(),
                                 actionView.getRecommendationOid())));
             final Iterator<Long> oidIterator = actionIdentityService.getOidsForObjects(
-                    actionPlan.getActionList()
+                            allActions
                             .stream()
                             .map(ActionDTO.Action::getInfo)
                             .collect(Collectors.toList())).iterator();
-            final List<ActionDTO.Action> newActions = new ArrayList<>(actionPlan.getActionCount());
-            for (ActionDTO.Action action: actionPlan.getActionList()) {
+            final List<ActionDTO.Action> newActions = new ArrayList<>(allActions.size());
+            for (ActionDTO.Action action: allActions) {
                 final Long recommendationOid = oidIterator.next();
                 final Optional<Action> filteredAction =
                         lastExecutedRecommendationsTracker.take(recommendationOid);
@@ -523,7 +578,13 @@ public class LiveActionStore implements ActionStore {
                     .orElse(Collections.emptySet());
 
                 // If there are any updates to the action, update and rebuild it.
-                if (action.getSupportingLevel() != supportLevel || !prerequisites.isEmpty()) {
+                ActionDTO.Action marketAction = mergedActions.get(action.getId());
+                if (marketAction != null) {
+                    // mark merged actions as recommend only
+                    return marketAction.toBuilder()
+                            .setSupportingLevel(SupportLevel.SHOW_ONLY)
+                            .build();
+                } else if (action.getSupportingLevel() != supportLevel || !prerequisites.isEmpty()) {
                     return action.toBuilder()
                         .setSupportingLevel(supportLevel)
                         .addAllPrerequisite(prerequisites)
@@ -594,6 +655,15 @@ public class LiveActionStore implements ActionStore {
         return actions.getAction(actionId);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public Optional<Action> getActionByRecommendationId(long recommendationId) {
+        return actions.getActionByRecommendationId(recommendationId);
+    }
+
     @Nonnull
     @Override
     public Map<Long, Action> getActions() {
@@ -615,7 +685,6 @@ public class LiveActionStore implements ActionStore {
         return getAction(actionId)
             .map(Function.identity());
     }
-
 
     /**
      * {@inheritDoc}

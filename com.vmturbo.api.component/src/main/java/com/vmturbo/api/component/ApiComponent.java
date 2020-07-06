@@ -36,7 +36,6 @@ import com.vmturbo.api.internal.controller.DBAdminController;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.config.PropertiesLoader;
 import com.vmturbo.search.SearchDBConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
  * This is the "main()" for the API Component. The API component implements
@@ -55,7 +54,6 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig2;
     ServiceConfig.class,
     ApiDiagnosticsConfig.class,
     SearchDBConfig.class,
-    SQLDatabaseConfig2.class
 })
 public class ApiComponent extends BaseVmtComponent {
 
@@ -71,12 +69,6 @@ public class ApiComponent extends BaseVmtComponent {
      */
     @Autowired
     private SearchDBConfig searchDBConfig;
-
-    /**
-     * Configurations for interacting with database.
-     */
-    @Autowired
-    private SQLDatabaseConfig2 sqlDatabaseConfig;
 
     // env vars
     private static final String ENV_UPLOAD_MAX_FILE_SIZE_KB = "multipartConfigMaxFileSizeKb";
@@ -203,10 +195,6 @@ public class ApiComponent extends BaseVmtComponent {
         if (enableSearchApi) {
             logger.info("Search API enabled, initializing DB connection...");
             try {
-                //TODO:  Ask Andy before merge,  he may have initilization through baseVMTComponent
-                //and not require this step anymore
-                sqlDatabaseConfig.initAll();
-
                 //TODO:Remove before MERGE
 //            this.searchDBConfig.apiQueryEngine().processEntityQuery(EntityQueryApiDTO.queryEntity(SelectEntity.selectEntity(EntityType.VIRTUAL_MACHINE).build()));
             } catch (Exception e) {

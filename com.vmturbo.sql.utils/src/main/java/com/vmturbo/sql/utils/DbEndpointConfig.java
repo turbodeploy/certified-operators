@@ -1,6 +1,9 @@
 package com.vmturbo.sql.utils;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import javax.annotation.Nonnull;
 
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
@@ -13,8 +16,7 @@ import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
  * <p>See {@link DbEndpoint} for a detailed description of all the properties.</p>
  */
 public class DbEndpointConfig {
-
-    private String tag;
+    private final String tag;
     private SQLDialect dialect;
 
     private String dbHost;
@@ -34,14 +36,40 @@ public class DbEndpointConfig {
     private Boolean dbEndpointEnabled;
     private DbEndpoint template;
     private String dbNameSuffix;
-    private int[] dbRetryBackoffTimesSec;
 
+    // By default, wait for 30 minutes for context to finish initializing.
+    private long maxAwaitCompletionMs = TimeUnit.MINUTES.toMillis(30);
+
+    public DbEndpointConfig(@Nonnull final String tag) {
+        this.tag = tag;
+    }
+
+    /**
+     * Get the tag associated with this endpoint.
+     *
+     * @return The tag.
+     */
     public String getTag() {
         return tag;
     }
 
-    public void setTag(final String tag) {
-        this.tag = tag;
+    /**
+     * Set the maximum time to wait for completion.
+     *
+     * @param maxAwaitCompletion The time to wait for completion.
+     * @param timeUnit The time unit.
+     */
+    public void setMaxAwaitCompletion(long maxAwaitCompletion, TimeUnit timeUnit) {
+        this.maxAwaitCompletionMs = timeUnit.toMillis(maxAwaitCompletion);
+    }
+
+    /**
+     * Get the maximum time to wait for completion, in millis.
+     *
+     * @return The time, in millis.
+     */
+    public long getMaxAwaitCompletionMs() {
+        return maxAwaitCompletionMs;
     }
 
     public SQLDialect getDialect() {
@@ -186,13 +214,5 @@ public class DbEndpointConfig {
 
     public void setDbNameSuffix(final String dbNameSuffix) {
         this.dbNameSuffix = dbNameSuffix;
-    }
-
-    public int[] getDbRetryBackoffTimesSec() {
-        return dbRetryBackoffTimesSec;
-    }
-
-    public void setDbRetryBackoffTimesSec(final int[] dbRetryBackoffTimesSec) {
-        this.dbRetryBackoffTimesSec = dbRetryBackoffTimesSec;
     }
 }

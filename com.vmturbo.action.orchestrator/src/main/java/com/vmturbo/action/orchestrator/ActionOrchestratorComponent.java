@@ -9,8 +9,9 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
-import com.vmturbo.action.orchestrator.migration.MigrationConfig;
-import com.vmturbo.components.common.migration.Migration;
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,15 +19,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import io.grpc.BindableService;
-import io.grpc.ServerInterceptor;
-
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.api.ApiSecurityConfig;
 import com.vmturbo.action.orchestrator.diagnostics.ActionOrchestratorDiagnosticsConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.notifications.NotificationsConfig;
 import com.vmturbo.action.orchestrator.market.MarketConfig;
+import com.vmturbo.action.orchestrator.migration.MigrationConfig;
 import com.vmturbo.action.orchestrator.rpc.RpcConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
@@ -34,6 +33,7 @@ import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.components.common.migration.Migration;
 
 /**
  * The component for the action orchestrator.
@@ -109,6 +109,7 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
         services.add(rpcConfig.actionRpcService());
         services.add(rpcConfig.entitySeverityRpcService());
         services.add(rpcConfig.actionConstraintsRpcService());
+        services.add(rpcConfig.atomicActionSpecsRpcService());
         services.add(workflowConfig.discoveredWorkflowRpcService());
         services.add(workflowConfig.fetchWorkflowRpcService());
         rpcConfig.actionsDebugRpcService().ifPresent(services::add);

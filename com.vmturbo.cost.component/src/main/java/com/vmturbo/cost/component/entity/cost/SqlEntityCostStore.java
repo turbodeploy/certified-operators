@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.entity.cost;
 
 import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
+import static com.vmturbo.cost.component.db.Tables.PLAN_ENTITY_COST;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.min;
@@ -16,13 +17,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -34,11 +38,11 @@ import org.jooq.BatchBindStep;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.InsertSetMoreStep;
 import org.jooq.Record;
 import org.jooq.Record7;
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
-import org.jooq.SelectHavingStep;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.exception.DataAccessException;
@@ -53,10 +57,19 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.tables.records.EntityCostByDayRecord;
+import com.vmturbo.cost.component.db.tables.records.EntityCostByHourRecord;
+import com.vmturbo.cost.component.db.tables.records.EntityCostByMonthRecord;
+import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.tables.records.EntityCostRecord;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.CostGroupBy;
@@ -67,9 +80,13 @@ import com.vmturbo.trax.TraxNumber;
 /**
  * {@inheritDoc}
  */
-public class SqlEntityCostStore implements EntityCostStore {
+public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosable {
 
     private static final Logger logger = LogManager.getLogger();
+
+    // Tables that contain non-projected entity costs.
+    private static final Set<Table<?>> nonProjectedEntityCostTables =
+            ImmutableSet.of(ENTITY_COST, PLAN_ENTITY_COST);
 
     private final DSLContext dsl;
 
@@ -77,21 +94,37 @@ public class SqlEntityCostStore implements EntityCostStore {
 
     private final int chunkSize;
 
+    private static final String entityCostDumpFile = "entityCost_dump";
+
+    private final LatestEntityCostsDiagsHelper latestEntityCostsDiagsHelper;
+
+    private final EntityCostsByMonthDiagsHelper entityCostsByMonthDiagsHelper;
+
+    private final EntityCostsByDayDiagsHelper entityCostsByDayDiagsHelper;
+
+    private final EntityCostsByHourDiagsHelper entityCostsByHourDiagsHelper;
+
     public SqlEntityCostStore(@Nonnull final DSLContext dsl,
                               @Nonnull final Clock clock,
                               final int chunkSize) {
         this.dsl = Objects.requireNonNull(dsl);
         this.clock = Objects.requireNonNull(clock);
         this.chunkSize = chunkSize;
+        this.latestEntityCostsDiagsHelper = new LatestEntityCostsDiagsHelper(dsl);
+        this.entityCostsByMonthDiagsHelper = new EntityCostsByMonthDiagsHelper(dsl);
+        this.entityCostsByDayDiagsHelper = new EntityCostsByDayDiagsHelper(dsl);
+        this.entityCostsByHourDiagsHelper = new EntityCostsByHourDiagsHelper(dsl);
     }
 
     @Override
     public void persistEntityCost(
             @Nonnull final Map<Long, CostJournal<TopologyEntityDTO>> costJournals,
             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
-            final long topologyCreationTime) throws DbException {
+            final long topologyCreationTimeOrContextId, final boolean isPlan) throws DbException {
         final LocalDateTime createdTime =
-                Instant.ofEpochMilli(topologyCreationTime).atZone(ZoneOffset.UTC).toLocalDateTime();
+                Instant.ofEpochMilli(isPlan
+                        ? System.currentTimeMillis()
+                        : topologyCreationTimeOrContextId).atZone(ZoneOffset.UTC).toLocalDateTime();
         try {
             logger.info("Persisting {} entity cost journals", costJournals::size);
 
@@ -99,23 +132,27 @@ public class SqlEntityCostStore implements EntityCostStore {
             // on large topologies. Ideally this should be one transaction.
             // TODO (roman, Sept 6 2018): Try to handle transaction failure (e.g. by deleting all
             //  committed data).
+            Table table = isPlan ? PLAN_ENTITY_COST : ENTITY_COST;
             Iterators.partition(costJournals.values().iterator(), chunkSize)
                     .forEachRemaining(chunk -> dsl.transaction(transaction -> {
                         final DSLContext transactionContext = DSL.using(transaction);
                         // Initialize the batch.
-                        final BatchBindStep batch = transactionContext.batch(
-                                //have to provide dummy values for jooq
-                                dsl.insertInto(ENTITY_COST)
-                                        .set(ENTITY_COST.ASSOCIATED_ENTITY_ID, 0L)
-                                        .set(ENTITY_COST.CREATED_TIME, createdTime)
-                                        .set(ENTITY_COST.ASSOCIATED_ENTITY_TYPE, 0)
-                                        .set(ENTITY_COST.COST_TYPE, 0)
-                                        .set(ENTITY_COST.COST_SOURCE, 0)
-                                        .set(ENTITY_COST.CURRENCY, 0)
-                                        .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0))
-                                        .set(ENTITY_COST.ACCOUNT_ID, 0L)
-                                        .set(ENTITY_COST.AVAILABILITY_ZONE_ID, 0L)
-                                        .set(ENTITY_COST.REGION_ID, 0L));
+                        // Provide dummy values for jooq
+                        InsertSetMoreStep insert = dsl.insertInto(table)
+                                .set(getField(table, ENTITY_COST.ASSOCIATED_ENTITY_ID), 0L)
+                                .set(getField(table, ENTITY_COST.CREATED_TIME), createdTime)
+                                .set(getField(table, ENTITY_COST.ASSOCIATED_ENTITY_TYPE), 0)
+                                .set(getField(table, ENTITY_COST.COST_TYPE), 0)
+                                .set(getField(table, ENTITY_COST.COST_SOURCE), 0)
+                                .set(getField(table, ENTITY_COST.CURRENCY), 0)
+                                .set(getField(table, ENTITY_COST.AMOUNT), BigDecimal.valueOf(0))
+                                .set(getField(table, ENTITY_COST.ACCOUNT_ID), 0L)
+                                .set(getField(table, ENTITY_COST.AVAILABILITY_ZONE_ID), 0L)
+                                .set(getField(table, ENTITY_COST.REGION_ID), 0L);
+                        if (isPlan) {
+                            insert.set(PLAN_ENTITY_COST.PLAN_ID, 0L);
+                        }
+                        final BatchBindStep batch = transactionContext.batch(insert);
 
                         // Bind values to the batch insert statement. Each "bind" should have values for
                         // all fields set during batch initialization.
@@ -126,23 +163,41 @@ public class SqlEntityCostStore implements EntityCostStore {
                                                 costSource);
                                 if (categoryCost != null) {
                                     final long entityOid = journal.getEntity().getOid();
-                                    batch.bind(entityOid,
-                                            createdTime,
-                                            journal.getEntity().getEntityType(),
-                                            costType.getNumber(),
-                                            costSource.getNumber(),
-                                            // TODO (roman, Sept 5 2018): Not handling currency in cost
-                                            //  calculation yet.
-                                            CurrencyAmount.getDefaultInstance().getCurrency(),
-                                            BigDecimal.valueOf(categoryCost.getValue()),
-                                            cloudTopology.getOwner(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(0L),
-                                            cloudTopology.getConnectedAvailabilityZone(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(0L),
-                                            cloudTopology.getConnectedRegion(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(0L)
+                                    if (isPlan) {
+                                        batch.bind(entityOid,
+                                                createdTime,
+                                                journal.getEntity().getEntityType(),
+                                                costType.getNumber(),
+                                                costSource.getNumber(),
+                                                // TODO (roman, Sept 5 2018): Not handling currency in cost
+                                                //  calculation yet.
+                                                CurrencyAmount.getDefaultInstance().getCurrency(),
+                                                BigDecimal.valueOf(categoryCost.getValue()),
+                                                cloudTopology.getOwner(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L),
+                                                cloudTopology.getConnectedAvailabilityZone(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L),
+                                                cloudTopology.getConnectedRegion(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L),
+                                                topologyCreationTimeOrContextId);
+                                    } else {
+                                        batch.bind(entityOid,
+                                                createdTime,
+                                                journal.getEntity().getEntityType(),
+                                                costType.getNumber(),
+                                                costSource.getNumber(),
+                                                // TODO (roman, Sept 5 2018): Not handling currency in cost
+                                                //  calculation yet.
+                                                CurrencyAmount.getDefaultInstance().getCurrency(),
+                                                BigDecimal.valueOf(categoryCost.getValue()),
+                                                cloudTopology.getOwner(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L),
+                                                cloudTopology.getConnectedAvailabilityZone(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L),
+                                                cloudTopology.getConnectedRegion(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L)
                                         );
-
+                                    }
                                 }
                             }
                         }));
@@ -169,7 +224,7 @@ public class SqlEntityCostStore implements EntityCostStore {
             final Field<BigDecimal> amount = getField(table, ENTITY_COST.AMOUNT);
             List<Field<?>> list = Arrays.asList(entityId, createdTime, entityType, costType, currency, amount);
             List<Field<?>> modifiableList = new ArrayList<>(list);
-            if (table.equals(ENTITY_COST)) {
+            if (nonProjectedEntityCostTables.contains(table)) {
                 final Field<Integer> costSource = getField(table, ENTITY_COST.COST_SOURCE);
                 modifiableList.add(costSource);
             }
@@ -179,23 +234,13 @@ public class SqlEntityCostStore implements EntityCostStore {
                     .from(table)
                     .where(entityCostFilter.getConditions());
 
-            // If latest timestamp is requested only return the info related to latest timestamp (created_time)
-            // we want to get the latest time stamp for every entity. Since entities can have different
-            // max(created_time), we create a tmp table with (entityId, max_created_time) and join with
-            // cost table, so that each entity will have a record with its own entity time.
+            // If latest timestamp is requested only return the info related to latest timestamp
             if (entityCostFilter.isLatestTimeStampRequested()) {
-                final String maxCreatedTime = "max_created_time";
-                SelectHavingStep tmpTable = dsl.select(entityId, createdTime.max().as(maxCreatedTime))
-                        .from(table).where(entityCostFilter.getConditions()).groupBy(entityId);
-                final Field<Long> entityIdTmp = tmpTable.field(ENTITY_COST.ASSOCIATED_ENTITY_ID);
-                final Field<LocalDateTime> createdTimeMax = tmpTable.field(maxCreatedTime);
-
-                selectCondition = dsl
-                    .select(modifiableList)
-                    .from(table)
-                    .join(tmpTable)
-                    .on(entityId.eq(entityIdTmp).and(createdTime.eq(createdTimeMax)))
-                    .where(entityCostFilter.getConditions());
+                selectCondition =
+                        selectCondition.and(ENTITY_COST.CREATED_TIME.eq(
+                                dsl.select(DSL.max(ENTITY_COST.CREATED_TIME))
+                                        .from(table)
+                                        .where(entityCostFilter.getConditions())));
             }
 
             final Result<? extends Record> records = selectCondition.fetch();
@@ -249,7 +294,7 @@ public class SqlEntityCostStore implements EntityCostStore {
         final Field<Integer> entityType = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_TYPE);
         final Field<Integer> costType = getField(table, ENTITY_COST.COST_TYPE);
         final Set<Field<?>> selectableFields = Sets.newHashSet(groupByFields);
-        if (table.equals(ENTITY_COST)) {
+        if (nonProjectedEntityCostTables.contains(table)) {
             final Field<Integer> costSource = getField(table, ENTITY_COST.COST_SOURCE);
             selectableFields.add(costSource);
         }
@@ -281,7 +326,7 @@ public class SqlEntityCostStore implements EntityCostStore {
         final Field<BigDecimal> amount = getField(table, ENTITY_COST.AMOUNT);
         final List<Field<?>> list = Arrays.asList(entityId, createdTime, entityType, costType, currency, amount);
         final List<Field<?>> modifiableList = new ArrayList<>(list);
-        if (table.equals(ENTITY_COST)) {
+        if (nonProjectedEntityCostTables.contains(table)) {
             final Field<Integer> costSource = getField(table, ENTITY_COST.COST_SOURCE);
             modifiableList.add(costSource);
         }
@@ -309,9 +354,9 @@ public class SqlEntityCostStore implements EntityCostStore {
             //TODO: optimize to avoid building EntityCost
             final EntityCost newCost = toEntityCostDTO(new RecordWrapper(entityRecord));
             costsForTimestamp.compute(newCost.getAssociatedEntityId(),
-                    (id, existingCost) -> existingCost == null ?
-                            newCost :
-                            existingCost.toBuilder()
+                    (id, existingCost) -> existingCost == null
+                            ? newCost
+                            : existingCost.toBuilder()
                                     .addAllComponentCost(newCost.getComponentCostList())
                                     .build());
         });
@@ -382,9 +427,9 @@ public class SqlEntityCostStore implements EntityCostStore {
             //TODO: optimize to avoid building EntityCost
             final EntityCost newCost = toEntityCostDTO(new RecordWrapper(entityRecord));
             costsForTimestamp.compute(newCost.getAssociatedEntityId(),
-                    (id, existingCost) -> existingCost == null ?
-                            newCost :
-                            existingCost.toBuilder()
+                    (id, existingCost) -> existingCost == null
+                            ? newCost
+                            : existingCost.toBuilder()
                                     .addAllComponentCost(newCost.getComponentCostList())
                                     .build());
         });
@@ -442,7 +487,7 @@ public class SqlEntityCostStore implements EntityCostStore {
             @Nonnull final CostFilter entityCostFilter,
             @Nonnull final Field<LocalDateTime> createdTime,
             @Nonnull final Table<?> table) {
-        if (entityCostFilter.isLatest()) {
+        if (entityCostFilter.isLatest() && !entityCostFilter.hasTopologyContextId()) {
             return createdTime.eq(dsl.select(max(createdTime)).from(table));
         } else {
             return trueCondition();
@@ -453,6 +498,32 @@ public class SqlEntityCostStore implements EntityCostStore {
             @Nonnull final Table<?> table,
             @Nonnull final TableField<EntityCostRecord, T> field) {
         return (Field<T>)table.field(field.getName());
+    }
+
+    @Override
+    public Set<Diagnosable> getDiagnosables(final boolean collectHistoricalStats) {
+        HashSet<Diagnosable> storesToSave = new HashSet<>();
+        storesToSave.add(latestEntityCostsDiagsHelper);
+        if (collectHistoricalStats) {
+            storesToSave.add(entityCostsByDayDiagsHelper);
+            storesToSave.add(entityCostsByHourDiagsHelper);
+            storesToSave.add(entityCostsByMonthDiagsHelper);
+        }
+        return storesToSave;
+    }
+
+    /**
+     * Remove plan entity cost snapshot that was created by a plan.
+     * @param planId the ID of the plan for which to remove cost data.
+     * @throws DbException if there was an error removing the plan cost data.
+     */
+    public void deleteEntityCosts(final long planId) throws DbException {
+        logger.info("Deleting data from plan entity costs for planId : " + planId);
+        final int rowsDeleted = dsl
+                .deleteFrom(PLAN_ENTITY_COST)
+                .where(Tables.PLAN_ENTITY_COST.PLAN_ID.eq(planId))
+                .execute();
+        logger.info("Deleted {} records from plan entity costs for planId {}", rowsDeleted, planId);
     }
 
     /**
@@ -495,6 +566,162 @@ public class SqlEntityCostStore implements EntityCostStore {
 
         BigDecimal getAmount() {
             return record7.get(ENTITY_COST.AMOUNT);
+        }
+    }
+
+    /**
+     * Helper class for dumping latest entity cost db records to exported topology.
+     */
+    private static final class LatestEntityCostsDiagsHelper implements DiagsRestorable {
+
+        private final DSLContext dsl;
+
+        LatestEntityCostsDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+        @Override
+        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+
+        }
+
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+            dsl.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                Stream<EntityCostRecord> latestRecords = transaction.selectFrom(ENTITY_COST).stream();
+                latestRecords.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Error encountered while appending latest entity costs to the" +
+                                " diags dump", e);
+                    }
+                });
+            });
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return entityCostDumpFile;
+        }
+    }
+
+    /**
+     * Helper class for dumping daily entity cost db records to exported topology.
+     */
+    private static final class EntityCostsByDayDiagsHelper implements DiagsRestorable {
+        private static final String entityCostByDayDumpFile = "entityCostByDay_dump";
+
+        private final DSLContext dsl;
+
+        EntityCostsByDayDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+        @Override
+        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+
+        }
+
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+            dsl.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                Stream<EntityCostByDayRecord> hourlyRecords = transaction.selectFrom(Tables.ENTITY_COST_BY_DAY).stream();
+                hourlyRecords.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Error encountered while appending entity costs by day to the" +
+                                " diags dump", e);
+                    }
+                });
+            });
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return entityCostByDayDumpFile;
+        }
+    }
+
+    /**
+     * Helper class for dumping hourly entity cost db records to exported topology.
+     */
+    private static final class EntityCostsByHourDiagsHelper implements DiagsRestorable {
+        private static final String entityCostByDayDumpFile = "entityCostByHour_dump";
+
+        private final DSLContext dsl;
+
+        EntityCostsByHourDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+        @Override
+        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+
+        }
+
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+            dsl.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                Stream<EntityCostByHourRecord> hourlyRecords = transaction.selectFrom(Tables.ENTITY_COST_BY_HOUR).stream();
+                hourlyRecords.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Error encountered while appending entity costs by hour to the" +
+                                " diags dump", e);
+                    }
+                });
+            });
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return entityCostByDayDumpFile;
+        }
+    }
+
+    /**
+     * Helper class for dumping monthly entity cost db records to exported topology.
+     */
+    private static final class EntityCostsByMonthDiagsHelper implements DiagsRestorable {
+        private static final String entityCostByDayDumpFile = "entityCostByMonth_dump";
+
+        private final DSLContext dsl;
+
+        EntityCostsByMonthDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+            // TODO to be implemented as part of OM-58627
+        }
+
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+            dsl.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                Stream<EntityCostByMonthRecord> dailyRecords = transaction.selectFrom(Tables.ENTITY_COST_BY_MONTH).stream();
+                dailyRecords.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Error encountered while appending entity costs by month to the" +
+                                " diags dump", e);
+                    }
+                });
+            });
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return entityCostByDayDumpFile;
         }
     }
 }

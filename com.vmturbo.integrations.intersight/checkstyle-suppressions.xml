@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]IntersightConnectionConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]IntersightLicenseSyncConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]licensing[/\\]IntersightLicenseClient.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]licensing[/\\]IntersightLicenseCountUpdater.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]licensing[/\\]IntersightLicenseSyncService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]licensing[/\\]IntersightLicenseUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]licensing[/\\]IntersightProxyLicenseEdition.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]targetsync[/\\]IntersightTargetSyncService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]targetsync[/\\]WrappedTarget.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]licensing[/\\]IntersightLicenseClientTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]licensing[/\\]IntersightLicenseSyncServiceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]licensing[/\\]IntersightLicenseTestUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]integrations[/\\]intersight[/\\]licensing[/\\]IntersightLicenseUtilsTest.java" />
+</suppressions>

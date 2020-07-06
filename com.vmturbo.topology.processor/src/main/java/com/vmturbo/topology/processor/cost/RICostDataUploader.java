@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -265,7 +266,7 @@ public class RICostDataUploader {
 
         stitchingContext.getEntitiesOfType(EntityType.RESERVED_INSTANCE).forEach(ri -> {
             final ReservedInstanceData riData = ri.getEntityBuilder().getReservedInstanceData();
-            final Long purchasingAccountOId;
+            Long purchasingAccountOId = null;
             if (riData.hasPurchasingAccountId()) {
                 purchasingAccountOId = cloudEntitiesMap.get(riData.getPurchasingAccountId());
                 if (purchasingAccountOId != null) {
@@ -277,20 +278,18 @@ public class RICostDataUploader {
                         return;
                     }
                 } else {
+                    purchasingAccountOId = cloudEntitiesMap.getFallbackAccountOid(ri.getTargetId());
                     logger.warn(
-                            "Could not find purchasing account oid by id {} for reserved instance {}.",
-                            riData.getPurchasingAccountId(), ri.getLocalId());
-                    if (discardRIsWithoutPurchasingAccountData) {
-                        logger.info(
-                                "Ignoring RI {} because could not find purchasing account oid by id {}.",
-                                ri.getLocalId(), riData.getPurchasingAccountId());
-                        return;
-                    }
+                            "Could not retrieve purchasing account oid by id {}"
+                                    + " {}. Using the fall back account : {} from target: {}.",
+                            riData.getPurchasingAccountId(), ri.getLocalId(),
+                            purchasingAccountOId, ri.getTargetId());
                 }
             } else {
-                logger.info("Ignoring RI {} because no purchasing account specified.",
-                        ri.getLocalId());
-                return;
+                purchasingAccountOId = cloudEntitiesMap.getFallbackAccountOid(ri.getTargetId());
+                logger.warn("RI {} does not have a purchasing account in the"
+                                + " ReservedInstanceData. Using the fall back account : {} from target: {}.",
+                        ri.getLocalId(), purchasingAccountOId, ri.getTargetId());
             }
 
             // We skip partial term Reserved Instances ie RI's whose term is not 1 or 3 years
@@ -368,10 +367,17 @@ public class RICostDataUploader {
             // counting algorithm will still be running. If/when the probe sends "used" directly,
             // we should remove our counting algorithm, or activate it only as a fallback for cases
             // where used is not available.
+            int numberOfCoupons = riData.getNumberOfCoupons();
+            if (numberOfCoupons == 0) {
+                numberOfCoupons = getNumberOfCouponsFromInstanceFamily(riData.getRelatedProfileId(),
+                        stitchingContext);
+                logger.info("Number of coupons not set for RI {},"
+                                + " setting as max ({}) from Instance family",
+                        ri.getLocalId(), numberOfCoupons);
+            }
             final ReservedInstanceBoughtCoupons.Builder riBoughtCoupons =
                     ReservedInstanceBoughtCoupons.newBuilder()
-                            .setNumberOfCoupons(riData.getNumberOfCoupons())
-                            //.setNumberOfCouponsUsed(riData.getNumberOfCouponsUsed())
+                            .setNumberOfCoupons(numberOfCoupons)
                             .setNumberOfCouponsUsed(0);
 
             final ReservedInstanceBoughtInfo.Builder reservedInstanceBoughtInfo =
@@ -388,7 +394,7 @@ public class RICostDataUploader {
             if (riData.hasInstanceCount()) {
                 reservedInstanceBoughtInfo.setNumBought(riData.getInstanceCount());
             }
-
+            // Fall back if purchasingAccountOId comes through as null.
             if (purchasingAccountOId != null) {
                 // If purchasing account is set in RI data then get it from there.
                 reservedInstanceBoughtInfo.setBusinessAccountId(purchasingAccountOId);
@@ -468,6 +474,16 @@ public class RICostDataUploader {
                 .build()));
         riCostComponentData.riSpecs = riSpecs;
         riCostComponentData.riBoughtByLocalId = riBoughtByLocalId;
+    }
+
+    private int getNumberOfCouponsFromInstanceFamily(final String instanceType,
+                                                     final StitchingContext stitchingContext) {
+        return stitchingContext.getEntitiesOfType(EntityType.COMPUTE_TIER)
+                .filter(tier -> tier.getEntityBuilder().getId().equals(instanceType))
+                .filter(tier -> tier.getEntityBuilder().hasComputeTierData())
+                .findFirst()
+                .map(tier -> tier.getEntityBuilder().getComputeTierData().getNumCoupons())
+                .orElse(0);
     }
 
     /**

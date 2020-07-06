@@ -1,10 +1,11 @@
 package com.vmturbo.topology.processor.actions.data;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -14,14 +15,17 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.EntityConversionException;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
+import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
+import com.vmturbo.topology.processor.topology.pipeline.CachedTopology.CachedTopologyResult;
 
 /**
  * This class retrieves and converts an entity in order to provide the full entity data for action
  * execution.
  *
- * Entities are the key component of the
+ * <p>Entities are the key component of the
  * {@link com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO} that is sent to the
  * probe during action execution. Ideally, the entities that are sent will reflect the full stitched
  * entity data. In order to achieve that, the (stitched) TopologyEntityDTO will be retrieved from
@@ -29,10 +33,7 @@ import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
  */
 public class EntityRetriever {
 
-    /**
-     * logger
-     */
-    private static final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(getClass());
 
     /**
      * Converts topology processor's entity DTOs to entity DTOs used by SDK probes.
@@ -40,26 +41,46 @@ public class EntityRetriever {
     private final TopologyToSdkEntityConverter entityConverter;
 
     /**
-     * Retrieves the full ToplogyEntityDTO from the Repository service
+     * Repository client to use.
      */
     private final RepositoryClient repositoryClient;
+    /**
+     * Cached topology to use to get entities by OIDs to avoid querying repository.
+     */
+    private final CachedTopology cachedTopology;
 
     /**
      * The context ID for the realtime market. Used when making remote calls to the repository service.
      */
     private final long realtimeTopologyContextId;
 
-
+    /**
+     * Constructs entity retriever.
+     *
+     * @param entityConverter entity converter to convert XL DTOs into SDK ones.
+     * @param repositoryClient repository client to use if entities are not found in topology cache
+     * @param cachedTopology topology cache (from the previous broadcast)
+     * @param realtimeTopologyContextId topology context ID to retrieve data from repository
+     */
     public EntityRetriever(@Nonnull final TopologyToSdkEntityConverter entityConverter,
                            @Nonnull final RepositoryClient repositoryClient,
+                           @Nonnull final CachedTopology cachedTopology,
                            final long realtimeTopologyContextId) {
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.entityConverter = Objects.requireNonNull(entityConverter);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.cachedTopology = Objects.requireNonNull(cachedTopology);
     }
 
+    /**
+     * Retrieves topology entity by the specified OID and converts it to SDK entity data structure.
+     * @param entityId entity to retrieve
+     * @return SDK entity data
+     * @throws EntityRetrievalException if failed to either retrieve or convert the entity
+     */
     @Nonnull
-    public EntityDTO fetchAndConvertToEntityDTO(final long entityId) throws EntityRetrievalException {
+    public EntityDTO fetchAndConvertToEntityDTO(final long entityId)
+            throws EntityRetrievalException {
         // Get the full (stitched) entity from the Repository Service
         logger.info("Fetch entity oid {} from repository", entityId);
         final TopologyEntityDTO topologyEntityDTO = retrieveTopologyEntity(entityId)
@@ -75,30 +96,65 @@ public class EntityRetriever {
         }
     }
 
+    /**
+     * Converts XL entity into SDK entity.
+     *
+     * @param topologyEntityDTO entity to convert.
+     * @return SDK entity
+     */
     @Nonnull
     public EntityDTO convertToEntityDTO(TopologyEntityDTO topologyEntityDTO) {
         return entityConverter.convertToEntityDTO(topologyEntityDTO);
     }
 
     /**
-     * Retrieve entity data from Repository service
+     * Retrieve entity data. This is a shortcut for calling {@link #retrieveTopologyEntities(List)}.
      *
      * @param entityId the ID of the entity to fetch data about
      * @return stitched entity data corresponding to the provided entity
      */
     public Optional<TopologyEntityDTO> retrieveTopologyEntity(final long entityId) {
-        return repositoryClient.retrieveTopologyEntities(
-                Collections.singletonList(Long.valueOf(entityId)), realtimeTopologyContextId)
-                .findFirst();
+        final List<TopologyEntityDTO> topologyEntities = retrieveTopologyEntities(
+                Collections.singletonList(entityId));
+        if (topologyEntities.isEmpty()) {
+            return Optional.empty();
+        } else {
+            return Optional.of(topologyEntities.iterator().next());
+        }
     }
 
     /**
-     * Retrieve entity data from Repository service
+     * Retrieve entity data from cached topology data. If nothing found, will try loading from
+     * repository component.
      *
      * @param entities the entities to fetch data about
      * @return entity data corresponding to the provided entities
      */
-    public Stream<TopologyEntityDTO> retrieveTopologyEntities(List<Long> entities) {
-        return repositoryClient.retrieveTopologyEntities(entities, realtimeTopologyContextId);
+    public List<TopologyEntityDTO> retrieveTopologyEntities(List<Long> entities) {
+        final CachedTopologyResult cachedTopologyResult = cachedTopology.getTopology(null);
+        final List<Long> retrieveFromRepository = new ArrayList<>();
+        final List<TopologyEntityDTO> results = new ArrayList<>(entities.size());
+        for (Long entityId: entities) {
+            final TopologyEntity.Builder entity = cachedTopologyResult.getEntities().get(entityId);
+            if (entity != null) {
+                results.add(entity.build().getTopologyEntityDtoBuilder().build());
+            } else {
+                retrieveFromRepository.add(entityId);
+            }
+        }
+        logger.debug("Fetched {} of {} requested entities from topology cached. "
+                        + "Will request rest {} from repository", results::size, entities::size,
+                retrieveFromRepository::size);
+        if (!retrieveFromRepository.isEmpty()) {
+            logger.info("Fetch entities by oids {} from repository", entities);
+            final List<TopologyEntityDTO> dtos = repositoryClient.retrieveTopologyEntities(
+                    retrieveFromRepository, realtimeTopologyContextId).collect(Collectors.toList());
+            logger.info("Successfully retrieved following entities from from repository: [{}]", dtos
+                    .stream()
+                    .map(TopologyEntityDTO::getDisplayName)
+                    .collect(Collectors.joining(",")));
+            results.addAll(dtos);
+        }
+        return results;
     }
 }

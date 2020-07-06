@@ -21,9 +21,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -57,12 +55,11 @@ import org.jooq.Query;
 import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Record3;
-import org.jooq.Record5;
+import org.jooq.Record6;
 import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.SelectConditionStep;
 import org.jooq.SelectJoinStep;
-import org.jooq.TableRecord;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.springframework.util.StopWatch;
@@ -88,6 +85,7 @@ import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.GroupDiscoverTargets;
@@ -97,8 +95,6 @@ import com.vmturbo.group.db.tables.pojos.GroupStaticMembersEntities;
 import com.vmturbo.group.db.tables.pojos.GroupStaticMembersGroups;
 import com.vmturbo.group.db.tables.pojos.GroupTags;
 import com.vmturbo.group.db.tables.pojos.Grouping;
-import com.vmturbo.group.db.tables.records.GroupDiscoverTargetsRecord;
-import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -148,8 +144,6 @@ public class GroupDAO implements IGroupStore {
             PROPETY_FILTER_CONDITION_CREATORS;
 
     private final DSLContext dslContext;
-
-    private final Collection<Consumer<Long>> deleteCallbacks = new CopyOnWriteArrayList<>();
 
     static {
         PROPETY_FILTER_CONDITION_CREATORS =
@@ -213,13 +207,13 @@ public class GroupDAO implements IGroupStore {
                             + sameNameGroups + ") already exists.");
         }
         context.newRecord(GROUPING, groupPojo).store();
-        final Collection<TableRecord<?>> inserts = new ArrayList<>();
+        final Collection<Query> inserts = new ArrayList<>();
         inserts.addAll(
                 insertGroupDefinitionDependencies(context, groupPojo.getId(), groupDefinition));
         inserts.addAll(
                 insertExpectedMembers(context, groupPojo.getId(), new HashSet<>(expectedMembers),
                         groupDefinition.getStaticGroupMembers()));
-        context.batchInsert(inserts).execute();
+        context.batch(inserts).execute();
     }
 
     private void validatePropertyFilters(@Nullable GroupFilters groupFilters) {
@@ -299,9 +293,9 @@ public class GroupDAO implements IGroupStore {
         return groupPojo;
     }
 
-    private Collection<TableRecord<?>> insertGroupDefinitionDependencies(
+    private Collection<Query> insertGroupDefinitionDependencies(
             @Nonnull DSLContext context, long groupId, @Nonnull GroupDefinition groupDefinition) {
-        final Collection<TableRecord<?>> records = new ArrayList<>();
+        final Collection<Query> records = new ArrayList<>();
         if (groupDefinition.getSelectionCriteriaCase()
                 == SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
             records.addAll(insertGroupStaticMembers(context, groupId,
@@ -311,52 +305,50 @@ public class GroupDAO implements IGroupStore {
         return records;
     }
 
-    private Collection<TableRecord<?>> insertTags(@Nonnull DSLContext context, @Nonnull Tags tags,
+    private Collection<Query> insertTags(@Nonnull DSLContext context, @Nonnull Tags tags,
             long groupId) {
-        final Collection<TableRecord<?>> result = new ArrayList<>();
-        final Set<String> trackGroupTags = new HashSet<>();
+        final Collection<Query> result = new ArrayList<>();
         for (Entry<String, TagValuesDTO> entry : tags.getTagsMap().entrySet()) {
             for (String tagValue : entry.getValue().getValuesList()) {
                 final GroupTags tag = new GroupTags(groupId, entry.getKey(), tagValue);
-                String tagString = entry.getKey().concat(tagValue);
-                if (trackGroupTags.contains(tagString)) {
-                    logger.warn("Skipping GroupTags insertion since record already present: {}", tag.toString());
-                } else {
-                    result.add(
-                            context.newRecord(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS, tag));
-                    trackGroupTags.add(tagString);
-                }
+                result.add(
+                    context.insertInto(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS)
+                        .set(context.newRecord(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS, tag))
+                        .onDuplicateKeyIgnore()
+                );
             }
         }
         return result;
     }
 
-    private Collection<TableRecord<?>> insertGroupStaticMembers(@Nonnull DSLContext context,
+    private Collection<Query> insertGroupStaticMembers(@Nonnull DSLContext context,
             long groupId, @Nonnull StaticMembers staticMembers) {
-        final Collection<TableRecord<?>> records = new ArrayList<>();
+        final Collection<Query> records = new ArrayList<>();
         for (StaticMembersByType staticMember : staticMembers.getMembersByTypeList()) {
             if (staticMember.getType().getTypeCase() == TypeCase.GROUP) {
                 for (Long memberId : staticMember.getMembersList()) {
                     final GroupStaticMembersGroups groupChild =
                             new GroupStaticMembersGroups(groupId, memberId);
-                    records.add(context.newRecord(GROUP_STATIC_MEMBERS_GROUPS, groupChild));
+                    records.add(context.insertInto(GROUP_STATIC_MEMBERS_GROUPS)
+                        .set(context.newRecord(GROUP_STATIC_MEMBERS_GROUPS, groupChild)));
                 }
             } else {
                 for (Long memberId : staticMember.getMembersList()) {
                     final GroupStaticMembersEntities entityChild =
                             new GroupStaticMembersEntities(groupId,
                                     staticMember.getType().getEntity(), memberId);
-                    records.add(context.newRecord(GROUP_STATIC_MEMBERS_ENTITIES, entityChild));
+                    records.add(context.insertInto(GROUP_STATIC_MEMBERS_ENTITIES)
+                        .set(context.newRecord(GROUP_STATIC_MEMBERS_ENTITIES, entityChild)));
                 }
             }
         }
         return records;
     }
 
-    private Collection<TableRecord<?>> insertExpectedMembers(@Nonnull DSLContext context,
+    private Collection<Query> insertExpectedMembers(@Nonnull DSLContext context,
             long groupId, @Nonnull Set<MemberType> memberTypes,
             @Nullable StaticMembers staticMembers) throws StoreOperationException {
-        final Collection<TableRecord<?>> records = new ArrayList<>();
+        final Collection<Query> records = new ArrayList<>();
         final Set<MemberType> directMembers;
         if (staticMembers != null) {
             directMembers = staticMembers.getMembersByTypeList()
@@ -387,26 +379,29 @@ public class GroupDAO implements IGroupStore {
                 final GroupExpectedMembersGroups groupMember =
                         new GroupExpectedMembersGroups(groupId, memberType.getGroup(),
                                 directMember);
-                records.add(context.newRecord(GROUP_EXPECTED_MEMBERS_GROUPS, groupMember));
+                records.add(context.insertInto(GROUP_EXPECTED_MEMBERS_GROUPS)
+                    .set(context.newRecord(GROUP_EXPECTED_MEMBERS_GROUPS, groupMember)));
             } else {
                 final GroupExpectedMembersEntities entityMember =
                         new GroupExpectedMembersEntities(groupId, memberType.getEntity(),
                                 directMember);
-                records.add(context.newRecord(GROUP_EXPECTED_MEMBERS_ENTITIES, entityMember));
+                records.add(context.insertInto(GROUP_EXPECTED_MEMBERS_ENTITIES)
+                    .set(context.newRecord(GROUP_EXPECTED_MEMBERS_ENTITIES, entityMember)));
             }
         }
         return records;
     }
 
-    private Collection<GroupDiscoverTargetsRecord> createTargetForGroupRecords(
+    private Collection<Query> createTargetForGroupRecords(
             @Nonnull DSLContext context, long groupId, @Nonnull Set<Long> targets) {
-        final Collection<GroupDiscoverTargetsRecord> result = new ArrayList<>();
+        final Collection<Query> result = new ArrayList<>();
         for (Long sharedTarget : targets) {
             final GroupDiscoverTargets otherTargetLink =
                     new GroupDiscoverTargets(groupId, sharedTarget);
-            result.add(context.newRecord(
+            result.add(context.insertInto(com.vmturbo.group.db.tables.GroupDiscoverTargets.GROUP_DISCOVER_TARGETS)
+                .set(context.newRecord(
                     com.vmturbo.group.db.tables.GroupDiscoverTargets.GROUP_DISCOVER_TARGETS,
-                    otherTargetLink));
+                    otherTargetLink)));
         }
         return result;
     }
@@ -420,9 +415,11 @@ public class GroupDAO implements IGroupStore {
     @Nonnull
     @Override
     public Collection<DiscoveredGroupId> getDiscoveredGroupsIds() {
-        final Result<Record5<Long, String, GroupType, Integer, Long>> records =
-                dslContext.select(DSL.max(GROUPING.ID), DSL.max(GROUPING.ORIGIN_DISCOVERED_SRC_ID),
-                        DSL.max(GROUPING.GROUP_TYPE), DSL.count(GROUP_DISCOVER_TARGETS.TARGET_ID),
+        // This grouping is aimed to fetch groups with a count of associated targets
+        final Result<Record6<Long, String, GroupType, byte[], Integer, Long>> records =
+                dslContext.select(GROUPING.ID, DSL.max(GROUPING.ORIGIN_DISCOVERED_SRC_ID),
+                        DSL.max(GROUPING.GROUP_TYPE), DSL.max(GROUPING.HASH),
+                        DSL.count(GROUP_DISCOVER_TARGETS.TARGET_ID),
                         DSL.max(GROUP_DISCOVER_TARGETS.TARGET_ID))
                         .from(GROUPING)
                         .leftJoin(GROUP_DISCOVER_TARGETS)
@@ -431,11 +428,11 @@ public class GroupDAO implements IGroupStore {
                         .groupBy(GROUPING.ID)
                         .fetch();
         final Collection<DiscoveredGroupId> result = new ArrayList<>(records.size());
-        for (Record5<Long, String, GroupType, Integer, Long> record: records) {
-            final Long targetId = record.value4() != 1 ? null : record.value5();
-            final DiscoveredGroupId id =
-                    new DiscoveredGroupIdImpl(record.value1(), targetId, record.value2(),
-                            record.value3());
+        for (Record6<Long, String, GroupType, byte[], Integer, Long> record: records) {
+            final Long targetId = record.value5() != 1 ? null : record.value6();
+            final DiscoveredObjectVersionIdentity identity = new DiscoveredObjectVersionIdentity(record.value1(), record.value4());
+            final DiscoveredGroupId id = new DiscoveredGroupIdImpl(identity, targetId,
+                    record.value2(), record.value3());
             result.add(id);
         }
         return Collections.unmodifiableCollection(result);
@@ -932,7 +929,7 @@ public class GroupDAO implements IGroupStore {
                 Collections.singletonMap(group.getId(), group.getGroupType()));
 
         cleanGroupChildTables(context, groupId);
-        final Collection<TableRecord<?>> children = new ArrayList<>();
+        final Collection<Query> children = new ArrayList<>();
         children.addAll(insertGroupDefinitionDependencies(context, groupId, groupDefinition));
         children.addAll(insertExpectedMembers(context, groupId, expectedMemberTypes,
                 groupDefinition.getStaticGroupMembers()));
@@ -942,7 +939,7 @@ public class GroupDAO implements IGroupStore {
         group.setOriginUserCreator(record.value2());
 
         createGroupUpdate(context, group).execute();
-        context.batchInsert(children).execute();
+        context.batch(children).execute();
     }
 
     @Nonnull
@@ -1273,7 +1270,6 @@ public class GroupDAO implements IGroupStore {
             GROUP_STORE_ERROR_COUNT.labels(DELETE_LABEL).increment();
             throw e;
         }
-        deleteCallbacks.forEach(callback -> callback.accept(groupId));
     }
 
     private void deleteGroup(@Nonnull DSLContext context, long groupId)
@@ -1335,21 +1331,22 @@ public class GroupDAO implements IGroupStore {
                     + " discovered yet: " + groupsToIgnore);
         }
         cleanDiscoveredGroupsChildTables(context, groupsToIgnore);
-        final Collection<TableRecord<?>> inserts = new ArrayList<>();
-        final Collection<GroupingRecord> newGroups = new ArrayList<>();
+        final Collection<Query> inserts = new ArrayList<>();
+        final Collection<Query> newGroups = new ArrayList<>();
         final Collection<Query> updates = new ArrayList<>();
         createGroupStatements(context, inserts, newGroups,
-                groupPojo -> context.newRecord(GROUPING, groupPojo), groupsToAdd);
+                groupPojo -> context.insertInto(GROUPING).set(context.newRecord(GROUPING,
+                    groupPojo)), groupsToAdd);
         createGroupStatements(context, inserts, updates,
                 groupPojo -> createGroupUpdate(context, groupPojo), groupsToUpdate);
 
         context.batch(updates).execute();
-        context.batchInsert(newGroups).execute();
-        context.batchInsert(inserts).execute();
+        context.batch(newGroups).execute();
+        context.batch(inserts).execute();
     }
 
     private <T> void createGroupStatements(@Nonnull DSLContext context,
-            @Nonnull Collection<TableRecord<?>> insertsToAppend,
+            @Nonnull Collection<Query> insertsToAppend,
             @Nonnull Collection<T> queriesToAppend, Function<Grouping, T> createFunction,
             @Nonnull Collection<DiscoveredGroup> groups) throws StoreOperationException {
         for (DiscoveredGroup group : groups) {
@@ -1361,6 +1358,7 @@ public class GroupDAO implements IGroupStore {
             groupPojo.setId(effectiveId);
             groupPojo.setSupportsMemberReverseLookup(group.isReverseLookupSupported());
             groupPojo.setOriginDiscoveredSrcId(sourceIdentifier);
+            groupPojo.setHash(DiscoveredGroupHash.hash(group));
             queriesToAppend.add(createFunction.apply(groupPojo));
             insertsToAppend.addAll(insertGroupDefinitionDependencies(context, effectiveId, def));
             insertsToAppend.addAll(insertExpectedMembers(context, groupPojo.getId(),
@@ -1458,6 +1456,7 @@ public class GroupDAO implements IGroupStore {
                         groupPojo.getOptimizationEnvironmentType())
                 .set(GROUPING.OPTIMIZATION_IS_GLOBAL_SCOPE,
                         groupPojo.getOptimizationIsGlobalScope())
+                .set(GROUPING.HASH, groupPojo.getHash())
                 .where(GROUPING.ID.eq(groupId));
     }
 
@@ -1560,22 +1559,22 @@ public class GroupDAO implements IGroupStore {
     @Immutable
     public static class DiscoveredGroupIdImpl implements DiscoveredGroupId {
         private final Long targetId;
-        private final long oid;
+        private final DiscoveredObjectVersionIdentity identity;
         private final String sourceId;
         private final GroupType groupType;
 
         /**
          * Constructs discovered group id.
          *
-         * @param oid oid of the group
+         * @param identity identity of the group (OID + hash)
          * @param targetId target the group is reporeted
          * @param sourceId source id
          * @param groupType group type
          */
-        public DiscoveredGroupIdImpl(long oid, @Nullable Long targetId, @Nonnull String sourceId,
-                @Nonnull GroupType groupType) {
+        public DiscoveredGroupIdImpl(@Nonnull DiscoveredObjectVersionIdentity identity,
+                @Nullable Long targetId, @Nonnull String sourceId, @Nonnull GroupType groupType) {
             this.targetId = targetId;
-            this.oid = oid;
+            this.identity = Objects.requireNonNull(identity);
             this.sourceId = Objects.requireNonNull(sourceId);
             this.groupType = Objects.requireNonNull(groupType);
         }
@@ -1587,8 +1586,8 @@ public class GroupDAO implements IGroupStore {
         }
 
         @Override
-        public long getOid() {
-            return oid;
+        public DiscoveredObjectVersionIdentity getIdentity() {
+            return identity;
         }
 
         @Nonnull

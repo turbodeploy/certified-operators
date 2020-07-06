@@ -6,26 +6,26 @@
 
     <groupId>com.vmturbo</groupId>
     <artifactId>Turbonomic-XL</artifactId>
-    <version>7.22.4-SNAPSHOT</version>
+    <version>7.22.5-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
-        <market.version>3.22.4-SNAPSHOT</market.version>
+        <market.version>3.22.5-SNAPSHOT</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>7.22.4-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>7.22.5-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
-        <apm.probes.branch.version>7.22.4-SNAPSHOT</apm.probes.branch.version>
+        <apm.probes.branch.version>7.22.5-SNAPSHOT</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>7.22.4-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>7.22.5-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.8-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.11-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -49,6 +49,7 @@
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
 
         <lz4.version>1.4</lz4.version>
+        <fastutil.version>8.3.1</fastutil.version>
 
         <!-- START Versions for the various opentracing libraries.
              Do not change them independently without verifying that they are compatible with
@@ -113,6 +114,7 @@
         <asciidoctor.plugin.version>1.5.3</asciidoctor.plugin.version>
         <swagger2markup.plugin.version>0.9.3</swagger2markup.plugin.version>
         <commons-validator.version>1.6</commons-validator.version>
+        <memory-metrics.version>0.3.3</memory-metrics.version>
         <!-- END swagger properties -->
 
         <docker.compose.rule.version>1.5.0</docker.compose.rule.version>
@@ -299,6 +301,7 @@
         <profile>
             <id>extractor</id>
             <modules>
+                <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -1403,7 +1406,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
-                    <version>3.0.0</version>
+                    <version>3.1.1</version>
                     <dependencies>
                         <dependency>
                             <groupId>com.puppycrawl.tools</groupId>
@@ -1429,7 +1432,7 @@
                         <configLocation>vmt-checkstyle.xml</configLocation>
                         <encoding>UTF-8</encoding>
                         <violationSeverity>info</violationSeverity>
-                        <failOnViolation>false</failOnViolation>
+                        <failOnViolation>true</failOnViolation>
                         <failsOnError>false</failsOnError>
                         <sourceDirectories>
                             <sourceDirectory>${basedir}</sourceDirectory>
@@ -2897,6 +2900,11 @@
                 <version>${reactor.version}</version>
             </dependency>
             <dependency>
+                <groupId>it.unimi.dsi</groupId>
+                <artifactId>fastutil</artifactId>
+                <version>${fastutil.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.apache.tomcat</groupId>
                 <artifactId>tomcat-jdbc</artifactId>
                 <version>${tomcat.version}</version>
@@ -2971,6 +2979,11 @@
                 <groupId>commons-validator</groupId>
                 <artifactId>commons-validator</artifactId>
                 <version>${commons-validator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.jbellis</groupId>
+                <artifactId>jamm</artifactId>
+                <version>${memory-metrics.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.eclipse.jgit</groupId>

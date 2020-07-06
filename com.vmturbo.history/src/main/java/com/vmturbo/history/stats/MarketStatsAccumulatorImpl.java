@@ -28,13 +28,13 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Table.Cell;
 
-import gnu.trove.map.TIntObjectMap;
-import gnu.trove.map.TObjectDoubleMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 import org.jooq.Table;
+
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.TObjectDoubleMap;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -167,7 +167,8 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
      */
     private static final Set<Integer> INACTIVE_COMMODITIES_TO_PERSIST = ImmutableSet.of(
             CommodityType.SWAPPING_VALUE, CommodityType.BALLOONING_VALUE, CommodityType.COOLING_VALUE,
-            CommodityType.POWER_VALUE, CommodityType.NET_THROUGHPUT_VALUE
+            CommodityType.POWER_VALUE, CommodityType.NET_THROUGHPUT_VALUE,
+            CommodityType.TOTAL_SESSIONS_VALUE
     );
 
     /**

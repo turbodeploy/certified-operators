@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 
@@ -19,6 +20,8 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.identity.IdentityProvider;
 
 /**
@@ -83,18 +86,25 @@ public class DiscoveredPlacementPoliciesUpdaterTest {
     }
 
     /**
-     * Tests updating of the existing policy in the store.
+     * Tests updating of the existing policy in the store. It is expected that one policy will
+     * be updated, while the other one will be treated as unchanged.
      *
      * @throws Exception on exceptions occurred
      */
     @Test
     public void testExistingPolicyUpdate() throws Exception {
-        Mockito.when(policyStore.getDiscoveredPolicies()).thenReturn(
-                Collections.singletonMap(TGT1, Collections.singletonMap(POLICY1_NAME, oid1)));
+        final PolicyInfo policyInfo2 = new DiscoveredPoliciesMapper(
+                groupIdsMap.row(TGT1)).inputPolicy(POLICY2_INFO).get();
+        final Policy existingPolicy2 = Policy.newBuilder().setPolicyInfo(policyInfo2).setTargetId(
+                TGT1).setId(oid2).build();
+        final byte[] hash2 = PlacementPolicyHash.hash(existingPolicy2);
+        Mockito.when(policyStore.getDiscoveredPolicies()).thenReturn(Collections.singletonMap(TGT1,
+                ImmutableMap.of(POLICY1_NAME, new DiscoveredObjectVersionIdentity(oid1, null),
+                        POLICY2_NAME, new DiscoveredObjectVersionIdentity(oid2, hash2))));
         updater.updateDiscoveredPolicies(policyStore,
-                Collections.singletonMap(TGT1, Collections.singletonList(POLICY1_INFO)),
+                Collections.singletonMap(TGT1, Arrays.asList(POLICY1_INFO, POLICY2_INFO)),
                 groupIdsMap, Collections.emptySet());
-        Mockito.verify(policyStore).deletePolicies(Collections.singletonList(oid1));
+        Mockito.verify(policyStore).deletePolicies(Collections.singleton(oid1));
         Mockito.verify(policyStore).createPolicies(policiesCaptor.capture());
         Assert.assertEquals(Collections.singleton(oid1),
                 policiesCaptor.getValue().stream().map(Policy::getId).collect(Collectors.toSet()));
@@ -107,12 +117,14 @@ public class DiscoveredPlacementPoliciesUpdaterTest {
      */
     @Test
     public void testNewPolicy() throws Exception {
-        Mockito.when(policyStore.getDiscoveredPolicies()).thenReturn(
-                Collections.singletonMap(TGT1, Collections.singletonMap(POLICY1_NAME, oid1)));
+        Mockito.when(policyStore.getDiscoveredPolicies())
+                .thenReturn(Collections.singletonMap(TGT1,
+                        Collections.singletonMap(POLICY1_NAME,
+                                new DiscoveredObjectVersionIdentity(oid1, null))));
         updater.updateDiscoveredPolicies(policyStore,
                 Collections.singletonMap(TGT1, Arrays.asList(POLICY1_INFO, POLICY2_INFO)),
                 groupIdsMap, Collections.emptySet());
-        Mockito.verify(policyStore).deletePolicies(Collections.singletonList(oid1));
+        Mockito.verify(policyStore).deletePolicies(Collections.singleton(oid1));
         Mockito.verify(policyStore).createPolicies(policiesCaptor.capture());
         Assert.assertEquals(Sets.newHashSet(oid1, oid2),
                 policiesCaptor.getValue().stream().map(Policy::getId).collect(Collectors.toSet()));
@@ -126,12 +138,12 @@ public class DiscoveredPlacementPoliciesUpdaterTest {
      */
     @Test
     public void testTargetIgnored() throws Exception {
-        Mockito.when(policyStore.getDiscoveredPolicies()).thenReturn(
-                Collections.singletonMap(TGT1, Collections.singletonMap(POLICY1_NAME, oid1)));
+        Mockito.when(policyStore.getDiscoveredPolicies()).thenReturn(Collections.singletonMap(TGT1,
+                Collections.singletonMap(POLICY1_NAME, new DiscoveredObjectVersionIdentity(oid1, null))));
         updater.updateDiscoveredPolicies(policyStore,
                 Collections.singletonMap(TGT2, Arrays.asList(POLICY1_INFO, POLICY2_INFO)),
                 groupIdsMap, Collections.singleton(TGT1));
-        Mockito.verify(policyStore).deletePolicies(Collections.emptyList());
+        Mockito.verify(policyStore).deletePolicies(Collections.emptySet());
         Mockito.verify(policyStore).createPolicies(policiesCaptor.capture());
         Assert.assertEquals(Sets.newHashSet(oid2),
                 policiesCaptor.getValue().stream().map(Policy::getId).collect(Collectors.toSet()));
@@ -146,12 +158,12 @@ public class DiscoveredPlacementPoliciesUpdaterTest {
      */
     @Test
     public void testTargetRemoved() throws Exception {
-        Mockito.when(policyStore.getDiscoveredPolicies()).thenReturn(
-            Collections.singletonMap(TGT1, Collections.singletonMap(POLICY1_NAME, oid1)));
+        Mockito.when(policyStore.getDiscoveredPolicies()).thenReturn(Collections.singletonMap(TGT1,
+                Collections.singletonMap(POLICY1_NAME, new DiscoveredObjectVersionIdentity(oid1, null))));
         updater.updateDiscoveredPolicies(policyStore,
             Collections.singletonMap(TGT2, Arrays.asList(POLICY1_INFO, POLICY2_INFO)),
             groupIdsMap, Collections.emptySet());
-        Mockito.verify(policyStore).deletePolicies(Collections.singletonList(oid1));
+        Mockito.verify(policyStore).deletePolicies(Collections.singleton(oid1));
         Mockito.verify(policyStore).createPolicies(policiesCaptor.capture());
         Assert.assertEquals(Sets.newHashSet(oid2),
             policiesCaptor.getValue().stream().map(Policy::getId).collect(Collectors.toSet()));
@@ -167,11 +179,11 @@ public class DiscoveredPlacementPoliciesUpdaterTest {
         final DiscoveredPolicyInfo policy = DiscoveredPolicyInfo.newBuilder(POLICY2_INFO)
                 .setBuyersGroupStringId("non-existing-group")
                 .build();
-        Mockito.when(policyStore.getDiscoveredPolicies()).thenReturn(
-                Collections.singletonMap(TGT1, Collections.singletonMap(POLICY1_NAME, oid1)));
+        Mockito.when(policyStore.getDiscoveredPolicies()).thenReturn(Collections.singletonMap(TGT1,
+                Collections.singletonMap(POLICY1_NAME, new DiscoveredObjectVersionIdentity(oid1, null))));
         updater.updateDiscoveredPolicies(policyStore,
                 Collections.singletonMap(TGT1, Arrays.asList(POLICY1_INFO, policy)), groupIdsMap, Collections.emptySet());
-        Mockito.verify(policyStore).deletePolicies(Collections.singletonList(oid1));
+        Mockito.verify(policyStore).deletePolicies(Collections.singleton(oid1));
         Mockito.verify(policyStore).createPolicies(policiesCaptor.capture());
         Assert.assertEquals(Sets.newHashSet(oid1),
                 policiesCaptor.getValue().stream().map(Policy::getId).collect(Collectors.toSet()));

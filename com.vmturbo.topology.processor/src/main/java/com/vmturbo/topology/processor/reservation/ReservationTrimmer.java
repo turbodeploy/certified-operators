@@ -62,7 +62,7 @@ public class ReservationTrimmer {
         inputGraph.entities()
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(e -> {
-                if (e.getOrigin().hasReservationOrigin()) {
+                if (e.getOrigin().hasReservationOrigin() && e.getAnalysisSettings().getControllable()) {
                     e.getCommoditiesBoughtFromProvidersList().forEach(commBoughtFromProvider -> {
                         commBoughtFromProvider.getCommodityBoughtList().forEach(commBought -> {
                             requiredComms.add(commBought.getCommodityType());

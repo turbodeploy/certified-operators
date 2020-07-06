@@ -67,7 +67,7 @@ message TopologyDataDefinition {
     // the realtionships between the created entity and its associated entities will change
     // in the same way.
     message DynamicConnectionFilters {
-        repeated search.SearchParameters.FilterSpecs entity_filters = 3;
+        repeated search.SearchParameters search_parameters = 3;
     }
 
     // An automated entity definition defines a way to group existing entities (currently only

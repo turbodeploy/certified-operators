@@ -24,6 +24,7 @@ message Explanation {
         BuyRIExplanation buyRI = 8;
         ScaleExplanation scale = 9;
         AllocateExplanation allocate = 10;
+        AtomicResizeExplanation atomicResize = 11;
     }
 
     // A list of explanations for move action.
@@ -142,6 +143,36 @@ message Explanation {
         optional string scaling_group_id = 3;
     }
 
+    // Explanation for the atomic resize action
+    message AtomicResizeExplanation {
+        // entity which executes the merged actions
+        required string merge_group_id = 1;
+
+        //target entities of each of the merged resize info object
+        repeated int64 entity_ids = 2;
+
+        // explanation for the individual resize info objects in the atomic resize
+        repeated ResizeExplanationPerEntity per_entity_explanation = 3;
+
+        message ResizeExplanationPerEntity {
+            // target entity for the resize,
+            // typically the entity that will de-duplicate the actions for a set of entities
+            // or the original entity itself
+            required string entity_id = 1;
+
+            // original resize entities - multiple if the resize actions of all these entities
+            // are de-duplicated and reduced to one resize
+            repeated int64 resize_entity_ids = 2;
+
+            // explanation for each commodity resize
+            optional ResizeExplanationPerCommodity per_commodity_explanation = 3;
+
+            message ResizeExplanationPerCommodity {
+                 required topology.CommodityType commodity_type = 1;
+            }
+        }
+    }
+
     // An activate explanation contains the base type of the most expensive commodity.
     message ActivateExplanation {
         optional int32 most_expensive_commodity = 1;
@@ -246,7 +277,65 @@ message Explanation {
             required int32 totalSlotNumber = 2;
         }
     }
+}
 
+// Merge a set of resize actions and generate one action.
+// Market does not generate AtomicResizes.
+// Action Orchestrator will receive resize actions from market and convert to AtomicResize actions
+// based on the AtomicActionSpec received from the topology processor.
+message AtomicResize {
+    // Target entity that will execute all the resizes.
+    // This entity corresponds to the aggregate entity in the AtomicActionSpec
+    //
+    // As an example, if a set of containers or VMs that are controlled by workload controllers,
+    // then that workload controller is the execution target entity.
+    // 1. VMs VM1, VM2, VM3 --> aggregated by -> VMSpecs VMS1 --> controlled by --> WorkloadController W1
+    // Workload Controller W1 will execute the merged resize on the VMSpec VMS1 for VM1, VM2, VM3
+    // 2. VMs VM4, VM5, VM6 --> controlled by -->  WorkloadController W2
+    // Workload Controller W1 will execute the merged resize for VM4, VM5, VM6
+    // 3. For a basic case of merging commodity resizes on an entity,
+    // the entity itself is also the execution target
+    //
+    required ActionEntity execution_target = 1;
+
+    // List of individual resizes
+    // The original or de-duplicated resizes that will be executed by this action
+    repeated ResizeInfo resizes = 2;
+}
+
+// Resize object that is created when one or more resize actions are to be merged..
+message ResizeInfo {
+    // the original resize entities
+    repeated ActionEntity source_entities = 1;
+
+    // Entity where the resize should take place
+    // typically the entity that will de-duplicate the resize for a set of entities
+    // or the original entity itself
+    //
+    // In the example of Container -> ContainerSpec -> WorkloadController,
+    // actions of containers belonging to the container spec will be de-duplicated to a single action
+    // and the resize will be performed on the container spec.
+    // WorkloadController W1 --> owns -> ContainerSpecs CS1 --> aggregates --> Containers C1, C2, C3
+    // Then the actions of C1,C2,C3 will be de-duplicated by CS1 and created as one action item
+    // and the resize target is CS1.
+    // In the basic case of merging commodity resizes on an entity,
+    // where there is no de-duplication entity, the original resize entity is the target
+    optional ActionEntity target = 2;
+
+    // The commodity that is being resized.
+    optional topology.CommodityType commodity_type = 3;
+
+    // This may be old capacity/reservation/limit/etc, depending on commodity_attribute.
+    optional float old_capacity = 4;
+
+    // This may be new capacity/reservation/limit/etc, depending on commodity_attribute.
+    optional float new_capacity = 5;
+
+    // which specific attribute of the commodity should be resized? defaults to "capacity".
+    optional topology.CommodityAttribute commodity_attribute = 6 [default = CAPACITY];
+
+    // scaling group ID that the source entities belong to
+    optional string scaling_group_id = 7;
 }
 
 // Change one or more providers of an entity.
@@ -451,6 +540,7 @@ message ActionInfo {
         BuyRI buyRi = 8;
         Scale scale = 9;
         Allocate allocate = 10;
+        AtomicResize atomicResize = 11;
     }
 }
 
@@ -1805,13 +1895,13 @@ message GetCurrentActionStatsResponse {
     repeated SingleResponse responses = 1;
 }
 
-message RemoveActionsAcceptancesRequest {
+message RemoveActionsAcceptancesAndRejectionsRequest {
     // The ID of the policy.
-    // Acceptance will be removed for all actions associated with this policy.
+    // Acceptance and rejection will be removed for all actions associated with this policy.
     optional int64 policy_id = 1;
 }
 
-message RemoveActionsAcceptancesResponse {
+message RemoveActionsAcceptancesAndRejectionsResponse {
 }
 
 // A service responsible for getting information about accepting actions and getting action information.
@@ -1881,6 +1971,6 @@ service ActionsService {
     // because it supports additional filtering/grouping options, and may return more data.
     rpc GetCurrentActionStats (GetCurrentActionStatsRequest) returns (GetCurrentActionStatsResponse);
 
-    // Removes acceptance for all actions which associated with certain policy.
-    rpc RemoveActionsAcceptances (RemoveActionsAcceptancesRequest) returns (RemoveActionsAcceptancesResponse);
+    // Removes acceptance and rejection for all actions which associated with certain policy.
+    rpc RemoveActionsAcceptancesAndRejections (RemoveActionsAcceptancesAndRejectionsRequest) returns (RemoveActionsAcceptancesAndRejectionsResponse);
 }

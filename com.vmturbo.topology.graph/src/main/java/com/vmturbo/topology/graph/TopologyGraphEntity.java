@@ -3,7 +3,6 @@ package com.vmturbo.topology.graph;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -13,17 +12,12 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * An entity in a {@link TopologyGraph}. This interface is meant to expose all properties
@@ -37,15 +31,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
  *           the right types.
  */
 public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
-    /**
-     * These are the commodity types that need to be persisted and returned by
-     * {@link TopologyGraphEntity#soldCommoditiesByType()} because we support searching on their
-     * values.
-     * <p>
-     * Implementations may or may not persist additional commodities.
-     */
-    Set<Integer> COMM_SOLD_TYPES_TO_PERSIST =
-        ImmutableSet.of(CommodityType.VMEM_VALUE, CommodityType.MEM_VALUE);
 
     /**
      * Get the OID for this entity.
@@ -77,9 +62,6 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     @Nonnull
     String getDisplayName();
 
-    @Nonnull
-    TypeSpecificInfo getTypeSpecificInfo();
-
     /**
      * Get the entity's environment type. This field corresponds to
      * {@link TopologyEntityDTO#getEnvironmentType()}
@@ -108,26 +90,6 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
      */
     @Nonnull
     Stream<String> getAllVendorIds();
-
-    /**
-     * Get the commodities sold by this entity, organized by type.
-     * Multiple commodities may exist for the same type if they have different keys.
-     * This may not return the full list of sold commodities. Implementations are only
-     * required to return commodities that are supported in the filters
-     * in {@link com.vmturbo.topology.graph.search.filter.TopologyFilterFactory}.
-     * See: {@link TopologyGraphEntity#COMM_SOLD_TYPES_TO_PERSIST}.
-     */
-    @Nonnull
-    Map<Integer, List<CommoditySoldDTO>> soldCommoditiesByType();
-
-    /**
-     * Get the tags associated with an entity. This field corresponds to
-     * {@link TopologyEntityDTO#getTags()}, reformatted into a format that's easier to work with.
-     *
-     * @return A map of (tag name) -> (values)
-     */
-    @Nonnull
-    Map<String, List<String>> getTags();
 
     /**
      * Get the set of all entities in the topology that provide commodities to this entity.
@@ -308,14 +270,6 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     }
 
     /**
-     * Get deletable state of the topology entity. Default is true.
-     *
-     * @return true, means the Market can delete this entity.
-     *         false, means Market will not generate Delete Actions.
-     */
-    boolean getDeletable();
-
-    /**
      * Builder for a {@link TopologyGraphEntity}.
      * Use this to allow {@link TopologyGraphCreator} to work with the {@link TopologyGraphEntity}
      * implementation.
@@ -324,6 +278,7 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
      * @param <E> The {@link TopologyGraphEntity} implementation.
      */
     interface Builder<B extends Builder, E extends TopologyGraphEntity<E>> {
+
         /**
          * Clear the consumer and provider lists. Call only if rebuilding a new graph
          * because this will invalidate any prior graphs in which this entity was a participant.

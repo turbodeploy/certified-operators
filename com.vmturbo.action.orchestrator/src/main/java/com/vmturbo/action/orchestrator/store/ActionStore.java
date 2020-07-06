@@ -80,6 +80,17 @@ public interface ActionStore {
     Optional<Action> getAction(long actionId);
 
     /**
+     * Similar to {@link ActionStore#getAction(long)} but we get action by recommendationId
+     * instead of actionId.
+     *
+     * @param recommendationId stable identifier for action
+     * @return the action or Optional.empty if no action with the given recommendationId can be
+     * found.
+     */
+    @Nonnull
+    Optional<Action> getActionByRecommendationId(long recommendationId);
+
+    /**
      * Get views of the actions in the store that provide accessors to the properties of the actions.
      * Clients who do not need to mutate the state of actions should prefer to access actions
      * via their {@link ActionView}s.

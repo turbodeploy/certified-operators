@@ -147,6 +147,7 @@ public class ModelDefinitions {
                     .add(CommodityType.VMEM_REQUEST)
                     .add(CommodityType.VMEM_REQUEST_QUOTA)
                     .add(CommodityType.VSTORAGE)
+                    .add(CommodityType.TOTAL_SESSIONS)
                     .build();
 
     /** ENTITY STATE enum column. */

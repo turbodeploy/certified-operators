@@ -431,7 +431,6 @@ message PartialEntity {
         // The following are "generic" detail levels.
         FULL = 1;
         MINIMAL = 2;
-        TYPE_SPECIFIC = 3;
         WITH_CONNECTIONS = 5;
 
         // The following are component-specific.
@@ -456,17 +455,6 @@ message PartialEntity {
         repeated int64 discovering_target_ids = 5;
 
         optional .topology.EntityState entity_state = 6 [default = POWERED_ON];
-    }
-
-    // The type specific info of the Topology entity DTO.
-    message TypeSpecificPartialEntity {
-        required int64 oid = 1;
-
-        optional string display_name = 2;
-
-        optional int32 entity_type = 3;
-
-        optional TypeSpecificInfo type_specific_info = 4;
     }
 
     // The entity, as well as the entitie
@@ -498,13 +486,50 @@ message PartialEntity {
         optional int64 primary_provider_id = 5;
 
         // Contains the commodities the action orchestrator needs.
-        repeated .topology.CommoditySoldDTO commodity_sold = 10;
+        repeated int32 comm_types_with_hot_replace = 10;
 
         // Type specific info
-        optional TypeSpecificInfo type_specific_info = 11;
+        optional ActionEntityTypeSpecificInfo type_specific_info = 11;
 
         // The entities this entity is connected to.
         repeated TopologyEntityDTO.ConnectedEntity connected_entities = 12;
+
+        // The action orchestrator only needs certain fields from the TypeSpecificInfo of a
+        // topology entity. We outline those fields here. This significantly reduces the memory
+        // impact of loading ActionPartialEntities into the Action Orchestrator.
+        message ActionEntityTypeSpecificInfo {
+
+            oneof type {
+                ActionVirtualMachineInfo virtual_machine = 1;
+                ActionPhysicalMachineInfo physical_machine = 2;
+                ActionComputeTierInfo compute_tier = 3;
+                ActionStorageInfo storage = 4;
+            }
+
+            message ActionComputeTierInfo {
+                optional string family = 1;
+                optional string quota_family = 15;
+                optional int32 num_cores = 12;
+                optional .topology.TypeSpecificInfo.ComputeTierInfo.SupportedCustomerInfo supported_customer_info = 5;
+            }
+
+            message ActionVirtualMachineInfo {
+                optional .topology.TypeSpecificInfo.VirtualMachineInfo.DriverInfo driver_info = 1;
+                optional .topology.TypeSpecificInfo.Architecture architecture = 2;
+                optional string locks = 3;
+                optional .topology.TypeSpecificInfo.VirtualizationType virtualization_type = 4;
+            }
+
+            message ActionPhysicalMachineInfo {
+                // The CPU Core MHz on the host
+                optional int32 cpu_core_mhz = 7;
+            }
+
+            message ActionStorageInfo {
+                optional .common_dto.EntityDTO.StorageType storage_type = 1;
+            }
+
+        }
     }
 
     // Contains the fields required by the API for conversion to the external API's entities.
@@ -566,7 +591,6 @@ message PartialEntity {
     oneof type {
         .topology.TopologyEntityDTO full_entity = 1;
         MinimalEntity minimal = 2;
-        TypeSpecificPartialEntity type_specific = 3;
         EntityWithConnections with_connections = 4;
 
         ActionPartialEntity action = 10;
@@ -1324,7 +1348,12 @@ message CommoditySoldDTO {
         // The type of commodity whose usage will be used as a factor.
         optional CommodityType base_commodity = 1;
         // The ratio which will be used to multiply with base commodity's usage.
-        optional int32 ratio = 2;
+        optional double max_ratio = 2;
+        // The min ratio which will be used to multiply with base commodity's usage.
+        optional double min_ratio = 3;
+        // When consumer consumes amount more than (base amount * max_ratio), whether can directly
+        // increase base amount to achieve max ratio dependency.
+        optional bool increase_base_amount_default_supported = 4 [default = false];
     }
 
     message HotResizeInfo {
