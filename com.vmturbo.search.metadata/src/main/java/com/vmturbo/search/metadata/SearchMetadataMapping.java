@@ -134,6 +134,12 @@ public enum SearchMetadataMapping {
     COMMODITY_BALLOONING_UTILIZATION("attrs", "ballooning_utilization", CommodityType.BALLOONING, CommodityAttribute.UTILIZATION,
             null, Type.NUMBER),
 
+    COMMODITY_CONNECTION_USED("attrs", "connection_used", CommodityType.CONNECTION, CommodityAttribute.USED,
+            CommodityTypeUnits.CONNECTION, Type.NUMBER),
+
+    COMMODITY_CONNECTION_UTILIZATION("attrs", "connection_utilization", CommodityType.CONNECTION, CommodityAttribute.UTILIZATION,
+            null, Type.NUMBER),
+
     COMMODITY_COOLING_UTILIZATION("attrs", "cooling_utilization", CommodityType.COOLING, CommodityAttribute.UTILIZATION,
             null, Type.NUMBER),
 
@@ -287,7 +293,7 @@ public enum SearchMetadataMapping {
     RELATED_ACCOUNT("attrs", "related_account", Collections.singleton(EntityType.BUSINESS_ACCOUNT),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_APPLICATION("attrs", "related_application", Collections.singleton(EntityType.APPLICATION),
+    RELATED_APPLICATION_COMPONENT("attrs", "related_application_component", Collections.singleton(EntityType.APPLICATION_COMPONENT),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
     RELATED_BUSINESS_APPLICATION("attrs", "related_business_application", Collections.singleton(EntityType.BUSINESS_APPLICATION),
@@ -765,7 +771,7 @@ public enum SearchMetadataMapping {
      *          if not set returns null
      */
     public String getUnitsString() {
-        return Objects.isNull(commodityUnit) ? null : commodityUnit.toString();
+        return Objects.isNull(commodityUnit) ? null : commodityUnit.getUnits();
     }
 
     public GroupType getRelatedGroupType() {
