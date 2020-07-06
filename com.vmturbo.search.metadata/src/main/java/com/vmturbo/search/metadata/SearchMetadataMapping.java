@@ -44,22 +44,22 @@ public enum SearchMetadataMapping {
     PRIMITIVE_OID("oid", Type.INTEGER, null,
             entity -> Optional.of(entity.getOid())),
 
-    PRIMITIVE_ENTITY_TYPE("type", Type.ENUM, EntityType.class,
+    PRIMITIVE_ENTITY_TYPE("type", Type.TEXT, EntityType.class,
             entity -> Optional.of(entity.getEntityType())),
 
     PRIMITIVE_NAME("name", Type.TEXT, null,
             entity -> Optional.of(entity.getDisplayName())),
 
-    PRIMITIVE_STATE("state", Type.ENUM, EntityState.class,
+    PRIMITIVE_STATE("state", Type.TEXT, EntityState.class,
             entity -> Optional.of(entity.getEntityState())),
 
-    PRIMITIVE_ENVIRONMENT_TYPE("environment", Type.ENUM, EnvironmentType.class,
+    PRIMITIVE_ENVIRONMENT_TYPE("environment", Type.TEXT, EnvironmentType.class,
             entity -> Optional.of(entity.getEnvironmentType())),
 
     /**
      * Severity. Used for both entity and group.
      */
-    PRIMITIVE_SEVERITY("severity", Type.ENUM, EntitySeverity.class),
+    PRIMITIVE_SEVERITY("severity", Type.TEXT, EntitySeverity.class),
 
     /**
      * Related action count. Used for both entity and group.
@@ -351,7 +351,7 @@ public enum SearchMetadataMapping {
     PRIMITIVE_GROUP_OID("oid", group -> Optional.of(group.getId()), Type.INTEGER, null),
 
     PRIMITIVE_GROUP_TYPE("type", group -> Optional.of(group.getDefinition().getType()),
-            Type.ENUM, EntityType.class),
+            Type.TEXT, EntityType.class),
 
     PRIMITIVE_GROUP_NAME("name", group -> Optional.of(group.getDefinition().getDisplayName()),
             Type.TEXT, null),
@@ -407,7 +407,7 @@ public enum SearchMetadataMapping {
     private String jsonKeyName;
     // type of the value for this field
     private final Type apiDatatype;
-    // enum class if Type is enum
+    // Enum class
     private Class<? extends Enum<?>> enumClass;
     // entity fields
     private Function<TopologyEntityDTO, Optional<Object>> topoFieldFunction;

@@ -47,6 +47,7 @@ defaultProperties:
         # string, with individual settings separated by "&". No initial "&" or "?" should appear
         mariadbDriverProperties: useServerPrepStmts=true
         mysqlDriverProperties:
+        enableSearchApi: true
     extractor:
         dbHost: timescaledb
         dbPort: 5432
@@ -101,7 +102,10 @@ defaultProperties:
         dbUserName: extractor
         dbPassword: vmturbo
         enableSearchApi: true
-        postgresMigrationLocations: " " #Prevents migration problem on startup with identical
+        postgresHost: timescaledb
+        postgresPort: 5432
+        postgresUserName: extractor
+        dbMigrationLocation: " " #Prevents migration problem on startup with identical
         #migration versions from extractor-schema and history
     auth:
         dbSchemaName: auth
