@@ -1,5 +1,6 @@
 package com.vmturbo.extractor.topology;
 
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.QX_VCPU_BASE_COEFFICIENT;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TABLE;
 import static com.vmturbo.extractor.models.ModelDefinitions.METRIC_TABLE;
@@ -15,6 +16,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -69,6 +71,16 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     private static final Set<GroupType> GROUP_TYPE_BLACKLIST = ImmutableSet.of(
             GroupType.RESOURCE, GroupType.BILLING_FAMILY);
+
+    /**
+     * The name to persist in db for ready queue commodity bought by VM.
+     */
+    public static final String VM_QX_VCPU_NAME = "CPU_READY";
+
+    /**
+     * Matches ready queue commodity like: Q16_VCPU, QN_VCPU.
+     */
+    private static final Pattern QX_VCPU_PATTERN = Pattern.compile("Q.*_VCPU");
 
     private static final Long[] EMPTY_SCOPE = new Long[0];
 
@@ -148,10 +160,20 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
                 Record r = new Record(ModelDefinitions.METRIC_TABLE);
                 r.set(ModelDefinitions.ENTITY_OID, oid);
-                r.set(ModelDefinitions.COMMODITY_PROVIDER, producer);
-                r.set(ModelDefinitions.COMMODITY_TYPE, type);
-                r.set(ModelDefinitions.COMMODITY_CONSUMED, sumUsed);
-                r.set(ModelDefinitions.COMMODITY_PROVIDER, producer);
+                if (QX_VCPU_PATTERN.matcher(type).matches()) {
+                    // special handling for Qx_VCPU: VM should only buys one of them, to help with
+                    // reports, we change the name to a single name "CPU_READY", and convert it
+                    // from bought to sold commodity with used and utilization, the capacity
+                    // is hardcoded to 20000 as defined in VC standard
+                    r.set(ModelDefinitions.COMMODITY_TYPE, VM_QX_VCPU_NAME);
+                    r.set(ModelDefinitions.COMMODITY_CAPACITY, QX_VCPU_BASE_COEFFICIENT);
+                    r.set(ModelDefinitions.COMMODITY_CURRENT, sumUsed);
+                    r.set(ModelDefinitions.COMMODITY_UTILIZATION, sumUsed / QX_VCPU_BASE_COEFFICIENT);
+                } else {
+                    r.set(ModelDefinitions.COMMODITY_TYPE, type);
+                    r.set(ModelDefinitions.COMMODITY_CONSUMED, sumUsed);
+                    r.set(ModelDefinitions.COMMODITY_PROVIDER, producer);
+                }
                 metricRecords.add(r);
             });
         });
