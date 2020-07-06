@@ -340,6 +340,26 @@ public class UtilizationCountArrayTest {
         checkToString(utilizationCountArray::toDebugString, UtilizationCountArray.EMPTY);
     }
 
+    /**
+     * Ensure that incorrect capacity entries are not deserialized.
+     *
+     * @throws HistoryCalculationException never
+     */
+    @Test
+    public void toDeserializeZeroCapacity() throws HistoryCalculationException {
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
+        final int validPercent = 20;
+        addCount(counts, validPercent, 10);
+        Assert.assertEquals(validPercent, counts.getPercentile(100));
+
+        PercentileRecord.Builder builder = PercentileRecord.newBuilder().setEntityOid(12)
+                        .setCommodityType(32).setCapacity(0f).setPeriod(30);
+        addCount(builder, 50, 10);
+        counts.deserialize(builder.build(), "");
+
+        Assert.assertEquals(validPercent, counts.getPercentile(100));
+    }
+
     private void checkToString(Supplier<String> toStringSupplier,
                     final String expectedFieldsToString) {
         Assert.assertThat(toStringSupplier.get(), CoreMatchers.is(String
