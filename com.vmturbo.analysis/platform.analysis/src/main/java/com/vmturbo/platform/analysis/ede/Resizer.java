@@ -506,10 +506,7 @@ public class Resizer {
         if (resizeCommodity.getQuantity() == 0 && maxQuantity == 0 && peakQuantity == 0) {
             return 0.0;
         }
-        // If the current capacity is already lesser than or equal to the capacity lower bound,
-        // then the capacity lower bound does not matter. Make it 0.
-        double capacityLowerBound = currentCapacity <= resizeCommodity.getSettings().getCapacityLowerBound()
-            ? 0 : resizeCommodity.getSettings().getCapacityLowerBound();
+        double capacityLowerBound = resizeCommodity.getSettings().getCapacityLowerBound();
         // don't permit resize below historical max/peak or below capacity lower bound
         double maxAmount = currentCapacity - Math.max(Math.max(maxQuantity, peakQuantity), capacityLowerBound);
         if (logger.isTraceEnabled() || seller.isDebugEnabled()) {

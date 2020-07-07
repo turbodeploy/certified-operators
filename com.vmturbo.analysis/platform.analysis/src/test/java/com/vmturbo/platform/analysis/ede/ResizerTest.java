@@ -691,23 +691,23 @@ public class ResizerTest {
      * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
      * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
      * VM's VMEM and VCPU have low ROI.
-     * VM's VCPU and VMEM have capacities of 80 each.
+     * VM's VCPU and VMEM have capacities of 90 each.
      * VM's CPU and MEM have lower bound of 90.
      * The capacity increment is 1.
-     * If the current capacities is already below the lower bound, then lower bound is not a
-     * restricting factor in the resize down actions.
+     * If the current capacities is already at the lower bound, then we
+     * should not resize down any further.
      * */
     @Test
-    public void testResizeDownCurrentCapacityBelowCapacityLowerBound() {
+    public void testDoNotResizeDownCurrentCapacityBelowCapacityLowerBound() {
         Economy economy = setupTopologyForResizeTest(100, 100,
-            80, 80, 70, 70, 20, 20, 0.65, 0.8,
+            90, 90, 70, 70, 20, 20, 0.65, 0.8,
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
 
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityLowerBound(90));
 
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
-        assertEquals(2, actions.size());
+        assertEquals(0, actions.size());
     }
 
     /**
