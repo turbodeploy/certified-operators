@@ -11,6 +11,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -113,9 +114,13 @@ public class WidgetSetsServiceTest {
         widgetset2.setScopeType(WIDGETSET_SCOPETYPE_2);
         widgetset2.setWidgets(ImmutableList.of(widget2));
 
-        when(widgetsetMapper.toUiWidgetset(widgetsetProto1)).thenReturn(widgetset1);
-        when(widgetsetMapper.toUiWidgetset(widgetsetProto2)).thenReturn(widgetset2);
-
+        when(widgetsetMapper.toUiWidgetset(Collections.singleton(widgetsetProto1)))
+                .thenReturn(Collections.singleton(widgetset1));
+        when(widgetsetMapper.toUiWidgetset(Collections.singleton(widgetsetProto2)))
+                .thenReturn(Collections.singleton(widgetset2));
+        final List<Widgets.Widgetset> argList = Lists.newArrayList(widgetsetProto1, widgetsetProto2);
+        when(widgetsetMapper.toUiWidgetset(argList))
+                .thenReturn(Lists.newArrayList(widgetset1, widgetset2));
         // initialize test instance
         widgetSetsService = new WidgetSetsService(WidgetsetsServiceGrpc.newBlockingStub(
                 grpcServer.getChannel()), widgetsetMapper);
@@ -204,7 +209,7 @@ public class WidgetSetsServiceTest {
         // Act
         WidgetsetApiDTO created = widgetSetsService.createWidgetset(newWidgetset);
         // Assert
-        verify(widgetsetMapper).toUiWidgetset(widgetsetProto2);
+        verify(widgetsetMapper).toUiWidgetset(Collections.singleton(widgetsetProto2));
         assertThat(created, is(widgetset2));
 
     }
@@ -235,7 +240,7 @@ public class WidgetSetsServiceTest {
                 updatedWidgetset);
 
         // Assert
-        verify(widgetsetMapper).toUiWidgetset(widgetsetProto2);
+        verify(widgetsetMapper).toUiWidgetset(Collections.singleton(widgetsetProto2));
         assertThat(updatedAnswer, is(widgetset2));
     }
 

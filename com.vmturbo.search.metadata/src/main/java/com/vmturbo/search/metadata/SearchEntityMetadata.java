@@ -97,6 +97,7 @@ public enum SearchEntityMetadata {
                 // common fields
                 .putAll(Constants.ENTITY_COMMON_FIELDS)
                 // type specific fields
+                .put(PrimitiveFieldApiDTO.primitive("connectedNetworks"), SearchMetadataMapping.PRIMITIVE_CONNECTED_NETWORKS)
                 .put(PrimitiveFieldApiDTO.primitive("guestOsType"), SearchMetadataMapping.PRIMITIVE_GUEST_OS_TYPE)
                 .put(PrimitiveFieldApiDTO.primitive("numCpus"), SearchMetadataMapping.PRIMITIVE_VM_NUM_CPUS)
                 // commodities
@@ -108,7 +109,7 @@ public enum SearchEntityMetadata {
                 .put(CommodityFieldApiDTO.used(CommodityType.VSTORAGE), SearchMetadataMapping.COMMODITY_VSTORAGE_USED)
                 .put(CommodityFieldApiDTO.utilization(CommodityType.VSTORAGE), SearchMetadataMapping.COMMODITY_VSTORAGE_UTILIZATION)
                 // related entities
-                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.APPLICATION), SearchMetadataMapping.RELATED_APPLICATION)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.APPLICATION_COMPONENT), SearchMetadataMapping.RELATED_APPLICATION_COMPONENT)
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.BUSINESS_ACCOUNT), SearchMetadataMapping.RELATED_ACCOUNT)
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.DATACENTER), SearchMetadataMapping.RELATED_DATA_CENTER)
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.DISKARRAY), SearchMetadataMapping.RELATED_DISKARRAY)
@@ -132,7 +133,6 @@ public enum SearchEntityMetadata {
                 // common fields
                 .putAll(Constants.ENTITY_COMMON_FIELDS)
                 // type specific fields
-                .put(PrimitiveFieldApiDTO.primitive("connectedNetworks"), SearchMetadataMapping.PRIMITIVE_CONNECTED_NETWORKS)
                 .put(PrimitiveFieldApiDTO.primitive("cpuModel"), SearchMetadataMapping.PRIMITIVE_CPU_MODEL)
                 .put(PrimitiveFieldApiDTO.primitive("model"), SearchMetadataMapping.PRIMITIVE_MODEL)
                 .put(PrimitiveFieldApiDTO.primitive("timezone"), SearchMetadataMapping.PRIMITIVE_TIMEZONE)
@@ -508,6 +508,8 @@ public enum SearchEntityMetadata {
                 // commodities
                 .put(CommodityFieldApiDTO.used(CommodityType.RESPONSE_TIME), SearchMetadataMapping.COMMODITY_RESPONSE_TIME_USED)
                 .put(CommodityFieldApiDTO.utilization(CommodityType.RESPONSE_TIME), SearchMetadataMapping.COMMODITY_RESPONSE_TIME_UTILIZATION)
+                .put(CommodityFieldApiDTO.used(CommodityType.TRANSACTION), SearchMetadataMapping.COMMODITY_TRANSACTION_USED)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.TRANSACTION), SearchMetadataMapping.COMMODITY_TRANSACTION_UTILIZATION)
                 // related entities
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.BUSINESS_APPLICATION), SearchMetadataMapping.RELATED_BUSINESS_APPLICATION)
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.BUSINESS_TRANSACTION), SearchMetadataMapping.RELATED_BUSINESS_TRANSACTION)
@@ -536,6 +538,8 @@ public enum SearchEntityMetadata {
                 // common fields
                 .putAll(Constants.ENTITY_COMMON_FIELDS)
                 // commodities
+                .put(CommodityFieldApiDTO.used(CommodityType.CONNECTION), SearchMetadataMapping.COMMODITY_CONNECTION_USED)
+                .put(CommodityFieldApiDTO.utilization(CommodityType.CONNECTION), SearchMetadataMapping.COMMODITY_CONNECTION_UTILIZATION)
                 .put(CommodityFieldApiDTO.capacity(CommodityType.DB_MEM), SearchMetadataMapping.COMMODITY_DB_MEM_CAPACITY)
                 .put(CommodityFieldApiDTO.used(CommodityType.DB_MEM), SearchMetadataMapping.COMMODITY_DB_MEM_USED)
                 .put(CommodityFieldApiDTO.utilization(CommodityType.DB_MEM), SearchMetadataMapping.COMMODITY_DB_MEM_UTILIZATION).put(CommodityFieldApiDTO.used(CommodityType.DB_CACHE_HIT_RATE), SearchMetadataMapping.COMMODITY_DB_HIT_RATE_USED)
@@ -548,6 +552,7 @@ public enum SearchEntityMetadata {
                 .put(CommodityFieldApiDTO.utilization(CommodityType.VSTORAGE), SearchMetadataMapping.COMMODITY_VSTORAGE_UTILIZATION)
                  // related entities
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.BUSINESS_ACCOUNT), SearchMetadataMapping.RELATED_ACCOUNT)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.REGION), SearchMetadataMapping.RELATED_REGION)
                 .putAll(Constants.BASIC_APPLICATION_FIELDS)
                 .build();
     }

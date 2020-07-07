@@ -274,7 +274,7 @@ public class EntityQueryTest {
         //GIVEN
         final EntityType type = EntityType.VIRTUAL_MACHINE;
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
-        final FieldApiDTO primitiveTextField = getAnyEntityKeyField(type, PrimitiveFieldApiDTO.class, Type.TEXT);
+        final FieldApiDTO primitiveTextField = PrimitiveFieldApiDTO.primitive("guestOsType");
         final FieldApiDTO commodityNumericField = getAnyEntityKeyField(type, CommodityFieldApiDTO.class, Type.NUMBER);
         final FieldApiDTO relatedEntityMultiTextField = getAnyEntityKeyField(type, RelatedEntityFieldApiDTO.class, Type.MULTI_TEXT);
 

@@ -74,6 +74,14 @@ public abstract class AbstractQuery {
             put(RelatedActionFieldApiDTO.actionCount(), SearchEntity.SEARCH_ENTITY.NUM_ACTIONS);
         }};
 
+    private static final Map<PrimitiveFieldApiDTO, Function> ENUM_FIELD_JOOQ_TO_API_MAPPER = new HashMap<PrimitiveFieldApiDTO, Function>() {{
+        put(PrimitiveFieldApiDTO.entityType(), EntityTypeMapper.fromSearchSchemaToApiFunction);
+        put(PrimitiveFieldApiDTO.groupType(), GroupTypeMapper.fromSearchSchemaToApiFunction);
+        put(PrimitiveFieldApiDTO.severity(), EntitySeverityMapper.fromSearchSchemaToApiFunction);
+        put(PrimitiveFieldApiDTO.entityState(), EntityStateMapper.fromSearchSchemaToApiFunction);
+        put(PrimitiveFieldApiDTO.environmentType(), EnvironmentTypeMapper.fromSearchSchemaToApiFunction);
+    }};
+
     /**
      * Provides functionality for reading Json.
      */
@@ -180,28 +188,11 @@ public abstract class AbstractQuery {
 
         switch (columnMetadata.getApiDatatype()) {
             case TEXT:
-                fieldValue = fieldApiDto.value((String)value);
-                break;
             case ENUM:
-                if (fieldApiDto.equals(PrimitiveFieldApiDTO.environmentType())) {
+                if (ENUM_FIELD_JOOQ_TO_API_MAPPER.containsKey(fieldApiDto)) {
+                    Function jooqToApiEnumMapper = ENUM_FIELD_JOOQ_TO_API_MAPPER.get(fieldApiDto);
                     fieldValue = fieldApiDto.enumValue(
-                        readEnumRecordAndMap(record, columnAlias, EnvironmentTypeMapper.fromSearchSchemaToApiFunction));
-                } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.severity())) {
-                    fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
-                        columnAlias,
-                        EntitySeverityMapper.fromSearchSchemaToApiFunction));
-                } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityState())) {
-                    fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
-                        columnAlias,
-                        EntityStateMapper.fromSearchSchemaToApiFunction));
-                } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityType())) {
-                    fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
-                        columnAlias,
-                        EntityTypeMapper.fromSearchSchemaToApiFunction));
-                } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.groupType())) {
-                    fieldValue = fieldApiDto.enumValue(readEnumRecordAndMap(record,
-                            columnAlias,
-                            GroupTypeMapper.fromSearchSchemaToApiFunction));
+                            readEnumRecordAndMap(record, columnAlias, jooqToApiEnumMapper));
                 } else {
                     fieldValue = fieldApiDto.value((String)value);
                 }

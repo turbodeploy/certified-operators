@@ -15,7 +15,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1593579626558,
+  "iteration": 1594052430385,
   "links": [],
   "panels": [
     {
@@ -445,7 +445,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  entity.name as \"VM Name\",\n  max(entity.attrs->>'num_cpus') || ' vCPUs' as \"Num vCPUs\",\n  avg(metric.consumed/20000) as \"Avg CPU Ready Pct\",\n  max(metric.consumed/20000) as \"Max CPU Ready Pct\"\nFROM metric, entity\nWHERE\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  $__timeFilter(\"time\") AND entity.oid = metric.entity_oid AND entity.hash = metric.entity_hash and \n  entity.type = 'VIRTUAL_MACHINE' AND \n  metric.type LIKE 'Q%_VCPU' \n  AND CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGROUP BY entity.oid, entity.name\nORDER BY 3 desc",
+          "rawSql": "SELECT\n  entity.name as \"VM Name\",\n  max(entity.attrs->>'num_cpus') || ' vCPUs' as \"Num vCPUs\",\n  avg(metric.utilization) as \"Avg CPU Ready Pct\",\n  max(metric.utilization) as \"Max CPU Ready Pct\"\nFROM metric, entity\nWHERE\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  $__timeFilter(\"time\") AND entity.oid = metric.entity_oid AND entity.hash = metric.entity_hash AND \n  entity.type = 'VIRTUAL_MACHINE' AND \n  metric.type = 'CPU_READY' \n  AND CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGROUP BY entity.oid, entity.name\nORDER BY 3 desc",
           "refId": "A",
           "select": [
             [

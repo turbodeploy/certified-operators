@@ -52,7 +52,7 @@ public class EntityCountQueryTest {
      * Expect result to generate correct response dtos.
      *
      * <p>This is an end to end test of the class.  The query results are mocked and
-     * test focus on expected {@link SearchQueryCountRecordApiDTO}</p>
+     * test focus on expected {@link SearchCountRecordApiDTO}</p>
      *
      * @throws Exception problems processing request
      */

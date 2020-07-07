@@ -14,8 +14,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
@@ -113,7 +116,8 @@ public class WidgetsetMapperTest {
         widgetsetApiDTO.setSharedWithAllUsers(true);
         // Act
         final Widgetset intermediate = widgetsetMapper.fromUiWidgetset(widgetsetApiDTO);
-        WidgetsetApiDTO answer = widgetsetMapper.toUiWidgetset(intermediate);
+        WidgetsetApiDTO answer = widgetsetMapper.toUiWidgetset(Collections.singleton(intermediate))
+                .iterator().next();
         // Assert
         assertThat(GSON.toJson(answer), equalTo(GSON.toJson(widgetsetApiDTO)));
     }
@@ -140,7 +144,18 @@ public class WidgetsetMapperTest {
         widget2.setScope(groupScope);
 
         // Act
-        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widget1, widget2);
+        final String uuid1 = "bar";
+        final String uuid2 = "foo";
+        final WidgetApiDTO widgetSet1[] = { widget1 };
+        final WidgetApiDTO widgetSet2[] = { widget2 };
+        final Map<String, WidgetApiDTO[]> widgetsMap = ImmutableMap.of(uuid1, widgetSet1,
+                uuid2, widgetSet2);
+        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widgetsMap).entrySet()
+                .stream()
+                .sorted(Comparator.comparing(entry -> entry.getKey()))
+                .map(entry -> entry.getValue())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
@@ -194,7 +209,18 @@ public class WidgetsetMapperTest {
         widget2.setScope(groupScope2);
 
         // Act
-        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widget1, widget2);
+        final String uuid1 = "bar";
+        final String uuid2 = "foo";
+        final WidgetApiDTO widgetSet1[] = { widget1 };
+        final WidgetApiDTO widgetSet2[] = { widget2 };
+        final Map<String, WidgetApiDTO[]> widgetsMap = ImmutableMap.of(uuid1, widgetSet1,
+                uuid2, widgetSet2);
+        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widgetsMap).entrySet()
+                .stream()
+                .sorted(Comparator.comparing(entry -> entry.getKey()))
+                .map(entry -> entry.getValue())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
@@ -224,7 +250,14 @@ public class WidgetsetMapperTest {
         widget1.setScope(groupScope);
 
         // Act
-        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widget1);
+        final String uuid1 = "foo";
+        final WidgetApiDTO widgetSet1[] = { widget1 };
+        final Map<String, WidgetApiDTO[]> widgetsMap = ImmutableMap.of(uuid1, widgetSet1);
+        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widgetsMap).entrySet()
+                .stream()
+                .map(entry -> entry.getValue())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
         // Assert
         assertThat(widgets.size(), is(1));
@@ -252,7 +285,14 @@ public class WidgetsetMapperTest {
         widget1.setScope(groupScope);
 
         // Act
-        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widget1);
+        final String uuid1 = "foo";
+        final WidgetApiDTO widgetSet1[] = { widget1 };
+        final Map<String, WidgetApiDTO[]> widgetsMap = ImmutableMap.of(uuid1, widgetSet1);
+        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widgetsMap).entrySet()
+                .stream()
+                .map(entry -> entry.getValue())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
@@ -285,7 +325,14 @@ public class WidgetsetMapperTest {
         widget1.setScope(groupScope);
 
         // Act
-        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widget1);
+        final String uuid1 = "foo";
+        final WidgetApiDTO widgetSet1[] = { widget1 };
+        final Map<String, WidgetApiDTO[]> widgetsMap = ImmutableMap.of(uuid1, widgetSet1);
+        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widgetsMap).entrySet()
+                .stream()
+                .map(entry -> entry.getValue())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
@@ -338,7 +385,18 @@ public class WidgetsetMapperTest {
         widget2.setScope(entityScope);
 
         // Act
-        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widget1, widget2);
+        final String uuid1 = "bar";
+        final String uuid2 = "foo";
+        final WidgetApiDTO widgetSet1[] = { widget1 };
+        final WidgetApiDTO widgetSet2[] = { widget2 };
+        final Map<String, WidgetApiDTO[]> widgetsMap = ImmutableMap.of(uuid1, widgetSet1,
+                uuid2, widgetSet2);
+        final List<WidgetApiDTO> widgets = widgetsetMapper.postProcessWidgets(widgetsMap).entrySet()
+                .stream()
+                .sorted(Comparator.comparing(entry -> entry.getKey()))
+                .map(entry -> entry.getValue())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
 
         // Assert
         assertThat(widgets.size(), is(2));

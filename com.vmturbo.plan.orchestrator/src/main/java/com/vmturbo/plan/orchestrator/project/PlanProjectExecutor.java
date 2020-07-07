@@ -47,10 +47,10 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
@@ -67,7 +67,7 @@ import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
- * This class executes a plan project
+ * This class executes a plan project.
  */
 public class PlanProjectExecutor {
     private final Logger logger = LogManager.getLogger();
@@ -102,16 +102,7 @@ public class PlanProjectExecutor {
     private static final int LOOPBACK_DAYS = 10;
 
     /**
-     * The number of clones to add to a cluster headroom plan for every host that's
-     * in the cluster.
-     *
-     * TODO this value will be made configurable or determined dynamically.
-     * It is put here as a constant for now.
-     */
-    private static final int ADDED_CLONES_PER_HOST_IN_CLUSTER = 20;
-
-    /**
-     * Constructor for {@link PlanProjectExecutor}
+     * Constructor for {@link PlanProjectExecutor}.
      *
      * @param planDao Plan DAO
      * @param groupChannel  Group service channel
@@ -180,8 +171,8 @@ public class PlanProjectExecutor {
         Set<Grouping> clusters = getAllComputeClusters();
         // Limit the number of clusters for each run.
         clusters = restrictNumberOfClusters(clusters);
-        logger.info("Running plan project {} on {} clusters. " +
-                "(one plan instance per cluster per scenario)",
+        logger.info("Running plan project {} on {} clusters. "
+                + "(one plan instance per cluster per scenario)",
             planProject.getPlanProjectInfo().getName(), clusters.size());
 
         // Total number of plan instances to be created equals the number of clusters times
@@ -197,8 +188,8 @@ public class PlanProjectExecutor {
      */
     private void runPlanInstanceAllCluster(@Nonnull final PlanProject planProject) {
         Set<Grouping> clusters = getAllComputeClusters();
-        logger.info("Running plan project {} on {} clusters. " +
-                "(one plan instance for all clusters per scenario)",
+        logger.info("Running plan project {} on {} clusters. "
+                + "(one plan instance for all clusters per scenario)",
             planProject.getPlanProjectInfo().getName(), clusters.size());
 
         createClusterPlanInstanceAndRun(planProject, clusters);
@@ -350,8 +341,8 @@ public class PlanProjectExecutor {
 
                 try {
                     updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, targetOidToTargetName);
-                } catch (NoSuchObjectException | IllegalTemplateOperationException |
-                    DuplicateTemplateException e) {
+                } catch (NoSuchObjectException | IllegalTemplateOperationException
+                        | DuplicateTemplateException e) {
                     addScopeEntry = false;
                     if (logger.isTraceEnabled()) {
                         logger.trace("Failed to update headroom template for cluster name {}, id {}: {}",
@@ -445,8 +436,8 @@ public class PlanProjectExecutor {
             final TemplateInfo avgTemplateInfo = avgProfile.getHeadroomTemplateInfo().get();
             // The target that discovered this group.
             final Optional<Long> targetId;
-            if (cluster.hasOrigin() && cluster.getOrigin().hasDiscovered() &&
-                cluster.getOrigin().getDiscovered().getDiscoveringTargetIdCount() != 0) {
+            if (cluster.hasOrigin() && cluster.getOrigin().hasDiscovered()
+                    && cluster.getOrigin().getDiscovered().getDiscoveringTargetIdCount() != 0) {
                 targetId = Optional.of(cluster.getOrigin().getDiscovered().getDiscoveringTargetId(0));
             } else {
                 targetId = Optional.empty();
@@ -459,8 +450,8 @@ public class PlanProjectExecutor {
 
             if (headroomTemplate.isPresent()) {
                 // Cluster has sufficient system load data and has associated headroom template.
-                if (headroomTemplate.get().hasTemplateInfo() &&
-                    headroomTemplate.get().getTemplateInfo().hasName()) {
+                if (headroomTemplate.get().hasTemplateInfo()
+                        && headroomTemplate.get().getTemplateInfo().hasName()) {
                     if (headroomTemplate.get().getTemplateInfo().getName()
                         .equals(avgProfile.getProfileName())) {
                         // Associated headroom template is avg template.
@@ -473,8 +464,10 @@ public class PlanProjectExecutor {
                         .equals(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)) {
                         // Associated headroom template is default template.
                         // Switch from default template to avg template.
-                        logger.info("Creating avg template for cluster {}, id {}. Switch from default " +
-                            "template to avg template.", cluster.getDefinition().getDisplayName(), cluster.getId());
+                        logger.info(
+                            "Creating avg template for cluster {}, id {}. Switch from default "
+                            + "template to avg template.",
+                            cluster.getDefinition().getDisplayName(), cluster.getId());
                         newClusterHeadroomTemplateId =
                             Optional.of(templatesDao.createTemplate(avgTemplateInfo, targetId).getId());
                     } else {
@@ -494,11 +487,13 @@ public class PlanProjectExecutor {
                 // Cluster doesn't have sufficient system load data and associated headroom template.
                 if (defaultHeadroomTemplate.isPresent()) {
                     newClusterHeadroomTemplateId = Optional.of(defaultHeadroomTemplate.get().getId());
-                    logger.info("No system load records found for cluster {}, id {}. " +
-                        "Use default headroom template.", cluster.getDefinition().getDisplayName(), cluster.getId());
+                    logger.info("No system load records found for cluster {}, id {}. "
+                        + "Use default headroom template.",
+                        cluster.getDefinition().getDisplayName(), cluster.getId());
                 } else {
-                    throw new NoSuchObjectException("Default cluster headroom template not found for cluster " +
-                        cluster.getDefinition().getDisplayName() + ", id " + cluster.getId());
+                    throw new NoSuchObjectException(
+                        "Default cluster headroom template not found for cluster "
+                        + cluster.getDefinition().getDisplayName() + ", id " + cluster.getId());
                 }
             }
         }

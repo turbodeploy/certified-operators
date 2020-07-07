@@ -1,6 +1,7 @@
 package com.vmturbo.search;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -39,15 +40,14 @@ import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.TextConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.WhereApiDTO;
-import com.vmturbo.api.enums.EntitySeverity;
-import com.vmturbo.api.enums.EntityState;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 import com.vmturbo.common.api.mappers.EnumMapper;
 import com.vmturbo.extractor.schema.tables.SearchEntity;
 import com.vmturbo.search.mappers.EntitySeverityMapper;
 import com.vmturbo.search.mappers.EntityStateMapper;
+import com.vmturbo.search.mappers.EntityTypeMapper;
 import com.vmturbo.search.mappers.EnvironmentTypeMapper;
+import com.vmturbo.search.mappers.GroupTypeMapper;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
@@ -63,6 +63,14 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
             add(PrimitiveFieldApiDTO.environmentType());
         }
     };
+
+    private static final Map<PrimitiveFieldApiDTO, Function> ENUM_FIELD_API_TO_JOOQ_MAPPER = new HashMap<PrimitiveFieldApiDTO, Function>() {{
+        put(PrimitiveFieldApiDTO.entityType(), EntityTypeMapper.fromApiToSearchSchemaFunction);
+        put(PrimitiveFieldApiDTO.groupType(), GroupTypeMapper.fromApiToSearchSchemaFunction);
+        put(PrimitiveFieldApiDTO.severity(), EntitySeverityMapper.fromApiToSearchSchemaFunction);
+        put(PrimitiveFieldApiDTO.entityState(), EntityStateMapper.fromApiToSearchSchemaFunction);
+        put(PrimitiveFieldApiDTO.environmentType(), EnvironmentTypeMapper.fromApiToSearchSchemaFunction);
+    }};
 
     /**
      * String representing request type {@link com.vmturbo.api.enums.GroupType} or {@link com.vmturbo.api.enums.EntityType}.
@@ -259,8 +267,8 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
      * @return constructed {@link Condition}
      */
     private Condition parseCondition(@Nonnull InclusionConditionApiDTO entityCondition, @Nonnull Field field) {
-        List<String> values = entityCondition.getValue(); //List of enumLiterals only
-        List<String> jooqEnumValues = parseTextAndInclusionConditions(entityCondition.getField(), values);
+        final List<String> values = entityCondition.getValue(); //List of enumLiterals only
+        final List<String> jooqEnumValues = parseTextAndInclusionConditions(entityCondition.getField(), values);
         //InclusionCondition can only be configured for IN operator
         return field.in(jooqEnumValues);
     }
@@ -274,7 +282,7 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
      */
     @Nonnull
     private Condition parseCondition(@Nonnull NumberConditionApiDTO entityCondition, @Nonnull Field field) {
-        Double value = entityCondition.getValue();
+        final Double value = entityCondition.getValue();
         return applyNumericOperators(field, entityCondition.getOperator(), value);
     }
 
@@ -308,38 +316,26 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
      *
      * @param fieldApiDto Corresponding {@link FieldApiDTO} of configered condition.
      * @param values request api values, enums will be converted to jooq enums
-     * @return jooq enum references.
-     *         If Field is not {@link Type#ENUM} original values returned
+     * @return jooq enum references or original values returned
      */
     private List<String> parseTextAndInclusionConditions(FieldApiDTO fieldApiDto, List<String> values ) {
         SearchMetadataMapping mapping = getMetadataMapping().get(fieldApiDto);
 
-        if (!mapping.getApiDatatype().equals(Type.ENUM)) {
+        if (!ENUM_FIELD_API_TO_JOOQ_MAPPER.containsKey(fieldApiDto) && mapping.getEnumClass() != null) {
             return values;
         }
-
-        final EnumMapper apiEnumMapper;
-        final Function enumMappingFunction;
 
         if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityType())) {
             throw new IllegalArgumentException("EntityType condition should only exist on Select Query");
-        } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.severity())) {
-            apiEnumMapper = new EnumMapper(EntitySeverity.class);
-            enumMappingFunction = EntitySeverityMapper.fromApiToSearchSchemaFunction;
-        } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.entityState())) {
-            apiEnumMapper = new EnumMapper(EntityState.class);
-            enumMappingFunction = EntityStateMapper.fromApiToSearchSchemaFunction;
-        } else if (fieldApiDto.equals(PrimitiveFieldApiDTO.environmentType())) {
-            apiEnumMapper = new EnumMapper(EnvironmentType.class);
-            enumMappingFunction = EnvironmentTypeMapper.fromApiToSearchSchemaFunction;
-        } else {
-            return values;
         }
 
+        final EnumMapper apiEnumMapper = new EnumMapper(mapping.getEnumClass());
+        final Function enumMappingFunction = ENUM_FIELD_API_TO_JOOQ_MAPPER.get(fieldApiDto);
+
         return values.stream()
-            .map(apiEnumLiteral -> apiEnumMapper.valueOf(apiEnumLiteral).get())
-            .map(obj -> enumMappingFunction.apply(obj).toString())
-            .collect(Collectors.toList());
+                .map(apiEnumLiteral -> apiEnumMapper.valueOf(apiEnumLiteral).get())
+                .map(obj -> enumMappingFunction.apply(obj).toString())
+                .collect(Collectors.toList());
     }
 
     /**

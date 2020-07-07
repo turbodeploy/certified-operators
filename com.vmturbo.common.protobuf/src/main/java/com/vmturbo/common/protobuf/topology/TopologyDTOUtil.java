@@ -87,6 +87,13 @@ public final class TopologyDTOUtil {
     public static final Set<EntityType> STORAGE_TYPES =
             ImmutableSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER);
 
+    /**
+     * VC Probe collects the sum of CPU ready (wait time) over 20 second intervals and this sum is
+     * only meaningful if you know what interval this value is collected over. Ideally this
+     * interval should come from the probe. See https://kb.vmware.com/s/article/2002181 for more details.
+     */
+    public static final double QX_VCPU_BASE_COEFFICIENT = 20000.0;
+
     private TopologyDTOUtil() {
     }
 

@@ -42,6 +42,10 @@
             <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>extractor-schema</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

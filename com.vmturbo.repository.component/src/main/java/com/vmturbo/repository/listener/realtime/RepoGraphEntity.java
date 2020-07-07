@@ -15,10 +15,10 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;

@@ -18,12 +18,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import it.unimi.dsi.fastutil.objects.ObjectList;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import it.unimi.dsi.fastutil.objects.ObjectList;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
