@@ -185,8 +185,8 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
 
         final DataMetricTimer timer = CALCULATE_POTENTIAL_PLACEMENTS_DURATION_SUMMARY.startTimer();
 
-        final PaginationParameters paginationParameters = request.hasPaginationParams() ?
-            request.getPaginationParams() : DEFAULT_PAGINATION;
+        final PaginationParameters paginationParameters = request.hasPaginationParams()
+            ? request.getPaginationParams() : DEFAULT_PAGINATION;
 
         try {
             PaginationProtoUtil.validatePaginationParams(paginationParameters);
