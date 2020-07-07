@@ -5,13 +5,16 @@ package com.vmturbo.platform.analysis.testUtilities;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.platform.analysis.topology.Topology;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Move;
@@ -429,10 +432,10 @@ public class TestUtils {
             commodityResizeDependencyMap = economy.getModifiableCommodityResizeDependencyMap();
         CommodityResizeSpecification vCpuDependency =
                         new CommodityResizeSpecification(TestUtils.CPU.getType(),
-                                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> (b));
+                                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> Math.min(a, b));
         CommodityResizeSpecification vMemDependency =
                         new CommodityResizeSpecification(TestUtils.MEM.getType(),
-                                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> (b));
+                                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> Math.min(a, b));
         CommodityResizeSpecification vMemQuotaDependency =
                 new CommodityResizeSpecification(TestUtils.VMEMLIMITQUOTA.getType(),
                         M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
@@ -446,6 +449,19 @@ public class TestUtils {
         commodityResizeDependencyMap.put(TestUtils.VMEM.getType(), Arrays.asList(vMemDependency, vMemQuotaDependency));
         commodityResizeDependencyMap.put(TestUtils.DBMEM.getType(), Arrays.asList(DBMemDependency));
         commodityResizeDependencyMap.put(TestUtils.HEAP.getType(), Arrays.asList(HeapDependency));
+    }
+
+    /**
+     * Populates the commodity history based resize dependency skip map of a {@link Topology}.
+     *
+     * @param economy where to place the map
+     */
+    public static void setupHistoryBasedResizeDependencyMap(final @NonNull Economy economy) {
+        economy.getModifiableHistoryBasedResizeDependencySkipMap().putAll(
+            ImmutableMap.<Integer, List<Integer>>builder()
+                .put(TestUtils.VCPU.getType(), Collections.singletonList(TestUtils.CPU.getType()))
+                .put(TestUtils.VMEM.getType(), Collections.singletonList(TestUtils.MEM.getType()))
+                .build());
     }
 
     /**
