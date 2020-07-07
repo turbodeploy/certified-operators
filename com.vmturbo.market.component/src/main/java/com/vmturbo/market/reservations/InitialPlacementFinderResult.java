@@ -43,8 +43,13 @@ public class InitialPlacementFinderResult {
      * @return a list containing failed commodity type, its requested amount, closest seller oid and
      * max quantity available on that seller.
      */
-    public List<FailureInfo> getFailureInfoList() { return failureInfoList; }
+    public List<FailureInfo> getFailureInfoList() {
+        return failureInfoList;
+    }
 
+    /**
+     * Failure information when a reservation fails.
+     */
     public static class FailureInfo {
         // commodity type causing placement failure
         private CommodityType commodityType;
@@ -55,7 +60,14 @@ public class InitialPlacementFinderResult {
         // the requested amount
         private final double requestedAmount;
 
-        public FailureInfo(final CommodityType commodityType,final long closestSellerOid,
+        /**
+         * Constructor for FailureInfo.
+         * @param commodityType coomodity type of the commodity rsponsible for failure.
+         * @param closestSellerOid seller with the most resources of the commodity of type commodityType.
+         * @param maxQuantity quantity of commodity of type commodityType available in closestSellerOid.
+         * @param requestedAmount quantity of commodity of type commodityType requested by buyer.
+         */
+        public FailureInfo(final CommodityType commodityType, final long closestSellerOid,
                            final double maxQuantity, final double requestedAmount) {
             this.commodityType = commodityType;
             this.closestSellerOid = closestSellerOid;

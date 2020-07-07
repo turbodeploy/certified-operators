@@ -16,6 +16,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -24,8 +26,6 @@ import org.mockito.Captor;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;

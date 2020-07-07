@@ -66,7 +66,17 @@ public class InitialPlacementFinder {
      * State of initial placement, can be ready or not ready.
      */
     public enum PlacementFinderState {
-        READY, NOT_READY;
+
+        /**
+         * The market has cached economy available.
+         */
+
+        READY,
+
+        /**
+         * market has not yet got cached economy.
+         */
+        NOT_READY;
     }
 
     // the lock to synchronize the change of cachedEconomy
@@ -354,9 +364,7 @@ public class InitialPlacementFinder {
                 return reservationResult;
             }
 
-            Set<Long> reservationId = buyers.stream().map(InitialPlacementBuyer::getReservationId).collect(
-                    Collectors.toSet());
-            List<TraderTO> reservationTraders = new ArrayList<>();
+
             cachedEconomy.resetMarketsPopulatedFlag();
             // buyers constructed using the cachedCommTypeMap, which has to be the same map for
             // cachedEconomy commodity construction
@@ -366,7 +374,7 @@ public class InitialPlacementFinder {
             // even though user trigger the deletion first. In that case, we failed to clear the impact of
             // deleted reservations, but it should be self-resolved when the next market analysis cycle completes.
             clearDeletedBuyersImpact(cachedEconomy);
-            reservationTraders = constructTraderTOs(buyers, commTypeToSpecMap);
+            List<TraderTO> reservationTraders =  constructTraderTOs(buyers, commTypeToSpecMap);
             // NOTE: reservation id is not passed into traderTO
             reservationTraders.stream().forEach(
                     trader -> ProtobufToAnalysis.addTrader(cachedEconomy.getTopology(), trader));
@@ -375,7 +383,8 @@ public class InitialPlacementFinder {
 
             cachedEconomy.composeMarketSubsetForPlacement();
             cachedEconomy.populateMarketsWithSellersAndMergeConsumerCoverage();
-
+            Set<Long> reservationId = buyers.stream().map(InitialPlacementBuyer::getReservationId).collect(
+                    Collectors.toSet());
             logger.info("Running placement for reservation {}", reservationId);
             PlacementResults placementResults = Placement.placementDecisions(cachedEconomy);
 
@@ -460,8 +469,8 @@ public class InitialPlacementFinder {
                     if (supplier != null) {
                         Move.updateQuantities(economy, sl, supplier, FunctionalOperatorUtil.SUB_COMM);
                         sl.move(null);
-                        sl.setMovable(false);
                     }
+                    sl.setMovable(false);
                 }
             }
         }
@@ -546,7 +555,7 @@ public class InitialPlacementFinder {
     }
 
     /**
-     * Set the placement finder state.co
+     * Set the placement finder state.
      * @param state state of the placement finder object.
      */
     private  void setState(PlacementFinderState state) {
