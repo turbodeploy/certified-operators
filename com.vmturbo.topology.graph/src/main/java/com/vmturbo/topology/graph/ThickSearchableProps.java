@@ -1,11 +1,13 @@
 package com.vmturbo.topology.graph;
 
 import java.util.Collection;
+import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -76,6 +78,25 @@ public class ThickSearchableProps implements SearchableProps {
             .filter(CommoditySoldDTO::hasUsed)
             .mapToDouble(CommoditySoldDTO::getUsed)
             .findFirst().orElse(-1);
+    }
+
+    @Override
+    public boolean isHotAddSupported(int commodityType) {
+        return isHotChangeSupported(commodityType, HotResizeInfo::getHotAddSupported);
+    }
+
+    @Override
+    public boolean isHotRemoveSupported(int commodityType) {
+        return isHotChangeSupported(commodityType, HotResizeInfo::getHotRemoveSupported);
+    }
+
+    private boolean isHotChangeSupported(int commodityType, Predicate<HotResizeInfo> predicate) {
+        return entityOrBldr.getCommoditySoldListList()
+                .stream()
+                .filter(c -> c.getCommodityType().getType() == commodityType)
+                .filter(CommoditySoldDTO::hasHotResizeInfo)
+                .map(CommoditySoldDTO::getHotResizeInfo)
+                .anyMatch(predicate);
     }
 
     /**

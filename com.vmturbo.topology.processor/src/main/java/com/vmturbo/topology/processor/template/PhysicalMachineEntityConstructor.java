@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.template;
 
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Compute;
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Infrastructure;
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.QX_VCPU_BASE_COEFFICIENT;
 
 import java.util.List;
 import java.util.Map;
@@ -43,8 +44,6 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
     // Max 256 LUNS based on https://www.vmware.com/pdf/vsphere6/r60/vsphere-60-configuration-maximums.pdf
     public static final int MAX_LUN_LIMIT = 256;
 
-    // Semi-random capacity number based on VC standard 20-second real-time metric interval.
-    public static final double QX_VCPU_BASE_COEFFICIENT = 20000.0;
     // Random numbers ported from legacy.
     public static final double BALLOONING_DEFAULT_CAPACITY = 1.0E9;
     public static final double SWAPPING_DEFAULT_CAPACITY = 5000.0;

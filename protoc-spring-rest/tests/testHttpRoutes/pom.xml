@@ -12,9 +12,17 @@
 
     <artifactId>testHttpRoutes</artifactId>
 
-    <properties>
-      <checkstyle.path>${project.basedir}/../../../build/checkstyle.xml</checkstyle.path>
-    </properties>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
     <dependencies>
         <dependency>

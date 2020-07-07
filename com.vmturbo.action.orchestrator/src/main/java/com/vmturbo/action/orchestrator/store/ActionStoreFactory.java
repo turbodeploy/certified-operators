@@ -9,6 +9,7 @@ import org.jooq.DSLContext;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
@@ -65,6 +66,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
     private final LicenseCheckClient licenseCheckClient;
 
     private final AcceptedActionsDAO acceptedActionsStore;
+    private final RejectedActionsDAO rejectedActionsStore;
 
     private final IdentityService<ActionInfo> actionIdentityService;
     private final ActionAuditSender externalAuditEventSender;
@@ -91,72 +93,10 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.repositoryService = Objects.requireNonNull(builder.repositoryService);
         this.licenseCheckClient = Objects.requireNonNull(builder.licenseCheckClient);
         this.acceptedActionsStore = Objects.requireNonNull(builder.acceptedActionsDAO);
+        this.rejectedActionsStore = Objects.requireNonNull(builder.rejectedActionsDAO);
         this.actionIdentityService = Objects.requireNonNull(builder.actionIdentityService);
         this.involvedEntitiesExpander = Objects.requireNonNull(builder.involvedEntitiesExpander);
         this.externalAuditEventSender = Objects.requireNonNull(builder.actionAuditSender);
-    }
-
-    /**
-     * Create a new ActionStoreFactory.
-     *
-     * @param actionFactory the action factory
-     * @param realtimeTopologyContextId the topology context id
-     * @param actionIdentityService identity service to assign OIDs to actions
-     * @param databaseDslContext dsl context
-     * @param actionHistoryDao dao layer working with executed actions
-     * @param actionTargetSelector selects which target/probe to execute each action against
-     * @param probeCapabilityCache gets the target-specific action capabilities
-     * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot
-     * @param actionsStatistician works with action stats
-     * @param actionTranslator the action translator class
-     * @param atomicActionFactory the atomic action factory class
-     * @param clock the {@link Clock}
-     * @param userSessionContext the user session context
-     * @param acceptedActionsDAO dao layer working with accepted actions
-     * @param externalAuditEventsSender action event sender for external audit
-     * @param involvedEntitiesExpander involved entities expander
-     * @param licenseCheckClient license check client
-     * @param repositoryService repository service
-     * @param supplyChainService supply chain service
-     */
-    public ActionStoreFactory(@Nonnull final IActionFactory actionFactory,
-                              final long realtimeTopologyContextId,
-                              @Nonnull final DSLContext databaseDslContext,
-                              @Nonnull final ActionHistoryDao actionHistoryDao,
-                              @Nonnull final ActionTargetSelector actionTargetSelector,
-                              @Nonnull final ProbeCapabilityCache probeCapabilityCache,
-                              @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
-                              @Nonnull final LiveActionsStatistician actionsStatistician,
-                              @Nonnull final ActionTranslator actionTranslator,
-                              @Nonnull final AtomicActionFactory atomicActionFactory,
-                              @Nonnull final Clock clock,
-                              @Nonnull final UserSessionContext userSessionContext,
-                              @Nonnull final AcceptedActionsDAO acceptedActionsDAO,
-                              @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
-                              @Nonnull final RepositoryServiceBlockingStub repositoryService,
-                              @Nonnull final LicenseCheckClient licenseCheckClient,
-                              @Nonnull final IdentityService<ActionInfo> actionIdentityService,
-                              @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander,
-                              @Nonnull final ActionAuditSender externalAuditEventsSender) {
-        this.actionFactory = Objects.requireNonNull(actionFactory);
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
-        this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
-        this.actionHistoryDao = actionHistoryDao;
-        this.actionTargetSelector = actionTargetSelector;
-        this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
-        this.actionsStatistician = Objects.requireNonNull(actionsStatistician);
-        this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
-        this.actionTranslator = Objects.requireNonNull(actionTranslator);
-        this.atomicActionFactory = Objects.requireNonNull(atomicActionFactory);
-        this.clock = Objects.requireNonNull(clock);
-        this.userSessionContext = Objects.requireNonNull(userSessionContext);
-        this.supplyChainService = Objects.requireNonNull(supplyChainService);
-        this.repositoryService = Objects.requireNonNull(repositoryService);
-        this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
-        this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsDAO);
-        this.actionIdentityService = Objects.requireNonNull(actionIdentityService);
-        this.involvedEntitiesExpander = Objects.requireNonNull(involvedEntitiesExpander);
-        this.externalAuditEventSender = Objects.requireNonNull(externalAuditEventsSender);
     }
 
     /**
@@ -168,12 +108,12 @@ public class ActionStoreFactory implements IActionStoreFactory {
     @Override
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
-            return new LiveActionStore(actionFactory, topologyContextId,
-                supplyChainService, repositoryService, actionTargetSelector,
-                probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
-                licenseCheckClient, acceptedActionsStore, actionIdentityService,
-                    involvedEntitiesExpander, externalAuditEventSender);
+            return new LiveActionStore(actionFactory, topologyContextId, repositoryService,
+                    actionTargetSelector, probeCapabilityCache, entitySettingsCache,
+                    actionHistoryDao, actionsStatistician, actionTranslator, atomicActionFactory,
+                    clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
+                    rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
+                    externalAuditEventSender);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 supplyChainService, repositoryService,
@@ -218,6 +158,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private RepositoryServiceBlockingStub repositoryService;
         private LicenseCheckClient licenseCheckClient;
         private AcceptedActionsDAO acceptedActionsDAO;
+        private RejectedActionsDAO rejectedActionsDAO;
         private IdentityService<ActionInfo> actionIdentityService;
         private InvolvedEntitiesExpander involvedEntitiesExpander;
         private ActionAuditSender actionAuditSender;
@@ -396,8 +337,20 @@ public class ActionStoreFactory implements IActionStoreFactory {
          * @param acceptedActionsStore accepted actions store to set
          * @return the builder itself for chained calls
          */
-        public Builder withAcceptedActionStore(@Nonnull AcceptedActionsDAO acceptedActionsStore) {
+        public Builder withAcceptedActionsStore(
+                @Nonnull AcceptedActionsDAO acceptedActionsStore) {
             this.acceptedActionsDAO = acceptedActionsStore;
+            return this;
+        }
+
+        /**
+         * Sets rejected actions store to a builder.
+         *
+         * @param rejectedActionsStore rejected actions store to set
+         * @return the builder itself for chained calls
+         */
+        public Builder withRejectedActionsStore(@Nonnull RejectedActionsDAO rejectedActionsStore) {
+            this.rejectedActionsDAO = rejectedActionsStore;
             return this;
         }
 

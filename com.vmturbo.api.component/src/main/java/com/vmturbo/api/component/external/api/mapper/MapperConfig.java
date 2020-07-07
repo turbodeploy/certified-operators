@@ -230,7 +230,7 @@ public class MapperConfig {
      */
     @Bean
     public TopologyDataDefinitionMapper topologyDataDefinitionMapper() {
-        return new TopologyDataDefinitionMapper();
+        return new TopologyDataDefinitionMapper(entityFilterMapper());
     }
 
     @Bean

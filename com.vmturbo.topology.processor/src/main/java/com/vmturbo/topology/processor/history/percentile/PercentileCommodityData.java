@@ -64,15 +64,12 @@ public class PercentileCommodityData
         }
     }
 
-    /*
-     * TODO method needs to be reused in PercentileEditor#maintenance to
-     *  simplify period changes check
-     */
     @Override
     public boolean needsReinitialization(@Nonnull EntityCommodityReference ref,
                     @Nonnull HistoryAggregationContext context,
                     @Nonnull PercentileHistoricalEditorConfig config) {
-        return utilizationCounts.getPeriodDays() != config
+        int configuredPeriod = utilizationCounts.getPeriodDays();
+        return configuredPeriod > 0 && configuredPeriod != config
                         .getObservationPeriod(context, ref.getEntityOid());
     }
 

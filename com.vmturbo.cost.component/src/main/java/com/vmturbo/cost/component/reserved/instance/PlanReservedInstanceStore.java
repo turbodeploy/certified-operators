@@ -10,19 +10,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Record3;
 import org.jooq.Result;
 import org.jooq.TableRecord;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.PlanReservedInstanceBought;
 import com.vmturbo.cost.component.db.tables.records.PlanReservedInstanceBoughtRecord;
@@ -32,7 +39,11 @@ import com.vmturbo.cost.component.identity.IdentityProvider;
  * This class is used to update plan RI table by plan reserved instance bought data
  * from Topology Processor.
  */
-public class PlanReservedInstanceStore extends AbstractReservedInstanceStore {
+public class PlanReservedInstanceStore extends AbstractReservedInstanceStore implements DiagsRestorable {
+
+    private static final String planReservedInstanceDumpFile = "planReservedInstance_dump";
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Creates {@link PlanReservedInstanceStore} instance.
@@ -175,5 +186,32 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore {
                         .setReservedInstanceBoughtInfo(record.getReservedInstanceBoughtInfo())
                         .build();
 
+    }
+
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        // TODO to be implemented as part of OM-58627
+    }
+
+    @Override
+    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+        getDsl().transaction(transactionContext -> {
+            final DSLContext transaction = DSL.using(transactionContext);
+            Stream<PlanReservedInstanceBoughtRecord> latestRecords = transaction.selectFrom(Tables.PLAN_RESERVED_INSTANCE_BOUGHT).stream();
+            latestRecords.forEach(s -> {
+                try {
+                    appender.appendString(s.formatJSON());
+                } catch (DiagnosticsException e) {
+                    logger.error("Exception encountered while appending plan reserved instance records" +
+                            " to the diags dump", e);
+                }
+            });
+        });
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return planReservedInstanceDumpFile;
     }
 }

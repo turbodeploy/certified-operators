@@ -19,6 +19,11 @@ public class EntityTypeMapper {
      */
     private static final BiMap<EntityType, com.vmturbo.api.enums.EntityType> ENTITY_TYPE_MAPPINGS =
         new ImmutableBiMap.Builder()
+            .put( EntityType.APPLICATION_COMPONENT, com.vmturbo.api.enums.EntityType.APPLICATION_COMPONENT)
+            .put( EntityType.BUSINESS_TRANSACTION, com.vmturbo.api.enums.EntityType.BUSINESS_TRANSACTION)
+            .put( EntityType.BUSINESS_APPLICATION, com.vmturbo.api.enums.EntityType.BUSINESS_APPLICATION)
+            .put( EntityType.DATABASE_SERVER, com.vmturbo.api.enums.EntityType.DATABASE_SERVER)
+            .put( EntityType.SERVICE, com.vmturbo.api.enums.EntityType.SERVICE)
             .put( EntityType.SWITCH, com.vmturbo.api.enums.EntityType.SWITCH)
             .put( EntityType.STORAGE, com.vmturbo.api.enums.EntityType.STORAGE)
             .put( EntityType.VIRTUAL_MACHINE, com.vmturbo.api.enums.EntityType.VIRTUAL_MACHINE)
@@ -54,7 +59,7 @@ public class EntityTypeMapper {
      * @return The associated {@link com.vmturbo.api.enums.EntityType}, or null
      */
     public static com.vmturbo.api.enums.EntityType fromSearchSchemaToApi(@Nullable final EntityType entityType) {
-        return ENTITY_TYPE_MAPPINGS.getOrDefault(entityType, null);
+        return ENTITY_TYPE_MAPPINGS.getOrDefault(entityType, com.vmturbo.api.enums.EntityType.UNKNOWN);
     }
 
     /**

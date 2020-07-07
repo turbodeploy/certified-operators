@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Discovered;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.DiskTypeInfo;
@@ -25,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -469,6 +471,25 @@ public class TopologyTestUtil {
                 .setCommodityType(CommodityType.newBuilder().setType(commodityType.getNumber()))
                 .setUsed(used)
                 .setCapacity(capacity)
+                .build();
+    }
+
+    /**
+     * Create a {@link CommoditiesBoughtFromProvider}.
+     *
+     * @param commodityType type of the commodity
+     * @param used used value
+     * @param providerId provider id
+     * @return {@link CommoditiesBoughtFromProvider}
+     */
+    public static CommoditiesBoughtFromProvider boughtCommodityFromProvider(
+            CommodityDTO.CommodityType commodityType, double used, long providerId) {
+        return CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(providerId)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(commodityType.getNumber()))
+                        .setUsed(used))
                 .build();
     }
 

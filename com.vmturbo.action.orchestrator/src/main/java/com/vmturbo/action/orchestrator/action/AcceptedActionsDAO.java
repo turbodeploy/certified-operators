@@ -7,7 +7,7 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.action.orchestrator.exception.AcceptedActionStoreOperationException;
+import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
 
 /**
  * Interface for communicating with accepted/approved actions.
@@ -23,12 +23,12 @@ public interface AcceptedActionsDAO {
      * @param acceptedTime time when action was accepted
      * @param acceptorType acceptor type (Turbo user or user from Orchestration platform)
      * @param relatedPolicies policies associated with the action
-     * @throws AcceptedActionStoreOperationException if store operation failed
+     * @throws ActionStoreOperationException if store operation failed
      */
     void persistAcceptedAction(long recommendationId, @Nonnull LocalDateTime lastGeneratedTime,
             @Nonnull String acceptedBy, @Nonnull LocalDateTime acceptedTime,
             @Nonnull String acceptorType, @Nonnull Collection<Long> relatedPolicies)
-            throws AcceptedActionStoreOperationException;
+            throws ActionStoreOperationException;
 
     /**
      * Delete acceptance for actions. (e.g. if action was successfully executed)
@@ -75,10 +75,10 @@ public interface AcceptedActionsDAO {
      *
      * @param actionsRecommendationIds actions which latest recommendation time
      * should be updated
-     * @throws AcceptedActionStoreOperationException if store operation failed
+     * @throws ActionStoreOperationException if store operation failed
      */
     void updateLatestRecommendationTime(@Nonnull Collection<Long> actionsRecommendationIds)
-            throws AcceptedActionStoreOperationException;
+            throws ActionStoreOperationException;
 
     /**
      * Remove acceptance for all actions associated with this policy.

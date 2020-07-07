@@ -39,7 +39,7 @@ import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
-import com.vmturbo.topology.processor.topology.RequestCommodityThresholdsInjector;
+import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
@@ -129,7 +129,7 @@ public class PlanPipelineFactory {
 
     private final DemandOverriddenCommodityEditor demandOverriddenCommodityEditor;
 
-    private final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector;
+    private final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector;
 
     private final EphemeralEntityEditor ephemeralEntityEditor;
 
@@ -158,7 +158,7 @@ public class PlanPipelineFactory {
                                @Nonnull HistoryAggregator historyAggregationStage,
                                @Nonnull DemandOverriddenCommodityEditor demandOverriddenCommodityEditor,
                                @Nonnull final ConsistentScalingManager consistentScalingManager,
-                               @Nonnull final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector,
+                               @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector,
                                @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
                                @Nonnull final CloudMigrationPlanHelper cloudMigrationPlanHelper) {
         this.topoBroadcastManager = topoBroadcastManager;
@@ -184,7 +184,7 @@ public class PlanPipelineFactory {
         this.constructTopologyStageCache = Objects.requireNonNull(constructTopologyStageCache);
         this.historyAggregator = Objects.requireNonNull(historyAggregationStage);
         this.demandOverriddenCommodityEditor = demandOverriddenCommodityEditor;
-        this.requestCommodityThresholdsInjector = Objects.requireNonNull(requestCommodityThresholdsInjector);
+        this.requestAndLimitCommodityThresholdsInjector = Objects.requireNonNull(requestAndLimitCommodityThresholdsInjector);
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
         this.cloudMigrationPlanHelper = Objects.requireNonNull(cloudMigrationPlanHelper);
     }
@@ -254,7 +254,7 @@ public class PlanPipelineFactory {
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
                 .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes))
-                .addStage(new RequestCommodityThresholdsStage(requestCommodityThresholdsInjector))
+                .addStage(new RequestCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
                 .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new TopSortStage())

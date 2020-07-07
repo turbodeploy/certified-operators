@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
+import com.vmturbo.action.orchestrator.approval.ApprovalCommunicationConfig;
 import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
@@ -25,7 +26,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
     ActionExecutionConfig.class,
     TopologyProcessorConfig.class,
     WorkflowConfig.class,
-    AuditCommunicationConfig.class})
+    AuditCommunicationConfig.class,
+    ApprovalCommunicationConfig.class})
 public class NotificationsConfig {
 
     @Autowired
@@ -48,22 +50,24 @@ public class NotificationsConfig {
     @Autowired
     private AuditCommunicationConfig auditCommunicationConfig;
 
+    @Autowired
+    private ApprovalCommunicationConfig approvalCommunicationConfig;
+
     /**
      * Bean for {@link ActionExecutionListener}.
      * @return The {@link ActionExecutionListener}.
      */
     @Bean
     public ActionExecutionListener actionExecutionListener() {
-        final ActionExecutionListener executionListener = new ActionStateUpdater(
-            actionStoreConfig.actionStorehouse(),
-            apiConfig.actionOrchestratorNotificationSender(),
-            actionStoreConfig.actionHistory(),
-            actionStoreConfig.acceptedActionsStore(),
-            actionExecutionConfig.actionExecutor(),
-            workflowConfig.workflowStore(),
-            tpConfig.realtimeTopologyContextId(),
-                actionExecutionConfig.failedCloudVMGroupProcessor(),
-                auditCommunicationConfig.actionAuditSender());
+        final ActionExecutionListener executionListener =
+                new ActionStateUpdater(actionStoreConfig.actionStorehouse(),
+                        apiConfig.actionOrchestratorNotificationSender(),
+                        actionStoreConfig.actionHistory(), actionStoreConfig.acceptedActionsStore(),
+                        actionExecutionConfig.actionExecutor(), workflowConfig.workflowStore(),
+                        tpConfig.realtimeTopologyContextId(),
+                        actionExecutionConfig.failedCloudVMGroupProcessor(),
+                        auditCommunicationConfig.actionAuditSender(),
+                        approvalCommunicationConfig.actionStateUpdatesSender());
         tpConfig.topologyProcessor().addActionListener(executionListener);
         return executionListener;
     }

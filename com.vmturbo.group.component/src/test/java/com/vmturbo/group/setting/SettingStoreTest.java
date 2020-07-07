@@ -1086,15 +1086,15 @@ public class SettingStoreTest {
     }
 
     /**
-     * Tests that acceptances for actions associated with policy weren't removed if existed
-     * execution schedule settings with associated action mode settings will not be changed.
+     * Tests that acceptances and rejections for actions associated with policy weren't removed if
+     * existed execution schedule settings with associated action mode settings will not be changed.
      * In this test case we update policy display name and add new pair of execution
      * schedule and corresponding action mode settings.
      *
      * @throws Exception if something goes wrong
      */
     @Test
-    public void testUpdatePolicyWithoutRemovingAcceptancesForActions() throws Exception {
+    public void testUpdatePolicyWithoutRemovingAcceptancesAndRejectionsForActions() throws Exception {
         final long groupId = 23L;
         createGroup(groupId);
 
@@ -1149,19 +1149,19 @@ public class SettingStoreTest {
                         updatedSettingPolicyInfo);
         final SettingPolicy updatedSavedPolicy = updateSettingPolicyResults.getFirst();
         assertEquals("Updated display name", updatedSavedPolicy.getInfo().getDisplayName());
-        // don't remove acceptances if there is no changes related to execution schedule settings
-        // with associated action mode settings
+        // don't remove acceptances and rejections if there is no changes related to execution
+        // schedule settings with associated action mode settings
         assertFalse(updateSettingPolicyResults.getSecond());
     }
 
     /**
-     * Tests removing acceptances for actions associated with policy if removed execution
-     * schedule setting from policy.
+     * Tests removing acceptances and rejections for actions associated with policy if removed
+     * execution schedule setting from policy.
      *
      * @throws Exception if something goes wrong
      */
     @Test
-    public void testUpdatePolicyWithRemovingAcceptancesWhenExecutionScheduleSettingDeleted()
+    public void testUpdatePolicyWithRemovingAcceptancesAndRejectionsWhenExecutionScheduleSettingDeleted()
             throws Exception {
         final long groupId = 23L;
         createGroup(groupId);
@@ -1211,18 +1211,70 @@ public class SettingStoreTest {
         Assert.assertTrue(
                 CollectionUtils.isEqualCollection(updatedSettingPolicyInfo.getSettingsList(),
                         updatedSavedPolicy.getInfo().getSettingsList()));
-        // remove acceptance if removed execution schedule setting
+        // remove acceptances and rejections if removed execution schedule setting
         Assert.assertTrue(updateSettingPolicyResults.getSecond());
     }
 
     /**
-     * Tests that acceptances for actions associated with policy weren't removed if execution
-     * schedule setting value was modified.
+     * Tests removing acceptances and rejections for actions associated with policy if
+     * external approval setting was removed from policy.
      *
      * @throws Exception if something goes wrong
      */
     @Test
-    public void testUpdatePolicyWithoutRemovingAcceptancesWhenExecutionScheduleSettingModified()
+    public void testUpdatePolicyWithRemovingAcceptancesAndRejectionWhenExternalApprovalSettingDeleted()
+            throws Exception {
+        final long groupId = 23L;
+        createGroup(groupId);
+
+        final Setting externalApprovalSetting = createActionModeSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(),
+                ActionMode.EXTERNAL_APPROVAL);
+
+        final Setting newActionModeSetting = createActionModeSetting(
+                EntitySettingSpecs.Move.getSettingName(),
+                ActionMode.AUTOMATIC);
+
+        final SettingPolicyInfo settingPolicyInfo =
+                createSettingPolicyInfo(Arrays.asList(externalApprovalSetting),
+                        groupId);
+
+        final SettingPolicy policy = SettingPolicy.newBuilder()
+                .setId(identityProviderSpy.next())
+                .setInfo(settingPolicyInfo)
+                .setSettingPolicyType(Type.USER)
+                .build();
+        settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
+
+        final Optional<SettingPolicy> savedPolicy =
+                settingStore.getSettingPolicy(dbConfig.getDslContext(), policy.getId());
+        assertTrue(savedPolicy.isPresent());
+
+        final SettingPolicyInfo updatedSettingPolicyInfo = savedPolicy.get()
+                .getInfo()
+                .toBuilder()
+                .clearSettings()
+                .addSettings(newActionModeSetting)
+                .build();
+        final Pair<SettingPolicy, Boolean> updateSettingPolicyResults =
+                settingStore.updateSettingPolicy(savedPolicy.get().getId(),
+                        updatedSettingPolicyInfo);
+        final SettingPolicy updatedSavedPolicy = updateSettingPolicyResults.getFirst();
+        Assert.assertTrue(
+                CollectionUtils.isEqualCollection(updatedSettingPolicyInfo.getSettingsList(),
+                        updatedSavedPolicy.getInfo().getSettingsList()));
+        // remove acceptances and rejections if removed external approval setting
+        Assert.assertTrue(updateSettingPolicyResults.getSecond());
+    }
+
+    /**
+     * Tests that acceptances and rejections for actions associated with policy weren't removed if
+     * execution schedule setting value was modified.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testUpdatePolicyWithoutRemovingAcceptancesAndRejectionsWhenExecutionScheduleSettingModified()
             throws Exception {
         final long groupId = 23L;
         createGroup(groupId);
@@ -1277,13 +1329,13 @@ public class SettingStoreTest {
         Assert.assertTrue(
                 CollectionUtils.isEqualCollection(updatedSettingPolicyInfo.getSettingsList(),
                         updatedSavedPolicy.getInfo().getSettingsList()));
-        // remove acceptance if execution schedule setting value was changed
+        // remove acceptances and rejections if execution schedule setting value was changed
         Assert.assertFalse(updateSettingPolicyResults.getSecond());
     }
 
     /**
-     * Tests removing acceptances for actions associated with policy when action mode associated
-     * with execution schedule was changed from MANUAL to other one.
+     * Tests removing acceptances and rejections for actions associated with policy when action
+     * mode associated with execution schedule was changed from MANUAL to other one.
      *
      * @throws Exception if something goes wrong
      */
@@ -1341,7 +1393,7 @@ public class SettingStoreTest {
         Assert.assertTrue(
                 CollectionUtils.isEqualCollection(updatedSettingPolicyInfo.getSettingsList(),
                         updatedSavedPolicy.getInfo().getSettingsList()));
-        // remove acceptance if action mode changed from MANUAL to AUTOMATIC
+        // remove acceptances and rejections if action mode changed from MANUAL to AUTOMATIC
         Assert.assertTrue(updateSettingPolicyResults.getSecond());
     }
 

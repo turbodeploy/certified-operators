@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.Topolo
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.DynamicConnectionFilters;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition.AssociatedEntitySelectionCriteria;
+import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters.FilterSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -101,11 +102,13 @@ public class TopologyDataDefinitionTestUtils {
                         .setEntityName(name)
                         .addAssociatedEntities(AssociatedEntitySelectionCriteria.newBuilder()
                                 .setDynamicConnectionFilters(DynamicConnectionFilters.newBuilder()
-                                        .addEntityFilters(FilterSpecs.newBuilder()
-                                                .setExpressionType("REGX")
-                                                .setExpressionValue(".*")
-                                                .setFilterType("foo")
-                                                .setIsCaseSensitive(false)
+                                        .addSearchParameters(Search.SearchParameters.newBuilder()
+                                                .setSourceFilterSpecs(FilterSpecs.newBuilder()
+                                                        .setExpressionType("REGX")
+                                                        .setExpressionValue(".*")
+                                                        .setFilterType("foo")
+                                                        .setIsCaseSensitive(false)
+                                                        .build())
                                                 .build())
                                         .build())
                                 .setConnectedEntityType(associatedEntityType)

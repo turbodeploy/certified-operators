@@ -58,6 +58,22 @@ public interface SearchableProps {
     float getCommodityCapacity(int type);
 
     /**
+     * Checks whether the VM supports hot add feature for the selected type of commodity.
+     *
+     * @param commodityType The commodity type.
+     * @return Returns true if the feature is supported, otherwise false.
+     */
+    boolean isHotAddSupported(int commodityType);
+
+    /**
+     * Checks whether the VM supports hot remove feature for the selected type of commodity.
+     *
+     * @param commodityType The commodity type.
+     * @return Returns true if the feature is supported, otherwise false.
+     */
+    boolean isHotRemoveSupported(int commodityType);
+
+    /**
      * Searchable properties specific to host entities.
      */
     interface PmProps extends SearchableProps {

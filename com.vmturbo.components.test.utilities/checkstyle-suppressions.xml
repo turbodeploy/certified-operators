@@ -1,0 +1,108 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]ComponentTestRule.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]EnvOverrideableProperties.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]InfluxConnectionProperties.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]Alert.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]AlertManager.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]AlertMetricId.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]AlertRule.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]InfluxDBMetricsStore.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]MetricMeasurement.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]MetricNameSuggestor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]MetricsStore.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]PerformanceAlertProcessor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]RuleRegistry.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]RuleSignature.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]TriggeredAlert.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]jira[/\\]AlertProcessorForJira.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]jira[/\\]JiraCommunicator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]jira[/\\]JiraIssue.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]report[/\\]NumberFormatter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]report[/\\]PerformanceTestNameComparator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]report[/\\]ResultsTabulator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]communication[/\\]ComponentStubHost.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ComponentCluster.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ComponentHealthCheck.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ComponentUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]DockerEnvironment.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ServiceConfiguration.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ServiceHealthCheck.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ServiceLogger.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]MetricsWarehouse.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]MetricsWarehouseVisitor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]TextParser.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]scraper[/\\]CAdvisorMetricsScraper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]scraper[/\\]ComponentMetricsScraper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]scraper[/\\]LocalMetricsScraper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]scraper[/\\]MetricsScraper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]scraper[/\\]NodeExporterMetricsScraper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]scraper[/\\]RemoteMetricsScraper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]writer[/\\]InfluxMetricsWarehouseVisitor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]writer[/\\]InfluxPointFactory.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]writer[/\\]JsonMetricsWarehouseVisitor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]CommodityBoughtElement.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]CommodityElement.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]GroupElement.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]GroupManagerElement.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]IntoSdkProto.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]MarketElement.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]RefGroupElement.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]ServiceEntityElement.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]TopologyToDiscoveryResponse.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]XmiElement.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]utils[/\\]ActionPlanGenerator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]utils[/\\]StressProbeUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]utils[/\\]TestUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]utils[/\\]TopologyUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]ComponentTestRuleTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]ComponentTestRuleUtilitiesTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]EnvOverrideablePropertiesTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]AlertManagerTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]AlertMetricIdTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]AlertRuleTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]AlertTestUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]InfluxDBMetricsStoreTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]MetricMeasurementTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]MetricNameSuggestorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]PerformanceAlertProcessorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]RuleRegistryTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]RuleSignatureTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]TriggeredAlertTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]jira[/\\]AlertProcessorForJiraTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]jira[/\\]JiraAccessTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]jira[/\\]JiraIssueTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]report[/\\]NumberFormatterTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]report[/\\]PerformanceTestNameComparatorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]alert[/\\]report[/\\]ResultsTabulatorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ComponentClusterComponentTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ComponentClusterTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ComponentHealthCheckTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ComponentUtilsTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]DockerEnvironmentTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ServiceConfigurationTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]component[/\\]ServiceHealthCheckTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]MetricTestUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]TextParserTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]scraper[/\\]ComponentMetricsScrapeTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]scraper[/\\]MetricWarehouseTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]scraper[/\\]MetricsScraperTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]scraper[/\\]TestCAdvisorMetricsScraper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]scraper[/\\]TestNodeExporterScraper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]writer[/\\]HarvestJsonWriterTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]metric[/\\]writer[/\\]InfluxMetricsWarehouseVisitorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]TopologyToDiscoveryResponseTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]topology[/\\]conversion[/\\]XmiElementTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]utils[/\\]ActionPlanGeneratorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]utils[/\\]GroupGeneratorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]test[/\\]utilities[/\\]utils[/\\]TopologyUtilsTest.java" />
+</suppressions>

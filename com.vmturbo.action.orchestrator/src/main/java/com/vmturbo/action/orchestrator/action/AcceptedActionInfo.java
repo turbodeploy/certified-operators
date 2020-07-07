@@ -23,7 +23,7 @@ public class AcceptedActionInfo {
     private final List<Long> relatedPolicies;
 
     /**
-     * Constructor of {@link AcceptedActionsDAO}.
+     * Constructor of {@link AcceptedActionInfo}.
      *
      * @param recommendationId the recommendationId of accepted action
      * @param latestRecommendationTime the latest time when action was recommended

@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -9,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -26,6 +28,7 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Table;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -45,7 +48,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.tables.PlanProjectedReservedInstanceCoverage;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
@@ -55,7 +64,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.RepositoryListener;
 
-public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
+public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, MultiStoreDiagnosable {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -87,11 +96,18 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
 
     private final long realtimeTopologyContextId;
 
+    private final PlanProjectedReservedInstanceCoverageDiagsHelper planProjectedReservedInstanceCoverageDiagsHelper;
+
+    private final PlanProjectedReservedInstanceUtilizationDiagsHelper planProjectedReservedInstanceUtilizationDiagsHelper;
+
+    private final PlanProjectedRIToEntityMappingDiagsHelper planProjectedRIToEntityMappingDiagsHelper;
+
     private final Set<Integer> entityTypeSet = ImmutableSet.of(EntityType.REGION_VALUE,
                                                                   EntityType.BUSINESS_ACCOUNT_VALUE,
                                                                   EntityType.VIRTUAL_MACHINE_VALUE,
                                                                   EntityType.AVAILABILITY_ZONE_VALUE,
                                                                   EntityType.COMPUTE_TIER_VALUE);
+
     private class Param {
         private final TopologyInfo topoInfo;
         private final List<EntityReservedInstanceCoverage> coverage;
@@ -125,6 +141,9 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         this.supplyChainServiceBlockingStub = supplyChainServiceBlockingStub;
         this.chunkSize = chunkSize;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.planProjectedReservedInstanceCoverageDiagsHelper = new PlanProjectedReservedInstanceCoverageDiagsHelper(context);
+        this.planProjectedReservedInstanceUtilizationDiagsHelper = new PlanProjectedReservedInstanceUtilizationDiagsHelper(context);
+        this.planProjectedRIToEntityMappingDiagsHelper = new PlanProjectedRIToEntityMappingDiagsHelper(context);
     }
 
     /**
@@ -581,6 +600,136 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
             }
         }
     }
+
+    @Override
+    public Set<Diagnosable> getDiagnosables(final boolean collectHistoricalStats) {
+        HashSet<Diagnosable> storesToSave = new HashSet<>();
+        storesToSave.add(planProjectedReservedInstanceCoverageDiagsHelper);
+        storesToSave.add(planProjectedReservedInstanceUtilizationDiagsHelper);
+        storesToSave.add(planProjectedRIToEntityMappingDiagsHelper);
+        return storesToSave;
+    }
+
+    /**
+     * Helper class for dumping Plan Projected Reserved Instance Utilization db records.
+     */
+    private static final class PlanProjectedReservedInstanceUtilizationDiagsHelper implements DiagsRestorable {
+        private static final String planProjectedReservedInstanceUtilizationDumpFile = "planProjectedReservedInstanceUtilization_dump";
+
+        private final DSLContext dsl;
+
+        PlanProjectedReservedInstanceUtilizationDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+
+        }
+
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+            dsl.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                Stream<PlanProjectedReservedInstanceUtilizationRecord> latestRecords = transaction.selectFrom(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION).stream();
+                latestRecords.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Exception encountered while appending plan projected RI utilization records" +
+                                " to the diags dump", e);
+                    }
+                });
+            });
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return planProjectedReservedInstanceUtilizationDumpFile;
+        }
+    }
+
+    /**
+     * Helper class for dumping Plan Projected Reserved Instance Coverage db records.
+     */
+    private static final class PlanProjectedReservedInstanceCoverageDiagsHelper implements DiagsRestorable {
+        private static final String planProjectedReservedInstanceCoverageDumpFile = "planProjectedReservedInstanceCoverage_dump";
+
+        private final DSLContext dsl;
+
+        PlanProjectedReservedInstanceCoverageDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+
+        }
+
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+            dsl.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                Stream<PlanProjectedReservedInstanceCoverageRecord> latestRecords = transaction.selectFrom(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE).stream();
+                latestRecords.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Exception encountered while appending plan projected RI coverage records" +
+                                " to the diags dump", e);
+                    }
+                });
+            });
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return planProjectedReservedInstanceCoverageDumpFile;
+        }
+    }
+
+    /**
+     * Helper class for dumping Plan Projected RI to Entity mapping db records.
+     */
+    private static final class PlanProjectedRIToEntityMappingDiagsHelper implements DiagsRestorable {
+        private static final String planProjectedRIToEntityMappingDumpFile = "planProjectedRIToEntity_dump";
+
+        private final DSLContext dsl;
+
+        PlanProjectedRIToEntityMappingDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+            // TODO to be implemented as part of OM-58627
+        }
+
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+            dsl.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                Stream<PlanProjectedEntityToReservedInstanceMappingRecord> latestRecords = transaction.selectFrom(Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING).stream();
+                latestRecords.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Exception encountered while appending plan projected entity to RI mapping records" +
+                                " to the diags dump", e);
+                    }
+                });
+            });
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return planProjectedRIToEntityMappingDumpFile;
+        }
+    }
+
 
     @Override
     public void onSourceTopologyAvailable(long topologyId, long topologyContextId) { }

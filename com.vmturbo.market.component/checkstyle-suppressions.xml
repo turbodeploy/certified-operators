@@ -1,0 +1,115 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]MarketComponent.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]MarketGlobalConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]MarketNotificationSender.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]api[/\\]MarketApiConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]api[/\\]MarketKafkaSender.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]analysis[/\\]SMAUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]analysis[/\\]StableMarriageAlgorithm.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]analysis[/\\]StableMarriagePerContext.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]entities[/\\]SMAContext.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]entities[/\\]SMACost.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]entities[/\\]SMAInput.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]entities[/\\]SMAInputContext.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]entities[/\\]SMAReservedInstance.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]entities[/\\]SMAStatistics.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]entities[/\\]SMATemplate.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]entities[/\\]SMAVirtualMachine.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]diagnostics[/\\]ActionLogger.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]reserved[/\\]instance[/\\]analysis[/\\]BuyRIImpactAnalysis.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]reserved[/\\]instance[/\\]analysis[/\\]BuyRIImpactAnalysisConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]reserved[/\\]instance[/\\]analysis[/\\]BuyRIImpactAnalysisFactory.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]rpc[/\\]MarketDebugRpcService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]rpc[/\\]MarketRpcConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]Analysis.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]AnalysisFactory.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]MarketRunner.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]MarketRunnerConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]ReservedCapacityAnalysis.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]WastedFilesAnalysis.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]WastedFilesAnalysisFactory.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]cost[/\\]MarketCloudCostDataProvider.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]cost[/\\]MarketPriceTable.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]cost[/\\]MarketPriceTableFactory.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]cost[/\\]MarketPricingResolver.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]settings[/\\]CommoditySettings.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]settings[/\\]EntitySettings.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]settings[/\\]MarketSettings.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]AnalysisCancelListener.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]OnDemandMarketTier.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]PlanOrchestratorConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]RiDiscountedMarketTier.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]TopologyConversionConstants.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]TopologyEntitiesHandler.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]TopologyEntitiesListener.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]TopologyListenerConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]TopologyProcessorConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ActionInterpreter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]CloudEntityResizeTracker.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]CloudTopologyConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]CommodityConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]CommodityIndex.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]CommodityTypeAllocator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ConsistentScalingHelper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ConversionErrorCounts.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]CostDTOCreator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]MarketAnalysisUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ProjectedRICoverageCalculator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ReservedInstanceAggregate.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ReservedInstanceAggregator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ReservedInstanceConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ReservedInstanceKey.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]SMAConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ShoppingListInfo.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]StorageTierConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]TierConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]TierExcluder.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]TopologyConversionUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]TopologyConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]api[/\\]MarketApiIntegrationTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]api[/\\]ProjectedEntityRiReceiverForTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]api[/\\]TestApiServerConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]analysis[/\\]SMATest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]analysis[/\\]SMATestConstants.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]analysis[/\\]SMAUtilsTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]analysis[/\\]StableMarriagePerContextTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]jsonprocessing[/\\]JsonToSMAInputTranslator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]diagnostics[/\\]ActionLoggerTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]reserved[/\\]instance[/\\]analysis[/\\]BuyRIImpactAnalysisTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]AnalysisDebuggingTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]AnalysisFactoryTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]AnalysisTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]MarketRunnerTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]ReservedCapacityAnalysisTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]ScopedTopologyTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]WastedFilesAnalysisTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]cost[/\\]MarketPriceTableTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]MarketTierTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]TopologyEntitiesHandlerTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]CloudTestEntityFactory.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]CommodityConverterTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]CommodityIndexTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ConsistentScalingHelperTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ConversionErrorCountsTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]CostDTOCreatorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]InterpretActionTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]InterpretCloudExplanationTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ReservedInstanceAggregatorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]ReservedInstanceConverterTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]SMAConverterTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]TierExcluderTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]TopologyConversionUtilsTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]TopologyConverterFromMarketTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]TopologyConverterGuaranteedTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]topology[/\\]conversions[/\\]TopologyConverterToMarketTest.java" />
+</suppressions>

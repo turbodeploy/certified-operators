@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -37,6 +38,8 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -620,6 +623,73 @@ public class TopologyFilterFactoryTest {
 
         final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchCriteria);
         assertTrue(filter.apply(Stream.of(entity), graph).collect(Collectors.toList()).isEmpty());
+    }
+
+    /**
+     * Test the hot add memory enabled filter for vms.
+     */
+    @Test
+    public void testSearchFilterHotAddMemory() {
+        testHotFiltersForVms(SearchableProperties.HOT_ADD_MEMORY, 53,
+                HotResizeInfo.Builder::setHotAddSupported);
+    }
+
+    /**
+     * Test the hot add cpu enabled filter for vms.
+     */
+    @Test
+    public void testSearchFilterHotAddCPU() {
+        testHotFiltersForVms(SearchableProperties.HOT_ADD_CPU, 26,
+                HotResizeInfo.Builder::setHotAddSupported);
+    }
+
+    /**
+     * Test the hot remove cpu enabled filter for vms.
+     */
+    @Test
+    public void testSearchFilterHotRemoveCPU() {
+        testHotFiltersForVms(SearchableProperties.HOT_REMOVE_CPU, 26,
+                HotResizeInfo.Builder::setHotRemoveSupported);
+    }
+
+    private void testHotFiltersForVms(String filterName, int commodityTypeNumber,
+            BiFunction<Builder, Boolean, Builder> function) {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(filterName)
+                        .setStringFilter(StringFilter.newBuilder()
+                                .addOptions("True")
+                                .setPositiveMatch(true)
+                                .setCaseSensitive(false)))
+                .build();
+        final TestGraphEntity vm1 =
+                createVm(commodityTypeNumber, function.apply(HotResizeInfo.newBuilder(), true), 1L);
+        final TestGraphEntity vm2 =
+                createVm(commodityTypeNumber, function.apply(HotResizeInfo.newBuilder(), false),
+                        2L);
+        final TestGraphEntity vm3 = TestGraphEntity.newBuilder(3L, ApiEntityType.VIRTUAL_MACHINE)
+                .addCommSold(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(
+                                CommodityType.newBuilder().setType(commodityTypeNumber).build())
+                        .build())
+                .build();
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+        assertTrue(filter instanceof PropertyFilter);
+        final PropertyFilter<TestGraphEntity> propertyFilter =
+                (PropertyFilter<TestGraphEntity>)filter;
+        assertFalse(propertyFilter.test(vm3));
+        assertTrue(propertyFilter.test(vm1));
+        assertFalse(propertyFilter.test(vm2));
+    }
+
+    private TestGraphEntity createVm(int commodityTypeNumber, Builder vmHotResizeInfo, long oid) {
+        return TestGraphEntity.newBuilder(oid, ApiEntityType.VIRTUAL_MACHINE)
+                .addCommSold(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(
+                                CommodityType.newBuilder().setType(commodityTypeNumber).build())
+                        .setHotResizeInfo(vmHotResizeInfo.build())
+                        .build())
+                .build();
     }
 
     private class NumericFilterTest {

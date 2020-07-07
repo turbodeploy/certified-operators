@@ -220,7 +220,7 @@ public class ClassicEnumMapper {
         SWAPPING("Swapping", "Byte/sec"),
         THREADS("Threads", "Threads"),
         TRANSACTION("Transaction", "TPS"),
-        TRANSACTION_LOG("TransactionLog", "GB"),
+        TRANSACTION_LOG("TransactionLog", "MB"),
         VCPU("VCPU", "MHz"),
         VCPU_ALLOCATION("VCPUAllocation", "MHz"),
         VCPU_LIMIT_QUOTA("VCPULimitQuota", "MHz"),

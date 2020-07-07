@@ -20,7 +20,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import com.vmturbo.action.orchestrator.db.Action;
-import com.vmturbo.action.orchestrator.exception.AcceptedActionStoreOperationException;
+import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
@@ -71,11 +71,11 @@ public class AcceptedActionsStoreTest {
     /**
      * Tests persisting acceptance for action.
      *
-     * @throws AcceptedActionStoreOperationException if something goes wrong while operating
+     * @throws ActionStoreOperationException if something goes wrong while operating
      * in DAO layer
      */
     @Test
-    public void testPersistingAcceptanceForAction() throws AcceptedActionStoreOperationException {
+    public void testPersistingAcceptanceForAction() throws ActionStoreOperationException {
         acceptedActionsStore.persistAcceptedAction(RECOMMENDATION_ID_1, ACTION_LATEST_RECOMMENDATION_TIME,
                 ACCEPTING_USER_1, ACCEPTED_TIME_1, ACCEPTING_USER_TYPE,
                 ASSOCIATED_SETTINGS_POLICIES_1);
@@ -110,16 +110,16 @@ public class AcceptedActionsStoreTest {
     /**
      * Tests persisting acceptance for already accepted action.
      *
-     * @throws AcceptedActionStoreOperationException if something goes wrong while operating
+     * @throws ActionStoreOperationException if something goes wrong while operating
      * in DAO layer
      */
     @Test
-    public void testPersistingAlreadyAcceptedAction() throws AcceptedActionStoreOperationException {
+    public void testPersistingAlreadyAcceptedAction() throws ActionStoreOperationException {
         acceptedActionsStore.persistAcceptedAction(RECOMMENDATION_ID_1, ACTION_LATEST_RECOMMENDATION_TIME,
                 ACCEPTING_USER_1, ACCEPTED_TIME_1, ACCEPTING_USER_TYPE,
                 ASSOCIATED_SETTINGS_POLICIES_1);
 
-        expectedException.expect(AcceptedActionStoreOperationException.class);
+        expectedException.expect(ActionStoreOperationException.class);
         expectedException.expectMessage(
                 "Action " + RECOMMENDATION_ID_1 + " has been already accepted by " + ACCEPTING_USER_1);
         acceptedActionsStore.persistAcceptedAction(RECOMMENDATION_ID_1, ACTION_LATEST_RECOMMENDATION_TIME,
@@ -131,12 +131,12 @@ public class AcceptedActionsStoreTest {
      * Test updating latest recommendation time for accepted action. Case when accepted action
      * was re-recommended by market during waiting start of execution window.
      *
-     * @throws AcceptedActionStoreOperationException if something goes wrong while operating
+     * @throws ActionStoreOperationException if something goes wrong while operating
      * in DAO layer
      */
     @Test
     public void testUpdatingLatestRecommendationTime()
-            throws AcceptedActionStoreOperationException {
+            throws ActionStoreOperationException {
         acceptedActionsStore.persistAcceptedAction(RECOMMENDATION_ID_1, ACTION_LATEST_RECOMMENDATION_TIME,
                 ACCEPTING_USER_1, ACCEPTED_TIME_1, ACCEPTING_USER_TYPE,
                 ASSOCIATED_SETTINGS_POLICIES_1);
@@ -157,11 +157,11 @@ public class AcceptedActionsStoreTest {
      * Test deleting accepted action. Case when accepted action was successfully executed and
      * after it we should delete acceptance from store.
      *
-     * @throws AcceptedActionStoreOperationException if something goes wrong while operating
+     * @throws ActionStoreOperationException if something goes wrong while operating
      * in DAO layer
      */
     @Test
-    public void testDeletingAcceptedAction() throws AcceptedActionStoreOperationException {
+    public void testDeletingAcceptedAction() throws ActionStoreOperationException {
         acceptedActionsStore.persistAcceptedAction(RECOMMENDATION_ID_1, ACTION_LATEST_RECOMMENDATION_TIME,
                 ACCEPTING_USER_1, ACCEPTED_TIME_1, ACCEPTING_USER_TYPE,
                 ASSOCIATED_SETTINGS_POLICIES_1);
@@ -176,11 +176,11 @@ public class AcceptedActionsStoreTest {
     /**
      * Test removing expired accepted actions.
      *
-     * @throws AcceptedActionStoreOperationException if something goes wrong while operating
+     * @throws ActionStoreOperationException if something goes wrong while operating
      * in DAO layer
      */
     @Test
-    public void testRemovingExpiredAcceptedActions() throws AcceptedActionStoreOperationException {
+    public void testRemovingExpiredAcceptedActions() throws ActionStoreOperationException {
         final long minsAcceptanceTTL = 100L;
         acceptedActionsStore.persistAcceptedAction(RECOMMENDATION_ID_1, ACTION_LATEST_RECOMMENDATION_TIME,
                 ACCEPTING_USER_1, ACCEPTED_TIME_1, ACCEPTING_USER_TYPE,
@@ -196,11 +196,11 @@ public class AcceptedActionsStoreTest {
     /**
      * Test getting accepting users for accepted actions.
      *
-     * @throws AcceptedActionStoreOperationException if something goes wrong while operating
+     * @throws ActionStoreOperationException if something goes wrong while operating
      * in DAO layer
      */
     @Test
-    public void testGettingAcceptorsForActions() throws AcceptedActionStoreOperationException {
+    public void testGettingAcceptorsForActions() throws ActionStoreOperationException {
         acceptedActionsStore.persistAcceptedAction(RECOMMENDATION_ID_1, ACTION_LATEST_RECOMMENDATION_TIME,
                 ACCEPTING_USER_1, ACCEPTED_TIME_1, ACCEPTING_USER_TYPE,
                 ASSOCIATED_SETTINGS_POLICIES_1);
@@ -223,12 +223,12 @@ public class AcceptedActionsStoreTest {
      * Test deleting acceptance for actions associated with policy. Case when we should delete
      * acceptance for actions after deleting policy.
      *
-     * @throws AcceptedActionStoreOperationException if something goes wrong while operating
+     * @throws ActionStoreOperationException if something goes wrong while operating
      * in DAO layer
      */
     @Test
     public void testDeletingAcceptancesForActionsAssociatedWithPolicies()
-            throws AcceptedActionStoreOperationException {
+            throws ActionStoreOperationException {
         acceptedActionsStore.persistAcceptedAction(RECOMMENDATION_ID_1, ACTION_LATEST_RECOMMENDATION_TIME,
                 ACCEPTING_USER_1, ACCEPTED_TIME_1, ACCEPTING_USER_TYPE,
                 ASSOCIATED_SETTINGS_POLICIES_1);

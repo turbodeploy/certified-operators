@@ -31,7 +31,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Functions;
-import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -51,7 +50,7 @@ import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Record1;
-import org.jooq.Record3;
+import org.jooq.Record4;
 import org.jooq.Result;
 import org.jooq.TableRecord;
 import org.jooq.exception.DataAccessException;
@@ -81,8 +80,8 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
+import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
@@ -167,6 +166,7 @@ public class SettingStore implements DiagsRestorable {
     private SettingPolicyRecord createSettingPolicyRecord(long oid,
             @Nonnull SettingPolicyInfo settingPolicyInfo,
             @Nonnull SettingProto.SettingPolicy.Type type) {
+        final byte[] hash = SettingPolicyHash.hash(settingPolicyInfo);
         return new SettingPolicyRecord(
                 oid,
                 settingPolicyInfo.getName(),
@@ -175,7 +175,8 @@ public class SettingStore implements DiagsRestorable {
                 settingPolicyInfo.hasTargetId() ? settingPolicyInfo.getTargetId() : null,
                 settingPolicyInfo.getDisplayName(),
                 settingPolicyInfo.getEnabled(),
-                settingPolicyInfo.hasScheduleId() ? settingPolicyInfo.getScheduleId() : null
+                settingPolicyInfo.hasScheduleId() ? settingPolicyInfo.getScheduleId() : null,
+                hash
         );
     }
 
@@ -243,6 +244,8 @@ public class SettingStore implements DiagsRestorable {
         for (SettingProto.SettingPolicy policy : policies) {
             inserts.addAll(createSettingPolicy(policy));
         }
+        logger.debug("Inserting {} records to add {} setting policies", inserts.size(),
+                policies.size());
         context.batchInsert(inserts).execute();
     }
 
@@ -315,7 +318,7 @@ public class SettingStore implements DiagsRestorable {
      * @param newInfo The new {@link SettingPolicyInfo}. This will completely replace the old
      * info, and must pass validation.
      * @return The updated {@link SettingProto.SettingPolicy} and flag which defines should
-     * acceptances for actions associated with policy be removed or not.
+     * acceptances and rejections for actions associated with policy be removed or not.
      * @throws StoreOperationException if update failed
      */
     @Nonnull
@@ -424,13 +427,13 @@ public class SettingStore implements DiagsRestorable {
                     .addAllSettings(settingsToAdd)
                     .build();
 
-                boolean removeAcceptancesForAssociatedActions =
-                        shouldAcceptancesForActionsAssociatedWithPolicyBeRemoved(newInfo,
+                boolean removeAcceptancesAndRejectionsForAssociatedActions =
+                        shouldAcceptancesAndRejectionsForActionsAssociatedWithPolicyBeRemoved(newInfo,
                                 existingPolicy.getInfo());
 
                 return Pair.create(internalUpdateSettingPolicy(context,
                         existingPolicy.toBuilder().setInfo(newNewInfo).build()),
-                        removeAcceptancesForAssociatedActions);
+                        removeAcceptancesAndRejectionsForAssociatedActions);
             }
         }
 
@@ -439,53 +442,68 @@ public class SettingStore implements DiagsRestorable {
                     "Illegal attempt to modify a discovered setting policy " + id);
         }
 
-        boolean shouldAcceptancesForAssociatedActionsBeRemoved =
-                shouldAcceptancesForActionsAssociatedWithPolicyBeRemoved(newInfo,
+        boolean shouldAcceptancesAndRejectionsForAssociatedActionsBeRemoved =
+                shouldAcceptancesAndRejectionsForActionsAssociatedWithPolicyBeRemoved(newInfo,
                         existingPolicy.getInfo());
 
         return Pair.create(internalUpdateSettingPolicy(context,
                 existingPolicy.toBuilder().setInfo(newInfo).build()),
-                shouldAcceptancesForAssociatedActionsBeRemoved);
+                shouldAcceptancesAndRejectionsForAssociatedActionsBeRemoved);
     }
 
     /**
-     * Detects whether acceptances for actions associated with policy be removed or not, depends on
-     * changes inside setting policy.
-     * Remove acceptances in following cases:
+     * Detects whether acceptances and rejections for actions associated with policy be removed or
+     * not, depends on changes inside setting policy.
+     * Remove acceptances/rejections in following cases:
      * 1. ExecutionSchedule setting was removed or modified
      * 2. ActionMode setting associated with ExecutionSchedule setting was modified from MANUAL
      * value to another one
+     * 3. ActionMode setting with {@link ActionMode#EXTERNAL_APPROVAL} mode was removed
      *
      * @param newInfo new policy info
      * @param existingInfo policy info before updates
      * @return true if acceptances for actions should be removed otherwise false
      */
-    private boolean shouldAcceptancesForActionsAssociatedWithPolicyBeRemoved(
+    private boolean shouldAcceptancesAndRejectionsForActionsAssociatedWithPolicyBeRemoved(
             @Nonnull SettingPolicyInfo newInfo, @Nonnull SettingPolicyInfo existingInfo) {
-        final List<Setting> previousExecutionScheduleSettings = existingInfo.getSettingsList()
-                .stream()
-                .filter(setting -> ActionSettingSpecs.isExecutionScheduleSetting(
-                        setting.getSettingSpecName()))
-                .collect(Collectors.toList());
-        if (previousExecutionScheduleSettings.isEmpty()) {
-            return false;
+        final Set<Setting> previousExecutionScheduleSettings = new HashSet<>();
+        final Set<Setting> previousExternalApprovalSettings = new HashSet<>();
+
+        for (Setting setting : existingInfo.getSettingsList()) {
+            if (ActionSettingSpecs.isExecutionScheduleSetting(setting.getSettingSpecName())) {
+                previousExecutionScheduleSettings.add(setting);
+            } else if (ActionSettingSpecs.isActionModeSetting(setting.getSettingSpecName())
+                    && setting.getEnumSettingValue()
+                    .getValue()
+                    .equals(ActionMode.EXTERNAL_APPROVAL.name())) {
+                previousExternalApprovalSettings.add(setting);
+            }
         }
 
-        final Map<String, List<Long>> newExecutionScheduleSettings = newInfo.getSettingsList()
-                .stream()
-                .filter(setting -> ActionSettingSpecs.isExecutionScheduleSetting(
-                        setting.getSettingSpecName()))
-                .collect(Collectors.toMap(Setting::getSettingSpecName,
-                        setting -> setting.getSortedSetOfOidSettingValue().getOidsList()));
+        final Map<String, List<Long>> newExecutionScheduleSettings = new HashMap<>();
+        final Set<Setting> newExternalApprovalSettings = new HashSet<>();
+
+        for (Setting setting : newInfo.getSettingsList()) {
+            if (ActionSettingSpecs.isExecutionScheduleSetting(setting.getSettingSpecName())) {
+                newExecutionScheduleSettings.put(setting.getSettingSpecName(),
+                        setting.getSortedSetOfOidSettingValue().getOidsList());
+            } else if (ActionSettingSpecs.isActionModeSetting(setting.getSettingSpecName())
+                    && setting.getEnumSettingValue()
+                    .getValue()
+                    .equals(ActionMode.EXTERNAL_APPROVAL.name())) {
+                newExternalApprovalSettings.add(setting);
+            }
+        }
 
         final Optional<Setting> removedExecutionScheduleSetting =
                 previousExecutionScheduleSettings.stream()
                         .filter(setting -> newExecutionScheduleSettings.get(setting.getSettingSpecName()) == null)
                         .findFirst();
 
-        boolean removeAcceptances = removedExecutionScheduleSetting.isPresent();
+        boolean removeAcceptancesAndRejections = removedExecutionScheduleSetting.isPresent()
+                || !newExternalApprovalSettings.containsAll(previousExternalApprovalSettings);
 
-        if (!removeAcceptances) {
+        if (!removeAcceptancesAndRejections) {
             final List<String> previousActionModeSettingsNames =
                 previousExecutionScheduleSettings.stream()
                     .map(el -> ActionSettingSpecs.getActionModeSettingFromExecutionScheduleSetting(
@@ -503,10 +521,10 @@ public class SettingStore implements DiagsRestorable {
 
             final List<String> newActionModeSettingsWithManualValue =
                     getActionModeSettingsWithManualValue(newInfo, newActionModeSettingsNames);
-            removeAcceptances = !newActionModeSettingsWithManualValue.containsAll(
+            removeAcceptancesAndRejections = !newActionModeSettingsWithManualValue.containsAll(
                     previousActionModeSettingsWithManualValue);
         }
-        return removeAcceptances;
+        return removeAcceptancesAndRejections;
     }
 
     @Nonnull
@@ -557,13 +575,13 @@ public class SettingStore implements DiagsRestorable {
                             "Cannot reset setting policy " + id + " as id does not exist");
                 }
 
-                boolean removeAcceptancesForAssociatedActions =
-                        shouldAcceptancesForActionsAssociatedWithPolicyBeRemoved(newPolicyInfo,
-                                existingPolicy.getInfo());
+                boolean removeAcceptancesAndRejectionsForAssociatedActions =
+                        shouldAcceptancesAndRejectionsForActionsAssociatedWithPolicyBeRemoved(
+                                newPolicyInfo, existingPolicy.getInfo());
 
                 return Pair.create(internalUpdateSettingPolicy(context,
                         existingPolicy.toBuilder().setInfo(newPolicyInfo).build()),
-                        removeAcceptancesForAssociatedActions);
+                        removeAcceptancesAndRejectionsForAssociatedActions);
             });
         } catch (DataAccessException e) {
             // Jooq will rethrow exceptions thrown in the transactionResult call
@@ -1246,18 +1264,20 @@ public class SettingStore implements DiagsRestorable {
      * @param dslContext transaction context to execute within
      * @return map of policy id by policy name, groupped by target id
      */
-    public Map<Long, Map<String, Long>> getDiscoveredPolicies(DSLContext dslContext) {
-        final Collection<Record3<String, Long, Long>> discoveredPolicies =
-                dslContext.select(SETTING_POLICY.NAME, SETTING_POLICY.ID, SETTING_POLICY.TARGET_ID)
-                        .from(SETTING_POLICY)
-                        .where(SETTING_POLICY.POLICY_TYPE.eq(SettingPolicyPolicyType.discovered))
-                        .fetch();
-        final Map<Long, Map<String, Long>> resultMap = new HashMap<>();
-        for (Record3<String, Long, Long> policy: discoveredPolicies) {
+    public Map<Long, Map<String, DiscoveredObjectVersionIdentity>> getDiscoveredPolicies(
+            @Nonnull DSLContext dslContext) {
+        final Collection<Record4<String, Long, byte[], Long>> discoveredPolicies =
+                dslContext.select(SETTING_POLICY.NAME, SETTING_POLICY.ID, SETTING_POLICY.HASH,
+                        SETTING_POLICY.TARGET_ID).from(SETTING_POLICY).where(
+                        SETTING_POLICY.POLICY_TYPE.eq(SettingPolicyPolicyType.discovered)).fetch();
+        final Map<Long, Map<String, DiscoveredObjectVersionIdentity>> resultMap = new HashMap<>();
+        for (Record4<String, Long, byte[], Long> policy: discoveredPolicies) {
             final String name = policy.value1();
             final Long id = policy.value2();
-            final Long targetId = policy.value3();
-            resultMap.computeIfAbsent(targetId, key -> new HashMap<>()).put(name, id);
+            final byte[] hash = policy.value3();
+            final Long targetId = policy.value4();
+            final DiscoveredObjectVersionIdentity identity = new DiscoveredObjectVersionIdentity(id, hash);
+            resultMap.computeIfAbsent(targetId, key -> new HashMap<>()).put(name, identity);
         }
         return Collections.unmodifiableMap(resultMap);
     }

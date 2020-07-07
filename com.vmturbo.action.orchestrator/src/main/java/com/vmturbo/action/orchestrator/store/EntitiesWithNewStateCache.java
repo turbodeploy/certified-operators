@@ -83,16 +83,16 @@ class EntitiesWithNewStateCache {
             }
         }
 
-        Set<Long> affectedActions = new HashSet<>();
+        final Set<Action> affectedActions = new HashSet<>();
         actions.doForEachMarketAction((action) -> {
             if (actionAffectsHostWithUpdatedState(hostsInMaintenanceIds, activeHostIds, action)) {
-                affectedActions.add(action.getId());
+                affectedActions.add(action);
             }
         });
         if (affectedActions.isEmpty()) {
             return 0;
         }
-        actions.deleteActionsById(affectedActions);
+        actions.deleteActions(affectedActions);
         return affectedActions.size();
     }
 

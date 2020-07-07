@@ -12,8 +12,4 @@
 
     <artifactId>testNameCollision</artifactId>
     <description>This is a pure protobuf test - just want to make sure that the plugin handles this kind of proto.</description>
-
-    <properties>
-      <checkstyle.path>${project.basedir}/../../../build/checkstyle.xml</checkstyle.path>
-    </properties>
 </project>

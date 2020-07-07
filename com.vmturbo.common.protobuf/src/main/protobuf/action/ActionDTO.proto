@@ -1895,13 +1895,13 @@ message GetCurrentActionStatsResponse {
     repeated SingleResponse responses = 1;
 }
 
-message RemoveActionsAcceptancesRequest {
+message RemoveActionsAcceptancesAndRejectionsRequest {
     // The ID of the policy.
-    // Acceptance will be removed for all actions associated with this policy.
+    // Acceptance and rejection will be removed for all actions associated with this policy.
     optional int64 policy_id = 1;
 }
 
-message RemoveActionsAcceptancesResponse {
+message RemoveActionsAcceptancesAndRejectionsResponse {
 }
 
 // A service responsible for getting information about accepting actions and getting action information.
@@ -1971,6 +1971,6 @@ service ActionsService {
     // because it supports additional filtering/grouping options, and may return more data.
     rpc GetCurrentActionStats (GetCurrentActionStatsRequest) returns (GetCurrentActionStatsResponse);
 
-    // Removes acceptance for all actions which associated with certain policy.
-    rpc RemoveActionsAcceptances (RemoveActionsAcceptancesRequest) returns (RemoveActionsAcceptancesResponse);
+    // Removes acceptance and rejection for all actions which associated with certain policy.
+    rpc RemoveActionsAcceptancesAndRejections (RemoveActionsAcceptancesAndRejectionsRequest) returns (RemoveActionsAcceptancesAndRejectionsResponse);
 }

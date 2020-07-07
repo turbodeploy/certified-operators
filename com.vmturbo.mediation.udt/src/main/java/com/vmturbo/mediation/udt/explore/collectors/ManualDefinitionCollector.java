@@ -111,7 +111,7 @@ public class ManualDefinitionCollector extends UdtCollector<ManualEntityDefiniti
     private Set<UdtChildEntity> getFilteredChildEntities(EntityType entityType,
                                                          DynamicConnectionFilters filters,
                                                          DataProvider dataProvider) {
-        return dataProvider.searchEntities(filters.getEntityFiltersList(), entityType).stream()
+        return dataProvider.searchEntities(filters.getSearchParametersList()).stream()
                 .map(entity -> new UdtChildEntity(entity.getOid(), entityType))
                 .collect(Collectors.toSet());
     }

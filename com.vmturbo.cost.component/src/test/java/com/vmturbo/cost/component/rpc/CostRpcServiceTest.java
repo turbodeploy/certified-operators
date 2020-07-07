@@ -231,11 +231,6 @@ public class CostRpcServiceTest {
             .setAmount(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1).setCurrency(1))
             .setCategory(CostCategory.IP)
             .build();
-    private final ComponentCost componentCost2 = ComponentCost.newBuilder()
-            .setAmount(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE2).setCurrency(1))
-            .setCategory(CostCategory.ON_DEMAND_COMPUTE)
-            .setCostSource(CostSource.ON_DEMAND_RATE)
-            .build();
     private final EntityCost entityCost1 = EntityCost.newBuilder()
             .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
             .addComponentCost(componentCost)
@@ -246,13 +241,7 @@ public class CostRpcServiceTest {
     private final EntityCost entityCost2 = EntityCost.newBuilder()
             .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
             .addComponentCost(componentCost1)
-            .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.21).setCurrency(1).build())
-            .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
-            .build();
-    private final EntityCost entityCost3 = EntityCost.newBuilder()
-            .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
-            .addComponentCost(componentCost2)
-            .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.51).setCurrency(1).build())
+            .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.111).setCurrency(1).build())
             .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
             .build();
     private DiscountStore discountStore = mock(DiscountStore.class);
@@ -944,27 +933,20 @@ public class CostRpcServiceTest {
     @Test
     public void testGetTierPriceForEntities() throws DbException {
         final GetTierPriceForEntitiesRequest request = GetTierPriceForEntitiesRequest.newBuilder()
-                .addOids(2L).addOids(3L).addOids(5L).setCostCategory(CostCategory.ON_DEMAND_COMPUTE).build();
+                .setOid(2L).setCostCategory(CostCategory.ON_DEMAND_COMPUTE).build();
         final StreamObserver<GetTierPriceForEntitiesResponse> mockObserver =
                 mock(StreamObserver.class);
         Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
-        beforeEntityCostbyOid.put(2L, entityCost1);
-        beforeEntityCostbyOid.put(5L, entityCost3);
-
+        beforeEntityCostbyOid.put(2L, entityCost);
         Map<Long, EntityCost> afterEntityCostbyOid = new HashMap<>();
-        afterEntityCostbyOid.put(2L, entityCost1);
-        afterEntityCostbyOid.put(3L, entityCost3);
-
+        afterEntityCostbyOid.put(2L, entityCost);
         given(projectedEntityCostStore.getProjectedEntityCosts(anySet())).willReturn(afterEntityCostbyOid);
         given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
                 beforeEntityCostbyOid));
 
         final GetTierPriceForEntitiesResponse.Builder builder = GetTierPriceForEntitiesResponse.newBuilder();
-        builder.putBeforeTierPriceByEntityOid(2L, CurrencyAmount.newBuilder().setAmount(10.0).setCurrency(1).build());
-        builder.putBeforeTierPriceByEntityOid(5L, CurrencyAmount.newBuilder().setAmount(5.0).setCurrency(1).build());
         builder.putAfterTierPriceByEntityOid(2L, CurrencyAmount.newBuilder().setAmount(10.0).setCurrency(1).build());
-        builder.putAfterTierPriceByEntityOid(3L, CurrencyAmount.newBuilder().setAmount(5.0).setCurrency(1).build());
-
+        builder.putBeforeTierPriceByEntityOid(2L, CurrencyAmount.newBuilder().setAmount(10.0).setCurrency(1).build());
         costRpcService.getTierPriceForEntities(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
@@ -973,7 +955,7 @@ public class CostRpcServiceTest {
     @Test
     public void testGetTierPriceForPlanEntities() throws DbException {
         final GetTierPriceForEntitiesRequest request = GetTierPriceForEntitiesRequest.newBuilder()
-                .addOids(2L)
+                .setOid(2L)
                 .setCostCategory(CostCategory.ON_DEMAND_COMPUTE)
                 .setTopologyContextId(1234L)
                 .build();

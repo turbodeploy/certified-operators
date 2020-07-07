@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettin
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.group.GroupDAO.DiscoveredGroupIdImpl;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
@@ -201,12 +202,16 @@ public class GroupStitchingManagerTest {
         final long oid4 = 234L;
         final long oid1ToDelete = 345L;
         final long oid2ToDelete = 346L;
-        discovered.add(new DiscoveredGroupIdImpl(oid1, TARGET_1, GROUP_ID, GroupType.REGULAR));
-        discovered.add(new DiscoveredGroupIdImpl(oid4, null, GROUP_ID, GroupType.RESOURCE));
-        discovered.add(new DiscoveredGroupIdImpl(oid1ToDelete, TARGET_1, "non-existing-group",
-                GroupType.REGULAR));
-        discovered.add(new DiscoveredGroupIdImpl(oid2ToDelete, null, "non-existing-group",
-                GroupType.RESOURCE));
+        discovered.add(new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid1, null), TARGET_1,
+                GROUP_ID, GroupType.REGULAR));
+        discovered.add(
+                new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid4, null), null, GROUP_ID,
+                        GroupType.RESOURCE));
+        discovered.add(new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid1ToDelete, null),
+                TARGET_1, "non-existing-group", GroupType.REGULAR));
+        discovered.add(
+                new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid2ToDelete, null), null,
+                        "non-existing-group", GroupType.RESOURCE));
         Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(discovered);
         final StitchingResult result = stitchingManager.stitch(groupStore, groupStitchingContext);
         Assert.assertEquals(Sets.newHashSet(oid1ToDelete, oid2ToDelete),
@@ -260,9 +265,9 @@ public class GroupStitchingManagerTest {
         groupStitchingContext.setTargetGroups(TARGET_1, PROBE_TYPE,
                 Collections.singletonList(group4));
         final long oid = 123555L;
-        Mockito.when(groupStore.getDiscoveredGroupsIds())
-                .thenReturn(Collections.singleton(
-                        new DiscoveredGroupIdImpl(oid, TARGET_2, GROUP_ID, GroupType.RESOURCE)));
+        Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(Collections.singleton(
+                new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid, null), TARGET_2,
+                        GROUP_ID, GroupType.RESOURCE)));
         final StitchingResult result = stitchingManager.stitch(groupStore, groupStitchingContext);
         Assert.assertEquals(Collections.singleton(oid), result.getGroupsToAddOrUpdate()
                 .stream()
@@ -285,12 +290,16 @@ public class GroupStitchingManagerTest {
         final long oid2 = 234L;
         final long oid1ToDelete = 345L;
         final long oid2ToDelete = 346L;
-        discovered.add(new DiscoveredGroupIdImpl(oid1, TARGET_2, GROUP_ID, GroupType.REGULAR));
-        discovered.add(new DiscoveredGroupIdImpl(oid2, null, GROUP_ID, GroupType.RESOURCE));
+        discovered.add(new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid1, null), TARGET_2,
+                GROUP_ID, GroupType.REGULAR));
         discovered.add(
-                new DiscoveredGroupIdImpl(oid1ToDelete, TARGET_3, GROUP_ID_2, GroupType.REGULAR));
+                new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid2, null), null, GROUP_ID,
+                        GroupType.RESOURCE));
+        discovered.add(new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid1ToDelete, null),
+                TARGET_3, GROUP_ID_2, GroupType.REGULAR));
         discovered.add(
-                new DiscoveredGroupIdImpl(oid2ToDelete, null, GROUP_ID_2, GroupType.RESOURCE));
+                new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid2ToDelete, null), null,
+                        GROUP_ID_2, GroupType.RESOURCE));
         Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(discovered);
         // groups from undiscovered targets
         Mockito.when(groupStore.getGroupsByTargets(Collections.singleton(TARGET_2)))
@@ -312,7 +321,8 @@ public class GroupStitchingManagerTest {
         groupStitchingContext.addUndiscoveredTarget(TARGET_3);
         final Collection<DiscoveredGroupId> discovered = new ArrayList<>(1);
         final long oid1 = 123L;
-        discovered.add(new DiscoveredGroupIdImpl(oid1, TARGET_2, GROUP_ID, GroupType.REGULAR));
+        discovered.add(new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid1, null), TARGET_2,
+                GROUP_ID, GroupType.REGULAR));
         Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(discovered);
 
         Mockito.verify(groupStore, Mockito.never())

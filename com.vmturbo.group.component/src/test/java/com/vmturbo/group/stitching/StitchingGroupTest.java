@@ -29,7 +29,7 @@ public class StitchingGroupTest {
     @Test
     public void testMergeMultipleIdenticalGroupsSameTarget() {
         final long targetId = 13;
-        StitchingGroup stitchingGroup = new StitchingGroup(ID, newGroup(1L, 2L), SRC_ID, targetId, true);
+        StitchingGroup stitchingGroup = new StitchingGroup(ID, newGroup(1L, 2L), SRC_ID, targetId, true, null);
         stitchingGroup.mergedGroup(newGroup(1L, 2L), targetId);
         assertThat(stitchingGroup.buildGroupDefinition().getStaticGroupMembers().getMembersByTypeList().stream()
             .flatMap(m -> m.getMembersList().stream())
@@ -43,7 +43,7 @@ public class StitchingGroupTest {
     @Test
     public void testMergeDifferentGroupsSameTarget() {
         final long targetId = 13;
-        StitchingGroup stitchingGroup = new StitchingGroup(ID, newGroup(1L, 2L), SRC_ID, targetId, true);
+        StitchingGroup stitchingGroup = new StitchingGroup(ID, newGroup(1L, 2L), SRC_ID, targetId, true, null);
         stitchingGroup.mergedGroup(newGroup(3L, 4L), targetId);
         assertThat(stitchingGroup.buildGroupDefinition().getStaticGroupMembers().getMembersByTypeList().stream()
             .flatMap(m -> m.getMembersList().stream())
@@ -58,7 +58,7 @@ public class StitchingGroupTest {
     @Test
     public void testMergeGroupsAcrossTargets() {
         final long targetId = 13;
-        StitchingGroup stitchingGroup = new StitchingGroup(ID, newGroup(1L, 2L), SRC_ID, targetId, true);
+        StitchingGroup stitchingGroup = new StitchingGroup(ID, newGroup(1L, 2L), SRC_ID, targetId, true, null);
         stitchingGroup.mergedGroup(newGroup(3L, 4L), targetId + 1);
         assertThat(stitchingGroup.buildGroupDefinition().getStaticGroupMembers().getMembersByTypeList().stream()
             .flatMap(m -> m.getMembersList().stream())

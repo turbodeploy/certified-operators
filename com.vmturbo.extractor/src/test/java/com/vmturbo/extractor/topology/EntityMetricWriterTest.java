@@ -1,8 +1,18 @@
 package com.vmturbo.extractor.topology;
 
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CAPACITY;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CONSUMED;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CURRENT;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PROVIDER;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
+import static com.vmturbo.extractor.topology.EntityMetricWriter.VM_QX_VCPU_NAME;
 import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
+import static com.vmturbo.extractor.util.TopologyTestUtil.boughtCommodityFromProvider;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkEntity;
+import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodity;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.APPLICATION;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_USER;
@@ -34,6 +44,7 @@ import static org.mockito.Mockito.spy;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -52,6 +63,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
@@ -60,6 +72,8 @@ import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.schema.ExtractorDbConfig;
 import com.vmturbo.extractor.util.ExtractorTestUtil;
 import com.vmturbo.extractor.util.TopologyTestUtil;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -230,5 +244,63 @@ public class EntityMetricWriterTest {
         assertThat(upsertedIds, containsInAnyOrder(vm.getOid(), pm.getOid()));
         // We only had one topology, so no need to do any last-seen updates
         assertThat(entitiesUpdateCapture, is(empty()));
+    }
+
+    /**
+     * Test that all VMs' ready queue commodities are renamed to same commodity name, and converted
+     * to sold commodity with capacity and utilization.
+     *
+     * @throws InterruptedException        if interrupted
+     * @throws SQLException                if there's a DB problem
+     * @throws UnsupportedDialectException if the db endpint is misconfigured
+     * @throws IOException                 if there's an IO related issue
+     */
+    @Test
+    public void testQxVCPUMetric() throws InterruptedException, SQLException, UnsupportedDialectException, IOException {
+        final Consumer<TopologyEntityDTO> entityConsumer = writer.startTopology(
+                info, ExtractorTestUtil.config, timer);
+        final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
+                .addCommoditySoldList(soldCommodity(CommodityDTO.CommodityType.Q64_VCPU, 0, 20000))
+                .build();
+
+        final Map<Long, TopologyEntityDTO> vmsById = Stream.of(
+                CommodityType.Q1_VCPU, CommodityType.Q2_VCPU, CommodityType.Q3_VCPU,
+                CommodityType.Q4_VCPU, CommodityType.Q5_VCPU, CommodityType.Q6_VCPU,
+                CommodityType.Q7_VCPU, CommodityType.Q8_VCPU, CommodityType.Q16_VCPU,
+                CommodityType.Q32_VCPU, CommodityType.Q64_VCPU, CommodityType.QN_VCPU)
+                .map(commodityType -> mkEntity(VIRTUAL_MACHINE).toBuilder()
+                        .addCommoditiesBoughtFromProviders(
+                                boughtCommodityFromProvider(commodityType, 50, pm.getOid()))
+                        .build())
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+        vmsById.values().forEach(entityConsumer::accept);
+        entityConsumer.accept(pm);
+        // write
+        writer.finish(dataProvider);
+        // check there are two records
+        assertThat(metricInsertCapture.size(), is(vmsById.size() + 1));
+        final Map<Long, Record> records = metricInsertCapture.stream()
+                .collect(Collectors.toMap(r -> r.get(ENTITY_OID), r -> r));
+        records.forEach((oid, record) -> {
+            if (oid == pm.getOid()) {
+                // verify that pm's Q64_VCPU is not changed
+                assertThat(record.get(COMMODITY_TYPE), is(CommodityType.forNumber(
+                        pm.getCommoditySoldList(0).getCommodityType().getType()).name()));
+            } else {
+                final TopologyEntityDTO vm = vmsById.get(oid);
+                final double boughtUsed =
+                        vm.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getUsed();
+                // verify that vm's Qx_VCPU is renamed, and changed to sold commodity
+                assertThat(record.get(COMMODITY_TYPE), is(VM_QX_VCPU_NAME));
+                assertThat(record.get(COMMODITY_CURRENT), is(boughtUsed));
+                assertThat(record.get(COMMODITY_CAPACITY),
+                        is(TopologyDTOUtil.QX_VCPU_BASE_COEFFICIENT));
+                assertThat(record.get(COMMODITY_UTILIZATION),
+                        is(boughtUsed / TopologyDTOUtil.QX_VCPU_BASE_COEFFICIENT));
+                assertThat(record.get(COMMODITY_CONSUMED), is(nullValue()));
+                assertThat(record.get(COMMODITY_PROVIDER), is(nullValue()));
+            }
+        });
     }
 }

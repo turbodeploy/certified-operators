@@ -29,7 +29,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesAndRejectionsRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto;
@@ -190,9 +190,9 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         final Pair<SettingPolicy, Boolean> updateSettingPolicyPair =
                 settingPolicyStore.updateSettingPolicy(request.getId(), request.getNewInfo());
         final SettingPolicy policy = updateSettingPolicyPair.getFirst();
-        final Boolean isModifiedExecutionScheduleSettings = updateSettingPolicyPair.getSecond();
-        if (isModifiedExecutionScheduleSettings) {
-            removeAcceptancesForAssociatedActions(policy.getId());
+        final Boolean shouldRemoveAcceptancesAndRejections = updateSettingPolicyPair.getSecond();
+        if (shouldRemoveAcceptancesAndRejections) {
+            removeAcceptancesAndRejectionsForAssociatedActions(policy.getId());
         }
         cancelAutomationActions(policy);
         responseObserver.onNext(
@@ -254,20 +254,22 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         settingPolicyStore.deletePolicies(Collections.singletonList(request.getId()), Type.USER);
         logger.info("Deleted setting policy: {}", request.getId());
         cancelAutomationActions(policy);
-        removeAcceptancesForAssociatedActions(policy.getId());
+        removeAcceptancesAndRejectionsForAssociatedActions(policy.getId());
         responseObserver.onNext(DeleteSettingPolicyResponse.getDefaultInstance());
         responseObserver.onCompleted();
     }
 
     /**
-     * Remove acceptance for all actions associated with this policy.
+     * Remove acceptance and rejection for all actions associated with this policy.
      *
      * @param policyId the policy id
      */
-    private void removeAcceptancesForAssociatedActions(long policyId) {
+    private void removeAcceptancesAndRejectionsForAssociatedActions(long policyId) {
         try {
-            actionsServiceClient.removeActionsAcceptances(
-                    RemoveActionsAcceptancesRequest.newBuilder().setPolicyId(policyId).build());
+            actionsServiceClient.removeActionsAcceptancesAndRejections(
+                    RemoveActionsAcceptancesAndRejectionsRequest.newBuilder()
+                            .setPolicyId(policyId)
+                            .build());
         } catch (StatusRuntimeException e) {
             logger.warn("Failed to remove actions associate with policy {}", policyId, e);
         }

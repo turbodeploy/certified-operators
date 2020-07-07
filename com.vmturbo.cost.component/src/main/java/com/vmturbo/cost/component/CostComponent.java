@@ -91,7 +91,7 @@ public class CostComponent extends BaseVmtComponent {
     private CostServiceConfig costServiceConfig;
 
     @Autowired
-    private CostDiagnonsticsConfig diagnosticsConfig;
+    private CostDiagnosticsConfig diagnosticsConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;

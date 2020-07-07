@@ -40,6 +40,9 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
 
@@ -84,9 +87,13 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
     private final ActionAuditSender auditSender;
 
+    private final IMessageSender<ActionResponse> actionUpdatesSender;
+
     /**
      * Create a new {@link ActionStateUpdater}.
-     * @param actionStorehouse The storehouse in which to look up actions as notifications are received.
+     *
+     * @param actionStorehouse The storehouse in which to look up actions as notifications are
+     * received.
      * @param notificationSender The API backend to send notifications to.
      * @param actionHistoryDao dao layer persists information about executed actions
      * @param acceptedActionsStore dao layer works with acceptances for actions
@@ -95,6 +102,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
      * @param realtimeTopologyContextId The ID of the topology context for realtime market analysis
      * @param failedCloudVMGroupProcessor to process failed actions and add VM entities to a group.
      * @param auditSender audit events message sender to report for finished actions
+     * @param actionStateUpdatesSender action state updates sender
      */
     public ActionStateUpdater(@Nonnull final ActionStorehouse actionStorehouse,
             @Nonnull final ActionOrchestratorNotificationSender notificationSender,
@@ -103,8 +111,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
             @Nonnull final ActionExecutor actionExecutor,
             @Nonnull final WorkflowStore workflowStore, final long realtimeTopologyContextId,
             final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor,
-            @Nonnull final ActionAuditSender auditSender
-    ) {
+            @Nonnull final ActionAuditSender auditSender,
+            @Nonnull final IMessageSender<ActionResponse> actionStateUpdatesSender) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
         this.acceptedActionsStore = acceptedActionsStore;
@@ -114,6 +122,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.failedCloudVMGroupProcessor = failedCloudVMGroupProcessor;
         this.auditSender = Objects.requireNonNull(auditSender);
+        this.actionUpdatesSender = Objects.requireNonNull(actionStateUpdatesSender);
     }
 
 
@@ -133,6 +142,10 @@ public class ActionStateUpdater implements ActionExecutionListener {
                     actionProgress.getDescription()));
             try {
                 notificationSender.notifyActionProgress(actionProgress);
+                sendStateUpdateIfNeeded(action,
+                        actionProgress.hasDescription() ? actionProgress.getDescription()
+                                : action.getRecommendationOid() + " in progress",
+                        actionProgress.getProgressPercentage());
             } catch (CommunicationException | InterruptedException e) {
                 logger.error("Unable to send notification for progress of " + actionProgress, e);
             }
@@ -199,6 +212,9 @@ public class ActionStateUpdater implements ActionExecutionListener {
                     try {
                         auditSender.sendActionEvents(Collections.singleton(action));
                         notificationSender.notifyActionSuccess(actionSuccess);
+                        sendStateUpdateIfNeeded(action, actionSuccess.hasSuccessDescription()
+                                ? actionSuccess.getSuccessDescription()
+                                : action.getRecommendationOid() + " executed successfully", 100);
                     } catch (CommunicationException | InterruptedException e) {
                         logger.error("Unable to send notification for success of " + actionSuccess, e);
                     }
@@ -292,7 +308,9 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
     private void failAction(@Nonnull final Action action,
                             @Nonnull final ActionFailure actionFailure) {
-        final String errorDescription = actionFailure.getErrorDescription();
+        final String errorDescription =
+                actionFailure.hasErrorDescription() ? actionFailure.getErrorDescription()
+                        : action.getId() + " failed execution";
         // Notify the action of the failure, possibly triggering a transition
         // within the action's state machine.
         action.receive(new FailureEvent(errorDescription));
@@ -321,9 +339,52 @@ public class ActionStateUpdater implements ActionExecutionListener {
             try {
                 auditSender.sendActionEvents(Collections.singleton(action));
                 notificationSender.notifyActionFailure(actionFailure);
+                sendStateUpdateIfNeeded(action, errorDescription, 100);
             } catch (CommunicationException | InterruptedException e) {
                 logger.error("Unable to send notification for failure of " + actionFailure, e);
             }
+        }
+    }
+
+    private void sendStateUpdateIfNeeded(@Nonnull Action action, @Nonnull String description,
+            int progressPercentage) throws CommunicationException, InterruptedException {
+        if (action.getMode() == ActionMode.EXTERNAL_APPROVAL) {
+            final ActionResponseState actionResponseState =
+                    mapActionStateToActionResponseState(action.getState());
+            final ActionResponse actionResponse = ActionResponse.newBuilder()
+                    .setActionOid(action.getRecommendationOid())
+                    .setActionResponseState(actionResponseState)
+                    .setProgress(progressPercentage)
+                    .setResponseDescription(description)
+                    .build();
+            actionUpdatesSender.sendMessage(actionResponse);
+        }
+    }
+
+    @Nonnull
+    private static ActionResponseState mapActionStateToActionResponseState(
+            final ActionState stateStr) {
+        switch (stateStr) {
+            case READY:
+                return ActionResponseState.PENDING_ACCEPT;
+            case ACCEPTED:
+                return ActionResponseState.ACCEPTED;
+            case REJECTED:
+                return ActionResponseState.REJECTED;
+            case QUEUED:
+                return ActionResponseState.QUEUED;
+            case SUCCEEDED:
+                return ActionResponseState.SUCCEEDED;
+            case IN_PROGRESS:
+            case PRE_IN_PROGRESS:
+            case POST_IN_PROGRESS:
+                return ActionResponseState.IN_PROGRESS;
+            case FAILED:
+                return ActionResponseState.FAILED;
+            case CLEARED:
+                return ActionResponseState.CLEARED;
+            default:
+                throw new IllegalArgumentException("Unsupported action state " + stateStr);
         }
     }
 

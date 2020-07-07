@@ -15,8 +15,10 @@ import io.grpc.Status;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.setting.ISettingPolicyStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
+import com.vmturbo.group.setting.SettingPolicyHash;
 import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
@@ -28,13 +30,15 @@ public class MockSettingPolicyStore implements ISettingPolicyStore {
 
     @Nonnull
     @Override
-    public Map<Long, Map<String, Long>> getDiscoveredPolicies() {
-        final Map<Long, Map<String, Long>> result = new HashMap<>();
+    public Map<Long, Map<String, DiscoveredObjectVersionIdentity>> getDiscoveredPolicies() {
+        final Map<Long, Map<String, DiscoveredObjectVersionIdentity>> result = new HashMap<>();
         for (SettingPolicy policy : settingPolicies.values()) {
             if (policy.getSettingPolicyType() == Type.DISCOVERED) {
                 final long target = policy.getInfo().getTargetId();
                 final String name = policy.getInfo().getName();
-                result.computeIfAbsent(target, key -> new HashMap<>()).put(name, policy.getId());
+                result.computeIfAbsent(target, key -> new HashMap<>()).put(name,
+                        new DiscoveredObjectVersionIdentity(policy.getId(),
+                                SettingPolicyHash.hash(policy.getInfo())));
             }
         }
         return result;

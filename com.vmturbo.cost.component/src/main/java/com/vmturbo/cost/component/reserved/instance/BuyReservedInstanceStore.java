@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -20,11 +21,15 @@ import org.jooq.DSLContext;
 import org.jooq.Record3;
 import org.jooq.Record4;
 import org.jooq.Result;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
@@ -35,9 +40,11 @@ import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.Rese
 /**
  * This class is used to store the reserved instance to buy for plans or for real time
  */
-public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore {
+public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore, DiagsRestorable {
 
-    private final static Logger logger = LogManager.getLogger();
+    private static final String buyReservedInstanceFile = "buyReservedInstance_dump";
+
+    private static final Logger logger = LogManager.getLogger();
 
     private final IdentityProvider identityProvider;
 
@@ -248,5 +255,32 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore {
                 .setId(buyRiRecord.getId())
                 .setReservedInstanceBoughtInfo(buyRiRecord.getReservedInstanceBoughtInfo())
                 .build();
+    }
+
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        // TODO to be implemented as part of OM-58627
+    }
+
+    @Override
+    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+        dsl.transaction(transactionContext -> {
+            final DSLContext transaction = DSL.using(transactionContext);
+            Stream<BuyReservedInstanceRecord> latestRecords = transaction.selectFrom(BUY_RESERVED_INSTANCE).stream();
+            latestRecords.forEach(s -> {
+                try {
+                    appender.appendString(s.formatJSON());
+                } catch (DiagnosticsException e) {
+                    logger.error("Exception encountered while appending buy reserved instance records" +
+                            " to the diags dump", e);
+                }
+            });
+        });
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return buyReservedInstanceFile;
     }
 }
