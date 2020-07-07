@@ -121,9 +121,6 @@ public class MemoryMetricsRpcService extends MemoryMetricsServiceImplBase {
             final String results = performMemoryWalk(roots, request.getWalkConfiguration(),
                 Collections.emptySet(), 0);
 
-            builder.addAllWalkedRootNames(managedRoots.values().stream()
-                .map(root -> root.name)
-                .collect(Collectors.toList()));
             processAndLogResults(results, builder, startTime, request.getResponseLineCount());
             responseObserver.onNext(builder.build());
             responseObserver.onCompleted();
@@ -280,10 +277,9 @@ public class MemoryMetricsRpcService extends MemoryMetricsServiceImplBase {
         // Set the results to be returned to the client.
         builder.setTotalResponseLines(lines);
         int ndx = StringUtils.ordinalIndexOf(walkResults, "\n", resultLines);
-        if (ndx < 0) {
-            builder.setWalk(walkResults);
-        } else {
-            builder.setWalk(walkResults.substring(0, ndx));
+        final String results = ndx < 0 ? walkResults : walkResults.substring(0, ndx);
+        for (String r : results.split("\n")) {
+            builder.addWalkResults(r);
         }
         builder.setRequestDuration(TimeUtil.humanReadable(
             Duration.between(startTime, Clock.systemUTC().instant())));
