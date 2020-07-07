@@ -907,8 +907,8 @@ public class EntitiesService implements IEntitiesService {
                 final PlacementOptionApiDTO placementOptionApiDTO = new PlacementOptionApiDTO();
                 String source = discoveringTargets;
 
-                placementOptionApiDTO.setConstraintType(
-                    UICommodityType.fromType(potentialPlacement.getCommodityType()).displayName());
+                placementOptionApiDTO.setConstraintType(ClassicEnumMapper.getCommodityString(
+                    CommodityType.forNumber(potentialPlacement.getCommodityType().getType())));
                 placementOptionApiDTO.setKey(potentialPlacement.getCommodityType().getKey());
 
                 placementOptionApiDTO.setNumPotentialEntities(potentialPlacement.getNumPotentialPlacements());

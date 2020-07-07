@@ -30,12 +30,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.CurrentPlacement;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsResponse;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsResponse.MatchedEntity;
-import com.vmturbo.common.protobuf.repository.EntityConstraints.RelationType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -133,14 +128,14 @@ public class ConstraintsCalculator {
             @Nonnull final TopologyGraph<RepoGraphEntity> entityGraph,
             @Nonnull final PaginationParameters paginationParameters,
             final long topologyContextId) {
-        final long skipCount = (!paginationParameters.hasCursor() || StringUtils.isEmpty(paginationParameters.getCursor())) ?
-            0 : Long.parseLong(paginationParameters.getCursor());
+        final long skipCount = (!paginationParameters.hasCursor() || StringUtils.isEmpty(paginationParameters.getCursor()))
+            ? 0 : Long.parseLong(paginationParameters.getCursor());
 
         final long limit;
         if (paginationParameters.hasLimit()) {
             if (paginationParameters.getLimit() > maxPaginationLimit) {
-                logger.warn("Client-requested limit {} exceeds maximum!" +
-                    " Lowering the limit to {}!", paginationParameters.getLimit(), maxPaginationLimit);
+                logger.warn("Client-requested limit {} exceeds maximum!"
+                    + " Lowering the limit to {}!", paginationParameters.getLimit(), maxPaginationLimit);
                 limit = maxPaginationLimit;
             } else {
                 limit = paginationParameters.getLimit();
