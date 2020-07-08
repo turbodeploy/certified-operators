@@ -123,10 +123,9 @@ public class CommodityTypeAllocator {
         final CommodityType topologyCommodity = commoditySpecMap.get(name);
         if (topologyCommodity == null) {
             if (marketCommodity.getBaseType() != CommodityDTO.CommodityType.BICLIQUE_VALUE) {
-                // this is a biclique commodity
-                logger.error("Market returned invalid commodity specification " +
-                        marketCommodity + "! " +
-                        "Registered ones are " + commoditySpecMap.keySet());
+                // this is not a biclique commodity
+                logger.error("Market commodity {} (baseType={}) registered in idAllocator for name '{}' does not have an entry in commoditySpecMap.",
+                    marketCommodity.getType(), marketCommodity.getBaseType(), name);
             }
             return Optional.empty();
         }
