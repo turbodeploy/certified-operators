@@ -57,7 +57,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  *       - table 'grouping';
  *       - table 'group_static_members_entities';
  */
-public class V1_33__DeprecatedEntityTypeMigration extends BaseJdbcMigration {
+public class V1_32__DeprecatedEntityTypeMigration extends BaseJdbcMigration {
 
     private static Set<EntityType> deprecatedTypes = Sets.newHashSet(EntityType.APPLICATION,
             EntityType.APPLICATION_SERVER, EntityType.LOAD_BALANCER, EntityType.VIRTUAL_APPLICATION
