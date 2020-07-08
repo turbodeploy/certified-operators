@@ -24,20 +24,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.MessageOrBuilder;
 import com.google.protobuf.util.JsonFormat;
 import com.google.protobuf.util.JsonFormat.Printer;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
-
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -57,9 +56,9 @@ import com.vmturbo.extractor.models.ModelDefinitions;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.topology.EntityHashManager.SnapshotManager;
+import com.vmturbo.extractor.topology.mapper.GroupMappers;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -68,9 +67,6 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 public class EntityMetricWriter extends TopologyWriterBase {
     private static final Logger logger = LogManager.getLogger();
-
-    private static final Set<GroupType> GROUP_TYPE_BLACKLIST = ImmutableSet.of(
-            GroupType.RESOURCE, GroupType.BILLING_FAMILY);
 
     /**
      * The name to persist in db for ready queue commodity bought by VM.
@@ -88,7 +84,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private static final ImmutableList<Column<?>> upsertConflicts = ImmutableList.of(
             ENTITY_OID_AS_OID, ModelDefinitions.ENTITY_HASH_AS_HASH);
     private static final ImmutableList<Column<?>> upsertUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
-    private static List<Column<?>> updateIncludes = ImmutableList
+    private static final List<Column<?>> updateIncludes = ImmutableList
             .of(ModelDefinitions.ENTITY_HASH_AS_HASH, ModelDefinitions.LAST_SEEN);
     private static final List<Column<?>> updateMatches = ImmutableList.of(ModelDefinitions.ENTITY_HASH_AS_HASH);
     private static final List<Column<?>> updateUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
@@ -103,7 +99,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private final Long2ObjectMap<Record> entityRecordsMap = new Long2ObjectOpenHashMap<>();
 
     private final Long2ObjectMap<List<Record>> metricRecordsMap = new Long2ObjectOpenHashMap<>();
-    private EntityHashManager entityHashManager;
+    private final EntityHashManager entityHashManager;
 
     /**
      * Create a new writer instance.
@@ -239,13 +235,13 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     private void writeGroupsAsEntities(final DataProvider dataProvider) {
         dataProvider.getAllGroups()
-                .filter(grouping -> !GROUP_TYPE_BLACKLIST.contains(grouping.getDefinition().getType()))
                 .forEach(group -> {
                     final GroupDefinition def = group.getDefinition();
                     Record r = new Record(ENTITY_TABLE);
                     r.set(ENTITY_OID_AS_OID, group.getId());
                     r.set(ModelDefinitions.ENTITY_NAME, def.getDisplayName());
-                    r.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, def.getType().name());
+                    r.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE,
+                            GroupMappers.mapGroupTypeToName(def.getType()));
                     r.set(ModelDefinitions.SCOPED_OIDS, EMPTY_SCOPE);
                     final JsonString attrs;
                     try {

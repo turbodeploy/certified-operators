@@ -10,10 +10,10 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.junit.Test;
-
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;

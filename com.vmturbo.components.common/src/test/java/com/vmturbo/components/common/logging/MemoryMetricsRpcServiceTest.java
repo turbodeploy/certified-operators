@@ -151,8 +151,8 @@ public class MemoryMetricsRpcServiceTest {
 
         assertThat(resp.getWalkedRootNamesList(), contains("foo"));
         assertThat(resp.getNotWalkedRootNamesList(), is(empty()));
-        assertThat(resp.getWalk(), containsString("COUNT="));
-        assertThat(resp.getWalk(), containsString("SIZE="));
+        assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")), containsString("COUNT="));
+        assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")), containsString("SIZE="));
         assertTrue(resp.hasRequestDuration());
     }
 
@@ -170,7 +170,8 @@ public class MemoryMetricsRpcServiceTest {
 
         assertThat(resp.getWalkedRootNamesList(), is(empty()));
         assertThat(resp.getNotWalkedRootNamesList(), contains("asdf"));
-        assertThat(resp.getWalk(), containsString("COUNT=0, SIZE=0 Bytes"));
+        assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")),
+            containsString("COUNT=0, SIZE=0 Bytes"));
         assertTrue(resp.hasRequestDuration());
     }
 
@@ -189,8 +190,8 @@ public class MemoryMetricsRpcServiceTest {
 
         assertThat(resp.getWalkedRootNamesList(), contains("foo"));
         assertThat(resp.getNotWalkedRootNamesList(), contains("asdf"));
-        assertThat(resp.getWalk(), containsString("COUNT="));
-        assertThat(resp.getWalk(), containsString("SIZE="));
+        assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")), containsString("COUNT="));
+        assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")), containsString("SIZE="));
         assertTrue(resp.hasRequestDuration());
     }
 
@@ -207,9 +208,11 @@ public class MemoryMetricsRpcServiceTest {
         final WalkRootObjectResponse resp = memoryMetricsService.walkRootObjects(req);
 
         assertThat(resp.getWalkedRootNamesList(), contains("foo"));
-        assertThat(resp.getWalk(), containsString("TOTAL"));
-        assertThat(resp.getWalk(), containsString("MemoryMetricsRpcServiceTest$TestObject"));
-        assertEquals(resp.getTotalResponseLines(), resp.getWalk().split("\n").length);
+        assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")),
+            containsString("TOTAL"));
+        assertThat(resp.getWalkResultsList().stream().collect(Collectors.joining("\n")),
+            containsString("MemoryMetricsRpcServiceTest$TestObject"));
+        assertEquals(resp.getTotalResponseLines(), resp.getWalkResultsList().size());
         assertTrue(resp.hasRequestDuration());
     }
 

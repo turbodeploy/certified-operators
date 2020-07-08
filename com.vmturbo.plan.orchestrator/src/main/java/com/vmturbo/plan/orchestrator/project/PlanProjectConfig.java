@@ -19,6 +19,9 @@ import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
+/**
+ * Spring configuration related to plans.
+ */
 @Configuration
 @Import({PlanOrchestratorDBConfig.class,
         GlobalConfig.class,
@@ -63,21 +66,41 @@ public class PlanProjectConfig {
     @Value("${headroomCalculationForAllClusters}")
     private boolean headroomCalculationForAllClusters;
 
+    /**
+     * Returns the external service for creating, updating, and running plans.
+     *
+     * @return the external service for creating, updating, and running plans.
+     */
     @Bean
     public PlanProjectRpcService planProjectService() {
         return new PlanProjectRpcService(planProjectDao(), planProjectExecutor());
     }
 
+    /**
+     * Returns the instance implementing how plans are persisted and retrieved from storage.
+     *
+     * @return the instance implementing how plans are persisted and retrieved from storage.
+     */
     @Bean
     public PlanProjectDao planProjectDao() {
         return new PlanProjectDaoImpl(databaseConfig.dsl(), globalConfig.identityInitializer());
     }
 
+    /**
+     * Returns the external service for creating, updating, and running plans.
+     *
+     * @return the external service for creating, updating, and running plans.
+     */
     @Bean
     public PlanProjectServiceController planProjectServiceController() {
         return new PlanProjectServiceController(planProjectService());
     }
 
+    /**
+     * Returns the bean that tracks running plans.
+     *
+     * @return the bean that tracks running plans.
+     */
     @Bean
     public ProjectPlanPostProcessorRegistry planProjectRuntime() {
         final ProjectPlanPostProcessorRegistry runtime = new ProjectPlanPostProcessorRegistry();
@@ -86,6 +109,11 @@ public class PlanProjectConfig {
         return runtime;
     }
 
+    /**
+     * Returns the bean for executing plans.
+     *
+     * @return the bean for executing plans.
+     */
     @Bean
     public PlanProjectExecutor planProjectExecutor() {
         return new PlanProjectExecutor(planConfig.planDao(),
@@ -99,6 +127,11 @@ public class PlanProjectConfig {
                 globalConfig.tpNotificationClient());
     }
 
+    /**
+     * Returns the bean for accessing the history service.
+     *
+     * @return the bean for accessing the history service.
+     */
     @Bean
     public StatsHistoryServiceBlockingStub historyRpcService() {
         return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel());

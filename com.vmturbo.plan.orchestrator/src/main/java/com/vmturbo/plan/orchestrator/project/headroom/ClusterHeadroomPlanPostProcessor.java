@@ -54,7 +54,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequestForHeadroomPlan;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
@@ -134,9 +133,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
     private final SettingServiceBlockingStub settingService;
 
-    private PlanDao planDao;
+    private final PlanDao planDao;
 
-    private TemplatesDao templatesDao;
+    private final TemplatesDao templatesDao;
 
     private Consumer<ProjectPlanPostProcessor> onCompleteHandler;
 
@@ -216,8 +215,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         // to delete it, so that everything gets deleted properly.
         // In the future, we should be able to issue a delete to an in-progress plan and
         // have no orphaned data.
-        String displayName = clusters.size() == 1 ?
-            clusters.get(0).getDefinition().getDisplayName() : "All";
+        String displayName = clusters.size() == 1
+            ? clusters.get(0).getDefinition().getDisplayName() : "All";
         if (plan.getStatus() == PlanStatus.SUCCEEDED || plan.getStatus() == PlanStatus.FAILED
             || plan.getStatus() == PlanStatus.STOPPED) {
             if (plan.getStatus() == PlanStatus.FAILED) {
@@ -335,8 +334,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 final SupplyChain supplyChain = supplyChainResponse.getSupplyChain();
                 final int missingEntitiesCnt = supplyChain.getMissingStartingEntitiesCount();
                 if (missingEntitiesCnt > 0) {
-                    logger.warn("Supply chains of {} cluster members of cluster {} not found." +
-                            " Missing members: {}", missingEntitiesCnt, clusterId,
+                    logger.warn("Supply chains of {} cluster members of cluster {} not found."
+                            + " Missing members: {}", missingEntitiesCnt, clusterId,
                         supplyChain.getMissingStartingEntitiesList());
                 }
 
@@ -402,12 +401,12 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             Optional<StatSnapshot> latestSnapshot = Optional.empty();
             while (snapshotIterator.hasNext()) {
                 final StatSnapshot currentSnapshot = snapshotIterator.next();
-                if (currentSnapshot.getSnapshotDate() <
-                    earliestSnapshot.map(StatSnapshot::getSnapshotDate).orElse(Long.MAX_VALUE)) {
+                if (currentSnapshot.getSnapshotDate()
+                    < earliestSnapshot.map(StatSnapshot::getSnapshotDate).orElse(Long.MAX_VALUE)) {
                     earliestSnapshot = Optional.of(currentSnapshot);
                 }
-                if (currentSnapshot.getSnapshotDate() >
-                    latestSnapshot.map(StatSnapshot::getSnapshotDate).orElse(Long.MIN_VALUE)) {
+                if (currentSnapshot.getSnapshotDate()
+                    > latestSnapshot.map(StatSnapshot::getSnapshotDate).orElse(Long.MIN_VALUE)) {
                     latestSnapshot = Optional.of(currentSnapshot);
                 }
             }
@@ -428,8 +427,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 .findFirst();
 
             if (!earliestVMCount.isPresent() || !latestVMCount.isPresent()) {
-                logger.info("No relevant VM count records found in history for cluster : {}." +
-                    " Setting 0 growth.", clusterId);
+                logger.info("No relevant VM count records found in history for cluster : {}."
+                    + " Setting 0 growth.", clusterId);
                 dailyVMGrowthPerCluster.put(clusterId, DEFAULT_VM_GROWTH);
                 continue;
             }
@@ -439,8 +438,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             logger.debug("Use data from {} to {} to calculate VMGrowth.", earliestDate, latestDate);
 
             if (earliestVMCount.get() > latestVMCount.get()) {
-                logger.info("Negative VM growth for cluster {} : latest VM count is {}" +
-                        " and earliest VM count is {}. Setting 0 growth.",
+                logger.info("Negative VM growth for cluster {} : latest VM count is {}"
+                        + " and earliest VM count is {}. Setting 0 growth.",
                     clusterId, earliestVMCount.get(), latestVMCount.get());
                 dailyVMGrowthPerCluster.put(clusterId, DEFAULT_VM_GROWTH);
                 continue;
@@ -470,9 +469,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param vmDailyGrowth the averaged number of daily added VMs since past lookBackDays
      */
     private void calculateHeadroomPerCluster(
-        @Nonnull final Grouping cluster,
-        @Nonnull final Map<Integer, List<HeadroomEntity>> headroomEntities,
-        final float vmDailyGrowth) {
+            @Nonnull final Grouping cluster,
+            @Nonnull final Map<Integer, List<HeadroomEntity>> headroomEntities,
+            final float vmDailyGrowth) {
 
         Optional<Template> template =
             templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId());
@@ -518,7 +517,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @return Set of commodities -> commodity type -> used value.
      */
     private Map<Set<Integer>, Map<Integer, Double>> getCommoditiesBoughtByTemplate(
-        Template headroomTemplate) {
+            Template headroomTemplate) {
         Map<Set<Integer>, Map<Integer, Double>> commBoughtMap = new HashMap<>();
         commBoughtMap.put(CPU_HEADROOM_COMMODITIES, new HashMap<>());
         commBoughtMap.put(MEM_HEADROOM_COMMODITIES, new HashMap<>());
@@ -532,19 +531,19 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         // Set CPU_HEADROOM_COMMODITIES
         commBoughtMap.get(CPU_HEADROOM_COMMODITIES)
             .put(CommodityType.CPU_VALUE,
-                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED)) *
-                    Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU)) *
-                    Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR)));
+                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED))
+                    * Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU))
+                    * Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR)));
         commBoughtMap.get(CPU_HEADROOM_COMMODITIES)
             .put(CommodityType.CPU_PROVISIONED_VALUE,
-                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU)) *
-                    Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED)));
+                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU))
+                    * Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED)));
 
         // Set MEM_HEADROOM_COMMODITIES
         commBoughtMap.get(MEM_HEADROOM_COMMODITIES)
             .put(CommodityType.MEM_VALUE,
-                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE)) *
-                    Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR)));
+                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE))
+                    * Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR)));
         commBoughtMap.get(MEM_HEADROOM_COMMODITIES)
             .put(CommodityType.MEM_PROVISIONED_VALUE,
                 Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE)));
@@ -552,8 +551,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         // Set STORAGE_HEADROOM_COMMODITIES
         commBoughtMap.get(STORAGE_HEADROOM_COMMODITIES)
             .put(CommodityType.STORAGE_AMOUNT_VALUE,
-                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_STORAGE_DISK_SIZE)) *
-                    Double.valueOf(templateFields.get(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR)));
+                Double.valueOf(templateFields.get(TemplateProtoUtil.VM_STORAGE_DISK_SIZE))
+                    * Double.valueOf(templateFields.get(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR)));
         commBoughtMap.get(STORAGE_HEADROOM_COMMODITIES)
             .put(CommodityType.STORAGE_PROVISIONED_VALUE,
                 Double.valueOf(templateFields.get(TemplateProtoUtil.VM_STORAGE_DISK_SIZE)));
@@ -610,7 +609,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             int minCapacityCommodity = -1;
             for (CommoditySoldDTO comm : entity.getCommoditySoldList()) {
                 int commType = comm.getCommodityType().getType();
-                double headroomAvailable = 0d;
                 double templateCommodityUsed = headroomCommodities.getOrDefault(commType, 0D);
                 if (templateCommodityUsed == 0) {
                     continue;
@@ -619,8 +617,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                     continue;
                 }
                 // Set effective capacity
-                double capacity = comm.getScalingFactor() *
-                    ((comm.getEffectiveCapacityPercentage() / 100) * comm.getCapacity());
+                double capacity = comm.getScalingFactor()
+                    * ((comm.getEffectiveCapacityPercentage() / 100) * comm.getCapacity());
                 double used = comm.getScalingFactor() * comm.getUsed();
                 double availableAmount =  capacity - used;
 
@@ -630,8 +628,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                         entity.getDisplayName(), used, capacity, comm.getScalingFactor());
                 }
 
-                headroomAvailable = availableAmount > 0 ?
-                    Math.floor(availableAmount / templateCommodityUsed) : 0;
+                double headroomAvailable = headroomAvailable = availableAmount > 0
+                    ? Math.floor(availableAmount / templateCommodityUsed) : 0;
                 if (headroomAvailable < headroomAvailableForCurrentEntity) {
                     headroomAvailableForCurrentEntity = headroomAvailable;
                     minAvailableCommodity = commType;
@@ -646,8 +644,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             }
 
             if (minAvailableCommodity == -1 || minCapacityCommodity == -1) {
-                logger.error("Template has used value 0 for some commodities in cluster : " +
-                    cluster.getDefinition().getDisplayName() + " and id " + cluster.getId());
+                logger.error("Template has used value 0 for some commodities in cluster : "
+                    + cluster.getDefinition().getDisplayName() + " and id " + cluster.getId());
                 return CommodityHeadroom.getDefaultInstance();
             }
 

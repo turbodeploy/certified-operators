@@ -2,7 +2,9 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -14,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
 import io.grpc.StatusRuntimeException;
@@ -131,59 +134,63 @@ public class WidgetsetMapper {
     /**
      * Convert an internal protobuf {@link Widgetset} to an External API {@link WidgetsetApiDTO} .
      *
-     * @param widgetset an internal protobuf {@link Widgetset} to convert
+     * @param widgetsetCollection a list of internal protobufs {@link Widgetset} to convert
      * @return an external API {@link WidgetsetApiDTO} initialized from the given {@link Widgetset}
      * @throws ConversionException if error faced converting objects to API DTOs
      * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
-    public WidgetsetApiDTO toUiWidgetset(Widgetset widgetset)
+    public Collection<WidgetsetApiDTO> toUiWidgetset(Collection<Widgetset> widgetsetCollection)
             throws ConversionException, InterruptedException {
-        WidgetsetApiDTO answer = new WidgetsetApiDTO();
-        if (widgetset.hasOid()) {
-            answer.setUuid(Long.toString(widgetset.getOid()));
-        } else {
-            throw new IllegalArgumentException("OID for a widgetset " +
-                    widgetset.getOid() + " must not be empty");
+        Map<String, WidgetApiDTO[]> widgetApiDtoMap = Maps.newHashMap();
+        Map<String, WidgetsetApiDTO> widgetSetMap = Maps.newHashMap();
+        for (Widgetset widgetset : widgetsetCollection) {
+            WidgetsetApiDTO answer = new WidgetsetApiDTO();
+            if (widgetset.hasOid()) {
+                answer.setUuid(Long.toString(widgetset.getOid()));
+            } else {
+                throw new IllegalArgumentException("OID for a widgetset " + widgetset.getOid() + " must not be empty");
+            }
+            if (widgetset.hasOwnerUserid()) {
+                answer.setUsername(widgetset.getOwnerUserid());
+            }
+            if (widgetset.hasInfo()) {
+                Widgets.WidgetsetInfo widgetsetInfo = widgetset.getInfo();
+                if (widgetsetInfo.hasDisplayName()) {
+                    answer.setDisplayName(widgetsetInfo.getDisplayName());
+                }
+                if (widgetsetInfo.hasClassName()) {
+                    answer.setClassName(widgetsetInfo.getClassName());
+                }
+                if (widgetsetInfo.hasCategory()) {
+                    answer.setCategory(widgetsetInfo.getCategory());
+                }
+                if (widgetsetInfo.hasScope()) {
+                    answer.setScope(widgetsetInfo.getScope());
+                }
+                if (widgetsetInfo.hasScopeType()) {
+                    answer.setScopeType(widgetsetInfo.getScopeType());
+                }
+                answer.setSharedWithAllUsers(widgetsetInfo.getSharedWithAllUsers());
+                if (!widgetsetInfo.hasWidgets()) {
+                    throw new IllegalArgumentException(
+                            "widgets definiton for widgetset " + widgetset.getOid() + " is empty.");
+                }
+                WidgetApiDTO[] widgets;
+                try {
+                    widgets = objectMapper.readValue(widgetsetInfo.getWidgets(), WidgetApiDTO[].class);
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("Error parsing widgets data from JSON String");
+                }
+                widgetSetMap.put(answer.getUuid(), answer);
+                widgetApiDtoMap.put(answer.getUuid(), widgets);
+            } else {
+                logger.warn("Widgetset {} has no info to be converted.", widgetset.getOid());
+            }
         }
-        answer.setUuid(Long.toString(widgetset.getOid()));
-        if (widgetset.hasOwnerUserid()) {
-            answer.setUsername(widgetset.getOwnerUserid());
-        }
-        if (widgetset.hasInfo()) {
-            Widgets.WidgetsetInfo widgetsetInfo = widgetset.getInfo();
-            if (widgetsetInfo.hasDisplayName()) {
-                answer.setDisplayName(widgetsetInfo.getDisplayName());
-            }
-            if (widgetsetInfo.hasClassName()) {
-                answer.setClassName(widgetsetInfo.getClassName());
-            }
-            if (widgetsetInfo.hasCategory()) {
-                answer.setCategory(widgetsetInfo.getCategory());
-            }
-            if (widgetsetInfo.hasScope()) {
-                answer.setScope(widgetsetInfo.getScope());
-            }
-            if (widgetsetInfo.hasScopeType()) {
-                answer.setScopeType(widgetsetInfo.getScopeType());
-            }
-            answer.setSharedWithAllUsers(widgetsetInfo.getSharedWithAllUsers());
-            if (!widgetsetInfo.hasWidgets()) {
-                throw new IllegalArgumentException("widgets definiton for widgetset " +
-                        widgetset.getOid() + " is empty.");
-            }
-            WidgetApiDTO[] widgets;
-            try {
-                widgets = objectMapper.readValue(widgetsetInfo.getWidgets(), WidgetApiDTO[].class);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Error parsing widgets data from JSON String");
-            }
-            answer.setWidgets(postProcessWidgets(widgets));
-        } else {
-            logger.warn("Widgetset {} has no info to be converted.", widgetset.getOid());
-        }
-
-        return answer;
+        postProcessWidgets(widgetApiDtoMap).entrySet().forEach(entry ->
+                widgetSetMap.get(entry.getKey()).setWidgets(entry.getValue()));
+        return widgetSetMap.values();
     }
 
     /**
@@ -191,14 +198,16 @@ public class WidgetsetMapper {
      * to persistent storage. This post-processing is where we fill in any information that was
      * not saved, but can be derived from saved properties.
      *
-     * @param widgets The de-serialized {@link WidgetApiDTO}s. This input will get modified.
-     * @return A list of {@link WidgetApiDTO}s that can be returned to the client.
+     * @param widgetsMap Map from widgetset uuid to the de-serialized {@link WidgetApiDTO}s for that
+     * set. This input will get modified.
+     * @return A map of widgetset uuid to List of {@link WidgetApiDTO}s that can be returned to the
+     * client.
      * @throws ConversionException if error faced converting objects to API DTOs
      * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
     @VisibleForTesting
-    List<WidgetApiDTO> postProcessWidgets(@Nonnull final WidgetApiDTO... widgets) throws
+    Map<String, List<WidgetApiDTO>> postProcessWidgets(@Nonnull Map<String, WidgetApiDTO[]> widgetsMap) throws
             ConversionException, InterruptedException {
         // A multimap of (group oid) -> (widget API DTOs scoped to the group)
         // This is to get all referenced groups in a single RPC call later.
@@ -207,36 +216,42 @@ public class WidgetsetMapper {
         final Multimap<Long, WidgetApiDTO> groupScopedWidgets = HashMultimap.create();
         final Multimap<Long, WidgetApiDTO> entityScopedWidgets = HashMultimap.create();
 
-        final List<WidgetApiDTO> retList = Arrays.asList(widgets);
+        final Map<String, List<WidgetApiDTO>> returnMap = Maps.newHashMap();
 
-        for (WidgetApiDTO widget : retList) {
-            // if it's global scope, no need for post processing
-            if (UuidMapper.UI_REAL_TIME_MARKET_STR.equals(widget.getScope().getClassName())) {
-                continue;
-            }
+        widgetsMap.entrySet().forEach(entry -> {
+            final List<WidgetApiDTO> retList = Arrays.asList(entry.getValue());
+            returnMap.put(entry.getKey(), retList);
 
-            final String scopeUuid = widget.getScope().getUuid();
-            // Collect group UUIDs into the multimap.
-            if (GroupMapper.GROUP_CLASSES.contains(widget.getScope().getClassName())) {
-                try {
-                    groupScopedWidgets.put(Long.parseLong(scopeUuid), widget);
-                } catch (NumberFormatException e) {
-                    // TODO (roman, Dec 21 2018): Widgets may be scoped to "magic" UUIDs - maybe
-                    // we should consider using the MagicScopeGateway here.
-                    logger.error("Unable to format UUID {} as an oid for widget {}",
-                        scopeUuid, widget.getDisplayName());
+            for (WidgetApiDTO widget : retList) {
+                // if it's global scope, no need for post processing
+                if (UuidMapper.UI_REAL_TIME_MARKET_STR.equals(widget.getScope().getClassName())) {
+                    continue;
                 }
-            } else {
-                // must be entity uuid
-                try {
-                    entityScopedWidgets.put(Long.parseLong(scopeUuid), widget);
-                } catch (NumberFormatException e) {
-                    logger.error("Unable to parse entity uuid {} to long oid for widget {}",
-                            scopeUuid, widget.getDisplayName());
+
+                final String scopeUuid = widget.getScope().getUuid();
+                // Collect group UUIDs into the multimap.
+                if (GroupMapper.GROUP_CLASSES.contains(widget.getScope().getClassName())) {
+                    try {
+                        groupScopedWidgets.put(Long.parseLong(scopeUuid), widget);
+                    } catch (NumberFormatException e) {
+                        // TODO (roman, Dec 21 2018): Widgets may be scoped to "magic" UUIDs - maybe
+                        // we should consider using the MagicScopeGateway here.
+                        logger.error("Unable to format UUID {} as an oid for widget {}", scopeUuid,
+                                widget.getDisplayName());
+                    }
+                } else {
+                    // must be entity uuid
+                    try {
+                        entityScopedWidgets.put(Long.parseLong(scopeUuid), widget);
+                    } catch (NumberFormatException e) {
+                        logger.error("Unable to parse entity uuid {} to long oid for widget {}",
+                                scopeUuid, widget.getDisplayName());
+                    }
                 }
             }
-        }
-
+        });
+        logger.debug("postProcessWidgets: {} group scope entries and {} entity scope.",
+                groupScopedWidgets.keySet().size(), entityScopedWidgets.keySet().size());
         if (!groupScopedWidgets.isEmpty()) {
             try {
                 // Get all groups referenced by the widgets.
@@ -261,7 +276,7 @@ public class WidgetsetMapper {
                             .collect(Collectors.joining(", ")));
             }
         }
-
+        logger.trace("postProcessWidgets: Retrieved group info.");
         if (!entityScopedWidgets.isEmpty()) {
             try {
                 repositoryApi.entitiesRequest(entityScopedWidgets.keySet()).getMinimalEntities()
@@ -286,7 +301,7 @@ public class WidgetsetMapper {
                                 .collect(Collectors.joining(", ")), e);
             }
         }
-
-        return retList;
+        logger.trace("postProcessWidgets: Retrieved entity info.");
+        return returnMap;
     }
 }

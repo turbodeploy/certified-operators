@@ -74,6 +74,7 @@ defaultProperties:
     # 6 hrs by default.
     actionExecution.timeoutMins: 360
     actionExecution.concurrentAutomatedActions: 5
+    riskPropagationEnabled: true
   api:
     identityGeneratorPrefix: 5
     multipartConfigMaxFileSizeKb: 50

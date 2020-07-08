@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -65,11 +66,10 @@ public class WidgetSetsService implements IWidgetSetsService {
             widgetsetListRequest.setScopeType(scopeType);
         }
         final List<WidgetsetApiDTO> answer = Lists.newLinkedList();
-        final Iterator<Widgetset> widdetSetIterator =
-        widgetsetsService.getWidgetsetList(widgetsetListRequest.build());
-        while (widdetSetIterator.hasNext()) {
-            answer.add(widgetsetMapper.toUiWidgetset(widdetSetIterator.next()));
-        }
+        final List<Widgetset> widgetsetList = Lists.newLinkedList();
+        widgetsetsService.getWidgetsetList(widgetsetListRequest.build())
+                .forEachRemaining(widgetsetList::add);
+        answer.addAll(widgetsetMapper.toUiWidgetset(widgetsetList));
         return answer;
     }
 
@@ -85,7 +85,7 @@ public class WidgetSetsService implements IWidgetSetsService {
                 .setOid(widgetsetOid)
                 .build());
         if (result.hasOid()) {
-            return widgetsetMapper.toUiWidgetset(result);
+            return widgetsetMapper.toUiWidgetset(Collections.singleton(result)).iterator().next();
         } else {
             throw new UnknownObjectException("cannot find widgetset " + uuid);
         }
@@ -101,7 +101,7 @@ public class WidgetSetsService implements IWidgetSetsService {
                 String.format("Created new widget set %s", widgetsetInfo.getDisplayName()), true)
                 .targetName("WIDGET SET")
                 .audit();
-        return widgetsetMapper.toUiWidgetset(result);
+        return widgetsetMapper.toUiWidgetset(Collections.singleton(result)).iterator().next();
     }
 
     @Override
@@ -118,7 +118,7 @@ public class WidgetSetsService implements IWidgetSetsService {
                     String.format("Updated widget set %s", updatedWidgetset.getInfo().getDisplayName()), true)
                     .targetName("WIDGET SET")
                     .audit();
-            return widgetsetMapper.toUiWidgetset(result);
+            return widgetsetMapper.toUiWidgetset(Collections.singleton(result)).iterator().next();
         } catch (StatusRuntimeException e) {
             AuditLog.newEntry(AuditAction.UPDATE_WIDGETSET,
                     String.format("Failed to update widget set %s", updatedWidgetset.getInfo().getDisplayName()), false)

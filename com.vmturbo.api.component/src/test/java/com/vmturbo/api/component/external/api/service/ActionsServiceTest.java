@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -13,7 +14,9 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -231,6 +234,9 @@ public class ActionsServiceTest {
         long actionIdNoSpec = 20;
         ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
         inputDTO.setUuids(Arrays.asList(Long.toString(actionIdWithSpec), Long.toString(actionIdNoSpec)));
+        Map<String, ActionDetailsApiDTO> dtoMap = new HashMap<>();
+        dtoMap.put("10", new CloudResizeActionDetailsApiDTO());
+        dtoMap.put("20", new NoDetailsApiDTO());
 
         List<ActionOrchestratorAction> orchestratorActions = Arrays.asList(
                 ActionOrchestratorAction.newBuilder()
@@ -247,10 +253,10 @@ public class ActionsServiceTest {
         when(actionsServiceBackend.getActions(multiActionRequestCaptor.capture()))
                 .thenReturn(orchestratorActions);
 
-        ArgumentCaptor<ActionOrchestratorAction> orchestratorActionCaptor =
-                ArgumentCaptor.forClass(ActionOrchestratorAction.class);
+        ArgumentCaptor<Collection> orchestratorActionCaptor =
+                ArgumentCaptor.forClass(Collection.class);
         when(actionSpecMapper.createActionDetailsApiDTO(orchestratorActionCaptor.capture(), anyLong()))
-                .thenReturn(new CloudResizeActionDetailsApiDTO());
+                .thenReturn(dtoMap);
 
         Map<String, ActionDetailsApiDTO> actionDetails = actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
 
@@ -265,9 +271,9 @@ public class ActionsServiceTest {
         assertEquals(actionIdNoSpec, multiActionRequest.getActionIds(1));
         assertEquals(REALTIME_TOPOLOGY_ID, multiActionRequest.getTopologyContextId());
 
-        List<ActionOrchestratorAction> actualOrchestratorActions = orchestratorActionCaptor.getAllValues();
-        assertEquals(1, actualOrchestratorActions.size());
-        assertEquals(actionIdWithSpec, actualOrchestratorActions.get(0).getActionId());
+        Collection<ActionOrchestratorAction> actualOrchestratorActions = orchestratorActionCaptor.getValue();
+        assertEquals(2, actualOrchestratorActions.size());
+        assertEquals(actionIdNoSpec, actualOrchestratorActions.iterator().next().getActionId());
     }
 
     /**
@@ -285,10 +291,13 @@ public class ActionsServiceTest {
             Collections.singletonList(ActionOrchestratorAction.getDefaultInstance());
         final ArgumentCaptor<MultiActionRequest> requestCaptor =
             ArgumentCaptor.forClass(MultiActionRequest.class);
+        Map<String, ActionDetailsApiDTO> dtoMap = new HashMap<>();
+        dtoMap.put("1", mock(ActionDetailsApiDTO.class));
+
         when(actionsServiceBackend.getActions(requestCaptor.capture())).thenReturn(mockActions);
 
-        when(actionSpecMapper.createActionDetailsApiDTO(any(), anyLong()))
-            .thenReturn(mock(ActionDetailsApiDTO.class));
+        when(actionSpecMapper.createActionDetailsApiDTO(anyList(), anyLong()))
+            .thenReturn(dtoMap);
 
         final Map<String, ActionDetailsApiDTO> resultDetailMap =
             actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);

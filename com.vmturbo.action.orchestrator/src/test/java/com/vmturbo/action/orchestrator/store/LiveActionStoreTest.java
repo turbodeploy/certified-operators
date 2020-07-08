@@ -223,7 +223,7 @@ public class LiveActionStoreTest {
                 actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class));
+                Mockito.mock(ActionAuditSender.class), true);
 
         when(targetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -403,7 +403,7 @@ public class LiveActionStoreTest {
                         actionsStatistician, actionTranslator, atomicActionFactory, clock,
                         userSessionContext, licenseCheckClient, acceptedActionsStore,
                         rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                        Mockito.mock(ActionAuditSender.class));
+                        Mockito.mock(ActionAuditSender.class), true);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

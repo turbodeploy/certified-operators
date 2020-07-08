@@ -153,6 +153,7 @@ public class LiveActionStore implements ActionStore {
      * @param acceptedActionsStore dao layer working with accepted actions
      * @param rejectedActionsStore dao layer working with rejected actions
      * @param actionAuditSender action audit sender to receive new generated actions
+     * @param riskPropagationEnabled flag to enable calculation of severity breakdown
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
@@ -171,12 +172,13 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final RejectedActionsDAO rejectedActionsStore,
                            @Nonnull final IdentityService<ActionInfo> actionIdentityService,
                            @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander,
-                           @Nonnull final ActionAuditSender actionAuditSender
+                           @Nonnull final ActionAuditSender actionAuditSender,
+                           final boolean riskPropagationEnabled
     ) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache =
-                new EntitySeverityCache(Objects.requireNonNull(repositoryService), true);
+                new EntitySeverityCache(Objects.requireNonNull(repositoryService), riskPropagationEnabled);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);

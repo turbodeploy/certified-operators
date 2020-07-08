@@ -8,6 +8,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -17,6 +18,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
@@ -24,14 +26,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -60,6 +62,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -468,8 +471,11 @@ public class VirtualVolumeAspectMapperTest {
             }
         }).when(repositoryApi).newSearchRequest(any(SearchParameters.class));
 
-        RepositoryApi.MultiEntityRequest storageTierRequest = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(storageTierSEApiDTO));
-        when(repositoryApi.entitiesRequest(Sets.newHashSet(storageTierId1))).thenReturn(storageTierRequest);
+        final List<MinimalEntity> storageTierMinEntities = ImmutableList.of(
+                MinimalEntity.newBuilder().setOid(storageTierId1).setDisplayName(storageDisplayName).build()
+                );
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(storageTierMinEntities);
+        when(repositoryApi.entitiesRequest(eq(Sets.newHashSet(storageTierId1)))).thenReturn(req);
 
         VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
             Lists.newArrayList(getVirtualVolume.apply(EnvironmentType.CLOUD), getVirtualVolumeWithId.apply(virtualVolumeId + 1, EnvironmentType.CLOUD)));
@@ -537,6 +543,12 @@ public class VirtualVolumeAspectMapperTest {
 
         RepositoryApi.MultiEntityRequest storageTierRequest = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(storageTierSEApiDTO));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(storageTierId1))).thenReturn(storageTierRequest);
+
+        final List<MinimalEntity> storageTierMinEntities = ImmutableList.of(
+                MinimalEntity.newBuilder().setOid(storageTierId1).setDisplayName(storageDisplayName).build()
+        );
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(storageTierMinEntities);
+        when(repositoryApi.entitiesRequest(eq(Sets.newHashSet(storageTierId1)))).thenReturn(req);
 
         VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
                 Lists.newArrayList(getVirtualVolume.apply(EnvironmentType.CLOUD)));
@@ -606,6 +618,12 @@ public class VirtualVolumeAspectMapperTest {
         when(repositoryApi.entitiesRequest(Sets.newHashSet(azureStorageTierId))).thenReturn(storageTierRequest);
         final RepositoryApi.SingleEntityRequest regionRequest = ApiTestUtils.mockSingleEntityRequest(azureRegion);
         when(repositoryApi.entityRequest(azureRegionId)).thenReturn(regionRequest);
+
+        final List<MinimalEntity> storageTierMinEntities = ImmutableList.of(
+                MinimalEntity.newBuilder().setOid(azureStorageTierId).setDisplayName(azureVolumeName).build()
+        );
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(storageTierMinEntities);
+        when(repositoryApi.entitiesRequest(eq(Sets.newHashSet(azureStorageTierId)))).thenReturn(req);
 
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
             Lists.newArrayList(getAzureVirtualVolume.get()));
@@ -681,6 +699,12 @@ public class VirtualVolumeAspectMapperTest {
 
         RepositoryApi.MultiEntityRequest storageTierRequest = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(storageTierSEApiDTO));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(storageTierId1))).thenReturn(storageTierRequest);
+
+        final List<MinimalEntity> storageTierMinEntities = ImmutableList.of(
+                MinimalEntity.newBuilder().setOid(storageTierId1).setDisplayName(storageDisplayName).build()
+        );
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(storageTierMinEntities);
+        when(repositoryApi.entitiesRequest(eq(Sets.newHashSet(storageTierId1)))).thenReturn(req);
 
         VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO) volumeAspectMapper.mapEntitiesToAspect(
             Lists.newArrayList(getVirtualVolume.apply(EnvironmentType.ON_PREM)));
@@ -951,7 +975,6 @@ public class VirtualVolumeAspectMapperTest {
                         System.currentTimeMillis() + TimeUnit.DAYS.toMillis(3),
                         StatHistoricalEpoch.HOUR));
         stubRepositoryApi();
-
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
                 .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
@@ -982,7 +1005,6 @@ public class VirtualVolumeAspectMapperTest {
                         System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3),
                         StatHistoricalEpoch.HOUR));
         stubRepositoryApi();
-
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
                 .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
@@ -1008,7 +1030,6 @@ public class VirtualVolumeAspectMapperTest {
         when(statsHistoryServiceMole.getMostRecentStat(any()))
                 .thenReturn(createEmptyMostRecentStatsResponse());
         stubRepositoryApi();
-
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
                 .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
@@ -1035,7 +1056,6 @@ public class VirtualVolumeAspectMapperTest {
                 .thenReturn(createMostRecentStatsResponse("vm-1111", 123L,
                         StatHistoricalEpoch.MONTH));
         stubRepositoryApi();
-
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
                 .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
@@ -1060,7 +1080,6 @@ public class VirtualVolumeAspectMapperTest {
                 .thenReturn(createMostRecentStatsResponse(null, 123L,
                         StatHistoricalEpoch.MONTH));
         stubRepositoryApi();
-
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
                 .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
@@ -1119,11 +1138,15 @@ public class VirtualVolumeAspectMapperTest {
         return TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .setOid(volId)
-                .setDisplayName("random_vm")
+                .setDisplayName("random_vol")
                 .setEnvironmentType(EnvironmentType.CLOUD)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                         .setVirtualVolume(VirtualVolumeInfo.newBuilder()
                                 .setAttachmentState(AttachmentState.UNATTACHED))
+                        .build())
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                        .setProviderId(storageTierId1)
                         .build())
                 .build();
     }
@@ -1137,6 +1160,12 @@ public class VirtualVolumeAspectMapperTest {
         when(multiEntityRequest.getSEMap()).thenReturn(Collections.emptyMap())
                 .thenReturn(Collections.emptyMap());
         when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
+
+        final List<MinimalEntity> storageTierMinEntities = ImmutableList.of(
+                MinimalEntity.newBuilder().setOid(77777L).setDisplayName("random_vol").build()
+        );
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(storageTierMinEntities);
+        when(repositoryApi.entitiesRequest(eq(Sets.newHashSet(storageTierId1)))).thenReturn(req);
     }
 
     @Test
