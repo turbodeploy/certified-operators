@@ -48,9 +48,8 @@ public class HistUtilizationEditor extends
     }
 
     @Override
-    public boolean
-           isCommodityApplicable(TopologyEntity entity,
-                                 TopologyDTO.CommodityBoughtDTO.Builder commSold) {
+    public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
+            @Nonnull TopologyDTO.CommodityBoughtDTO.Builder commBought, int providerType) {
         // TODO dmitry filter access
         return true;
     }

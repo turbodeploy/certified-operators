@@ -116,7 +116,7 @@ public class TimeSlotEditor extends
 
     @Override
     public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                    TopologyDTO.CommodityBoughtDTO.Builder commBought) {
+                    @Nonnull TopologyDTO.CommodityBoughtDTO.Builder commBought, int providerType) {
         return ENABLED_TIMESLOT_COMMODITY_TYPES
                         .contains(CommodityType.forNumber(commBought.getCommodityType().getType()));
     }

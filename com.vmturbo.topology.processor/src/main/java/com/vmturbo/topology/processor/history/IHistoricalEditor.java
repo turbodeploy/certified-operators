@@ -56,11 +56,13 @@ public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
      * Whether the bought commodity applies to history calculation.
      *
      * @param entity topology entity
-     * @param commSold bought commodity
+     * @param commBought bought commodity
+     * @param providerType type of entity from which commodity is bought
      * @return true when commodity has to be updated
      */
     boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                                  @Nonnull CommodityBoughtDTO.Builder commBought);
+                                  @Nonnull CommodityBoughtDTO.Builder commBought,
+                                  int providerType);
 
 
     /**

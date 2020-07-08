@@ -301,7 +301,8 @@ public class HistoryAggregator {
                                     .getCommoditiesBoughtFromProvidersBuilderList()) {
                         for (CommodityBoughtDTO.Builder commBought : commBoughtFromProvider
                                         .getCommodityBoughtBuilderList()) {
-                            if (editor.isCommodityApplicable(entity, commBought)) {
+                            if (editor.isCommodityApplicable(entity, commBought,
+                                    commBoughtFromProvider.getProviderEntityType())) {
                                 editorComms.add(new EntityCommodityReference(entity.getOid(),
                                                                              commBought.getCommodityType(),
                                                                              commBoughtFromProvider.getProviderId()));

@@ -19,6 +19,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Predicates;
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -66,14 +67,18 @@ public class PercentileEditor extends
     // certain sold commodities should have percentile calculated from real-time points
     // even if dedicated percentile utilizations are absent in the mediation
     private static final Set<CommodityType> REQUIRED_SOLD_COMMODITY_TYPES = Sets.immutableEnumSet(
-                        CommodityDTO.CommodityType.VCPU,
-                        CommodityDTO.CommodityType.VMEM);
+                    CommodityDTO.CommodityType.VCPU,
+                    CommodityDTO.CommodityType.VMEM);
     // percentile on a bought commodity will not add up unless there is no more than one
     // consumer per provider, so only certain commodity types are applicable
     private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES = Sets.immutableEnumSet(
                     CommodityDTO.CommodityType.IMAGE_CPU,
                     CommodityDTO.CommodityType.IMAGE_MEM,
                     CommodityDTO.CommodityType.IMAGE_STORAGE);
+    // percentile may be calculated on a bought commodity if the provider has infinite capacity
+    private static final Map<EntityType, Set<CommodityType>> ENABLED_BOUGHT_FROM_PROVIDER_TYPES =
+        ImmutableMap.of(EntityType.COMPUTE_TIER,
+            Collections.singleton(CommodityType.STORAGE_ACCESS));
 
     /**
      * Entity types for which percentile calculation is supported.
@@ -153,11 +158,16 @@ public class PercentileEditor extends
     }
 
     @Override
-    public boolean
-           isCommodityApplicable(TopologyEntity entity,
-                                 TopologyDTO.CommodityBoughtDTO.Builder commBought) {
-        return commBought.hasUtilizationData() && ENABLED_BOUGHT_COMMODITY_TYPES
-                        .contains(CommodityType.forNumber(commBought.getCommodityType().getType()));
+    public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
+            @Nonnull TopologyDTO.CommodityBoughtDTO.Builder commBought,
+            int providerType) {
+        final CommodityType boughtType =
+            CommodityType.forNumber(commBought.getCommodityType().getType());
+        return commBought.hasUtilizationData() &&
+            (ENABLED_BOUGHT_COMMODITY_TYPES.contains(boughtType) ||
+            ENABLED_BOUGHT_FROM_PROVIDER_TYPES.getOrDefault(EntityType.forNumber(providerType),
+                    Collections.emptySet())
+                .contains(boughtType));
     }
 
     @Override

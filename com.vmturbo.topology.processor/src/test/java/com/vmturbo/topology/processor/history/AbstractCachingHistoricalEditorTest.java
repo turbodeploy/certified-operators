@@ -240,8 +240,8 @@ public class AbstractCachingHistoricalEditorTest {
         }
 
         @Override
-        public boolean
-               isCommodityApplicable(TopologyEntity entity, CommodityBoughtDTO.Builder commBought) {
+        public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
+                @Nonnull CommodityBoughtDTO.Builder commBought, int providerType) {
             return true;
         }
 
