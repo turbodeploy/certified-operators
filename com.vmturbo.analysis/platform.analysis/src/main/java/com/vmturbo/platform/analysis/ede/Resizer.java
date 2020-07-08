@@ -486,6 +486,11 @@ public class Resizer {
                 () -> resizeCommodity.getHistoricalOrElseCurrentQuantity(),
                 () -> resizeCommodity.getMaxQuantity());
         }
+        /**
+         * Comment out this logic until we have more accurate values for resizing down that assure
+         * the performance that the applications and the vm needs, and go back to relying on
+         * maxUsed to prevent drastic resize down actions.
+         *
         final double historicalOrMaxQuantity;
         if (resizeCommodity.isHistoricalQuantitySet()) {
             historicalOrMaxQuantity = resizeCommodity.getHistoricalOrElseCurrentQuantity();
@@ -494,19 +499,20 @@ public class Resizer {
             // back to max quantity to ensure we do not resize outside of the customer's expectation.
             historicalOrMaxQuantity = resizeCommodity.getMaxQuantity();
         }
+        */
         double peakQuantity = resizeCommodity.getPeakQuantity();
-
+        double maxQuantity = resizeCommodity.getMaxQuantity();
         // don't permit downward resize if there's no usage data
-        if (resizeCommodity.getQuantity() == 0 && historicalOrMaxQuantity == 0 && peakQuantity == 0) {
+        if (resizeCommodity.getQuantity() == 0 && maxQuantity == 0 && peakQuantity == 0) {
             return 0.0;
         }
         double capacityLowerBound = resizeCommodity.getSettings().getCapacityLowerBound();
         // don't permit resize below historical max/peak or below capacity lower bound
-        double maxAmount = currentCapacity - Math.max(Math.max(historicalOrMaxQuantity, peakQuantity), capacityLowerBound);
+        double maxAmount = currentCapacity - Math.max(Math.max(maxQuantity, peakQuantity), capacityLowerBound);
         if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
             logger.info("The max amount we can resize down {}/{} is {}. This is derived from currentCapcity {}, max {}, peak {}, capcityLowerBound {}",
                 seller.getDebugInfoNeverUseInCode(), commSpec.getDebugInfoNeverUseInCode(),
-                maxAmount, currentCapacity, historicalOrMaxQuantity, peakQuantity, capacityLowerBound);
+                maxAmount, currentCapacity, maxQuantity, peakQuantity, capacityLowerBound);
         }
         if (maxAmount < 0) {
             return 0.0;

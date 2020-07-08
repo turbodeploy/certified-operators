@@ -469,11 +469,10 @@ public class ResizerTest {
     }
 
     /**
-     * When historical and max quantity or both set, resize should go below max quantity, but not
-     * below historical quantity.
+     * When historical and max quantity are both set, resize should not go below max quantity.
      */
     @Test
-    public void testResizeDownLowerThanMaxQuantityAndHistoricalUsage() {
+    public void testHistoricalUsageLowerThanMaxQuantity() {
         final float maxQuantity = 90;
         final float historicalQuantity = 25;
         Economy economy = setupTopologyForResizeTest(100, 100,
@@ -489,7 +488,7 @@ public class ResizerTest {
         Resize resize1 = (Resize)actions.get(0);
         assertEquals(resize1.getActionTarget(), vm);
         assertEquals(resize1.getOldCapacity(),  100, TestUtils.FLOATING_POINT_DELTA);
-        assertTrue("new capacity (" + resize1.getNewCapacity() + ") should resize below max quantity (" + maxQuantity + ").",
+        assertFalse("new capacity (" + resize1.getNewCapacity() + ") should not resize below max quantity (" + maxQuantity + ").",
             resize1.getNewCapacity() < 90);
         assertTrue("new capacity (" + resize1.getNewCapacity() + ") should resize above historical quantity (" + historicalQuantity + ")",
             resize1.getNewCapacity() >= 25);
@@ -497,7 +496,7 @@ public class ResizerTest {
         Resize resize2 = (Resize)actions.get(1);
         assertEquals(resize2.getActionTarget(), vm);
         assertEquals(resize2.getOldCapacity(),  100, TestUtils.FLOATING_POINT_DELTA);
-        assertTrue("new capacity (" + resize2.getNewCapacity() + ") should resize below max quantity (" + maxQuantity + ").",
+        assertFalse("new capacity (" + resize2.getNewCapacity() + ") should not resize below max quantity (" + maxQuantity + ").",
             resize2.getNewCapacity() < 90);
         assertTrue("new capacity (" + resize2.getNewCapacity() + ") should resize above historical quantity (" + historicalQuantity + ")",
             resize1.getNewCapacity() >= 25);
