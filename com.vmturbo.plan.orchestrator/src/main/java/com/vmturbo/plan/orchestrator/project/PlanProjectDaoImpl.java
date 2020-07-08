@@ -78,10 +78,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
                     info.getType().name(), PlanProjectStatus.READY.name());
             dsl.newRecord(PLAN_PROJECT, planProject).store();
 
-            return PlanProjectOuterClass.PlanProject.newBuilder()
-                    .setPlanProjectId(planProject.getId())
-                    .setPlanProjectInfo(info)
-                    .build();
+            return toPlanProjectDTO(planProject);
         } catch (MappingException dbException) {
             throw new IntegrityException("Unable to create plan project of type "
                     + info.getType().name(), dbException);
@@ -227,6 +224,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
         return PlanProjectOuterClass.PlanProject.newBuilder()
                 .setPlanProjectId(planProject.getId())
                 .setPlanProjectInfo(planProject.getProjectInfo())
+                .setStatus(PlanProjectStatus.valueOf(planProject.getStatus()))
                 .build();
     }
 

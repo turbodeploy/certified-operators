@@ -174,9 +174,11 @@ public class PlanProjectRpcServiceTest {
     private PlanProjectOuterClass.PlanProject toPlanProjectDTO(
             @Nonnull final PlanProject planProject) {
         return PlanProjectOuterClass.PlanProject.newBuilder()
-                .setPlanProjectId(planProject.getId())
-                .setPlanProjectInfo(planProject.getProjectInfo())
-                .build();
+            .setPlanProjectId(planProject.getId())
+            .setPlanProjectInfo(planProject.getProjectInfo())
+            .setStatus(PlanProjectOuterClass.PlanProject.PlanProjectStatus
+                .valueOf(planProject.getStatus()))
+            .build();
     }
 
     private void prePopulatePlanProjectTestData() {
