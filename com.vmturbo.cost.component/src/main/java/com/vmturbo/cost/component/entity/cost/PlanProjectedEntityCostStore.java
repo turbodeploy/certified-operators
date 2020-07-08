@@ -132,11 +132,15 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
     public Collection<StatRecord> getPlanProjectedStatRecordsByGroup(@Nonnull final List<GroupBy> groupByList,
         @Nonnull final EntityCostFilter filter, long planId) {
         final Set<EntityCost> entityCosts = getPlanProjectedEntityCosts(planId);
-        return aggregateByGroup(groupByList, EntityCostToStatRecordConverter.convertEntityToStatRecord(entityCosts.stream()
-                        .map(entityCost -> applyFilter(entityCost, filter))
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .collect(Collectors.toSet())));
+        final Collection<StatRecord> records = EntityCostToStatRecordConverter.convertEntityToStatRecord(entityCosts.stream()
+                .map(entityCost -> applyFilter(entityCost, filter))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toSet()));
+        if (groupByList.isEmpty()) {
+            return records;
+        }
+        return aggregateByGroup(groupByList, records);
     }
 
     /**
