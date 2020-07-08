@@ -10,7 +10,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Class to represent collapsed relationship for trader creation.
  */
-public class CollapsedTraderHelper {
+public final class CollapsedTraderHelper {
+
+    private CollapsedTraderHelper() {}
 
     /**
      * Collapsing entity topology table.

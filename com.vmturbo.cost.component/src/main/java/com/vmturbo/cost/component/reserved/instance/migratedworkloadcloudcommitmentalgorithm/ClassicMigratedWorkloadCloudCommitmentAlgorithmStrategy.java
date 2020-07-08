@@ -77,7 +77,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         List<Stats.EntityStats> stats = historicalStatsService.getHistoricalStats(oids, Arrays.asList("VCPU"), numberOfHistoricalDays);
 
         // Determine the minimum number of days that a VM must be active
-        int minimumNumberOfDaysActive = (int) ((double) activeDaysThreshold / 100 * numberOfHistoricalDays);
+        int minimumNumberOfDaysActive = (int)((double)activeDaysThreshold / 100 * numberOfHistoricalDays);
 
         // Capture the OIDs of the VMs for which we want to buy an RI
         List<Long> oidsForWhichToBuyRIs = new ArrayList<>();

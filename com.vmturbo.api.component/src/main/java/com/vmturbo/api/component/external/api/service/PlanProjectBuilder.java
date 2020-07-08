@@ -2,9 +2,9 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.common.protobuf.utils.StringConstants.AUTOMATIC;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN;
-import static com.vmturbo.common.protobuf.utils.StringConstants.DISABLED;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.DISABLED;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -13,12 +13,12 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableSet;
 
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.exceptions.OperationFailedException;

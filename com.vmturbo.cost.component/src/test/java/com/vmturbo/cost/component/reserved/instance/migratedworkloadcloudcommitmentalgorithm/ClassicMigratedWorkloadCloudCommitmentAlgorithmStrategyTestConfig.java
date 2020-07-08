@@ -30,7 +30,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTestConfig {
      * in the form of a MigratedWorkloadCloudCommitmentAlgorithmStrategy.
      *
      * @param historicalStatsService a ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy instance
-     * @return
+     * @return MigratedWorkloadCloudCommitmentAlgorithmStrategy
      */
     @Bean
     @Primary

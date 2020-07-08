@@ -26,8 +26,8 @@ import com.vmturbo.platform.common.dto.CommonDTOREST;
 
 /**
  * Tests the ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy class.
- * <p>
- * Note that it loads a test Spring configuration from the ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTestConfig
+ *
+ * <p>Note that it loads a test Spring configuration from the ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTestConfig
  * class, which defines a mock HistoricalStatsService and a MigratedWorkloadCloudCommitmentAlgorithmStrategy with the
  * mock HistoricalStatsService wired into it. It is gated by the ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTest
  * profile.

@@ -91,7 +91,7 @@ public class HistoricalStatsServiceImpl implements HistoricalStatsService {
      */
     private Calendar getBeginTime(Calendar endTime, int numDays) {
         // calculate the day at the beginning of the period
-        Calendar beginTime = (Calendar) endTime.clone();
+        Calendar beginTime = (Calendar)endTime.clone();
         beginTime.add(Calendar.DAY_OF_YEAR, -numDays);
 
         // zero out the time portion to the beginning of the day

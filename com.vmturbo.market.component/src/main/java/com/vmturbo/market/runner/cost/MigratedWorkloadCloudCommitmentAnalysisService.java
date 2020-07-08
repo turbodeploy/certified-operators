@@ -1,8 +1,8 @@
 package com.vmturbo.market.runner.cost;
 
-import com.vmturbo.common.protobuf.cost.Cost;
-
 import java.util.List;
+
+import com.vmturbo.common.protobuf.cost.Cost;
 
 /**
  * Defines the interface for interacting with the cost component's migrade workload cloud commitment analysis service.

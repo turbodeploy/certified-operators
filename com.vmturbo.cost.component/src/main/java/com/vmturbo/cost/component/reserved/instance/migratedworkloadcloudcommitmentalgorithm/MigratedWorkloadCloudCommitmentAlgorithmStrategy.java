@@ -1,9 +1,9 @@
 package com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm;
 
+import java.util.List;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement;
-
-import java.util.List;
 
 /**
  * Strategy interface for implementing a migrated workflow cloud commitment (Buy RI) analysis. The purpose for
