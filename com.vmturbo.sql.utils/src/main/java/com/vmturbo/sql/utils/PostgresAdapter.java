@@ -130,7 +130,7 @@ public class PostgresAdapter extends DbAdapter {
         }
         try (Connection conn = getRootConnection(config.getDbDatabaseName())) {
             execute(conn, String.format("CREATE SCHEMA IF NOT EXISTS \"%s\"", config.getDbSchemaName()));
-            setupTimescaleDb(conn);
+            setupTimescaleDb();
         }
     }
 
@@ -142,12 +142,14 @@ public class PostgresAdapter extends DbAdapter {
      * so we'll need a way to introduce that in our basic endpoint definitions. Perhaps something
      * like a list of required features?</p>
      *
-     * @param conn db connection currently connected to the target database
      * @throws SQLException if there's a problem adding the extension
+     * @throws UnsupportedDialectException if the endpoint is misconfigured
      */
-    protected void setupTimescaleDb(Connection conn) throws SQLException {
-        execute(conn, String.format("CREATE EXTENSION IF NOT EXISTS timescaledb SCHEMA \"%s\"",
-                config.getDbSchemaName()));
+    protected void setupTimescaleDb() throws SQLException, UnsupportedDialectException {
+        try (Connection conn = getRootConnection(config.getDbDatabaseName())) {
+            execute(conn, String.format("CREATE EXTENSION IF NOT EXISTS timescaledb SCHEMA \"%s\"",
+                    config.getDbSchemaName()));
+        }
     }
 
     private boolean databaseExists(final Connection conn, final String databaseName) throws SQLException {
@@ -214,11 +216,11 @@ public class PostgresAdapter extends DbAdapter {
 
     @Override
     protected void dropDatabaseIfExists(final Connection conn) throws SQLException {
-        conn.createStatement().execute("DROP DATABASE IF EXISTS " + config.getDbDatabaseName());
+        execute(conn, "DROP DATABASE IF EXISTS " + config.getDbDatabaseName());
     }
 
     @Override
     protected void dropUserIfExists(final Connection conn) throws SQLException {
-        conn.createStatement().execute("DROP USER IF EXISTS " + config.getDbUserName());
+        execute(conn, "DROP USER IF EXISTS " + config.getDbUserName());
     }
 }

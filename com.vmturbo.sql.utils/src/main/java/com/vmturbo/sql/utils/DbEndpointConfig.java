@@ -35,12 +35,15 @@ public class DbEndpointConfig {
     private Boolean dbDestructiveProvisioningEnabled;
     private Boolean dbEndpointEnabled;
     private DbEndpoint template;
-    private String dbNameSuffix;
+    private String dbProvisioningSuffix;
 
     // By default, wait for 30 minutes for context to finish initializing.
     private long maxAwaitCompletionMs = TimeUnit.MINUTES.toMillis(30);
+    private boolean isAbstract;
+    private Boolean dbShouldProvisionDatabase;
+    private Boolean dbShouldProvisionUser;
 
-    public DbEndpointConfig(@Nonnull final String tag) {
+    DbEndpointConfig(@Nonnull final String tag) {
         this.tag = tag;
     }
 
@@ -208,11 +211,41 @@ public class DbEndpointConfig {
         this.template = template;
     }
 
-    public String getDbNameSuffix() {
-        return dbNameSuffix;
+    public String getDbProvisioningSuffix() {
+        return dbProvisioningSuffix;
     }
 
-    public void setDbNameSuffix(final String dbNameSuffix) {
-        this.dbNameSuffix = dbNameSuffix;
+    public void setDbProvisioningSuffix(final String dbProvisioningSuffix) {
+        this.dbProvisioningSuffix = dbProvisioningSuffix;
+    }
+
+    /**
+     * Check whether this is an abstract endpoint.
+     *
+     * @return true if this is an abstract endpoint
+     */
+    public boolean dbIsAbstract() {
+        return isAbstract;
+    }
+
+    /** Mark this endpoint as abstract. */
+    public void setDbAbstract() {
+        isAbstract = true;
+    }
+
+    public Boolean getDbShouldProvisionDatabase() {
+        return dbShouldProvisionDatabase;
+    }
+
+    public void setDbShouldProvisionDatabase(final boolean dbShouldProvisionDatabase) {
+        this.dbShouldProvisionDatabase = dbShouldProvisionDatabase;
+    }
+
+    public Boolean getDbShouldProvisionUser() {
+        return dbShouldProvisionUser;
+    }
+
+    public void setDbShouldProvisionUser(final Boolean dbShouldProvisionUser) {
+        this.dbShouldProvisionUser = dbShouldProvisionUser;
     }
 }

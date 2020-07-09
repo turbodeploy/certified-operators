@@ -1,12 +1,15 @@
 package com.vmturbo.search;
 
+import static com.vmturbo.extractor.schema.ExtractorDbBaseConfig.QUERY_ENDPOINT_TAG;
+
+import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.extractor.schema.ExtractorDbConfig;
+import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 
 /**
@@ -16,18 +19,28 @@ import com.vmturbo.sql.utils.DbEndpoint;
  * Initialization occurs in ApiComponent.onStartComponent()</p>
  */
 @Configuration
-@Import({ExtractorDbConfig.class})
+@Import({ExtractorDbBaseConfig.class})
 public class SearchDBConfig {
 
     @Autowired
-    private ExtractorDbConfig extractorDbConfig;
+    private ExtractorDbBaseConfig extractorDbBaseConfig;
 
     @Value("${enableSearchApi:false}")
     private boolean enableSearchApi;
 
     @Bean
+    DbEndpoint queryEndpoint() {
+        return DbEndpoint.secondaryDbEndpoint(QUERY_ENDPOINT_TAG, SQLDialect.POSTGRES)
+                .like(extractorDbBaseConfig.ingesterEndpointBase())
+                // extractor component is responsible for provisioning
+                .withDbShouldProvision(false)
+                .withNoDbMigrations()
+                .build();
+    }
+
+    @Bean
     public ApiQueryEngine apiQueryEngine() {
-        return new ApiQueryEngine(this.extractorDbConfig.queryEndpoint(), enableSearchApi);
+        return new ApiQueryEngine(queryEndpoint(), enableSearchApi);
     }
 
 }

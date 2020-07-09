@@ -18,7 +18,6 @@ import static org.junit.Assert.assertThat;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -32,8 +31,15 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.extractor.schema.ExtractorDbConfig;
+import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -44,6 +50,9 @@ import com.vmturbo.sql.utils.DbEndpointTestRule;
 /**
  * Live DB tests that record sinks can store data into a database.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 public class DslRecordSinkWriterTest {
 
     private static final WriterConfig config = ImmutableWriterConfig.builder()
@@ -56,18 +65,18 @@ public class DslRecordSinkWriterTest {
             .lastSeenUpdateIntervalMinutes(10)
             .build();
 
-    private static final DbEndpoint endpoint = new ExtractorDbConfig().ingesterEndpoint();
     private DslRecordSink metricSink;
     private DSLContext dsl;
 
+    @Autowired
+    private ExtractorDbConfig dbConfig;
 
     /**
      * Manage the live DB endpoint we're using for our tests.
      */
     @Rule
     @ClassRule
-    public static DbEndpointTestRule endpointRule = new DbEndpointTestRule(
-            "extractor", Collections.emptyMap(), endpoint);
+    public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
 
     private final Map<String, Object> metricData1 = createRecordMap(
             OffsetDateTime.now(), 1L, 100L, "VM", null, null, 1.0, 1.0, 2L);
@@ -84,6 +93,8 @@ public class DslRecordSinkWriterTest {
      */
     @Before
     public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
+        final DbEndpoint endpoint = dbConfig.ingesterEndpoint();
+        endpointRule.addEndpoints(endpoint);
         this.dsl = endpoint.dslContext();
         final ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor();
         this.metricSink = new DslRecordSink(dsl, METRIC_TABLE, config, pool);
