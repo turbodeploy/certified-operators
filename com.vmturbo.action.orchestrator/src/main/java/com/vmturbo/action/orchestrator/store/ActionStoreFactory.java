@@ -71,6 +71,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
     private final IdentityService<ActionInfo> actionIdentityService;
     private final ActionAuditSender externalAuditEventSender;
 
+    private final boolean riskPropagationEnabled;
+
     /**
      * To create a new ActionStoreFactory, use the {@link #newBuilder()}.
      *
@@ -97,6 +99,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.actionIdentityService = Objects.requireNonNull(builder.actionIdentityService);
         this.involvedEntitiesExpander = Objects.requireNonNull(builder.involvedEntitiesExpander);
         this.externalAuditEventSender = Objects.requireNonNull(builder.actionAuditSender);
+        this.riskPropagationEnabled =  builder.riskPropagationEnabled;
     }
 
     /**
@@ -113,7 +116,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
                     actionHistoryDao, actionsStatistician, actionTranslator, atomicActionFactory,
                     clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
                     rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                    externalAuditEventSender);
+                    externalAuditEventSender, riskPropagationEnabled);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 supplyChainService, repositoryService,
@@ -162,6 +165,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private IdentityService<ActionInfo> actionIdentityService;
         private InvolvedEntitiesExpander involvedEntitiesExpander;
         private ActionAuditSender actionAuditSender;
+        private boolean riskPropagationEnabled;
 
         private Builder() {
         }
@@ -384,6 +388,16 @@ public class ActionStoreFactory implements IActionStoreFactory {
          */
         public Builder withActionAuditSender(@Nonnull ActionAuditSender actionAuditSender) {
             this.actionAuditSender = actionAuditSender;
+            return this;
+        }
+
+        /**
+         * Sets risk propagation feature flag.
+         * @param riskPropagationEnabled risk propagation feature flag
+         * @return the builder for chained calls
+         */
+        public Builder withRiskPropagationEnabledFlag(boolean riskPropagationEnabled) {
+            this.riskPropagationEnabled = riskPropagationEnabled;
             return this;
         }
 

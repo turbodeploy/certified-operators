@@ -12,14 +12,16 @@
       }
     ]
   },
+  "description": "Performance and capacity profile, including trends, for selected datastores.",
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1593462183381,
+  "iteration": 1593625439943,
   "links": [],
   "panels": [
     {
       "datasource": "$DB",
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -99,7 +101,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Overall Consumption",
+      "title": "Overall Datastore Avg Consumption",
       "type": "table"
     },
     {
@@ -212,7 +214,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Performance Stats",
+      "title": "Datastore Performance Stats",
       "transformations": [
         {
           "id": "organize",
@@ -233,7 +235,7 @@
         },
         "overrides": []
       },
-      "fill": 1,
+      "fill": 0,
       "fillGradient": 0,
       "gridPos": {
         "h": 10,
@@ -253,7 +255,7 @@
         "values": false
       },
       "lines": true,
-      "linewidth": 1,
+      "linewidth": 3,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
@@ -300,7 +302,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Consumption Trend",
+      "title": "Datastore Consumption Trend",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -352,7 +354,7 @@
         },
         "overrides": []
       },
-      "fill": 1,
+      "fill": 0,
       "fillGradient": 0,
       "gridPos": {
         "h": 8,
@@ -372,7 +374,7 @@
         "values": false
       },
       "lines": true,
-      "linewidth": 1,
+      "linewidth": 3,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
@@ -425,7 +427,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Performance Trends",
+      "title": "Datastore Performance Trends",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -468,6 +470,7 @@
     },
     {
       "datasource": "$DB",
+      "description": "Average values. ",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -703,14 +706,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'REGULAR' \n   AND attrs -> 'expectedTypes' ? 'STORAGE')\n",
+        "definition": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'GROUP' \n   AND attrs -> 'expectedTypes' ? 'STORAGE')\n",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "Group",
         "options": [],
-        "query": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'REGULAR' \n   AND attrs -> 'expectedTypes' ? 'STORAGE')\n",
+        "query": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'GROUP' \n   AND attrs -> 'expectedTypes' ? 'STORAGE')\n",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

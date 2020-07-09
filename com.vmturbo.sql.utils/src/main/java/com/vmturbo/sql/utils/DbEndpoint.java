@@ -3,6 +3,7 @@ package com.vmturbo.sql.utils;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -58,7 +59,7 @@ import com.vmturbo.components.api.ServerStartedNotifier.ServerStartedListener;
  * <p>Relevant properties include:</p>
  * <dl>
  *     <dt>dbHost</dt>
- *     <dd>The host name or IP address of the DB server. No default.</dd>
+ *     <dd>The host name or IP address of the DB server. Default is "localhost."/dd>
  *     <dt>dbPort</dt>
  *     <dd>The port on which the server listens for new connections. Default is the standard port
  *     for server type, e.g. 3306 for MySql/MariaDB, 5432 for Postgres, etc.</dd>
@@ -87,18 +88,19 @@ import com.vmturbo.components.api.ServerStartedNotifier.ServerStartedListener;
  *     <dd>Map of name/value pairs for properties to be conveyed as JDBC URL query parameters when
  *     creating a connection to the database. Defaults are based on the {@link SQLDialect}. Values
  *     provided through configuration are merged into the defaults, and should be specified using
- *     the Spring (SPEL) syntax for map literals.</dd>
+ *     the Spring (SpEL) syntax for map literals.</dd>
  *     <dt>dbSecure</dt>
  *     <dd>Boolean indicating whether the database should be accessed with a secure (SSL) connection.
  *     Default is false.</dd>
  *     <dt>dbMigrationLocations</dt>
  *     <dd>Package name (or names, separated by commas) defining the location where Flyway can find
- *     migrations for this database. Defaults to "db.migration".</dd>
+ *     migrations for this database. Empty string suppresses migration activity.
+ *     Defaults to "db.migration.&lt;component-name&gt;".</dd>
  *     <dt>dbFlywayCallbacks</dt>
  *     <dd>Array of {@link FlywayCallback} instances to be invoked during migration processing.
  *     This cannot be specified via configuration, but must be supplied in the endpoint definition
  *     using the {@link DbEndpointBuilder#withDbFlywayCallbacks(FlywayCallback...)} method.
- *     Defaults to no callbacks.
+ *     Defaults to no callbacks (empty array).
  *     </dd>
  *     <dt>dbDestructiveProvisioningEnabled</dt>
  *     <dd>True if provisioning of this endpoint (creation of databases, schemas, etc.) may make
@@ -106,7 +108,12 @@ import com.vmturbo.components.api.ServerStartedNotifier.ServerStartedListener;
  *     to clean up presumed issues with the current object. Defaults to false.</dd>
  *     <dt>dbEndpointEnabled</dt>
  *     <dd>Whether this endpoint should be initialized at all. Defaults to true.</dd>
- *     <dt>provisioningSuffix</dt>
+ *     <dt>dbShouldProvisionDatabase</dt>
+ *     <dd>Whether this endpoint should perform database/schema provisioning if required. Defaults
+ *     to false.</dd>
+ *     <dt>dbShouldProvisionUser</dt>
+ *     <dd>Whether this endpoint should perform user provisioning if required. Defaults to false.</dd>
+ *     <dt>dbProvisioningSuffix</dt>
  *     <dd>A string appended to names of database objects created during provisioning, including
  *     database names, schema names, user names, etc. This can be set during tests, for example,
  *     to cause the endpoint to create, provision, and provide access to a temporary database,
@@ -155,6 +162,31 @@ public class DbEndpoint {
      */
     public static DbEndpointBuilder secondaryDbEndpoint(@Nonnull final String tag, SQLDialect dialect) {
         return new DbEndpointBuilder(tag, dialect);
+    }
+
+    /**
+     * Create a new abstract endpoint.
+     *
+     * <p>An abstract DB endpoint will never be operationalized. It is a means of creating a
+     * template that can be shared across components that need to access the same database objects.
+     * Each such component should create its own endpoint(s) derived from the shared abstract
+     * endpoint.</p>
+     *
+     * <p>Typically, an abstract endpoint will specify database name, and schema name, but
+     * any of the properties can be specified in the builder. Any such property values will be
+     * used instead of the normal built-in defaults in derived components.</p>
+     *
+     * <p>Abstract components are not affected by external configuration, but derived endpoints
+     * can have their properties set or changed through external configuration, including
+     * properties that are set in the abstract endpoint.</p>
+     *
+     * <p>An abstract endpoint also has no dialect, since it is neither resolved (hence no need to
+     * access dialect-dependent property defaults), nor operational (so no need for an adapter).</p>
+     *
+     * @return a new abstract endpoint
+     */
+    public static DbEndpointBuilder abstractDbEndpoint() {
+        return new DbEndpointBuilder("", null).setAbstract();
     }
 
     private DbEndpoint(DbEndpointConfig config) {
@@ -267,10 +299,10 @@ public class DbEndpoint {
     }
 
     /**
-     * Wait for the endpint to become ready for use.
+     * Wait for the endpoint to become ready for use.
      *
      * <p>This is invoked other public methods of this class that would provide access to the
-     * database, e.g. by returnning a connection to the database.</p>
+     * database, e.g. by returning a connection to the database.</p>
      *
      * <p>The operation of this method is controlled by the retry schedule configured via the
      * {@link DbEndpointResolver#DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY} property:</p>
@@ -283,7 +315,7 @@ public class DbEndpoint {
      *     <li>
      *         Otherwise, the indicated retry schedule will be undertaken. On each iteration,
      *         the initialization procedure will be invoked anew, and after waiting the scheduled
-     *         nubmer of seconds, the disposition of the endpoint will be checked. If the endpoint
+     *         number of seconds, the disposition of the endpoint will be checked. If the endpoint
      *         is ever found to be successfully initialized, the schedule terminates and this method
      *         returns. If the schedule completes without that happening, this method throws
      *         {@link IllegalStateException} to indicate ultimate failure.
@@ -349,6 +381,10 @@ public class DbEndpoint {
             Throwable e = wrapped.getCause();
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
+            } else if (e instanceof ExecutionException) {
+                // if initialization threw an exception, unwrap it from the exception thrown
+                // by the future
+                e = e.getCause();
             }
             logger.error("Endpoint {} failed initialization.", this, e);
             throw new IllegalStateException(String.format("Endpoint %s failed initialization", this), e);
@@ -368,7 +404,7 @@ public class DbEndpoint {
      *
      * <p>This never happens during normal operations, where endpoints never undo their
      * provisioning and typically remain available (in the Spring context) until the component
-     * termiantes. In tests, where isolation between test classes is important, we use this method
+     * terminates. In tests, where isolation between test classes is important, we use this method
      * to reset all endpoint configuration when DbEndpointRule processes the end of a test class in
      * which it appears.</p>
      */
@@ -383,7 +419,7 @@ public class DbEndpoint {
         if (isReady()) {
             String url;
             try {
-                url = adapter.getUrl(config);
+                url = DbAdapter.getUrl(config);
             } catch (UnsupportedDialectException e) {
                 url = "[invalid dialect]";
             }
@@ -399,6 +435,7 @@ public class DbEndpoint {
      */
     public static class DbEndpointCompleter implements ServerStartedListener {
         private static final DbEndpointCompleter INSTANCE = new DbEndpointCompleter();
+
         private DbEndpointCompleter() {
             ServerStartedNotifier.get().registerListener(this);
         }
@@ -417,6 +454,11 @@ public class DbEndpoint {
         }
 
         DbEndpoint register(DbEndpointConfig config) {
+            if (config.dbIsAbstract()) {
+                // no need to register abstract endpoints, since there's no completion processing
+                // involved - just wrap the config in an abstract endpoint and we're done
+                return new AbstractDbEndpoint(config);
+            }
             final DbEndpoint endpoint = new DbEndpoint(config);
             synchronized (pendingEndpoints) {
                 if (resolver == null) {
@@ -431,10 +473,12 @@ public class DbEndpoint {
         @Override
         public void onServerStarted(ConfigurableWebApplicationContext serverContext) {
             ConfigurableEnvironment environment = serverContext.getEnvironment();
-            String authHost = environment.getProperty("authHost");
-            String authRoute = environment.getProperty("authRoute", "");
-            int serverHttpPort = Integer.parseInt(environment.getProperty("serverHttpPort"));
-            int authRetryDelaySec = Integer.parseInt(environment.getProperty("authRetryDelaySecs"));
+            String authHost = Objects.requireNonNull(environment.getProperty("authHost"));
+            String authRoute = Objects.requireNonNull(environment.getProperty("authRoute", ""));
+            int serverHttpPort = Integer.parseInt(
+                    Objects.requireNonNull(environment.getProperty("serverHttpPort")));
+            int authRetryDelaySec = Integer.parseInt(
+                    Objects.requireNonNull(environment.getProperty("authRetryDelaySecs")));
             DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, serverHttpPort, authRoute, authRetryDelaySec);
             setResolver(environment::getProperty, dbPasswordUtil, true);
 
@@ -459,7 +503,7 @@ public class DbEndpoint {
         }
 
         void completePendingEndpoint(DbEndpoint endpoint) {
-            if (endpoint.future.isDone()) {
+            if (endpoint.config.dbIsAbstract() || endpoint.future.isDone()) {
                 return;
             }
             synchronized (pendingEndpoints) {
@@ -539,6 +583,42 @@ public class DbEndpoint {
      */
     public JooqExceptionTranslator exceptionTranslator() {
         return new JooqExceptionTranslator();
+    }
+
+    /**
+     * An endpoint class that is intended solely to be used as a base for other endpoints,
+     * passing on any builder-specified properties as defaults to the derived endpoints.
+     */
+    private static class AbstractDbEndpoint extends DbEndpoint {
+
+        AbstractDbEndpoint(final DbEndpointConfig config) {
+            super(config);
+        }
+
+        @Override
+        public DSLContext dslContext() {
+            throw new UnsupportedOperationException("Abstract DbEndpoint cannot be used for database access");
+        }
+
+        @Override
+        public DataSource datasource() {
+            throw new UnsupportedOperationException("Abstract DbEndpoint cannot be used for database access");
+        }
+
+        @Override
+        public DbAdapter getAdapter() {
+            throw new UnsupportedOperationException("Abstract DbEndpoint cannot be used for database access");
+        }
+
+        @Override
+        public boolean isReady() {
+            throw new UnsupportedOperationException("Abstract DbEndpoint cannot be used for database access");
+        }
+
+        @Override
+        public synchronized void awaitCompletion(final long timeout, final TimeUnit timeUnit) {
+            throw new UnsupportedOperationException("Abstract DbEndpoint cannot be used for database access");
+        }
     }
 
     /**

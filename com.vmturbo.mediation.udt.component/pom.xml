@@ -4,9 +4,9 @@
 
     <parent>
         <groupId>com.vmturbo</groupId>
-        <artifactId>mediation-parent</artifactId>
+        <artifactId>com.vmturbo.components</artifactId>
         <version>7.22.5-SNAPSHOT</version>
-        <relativePath>../build/mediation-parent-pom.xml</relativePath>
+        <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
 
     <artifactId>com.vmturbo.mediation.udt.component</artifactId>
@@ -21,13 +21,34 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.client</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
+                <groupId>com.spotify</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <configuration>
+                    <resources>
+                        <resource>
+                            <targetPath>/</targetPath>
+                            <directory>${project.build.directory}</directory>
+                            <include>${project.build.finalName}.jar</include>
+                        </resource>
+                        <resource>
+                            <targetPath>/lib</targetPath>
+                            <directory>${project.build.directory}/lib</directory>
+                        </resource>
+                        <resource>
+                            <targetPath>/probe-jars</targetPath>
+                            <directory>${project.build.directory}/probe-jars</directory>
+                        </resource>
+                    </resources>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

@@ -24,8 +24,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.models.ModelDefinitions;
-import com.vmturbo.extractor.schema.ExtractorDbConfig;
 import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -50,7 +50,7 @@ public class TopologyListenerConfig {
     private TopologyProcessorClientConfig tpConfig;
 
     @Autowired
-    private ExtractorDbConfig extractorDbConfig;
+    private ExtractorDbConfig dbConfig;
 
     @Autowired
     private GroupClientConfig groupClientConfig;
@@ -194,7 +194,7 @@ public class TopologyListenerConfig {
      */
     @Bean
     public List<Supplier<ITopologyWriter>> writerFactories() {
-        final DbEndpoint dbEndpoint = extractorDbConfig.ingesterEndpoint();
+        final DbEndpoint dbEndpoint = dbConfig.ingesterEndpoint();
         ImmutableList.Builder<Supplier<ITopologyWriter>> builder = ImmutableList.builder();
         if (enableSearchApi) {
             builder.add(() -> new SearchEntityWriter(dbEndpoint, pool()));
@@ -204,7 +204,7 @@ public class TopologyListenerConfig {
     }
 
     /**
-     * Entity hash manager to track entity hash evoluation across topology broadcasts.
+     * Entity hash manager to track entity hash evolution across topology broadcasts.
      *
      * @return the hash manager
      */

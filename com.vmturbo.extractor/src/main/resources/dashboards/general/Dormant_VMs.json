@@ -16,13 +16,13 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1592517668539,
+  "iteration": 1593624099445,
   "links": [],
   "panels": [
     {
       "columns": [],
       "datasource": "$DB",
-      "description": "This report shows Virtual Machines that have been dormant for the past several days (lack of CPU activity for 72 hours), and the storage used by those VMs. This storage may be reclaimed, depending upon the final disposition of such VMs. ",
+      "description": "Virtual Machines that have been 0% vCPU utilization for the past 72 hours, and the storage used by those VMs. ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -45,6 +45,7 @@
       },
       "styles": [
         {
+          "$$hashKey": "object:1394",
           "alias": "Time",
           "align": "auto",
           "dateFormat": "YYYY-MM-DD HH:mm:ss",
@@ -52,6 +53,7 @@
           "type": "date"
         },
         {
+          "$$hashKey": "object:1395",
           "alias": "",
           "align": "auto",
           "colorMode": null,
@@ -69,6 +71,7 @@
           "unit": "mbytes"
         },
         {
+          "$$hashKey": "object:1396",
           "alias": "",
           "align": "",
           "colorMode": null,
@@ -126,7 +129,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Storage Used by Dormant VM's",
+      "title": "Storage Used by Dormant VMs",
       "transform": "table",
       "type": "table-old"
     }

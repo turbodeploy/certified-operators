@@ -12,15 +12,17 @@
       }
     ]
   },
+  "description": "Performance and capacity profile for datastores.",
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1593454619314,
+  "iteration": 1593624628152,
   "links": [],
   "panels": [
     {
       "columns": [],
       "datasource": "$DB",
+      "description": "Capacity is max value. Provisioned Used, Used, IOPS and Latency are average values. ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -135,13 +137,14 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Summary",
+      "title": "Datastore Summary",
       "transform": "table",
       "type": "table-old"
     },
     {
       "columns": [],
       "datasource": "$DB",
+      "description": "Average, min and max values datastore utilization, IOPS and latency. ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -284,13 +287,14 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Resource Utilization",
+      "title": "Datastore Resource Utilization",
       "transform": "table",
       "type": "table-old"
     },
     {
       "columns": [],
       "datasource": "$DB",
+      "description": "Storage used, average and max IOPS and latency for VMs consuming resources from datastore. ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -439,7 +443,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "VM Summary",
+      "title": "Virtual Machine Summary",
       "transform": "table",
       "type": "table-old"
     }

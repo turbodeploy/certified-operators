@@ -321,7 +321,7 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
     private List<String> parseTextAndInclusionConditions(FieldApiDTO fieldApiDto, List<String> values ) {
         SearchMetadataMapping mapping = getMetadataMapping().get(fieldApiDto);
 
-        if (!ENUM_FIELD_API_TO_JOOQ_MAPPER.containsKey(fieldApiDto) && mapping.getEnumClass() != null) {
+        if (!ENUM_FIELD_API_TO_JOOQ_MAPPER.containsKey(fieldApiDto)) {
             return values;
         }
 

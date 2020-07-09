@@ -20,15 +20,15 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -554,12 +554,16 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                         vmByVolumeId.put(vol.getOid(), vm));
         });
 
-        // get storage tier for each volume
-        final Map<Long, ServiceEntityApiDTO> storageTierSEMap = repositoryApi
-                .entitiesRequest(storageTierIds)
-                .getSEMap();
-        storageTierIdByVolumeId.forEach((volId, stId) ->
-            storageTierByVolumeId.put(volId, storageTierSEMap.get(stId))
+        final Map<Long, ServiceEntityApiDTO> stTierBasicEntityById = Maps.newHashMap();
+        repositoryApi.entitiesRequest(storageTierIds).getMinimalEntities()
+                .forEach(storageTierEntity -> {
+                    final ServiceEntityApiDTO stTierBasicEntity =
+                            ServiceEntityMapper.toBasicEntity(storageTierEntity);
+                    stTierBasicEntityById.put(storageTierEntity.getOid(), stTierBasicEntity);
+                });
+        storageTierIdByVolumeId.forEach((volId, stId) -> {
+                    storageTierByVolumeId.put(volId, stTierBasicEntityById.get(stId));
+                }
         );
 
         // get cost stats for all volumes

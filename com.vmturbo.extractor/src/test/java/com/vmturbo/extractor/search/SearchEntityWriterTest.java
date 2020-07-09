@@ -40,16 +40,21 @@ import com.google.common.collect.ImmutableMap;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
-import com.vmturbo.extractor.schema.ExtractorDbConfig;
+import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.util.ExtractorTestUtil;
 import com.vmturbo.extractor.util.TopologyTestUtil;
@@ -63,11 +68,14 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  * Test that {@link SearchEntityWriter} writes entities and groups to search_entity table with
  * correct fields as defined in {@link SearchMetadataMapping}.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 public class SearchEntityWriterTest {
 
-    private final DbEndpoint endpoint = spy(new ExtractorDbConfig().ingesterEndpoint());
-    private final SearchEntityWriter writer = spy(new SearchEntityWriter(endpoint,
-            Executors.newSingleThreadScheduledExecutor()));
+    @Autowired
+    private ExtractorDbConfig dbConfig;
+
+    private SearchEntityWriter writer;
     private final TopologyInfo info = TopologyTestUtil.mkRealtimeTopologyInfo(1L);
     private final MultiStageTimer timer = mock(MultiStageTimer.class);
     private final DataProvider dataProvider = mock(DataProvider.class);
@@ -93,9 +101,10 @@ public class SearchEntityWriterTest {
             Arrays.asList(vm, pm, dc));
 
     /**
-     * Groups
+     * Groups.
      */
-    private static final Grouping g1 = mkGroup(GroupType.COMPUTE_HOST_CLUSTER, Arrays.asList(pm.getOid()));
+    private static final Grouping g1 = mkGroup(GroupType.COMPUTE_HOST_CLUSTER,
+            Collections.singletonList(pm.getOid()));
 
     private static final Map<Long, Integer> ACTION_COUNT_MAP = new ImmutableMap.Builder<Long, Integer>()
             .put(vm.getOid(), 3)
@@ -110,9 +119,13 @@ public class SearchEntityWriterTest {
      *
      * @throws UnsupportedDialectException if the endpoint is mis-configured
      * @throws SQLException                if there's a problem
+     * @throws InterruptedException        if interrupted
      */
     @Before
     public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
+        DbEndpoint endpoint = spy(dbConfig.ingesterEndpoint());
+        this.writer = spy(new SearchEntityWriter(endpoint,
+                Executors.newSingleThreadScheduledExecutor()));
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
         DslRecordSink entitiesReplacerSink = mock(DslReplaceRecordSink.class);
         this.entitiesReplacerCapture = captureSink(entitiesReplacerSink, false);
@@ -142,8 +155,8 @@ public class SearchEntityWriterTest {
         for (Record record : entitiesReplacerCapture) {
             long oid = record.get(ENTITY_OID_AS_OID);
             JsonString jsonString = record.get(ATTRS);
-            final Map<String, Object> attrs = jsonString == null ? Collections.emptyMap() :
-                    (Map<String, Object>)mapper.readValue(jsonString.toString(), Map.class);
+            final Map<String, Object> attrs = jsonString == null ? Collections.emptyMap()
+                    : (Map<String, Object>)mapper.readValue(jsonString.toString(), Map.class);
             // verify common fields for entity
             verifyCommonFields(record, entityByOid.get(oid));
 
