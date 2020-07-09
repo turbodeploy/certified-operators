@@ -98,6 +98,9 @@ public class PlanProjectExecutorTest {
     private PlanProjectNotificationSender projectNotificationSender =
             mock(PlanProjectNotificationSender.class);
 
+    /**
+     * The grpcServer mock.
+     */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceMole, settingServiceMole, statsHistoryServiceMole);
 
@@ -105,6 +108,11 @@ public class PlanProjectExecutorTest {
 
     private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
 
+    /**
+     * Set up the mocks.
+     *
+     * @throws CommunicationException should not be thrown.
+     */
     @Before
     public void setup() throws CommunicationException {
         IdentityGenerator.initPrefix(0);
@@ -125,6 +133,11 @@ public class PlanProjectExecutorTest {
         when(topologyProcessor.getAllTargets()).thenReturn(Collections.emptySet());
     }
 
+    /**
+     * Each cluster should run a plan against each scenario.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testExecutePlanOnePlanInstancePerClusterPerScenario() throws Exception {
         final PlanProjectOuterClass.PlanProject planProject = createHeadroomPlanProjectWithTwoScenarios();
@@ -168,8 +181,8 @@ public class PlanProjectExecutorTest {
         planProjectExecutor.executePlan(planProject);
 
         // 2 clusters, with 2 scenarios each.  So there are 4 plan instances created.
-        verify(planDao, Mockito.times(4)).
-                createPlanInstance(any(Scenario.class), eq(PlanProjectType.CLUSTER_HEADROOM));
+        verify(planDao, Mockito.times(4))
+                .createPlanInstance(any(Scenario.class), eq(PlanProjectType.CLUSTER_HEADROOM));
     }
 
     /**
@@ -269,13 +282,13 @@ public class PlanProjectExecutorTest {
                 .build()));
 
         long averageTemplateId = 3333;
-        Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
+        final Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
             .setId(12345L)
             .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
-                            .setDisplayName("TestCluster")
-                            .setType(GroupType.COMPUTE_HOST_CLUSTER))
-                .setOrigin(Origin.newBuilder().setDiscovered(Discovered.newBuilder().addDiscoveringTargetId(500L)))
+                .setDisplayName("TestCluster")
+                .setType(GroupType.COMPUTE_HOST_CLUSTER))
+            .setOrigin(Origin.newBuilder().setDiscovered(Discovered.newBuilder().addDiscoveringTargetId(500L)))
             .build();
 
         TemplateInfo templateInfo = TemplateInfo.newBuilder()
@@ -293,7 +306,7 @@ public class PlanProjectExecutorTest {
             .thenReturn(Optional.of(template));
 
         when(topologyProcessor.getAllTargets()).thenReturn(ImmutableSet.of(new TargetInfo(500L,
-                "target", null, null, null, null, null)));
+            "target", null, null, null, null, null)));
 
         headroomExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
@@ -307,9 +320,9 @@ public class PlanProjectExecutorTest {
 
     /**
      *  When calling createPlanInstanceWithClusterHeadroomTemplate, and the group does not have
-     * cluster information. In this case the code for changing the template is called
+     * cluster information. In this case the code for changing the template is called.
      *
-     * @throws Exception
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testCreatePlanInstanceWithoutClusterInfo() throws Exception {
@@ -332,7 +345,7 @@ public class PlanProjectExecutorTest {
      * When calling createPlanInstanceWithClusterHeadroomTemplate, and the group does not have
      * a headroom template ID. In this case, the code for creating the template is called
      *
-     * @throws Exception
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testCreatePlanInstanceWithoutClusterHeadroomTemplate() throws Exception {
@@ -363,7 +376,7 @@ public class PlanProjectExecutorTest {
     }
 
     /**
-     * Create a plan project of type CLUSTER_HEADROOM, with 2 scenarios
+     * Create a plan project of type CLUSTER_HEADROOM, with 2 scenarios.
      *
      * @return a plan project
      */
@@ -398,8 +411,11 @@ public class PlanProjectExecutorTest {
         return planProject;
     }
 
+    /**
+     * Should restrict the number of clusters to the global setting.
+     */
     @Test
-    public void testRestrictNumberOfClustersMoreThanMax() throws Exception {
+    public void testRestrictNumberOfClustersMoreThanMax() {
         int numberOfClusters = 100;
         Float maxNumberOfClusters = 20F;
         when(settingServiceMole.getGlobalSetting(any(GetSingleGlobalSettingRequest.class)))
@@ -421,8 +437,11 @@ public class PlanProjectExecutorTest {
         assertEquals(maxNumberOfClusters.intValue(), groupSet1.size());
     }
 
+    /**
+     * Should not change the number of clusters because it's below the global max setting.
+     */
     @Test
-    public void testRestrictNumberOfClustersLessThanMax() throws Exception {
+    public void testRestrictNumberOfClustersLessThanMax() {
         int numberOfClusters = 15;
         Float maxNumberOfClusters = 20F;
         when(settingServiceMole.getGlobalSetting(any(GetSingleGlobalSettingRequest.class)))

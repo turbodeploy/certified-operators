@@ -129,12 +129,8 @@ data:
         statsRecordsUpdateBatchSize : 5000
         # Number of results to return when fetching lazily.
         statsRecordsQueryBatchSize : 5000
-        # Import cost diags
-        saveCostDiags: true
         # Save Allocation Demand Tables in Diags
         saveAllocationDemandStores: true
-        # Save historical stats table in Diags
-        saveHistoricalStatsDiags: false
         reservedInstanceStatCleanup.corePoolSize: 1
         # One thread per table - latest, hourly, daily, monthly for RI coverage and utilization
         reservedInstanceStatCleanup.maxPoolSize: 8

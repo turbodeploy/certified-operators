@@ -58,6 +58,10 @@ import org.hamcrest.Matcher;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -65,11 +69,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
-import com.vmturbo.extractor.schema.ExtractorDbConfig;
+import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.util.ExtractorTestUtil;
 import com.vmturbo.extractor.util.TopologyTestUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -81,11 +86,14 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 /**
  * Tests of EntityMetricWriter.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 public class EntityMetricWriterTest {
-    DbEndpoint endpoint = spy(new ExtractorDbConfig().ingesterEndpoint());
-    EntityMetricWriter writer = spy(new EntityMetricWriter(endpoint,
-            new EntityHashManager(ExtractorTestUtil.config),
-            Executors.newSingleThreadScheduledExecutor()));
+
+    @Autowired
+    private ExtractorDbConfig dbConfig;
+
+    private EntityMetricWriter writer;
     final TopologyInfo info = TopologyTestUtil.mkRealtimeTopologyInfo(1L);
     final MultiStageTimer timer = mock(MultiStageTimer.class);
     private final DataProvider dataProvider = mock(DataProvider.class);
@@ -106,18 +114,22 @@ public class EntityMetricWriterTest {
      */
     @Before
     public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
+        final DbEndpoint endpoint = spy(dbConfig.ingesterEndpoint());
+        this.writer = spy(new EntityMetricWriter(endpoint,
+                new EntityHashManager(ExtractorTestUtil.config),
+                Executors.newSingleThreadScheduledExecutor()));
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
         DslRecordSink entitiesUpserterSink = mock(DslUpsertRecordSink.class);
         this.entitiesUpsertCapture = captureSink(entitiesUpserterSink, false);
         DslRecordSink entitiesUpdaterSink = mock(DslUpdateRecordSink.class);
         this.entitiesUpdateCapture = captureSink(entitiesUpdaterSink, false);
-        DslRecordSink metricInsertrSink = mock(DslRecordSink.class);
-        this.metricInsertCapture = captureSink(metricInsertrSink, false);
+        DslRecordSink metricInserterSink = mock(DslRecordSink.class);
+        this.metricInsertCapture = captureSink(metricInserterSink, false);
         doReturn(entitiesUpserterSink).when(writer).getEntityUpsertSink(
                 any(DSLContext.class), any(), any());
         doReturn(entitiesUpdaterSink).when(writer).getEntityUpdaterSink(
                 any(DSLContext.class), any(), any(), any());
-        doReturn(metricInsertrSink).when(writer).getMetricInserterSink(any(DSLContext.class));
+        doReturn(metricInserterSink).when(writer).getMetricInserterSink(any(DSLContext.class));
         doReturn(Stream.empty()).when(dataProvider).getAllGroups();
     }
 
@@ -181,7 +193,7 @@ public class EntityMetricWriterTest {
                     assertThat(labeler.apply(field), present, matcher);
                 } else {
                     throw new IllegalArgumentException(
-                            String.format("Unknwon field %s for entity type %s",
+                            String.format("Unknown field %s for entity type %s",
                                     field, entityType));
                 }
             }
@@ -222,7 +234,7 @@ public class EntityMetricWriterTest {
      *
      * @throws InterruptedException        if interrupted
      * @throws SQLException                if there's a DB problem
-     * @throws UnsupportedDialectException if the db endpint is misconfigured
+     * @throws UnsupportedDialectException if the db endpoint is misconfigured
      * @throws IOException                 if there's an IO related issue
      */
     @Test

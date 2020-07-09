@@ -127,7 +127,7 @@
                 perform live DB tests, specify -DpostgresContainer.skip` on maven command line. In
                 that case you will need to have a postgres server available in your environment,
                 and the postgresHost and postgresPort properties can be used to configure access
-                if they're differnet from lcoalhost and 5432, respectively.
+                if they're different from localhost and 5432, respectively.
             -->
             <activation>
                 <property>
@@ -156,7 +156,7 @@
                                             <run>
                                                 <!--
                                                 pattern needs to start with "maven-" so jenkins builds
-                                                will properly clean up leaked contianers
+                                                will properly clean up leaked containers
                                                 -->
                                                 <containerNamePattern>maven-%a-%i
                                                 </containerNamePattern>
@@ -297,6 +297,10 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.group.api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-core</artifactId>
         </dependency>
     </dependencies>
 </project>

@@ -124,6 +124,7 @@ public class EntitySeverityCache {
                                final boolean isCalculatingBreakdowns) {
         this.repositoryService = repositoryService;
         this.isCalculatingBreakdowns = isCalculatingBreakdowns;
+        logger.debug("Property isCalculatingBreakdowns is set to " + isCalculatingBreakdowns);
     }
 
     /**

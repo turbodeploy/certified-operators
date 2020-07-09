@@ -22,6 +22,7 @@ import com.vmturbo.components.test.utilities.component.ServiceHealthCheck.BasicS
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.client.GrafanaClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpointConfig;
 
 /**
@@ -53,10 +54,9 @@ public class GrafanaConfigurationIT {
     /**
      * Common code to run before the test. Initializes all the dependencies.
      *
-     * @throws Exception When there is an error.
      */
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         final GrafanaClientConfig clientConfig = new GrafanaClientConfig()
                 .setGrafanaHost("localhost")
                 // TODO - dynamic port so we don't crash if there is a local Grafana instance running.
@@ -66,19 +66,20 @@ public class GrafanaConfigurationIT {
         grafanaClient = new GrafanaClient(clientConfig);
 
         dashboardsOnDisk = new DashboardsOnDisk(
-            ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString());
+                ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString());
 
 
-        DbEndpointConfig endpointConfig = new DbEndpointConfig("extractor");
-        endpointConfig.setDbDatabaseName("mydb");
-        endpointConfig.setDbUserName("me");
-        endpointConfig.setDbPassword("foo");
-        endpointConfig.setDbPort(300);
-        endpointConfig.setDialect(SQLDialect.POSTGRES);
+        DbEndpointConfig endpointConfig = DbEndpoint.secondaryDbEndpoint("extractor", SQLDialect.POSTGRES)
+                .withDbDatabaseName("mydb")
+                .withDbUserName("me")
+                .withDbPassword("foo")
+                .withDbPort(300)
+                .withDbEndpointEnabled(false)
+                .build().getConfig();
 
         GrafanonConfig config = new GrafanonConfig(() -> endpointConfig)
-            .setTimescaleDisplayName("Test Endpoint")
-            .setErrorSleepInterval(10, TimeUnit.SECONDS);
+                .setTimescaleDisplayName("Test Endpoint")
+                .setErrorSleepInterval(10, TimeUnit.SECONDS);
 
         grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient);
     }
@@ -96,9 +97,8 @@ public class GrafanaConfigurationIT {
         logger.info(refreshSummary);
 
         final Set<String> expectedUids = new HashSet<>();
-        dashboardsOnDisk.visit(folderData -> {
-            folderData.getDashboardsByUid().keySet().forEach(uid -> expectedUids.add(uid));
-        });
+        dashboardsOnDisk.visit(folderData ->
+                expectedUids.addAll(folderData.getDashboardsByUid().keySet()));
 
         Map<String, Long> dashboards = grafanaClient.dashboardIdsByUid();
         assertThat(dashboards.keySet(), is(expectedUids));

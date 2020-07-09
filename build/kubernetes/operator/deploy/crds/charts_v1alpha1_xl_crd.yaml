@@ -3143,6 +3143,10 @@ spec:
                   type: object
                 action-orchestrator:
                   description: action-orchestrator property overrides
+                  properties:
+                    riskPropagationEnabled:
+                      description: Enable risk propagation
+                      type: boolean
                   type: object
                 api:
                   description: api property overrides

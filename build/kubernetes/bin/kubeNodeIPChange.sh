@@ -7,8 +7,8 @@ then
   exit
 fi
 
-oldIP=${1}
-newIP=${2}
+oldIP=$(grep "externalIP:" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml | awk '{print $2}')
+newIP=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
 
 usage()
 {
@@ -16,9 +16,39 @@ usage()
   exit -1
 }
 
+pause()
+{
+    key=""
+    echo -n Hit any key to continue....
+    stty -icanon
+    key=`dd count=1 2>/dev/null`
+    stty icanon
+}
+
 # Test variables are not empty.
 [ -z "${oldIP}" ] && usage
 [ -z "${newIP}" ] && usage
+
+echo "------------------------------------"
+# Show the ip address adjustment
+echo "Old IP Address: ${oldIP}"
+echo "New IP Address: ${newIP}"
+echo "------------------------------------"
+echo
+
+read -p "Is the server information correct? (y/n) " ANSWER
+shopt -s nocasematch
+
+if [[ ${ANSWER} == y ]]
+then
+  echo "**** LAST CHANCE **** "
+  echo "Use ^c to exit"
+  echo "********************* "
+  pause
+else
+  echo "The script will now exit, please enter the proper information."
+  exit 0
+fi
 
 # Adjust current hosts file
 sed -i "s/${oldIP}/${newIP}/g" /etc/hosts

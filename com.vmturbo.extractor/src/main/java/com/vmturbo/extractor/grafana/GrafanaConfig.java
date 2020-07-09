@@ -8,16 +8,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.client.GrafanaClientConfig;
-import com.vmturbo.extractor.schema.ExtractorDbConfig;
+import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 
 /**
  * Configures the Grafana initialization logic.
  */
 @Configuration
-@Import({ExtractorDbConfig.class})
+@Import({ExtractorDbBaseConfig.class})
 public class GrafanaConfig {
 
     @Value("${grafanaHost:grafana}")

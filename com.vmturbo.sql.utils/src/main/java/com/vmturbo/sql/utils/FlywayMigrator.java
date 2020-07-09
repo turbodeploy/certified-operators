@@ -84,10 +84,51 @@ public class FlywayMigrator {
         }
     }
 
+    /**
+     * Attempt to validate that the database is up-to-date with discoverable migrations.
+     *
+     * <p>If the database is not yet ready to accept connections, retry until a connection
+     * succeeds or the {@link this#maximumDatabaseWaitTime} elapses.</p>
+     *
+     * @return the {@link Flyway} instance used to validate the database
+     */
+    @Nonnull
+    public Flyway validate() {
+        Duration waitForDatabaseDelay = maximumDatabaseWaitTime;
+
+        while (true) {
+            try {
+                return validateDatabase();
+            } catch (FlywayException e) {
+                // If migration failed due to database unavailability, wait a bit and retry.
+                if (e.getMessage().equals(DATABASE_CONNECTION_FAILURE_MESSAGE)) {
+                    waitForDatabaseDelay = waitForDatabaseDelay.minus(retryInterval);
+                    if (waitForDatabaseDelay.isNegative()) {
+                        throw e;
+                    } else {
+                        logger.info("Database connection unavailable. Retrying in {}", retryInterval);
+                        sleepFor(retryInterval);
+                    }
+                    // If migration failed for some other reason (ie a bad migration script failed to execute),
+                    // the problem should kill startup.
+                } else {
+                    throw e;
+                }
+            }
+        }
+    }
+
     private Flyway migrateDatabase() throws FlywayException {
         Flyway flyway = flywayFactory.get();
 
         flyway.migrate();
+        return flyway;
+    }
+
+    private Flyway validateDatabase() throws FlywayException {
+        Flyway flyway = flywayFactory.get();
+
+        flyway.validate();
         return flyway;
     }
 

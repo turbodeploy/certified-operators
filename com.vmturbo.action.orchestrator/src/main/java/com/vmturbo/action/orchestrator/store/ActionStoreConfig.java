@@ -134,6 +134,9 @@ public class ActionStoreConfig {
     @Value("${actionIdentityModelRequestChunkSize:1000}")
     private int actionIdentityModelRequestChunkSize;
 
+    @Value("${riskPropagationEnabled:true}")
+    private boolean riskPropagationEnabled;
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator());
@@ -238,6 +241,7 @@ public class ActionStoreConfig {
             .withActionIdentityService(actionIdentityService())
             .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
             .withActionAuditSender(auditCommunicationConfig.actionAuditSender())
+            .withRiskPropagationEnabledFlag(riskPropagationEnabled)
             .build();
     }
 
