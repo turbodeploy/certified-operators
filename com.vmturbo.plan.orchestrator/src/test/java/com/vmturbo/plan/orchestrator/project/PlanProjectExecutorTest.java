@@ -242,7 +242,7 @@ public class PlanProjectExecutorTest {
                 .build()));
 
         long selectedTemplateId = 3333;
-        Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
+        final Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
         .setId(12345)
         .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
         .setDefinition(GroupDefinition.newBuilder()
