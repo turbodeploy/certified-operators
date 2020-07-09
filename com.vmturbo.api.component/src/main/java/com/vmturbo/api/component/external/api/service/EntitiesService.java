@@ -971,18 +971,26 @@ public class EntitiesService implements IEntitiesService {
                 "Should be a numeric entity id.", uuid));
         }
 
-        final PotentialPlacementsResponse response =
-            entityConstraintsRpcService.getPotentialPlacements(PotentialPlacementsRequest.newBuilder()
+        final PotentialPlacementsRequest.Builder request =
+            PotentialPlacementsRequest.newBuilder()
                 .setOid(uuidMapper.fromUuid(uuid).oid())
                 .setRelationType(EntityConstraints.RelationType.BOUGHT)
-                .addPotentialEntityTypes(EntityType.PHYSICAL_MACHINE_VALUE)
                 .addAllCommodityType(inputDto.getPlacementOptions().stream()
                     .filter(option -> !"".equals(option.getKey()))
                     .map(option -> TopologyDTO.CommodityType.newBuilder()
                         .setType(ClassicEnumMapper.commodityType(option.getConstraintType()).getNumber())
                         .setKey(option.getKey()).build())
                     .collect(Collectors.toList()))
-                .setPaginationParams(paginationMapper.toProtoParams(paginationRequest)).build());
+                .setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+
+        if (inputDto.getEntityTypeFilter() != null) {
+            // TODO: Add a mapper for API EntityType enum (OM-60615)
+            request.addPotentialEntityTypes(ApiEntityType.fromString(
+                inputDto.getEntityTypeFilter().getDisplayName()).typeNumber());
+        }
+
+        final PotentialPlacementsResponse response =
+            entityConstraintsRpcService.getPotentialPlacements(request.build());
 
         final List<ServiceEntityApiDTO> nextPage = serviceEntityMapper.toServiceEntityApiDTO(
             response.getEntitiesList());
