@@ -32,6 +32,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
@@ -68,16 +69,20 @@ public class MarketRunner {
             .build()
             .register();
 
+    private final InitialPlacementFinder initialPlacementFinder;
+
     public MarketRunner(@Nonnull final ExecutorService runnerThreadPool,
                         @Nonnull final MarketNotificationSender serverApi,
                         @Nonnull final AnalysisFactory analysisFactory,
                         @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService,
-                        final TopologyProcessingGate topologyProcessingGate) {
+                        final TopologyProcessingGate topologyProcessingGate,
+                        @Nonnull final InitialPlacementFinder initialPlacementFinder) {
         this.runnerThreadPool = Objects.requireNonNull(runnerThreadPool);
         this.serverApi = Objects.requireNonNull(serverApi);
         this.marketDebugRpcService = Objects.requireNonNull(marketDebugRpcService);
         this.analysisFactory = Objects.requireNonNull(analysisFactory);
         this.topologyProcessingGate = Objects.requireNonNull(topologyProcessingGate);
+        this.initialPlacementFinder = Objects.requireNonNull(initialPlacementFinder);
     }
 
     /**
@@ -139,7 +144,8 @@ public class MarketRunner {
                         .setReplayProvisionsForRealTime(replayProvisionsForRealTime)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                        .setDiscountedComputeCostFactor(discountedComputeCostFactor));
+                        .setDiscountedComputeCostFactor(discountedComputeCostFactor),
+                        initialPlacementFinder);
 
             if (!analysis.getTopologyInfo().hasPlanInfo()) {
                 Optional<Setting> disbaleAllActionsSetting = analysis.getConfig()

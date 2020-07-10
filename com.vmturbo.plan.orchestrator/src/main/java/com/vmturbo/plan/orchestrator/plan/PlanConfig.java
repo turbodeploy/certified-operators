@@ -215,7 +215,7 @@ public class PlanConfig {
     @Bean
     public PlanProgressListener planProgressListener() {
         final PlanProgressListener listener =  new PlanProgressListener(planDao(), planService(),
-                reservationConfig.reservationPlacementHandler(), realtimeTopologyContextId);
+                realtimeTopologyContextId);
         aoClientConfig.actionOrchestratorClient().addListener(listener);
         repositoryClientConfig.repository().addListener(listener);
         historyClientConfig.historyComponent().addListener(listener);

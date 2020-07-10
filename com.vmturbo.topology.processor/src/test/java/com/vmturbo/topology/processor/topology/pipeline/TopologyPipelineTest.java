@@ -172,7 +172,7 @@ public class TopologyPipelineTest {
         final Map<Long, TopologyEntity.Builder> cachedMap = Maps.newHashMap();
         cachedMap.put(1L, builder);
         final CachedTopologyResult cachedResult = new CachedTopologyResult(null, cachedMap);
-        when(cachedTopo.getTopology(any())).thenReturn(cachedResult);
+        when(cachedTopo.getTopology()).thenReturn(cachedResult);
         when(builder.snapshot()).thenReturn(builder);
         final EntityStore entityStore = mock(EntityStore.class);
         final TopologyPipeline<EntityStore, Map<Long, TopologyEntity.Builder>> pipeline =

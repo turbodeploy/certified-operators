@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.stitching.TopologyEntity;
@@ -42,6 +43,7 @@ import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicator
 import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.GenerateConstraintMapStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CacheWritingConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
@@ -147,6 +149,8 @@ public class LivePipelineFactory {
 
     private final EphemeralEntityEditor ephemeralEntityEditor;
 
+    private final ReservationServiceBlockingStub reservationService;
+
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                @Nonnull final PolicyManager policyManager,
                                @Nonnull final StitchingManager stitchingManager,
@@ -177,7 +181,8 @@ public class LivePipelineFactory {
                                @Nonnull final ActionConstraintsUploader actionConstraintsUploader,
                                @Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader,
                                @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector,
-                               @Nonnull final EphemeralEntityEditor ephemeralEntityEditor) {
+                               @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
+                               @Nonnull final ReservationServiceBlockingStub reservationService) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -209,6 +214,7 @@ public class LivePipelineFactory {
         this.requestAndLimitCommodityThresholdsInjector = Objects.requireNonNull(requestAndLimitCommodityThresholdsInjector);
         this.actionMergeSpecsUploader = actionMergeSpecsUploader;
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
+        this.reservationService = Objects.requireNonNull(reservationService);
     }
 
     /**
@@ -280,6 +286,7 @@ public class LivePipelineFactory {
                 .addStage(new ControllableStage(controllableManager))
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
+                .addStage(new GenerateConstraintMapStage(policyManager, groupServiceClient, reservationService))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
                 .addStage(new PolicyStage(policyManager))
@@ -331,6 +338,7 @@ public class LivePipelineFactory {
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
+                .addStage(new GenerateConstraintMapStage(policyManager, groupServiceClient, reservationService))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
                 .addStage(new DummySettingsResolutionStage())

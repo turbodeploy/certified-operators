@@ -5,6 +5,7 @@ option java_package = "com.vmturbo.common.protobuf.plan";
 
 import "plan/Scenario.proto";
 import "topology/TopologyDTO.proto";
+import "plan/TemplateDTO.proto";
 
 // Reservation describes user-specified reservation information, such as templates, constraints and
 // also contains all reservation instances and placement information which are created by internal
@@ -89,6 +90,9 @@ message ReservationTemplateCollection {
         // A list of reservation instance which contains placement information.
         repeated ReservationInstance reservation_instance = 3;
 
+        // template
+        optional Template template = 4;
+
         message ReservationInstance {
             // Id of reservation instance entity.
             optional int64 entity_id = 1;
@@ -98,6 +102,9 @@ message ReservationTemplateCollection {
 
             // Name of entity
             optional string name = 3;
+
+            // details of why a reservation instance was unplaced.
+            repeated InitialPlacementFailureInfo failure_info = 4;
 
             // Contains placement information of reservation instance.
             message PlacementInfo {
@@ -109,9 +116,18 @@ message ReservationTemplateCollection {
 
                 // a list of commodities bought from this provider.
                 repeated .topology.CommodityBoughtDTO commodity_bought = 3;
+
+                optional int64 placement_info_id = 4;
             }
         }
     }
+}
+
+message InitialPlacementFailureInfo {
+    optional .topology.CommodityType commType = 1;
+    optional int64 closest_seller = 2;
+    optional double max_quantity_available = 3;
+    optional double requested_quantity = 4;
 }
 
 message ConstraintInfoCollection {
@@ -179,6 +195,14 @@ message UpdateFutureAndExpiredReservationsRequest {
     // A list of reservations need to update.
 }
 
+message UpdateConstraintMapRequest {
+    repeated ReservationConstraintInfo reservationContraintInfo = 1;
+}
+
+message UpdateConstraintMapResponse {
+    required int64 count = 1;
+}
+
 message UpdateFutureAndExpiredReservationsResponse {
     // The number of reservations that are activated by the RPC.
     // If this number is greater than 0, the reservation service will be kicking off
@@ -216,4 +240,7 @@ service ReservationService {
 
     // Update a list of reservations together.
     rpc UpdateReservations(UpdateReservationsRequest) returns (stream Reservation);
+
+    // Update a existing resertion with a new reservation.
+    rpc UpdateConstraintMap(UpdateConstraintMapRequest) returns (UpdateConstraintMapResponse);
 }

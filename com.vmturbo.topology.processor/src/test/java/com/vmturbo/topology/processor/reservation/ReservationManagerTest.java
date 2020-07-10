@@ -1,15 +1,10 @@
 package com.vmturbo.topology.processor.reservation;
 
-import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VMPM_ACCESS_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE;
-import static com.vmturbo.topology.processor.reservation.ReservationManager.RESERVATION_KEY;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyMap;
-import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -22,7 +17,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Ignore;
@@ -30,8 +24,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -52,15 +44,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.reservation.ReservationValidator.ValidationErrors;
-import com.vmturbo.topology.processor.targets.Target;
-import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 
 public class ReservationManagerTest {
@@ -171,14 +159,11 @@ public class ReservationManagerTest {
 
     private ReservationValidator validator = mock(ReservationValidator.class);
 
-    private TargetStore targetStore = mock(TargetStore.class);
-
     @Before
     public void setup() {
         reservationManager = new ReservationManager(
             ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            templateConverterFactory,
-            validator, targetStore);
+            validator);
     }
 
     /**
@@ -195,8 +180,8 @@ public class ReservationManagerTest {
         when(errors.isEmpty()).thenReturn(false);
 
         when(validator.validateReservations(any(), any())).thenReturn(errors);
-        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME)
-                .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanProjectType(PlanProjectType.RESERVATION_PLAN)).build();
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.REALTIME).build();
         reservationManager.applyReservation(Collections.emptyMap(),
                 topologyInfo);
 
@@ -226,11 +211,7 @@ public class ReservationManagerTest {
     public void testApplyReservationReserved() throws Exception {
         doReturn(Collections.singletonList(reservation))
             .when(reservationService).getAllReservations(any());
-        when(templateConverterFactory.generateReservationEntityFromTemplates(
-            (Map<Long, Long>)argThat(hasEntry(456L, 1L)), anyMap()))
-            .thenReturn(Lists.newArrayList(topologyEntityBuildReserved).stream());
         when(validator.validateReservations(any(), any())).thenReturn(new ValidationErrors());
-        when(targetStore.getAll()).thenReturn(Collections.emptyList());
 
         final Map<Long, Builder> topology = new HashMap<>();
         topology.put(providerEntity.getOid(), TopologyEntity.newBuilder(providerEntity));
@@ -252,67 +233,13 @@ public class ReservationManagerTest {
         final List<CommoditySoldDTO> commoditySoldDTOs = topology.get(providerEntity.getOid())
             .getEntityBuilder().getCommoditySoldListList();
         assertEquals(1, commoditySoldDTOs.size());
-        assertEquals(110.0, commoditySoldDTOs.get(0).getUsed(), epsilon);
+        assertEquals(10.0, commoditySoldDTOs.get(0).getUsed(), epsilon);
     }
 
-    /**
-     * Test {@link ReservationManager#applyReservation(Map, TopologyInfo)} with
-     * one reservation with cloud target.
-     *
-     * @throws Exception any test exception
-     */
-    @Test
-    public void testApplyReservationReservedWithCloudTarget() throws Exception {
-        doReturn(Collections.singletonList(reservation))
-            .when(reservationService).getAllReservations(any());
-        when(templateConverterFactory.generateReservationEntityFromTemplates(
-            (Map<Long, Long>)argThat(hasEntry(456L, 1L)), anyMap()))
-            .thenReturn(Lists.newArrayList(topologyEntityBuildReserved).stream());
-        when(validator.validateReservations(any(), any())).thenReturn(new ValidationErrors());
-        Target target = mock(Target.class);
-        when(target.getId()).thenReturn(123L);
-        when(targetStore.getAll()).thenReturn(Collections.singletonList(target));
-        when(targetStore.getProbeTypeForTarget(123L)).thenReturn(Optional.of(SDKProbeType.AWS));
-
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(providerEntity.getOid(), TopologyEntity.newBuilder(providerEntity));
-        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build();
-        reservationManager.applyReservation(topology, topologyInfo);
-
-        assertEquals(2L, topology.size());
-        assertTrue(topology.containsKey(1L));
-        assertTrue(topology.containsKey(providerEntity.getOid()));
-
-        // Check already reserved Reservation
-        final TopologyEntityDTO.Builder builderReserved = topology.get(1L).getEntityBuilder();
-        assertFalse(builderReserved.getAnalysisSettings().getSuspendable());
-        assertEquals(2L, builderReserved.getCommoditiesBoughtFromProvidersCount());
-        assertTrue(builderReserved.getCommoditiesBoughtFromProvidersBuilderList().stream()
-            .filter(commBought -> commBought.getProviderId() == providerEntity.getOid())
-            .flatMap(commBought -> commBought.getCommodityBoughtBuilderList().stream())
-            .anyMatch(commBought -> commBought.getUsed() == 1.0d &&
-                commBought.getCommodityType().getType() == VMPM_ACCESS_VALUE &&
-                commBought.getCommodityType().getKey() == RESERVATION_KEY));
-
-        // Check provider commodity sold utilization changed correctly.
-        final List<CommoditySoldDTO> commoditySoldDTOs = topology.get(providerEntity.getOid())
-            .getEntityBuilder().getCommoditySoldListList();
-        assertEquals(2, commoditySoldDTOs.size());
-        assertEquals(110.0, commoditySoldDTOs.get(0).getUsed(), epsilon);
-        assertEquals(VMPM_ACCESS_VALUE, commoditySoldDTOs.get(1).getCommodityType().getType());
-        assertEquals(RESERVATION_KEY, commoditySoldDTOs.get(1).getCommodityType().getKey());
-        assertEquals(SDKConstants.ACCESS_COMMODITY_CAPACITY, commoditySoldDTOs.get(1).getCapacity(), epsilon);
-    }
 
     @Ignore
     @Test
     public void testApplyReservationReservedAndFuture() throws Exception {
-        when(templateConverterFactory.generateReservationEntityFromTemplates(
-                (Map<Long, Long>) argThat(hasEntry(456L, 1L)), anyMap()))
-                .thenReturn(Lists.newArrayList(topologyEntityBuildReserved).stream());
-        when(templateConverterFactory.generateReservationEntityFromTemplates(
-                (Map<Long, Long>) argThat(hasEntry(567L, 1L)), anyMap()))
-                .thenReturn(Lists.newArrayList(topologyEntityBuildFuture).stream());
         final Map<Long, Builder> topology = new HashMap<>();
         ArgumentCaptor<UpdateReservationsRequest> updateRequestCaptor =
                 ArgumentCaptor.forClass(UpdateReservationsRequest.class);
@@ -348,27 +275,5 @@ public class ReservationManagerTest {
                 .updateReservations(updateRequestCaptor.capture(), any());
         final UpdateReservationsRequest updateReservationsRequest = updateRequestCaptor.getValue();
         assertEquals(1, updateReservationsRequest.getReservationCount());
-    }
-
-    @Test
-    public void testModifyCommodityBought() {
-        final TopologyEntityDTO.Builder providerEntity = TopologyEntityDTO.newBuilder()
-                .setOid(123)
-                .setEntityType(PHYSICAL_MACHINE_VALUE)
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                        .setUsed(100.0)
-                        .setCommodityType(CommodityType.newBuilder()
-                                .setType(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE)));
-        final TopologyEntity.Builder providerBuilder = TopologyEntity.newBuilder(providerEntity);
-        final CommoditiesBoughtFromProvider.Builder commodityBoughtBuilder =
-                CommoditiesBoughtFromProvider.newBuilder()
-                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(CommodityType.newBuilder()
-                                        .setType(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE))
-                                .setUsed(200.0));
-        reservationManager.modifyProviderEntityCommodityBought(providerBuilder,
-                commodityBoughtBuilder);
-        assertEquals(300.0, providerBuilder.getEntityBuilder().getCommoditySoldList(0)
-                .getUsed(), 0.00001);
     }
 }
