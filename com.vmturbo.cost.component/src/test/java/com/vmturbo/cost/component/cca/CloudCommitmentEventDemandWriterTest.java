@@ -1,4 +1,10 @@
-package com.vmturbo.cloud.commitment.analysis.persistence;
+package com.vmturbo.cost.component.cca;
+
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -7,11 +13,9 @@ import java.util.Optional;
 
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Matchers;
-import org.mockito.Mockito;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
-import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationStore;
+import com.vmturbo.cloud.commitment.analysis.writer.CloudCommitmentDemandWriter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
@@ -29,7 +33,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 /**
  * Class for testing the CloudCommitmentDemandWriter.
  */
-public class CloudCommitmentDemandWriterTest {
+public class CloudCommitmentEventDemandWriterTest {
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(12345L)
@@ -37,7 +41,7 @@ public class CloudCommitmentDemandWriterTest {
             .setCreationTime(99999L)
             .build();
 
-    private CloudTopology<TopologyEntityDTO> cloudTopology = Mockito.mock(CloudTopology.class);
+    private CloudTopology<TopologyEntityDTO> cloudTopology = mock(CloudTopology.class);
 
     private final OS osInfo = OS.newBuilder().setGuestOsName("Linux").setGuestOsType(OSType.LINUX).build();
 
@@ -81,7 +85,7 @@ public class CloudCommitmentDemandWriterTest {
             .members(Collections.emptyList())
             .build();
 
-    private final ComputeTierAllocationStore computeTierAllocationStore = Mockito.mock(ComputeTierAllocationStore.class);
+    private final SQLComputeTierAllocationStore sqlComputeTierAllocationStore = mock(SQLComputeTierAllocationStore.class);
 
     /**
      * Test the construction of allocation data points to be persisted by SqlComputeTierAllocationStore.
@@ -89,29 +93,29 @@ public class CloudCommitmentDemandWriterTest {
     @Test
     public void testBuildComputeTierAllocationDatapoint() {
         long vmOid = vm1.getOid();
-        Mockito.when(cloudTopology.getServiceProvider(vmOid)).thenReturn(Optional.of(serviceProvider));
+        when(cloudTopology.getServiceProvider(vmOid)).thenReturn(Optional.of(serviceProvider));
 
-        Mockito.when(cloudTopology.getConnectedRegion(vmOid)).thenReturn(Optional.of(region1));
+        when(cloudTopology.getConnectedRegion(vmOid)).thenReturn(Optional.of(region1));
 
-        Mockito.when(cloudTopology.getConnectedAvailabilityZone(vmOid)).thenReturn(Optional.of(availabilityZone));
+        when(cloudTopology.getConnectedAvailabilityZone(vmOid)).thenReturn(Optional.of(availabilityZone));
 
-        Mockito.when(cloudTopology.getBillingFamilyForEntity(vmOid)).thenReturn(Optional.of(billingFamily));
+        when(cloudTopology.getBillingFamilyForEntity(vmOid)).thenReturn(Optional.of(billingFamily));
 
-        Mockito.when(cloudTopology.getComputeTier(vmOid)).thenReturn(Optional.of(computeTier));
+        when(cloudTopology.getComputeTier(vmOid)).thenReturn(Optional.of(computeTier));
 
-        Mockito.when(cloudTopology.getOwner(vmOid)).thenReturn(Optional.of(businessAccount));
+        when(cloudTopology.getOwner(vmOid)).thenReturn(Optional.of(businessAccount));
 
         CloudCommitmentDemandWriter commitmentDemandWriter =
-                new CloudCommitmentDemandWriterImpl(computeTierAllocationStore, true);
+                new CloudCommitmentEventDemandWriterImpl(sqlComputeTierAllocationStore, true);
 
-        Mockito.when(cloudTopology.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE)).thenReturn(Arrays.asList(vm1, vm2));
+        when(cloudTopology.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE)).thenReturn(Arrays.asList(vm1, vm2));
 
         final ArgumentCaptor<List> listCaptorRecordOn = ArgumentCaptor.forClass(List.class);
 
         commitmentDemandWriter.writeAllocationDemand(cloudTopology, topologyInfo);
 
-        Mockito.verify(computeTierAllocationStore)
-                .persistAllocations(Matchers.any(), listCaptorRecordOn.capture());
+        verify(sqlComputeTierAllocationStore)
+                .persistAllocations(any(), listCaptorRecordOn.capture());
         List<ComputeTierAllocationDatapoint> datapoints = listCaptorRecordOn.getValue();
 
         assert (datapoints.size() == 1);
@@ -129,13 +133,13 @@ public class CloudCommitmentDemandWriterTest {
         assert (datapoint.cloudTierDemand().tenancy().equals(Tenancy.DEFAULT));
 
         // Test when demand recording is turned off
-        final ComputeTierAllocationStore computeTierAllocationStore = Mockito.mock(ComputeTierAllocationStore.class);
+        final SQLComputeTierAllocationStore sqlComputeTierAllocationStoreDemandOff = mock(SQLComputeTierAllocationStore.class);
 
-        CloudCommitmentDemandWriter commitmentDemandWriterRecordOff = new CloudCommitmentDemandWriterImpl(
-                computeTierAllocationStore, false);
+        CloudCommitmentDemandWriter commitmentDemandWriterRecordOff = new CloudCommitmentEventDemandWriterImpl(
+                sqlComputeTierAllocationStoreDemandOff, false);
 
         commitmentDemandWriterRecordOff.writeAllocationDemand(cloudTopology, topologyInfo);
 
-        Mockito.verifyZeroInteractions(computeTierAllocationStore);
+        verifyZeroInteractions(sqlComputeTierAllocationStoreDemandOff);
     }
 }

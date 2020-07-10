@@ -2,7 +2,6 @@ package com.vmturbo.auth.component.store;
 
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 import static com.vmturbo.auth.component.store.AuthProviderBase.PREFIX;
-import static com.vmturbo.auth.component.store.AuthProviderHelper.changePasswordAllowed;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.mayAlterUserWithRoles;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -42,8 +41,6 @@ import org.springframework.test.context.web.WebAppConfiguration;
 
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
-import com.vmturbo.auth.component.store.AuthProvider.UserInfo;
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**
@@ -59,8 +56,6 @@ public class AuthProviderRoleTest {
     private static final String ROLE_OBSERVER = "ROLE_OBSERVER";
     private static final String OBSERVER = "OBSERVER";
     private static final String ADMIN = "admin";
-    private static final String SITE_ADMIN = "siteadmin";
-
     @Mock
     Supplier<String> keyValueDir;
     @InjectMocks
@@ -199,9 +194,9 @@ public class AuthProviderRoleTest {
         SecurityContextHolder.getContext()
                 .setAuthentication(getAuthentication(ROLE_ADMINISTRATOR, ADMIN));
         // itself
-        assertTrue(changePasswordAllowed(buildUser(ADMINISTRATOR, Optional.empty())));
+        assertTrue(authProviderUnderTest.changePasswordAllowed(ADMIN));
         // other admin
-        assertTrue(changePasswordAllowed(buildUser(ADMINISTRATOR, Optional.of("anotherAdmin"))));
+        assertTrue(authProviderUnderTest.changePasswordAllowed("anotherAdmin"));
         SecurityContextHolder.getContext().setAuthentication(null);
     }
 
@@ -211,9 +206,9 @@ public class AuthProviderRoleTest {
     @Test
     public void testChangePasswordAllowedForSiteAdminUser() {
         SecurityContextHolder.getContext()
-                .setAuthentication(getAuthentication(ROLE_SITE_ADMIN, SITE_ADMIN));
-        assertTrue(changePasswordAllowed(buildUser(OBSERVER, Optional.of("observerUser"))));
-        assertFalse(changePasswordAllowed(buildUser(ADMINISTRATOR, Optional.empty())));
+                .setAuthentication(getAuthentication(ROLE_SITE_ADMIN, ADMIN));
+        assertTrue(authProviderUnderTest.changePasswordAllowed(ADMIN));
+        assertFalse(authProviderUnderTest.changePasswordAllowed(OBSERVER));
         SecurityContextHolder.getContext().setAuthentication(null);
     }
 
@@ -224,8 +219,8 @@ public class AuthProviderRoleTest {
     public void testChangePasswordAllowedNonAdminChangeItself() {
         SecurityContextHolder.getContext()
                 .setAuthentication(getAuthentication(ROLE_OBSERVER, OBSERVER));
-        assertFalse(changePasswordAllowed(buildUser(ADMINISTRATOR, Optional.empty())));
-        assertTrue(changePasswordAllowed(buildUser(OBSERVER, Optional.of(OBSERVER))));
+        assertFalse(authProviderUnderTest.changePasswordAllowed(ADMIN));
+        assertTrue(authProviderUnderTest.changePasswordAllowed(OBSERVER));
         SecurityContextHolder.getContext().setAuthentication(null);
     }
 
@@ -234,22 +229,7 @@ public class AuthProviderRoleTest {
      */
     @Test
     public void testChangePasswordAllowedNotLogin() {
-        assertFalse(changePasswordAllowed(buildUser(ADMINISTRATOR, Optional.empty())));
-        assertFalse(changePasswordAllowed(buildUser(OBSERVER, Optional.of(OBSERVER))));
-    }
-
-    // Helper to build UserInfo.
-    private static UserInfo buildUser(String role, Optional<String> username) {
-        UserInfo info = new UserInfo();
-        info.provider = PROVIDER.LOCAL;
-        info.userName = username.orElse(ADMIN);
-
-        info.passwordHash = HashAuthUtils.secureHash("password");
-        info.uuid = String.valueOf(IdentityGenerator.next());
-        info.unlocked = true;
-        // ensure role are upper case for any I/O operations, here is saving to Consul.
-        info.roles = Collections.singletonList(role);
-        info.scopeGroups = null;
-        return info;
+        assertFalse(authProviderUnderTest.changePasswordAllowed(ADMIN));
+        assertFalse(authProviderUnderTest.changePasswordAllowed(OBSERVER));
     }
 }

@@ -7,7 +7,7 @@ import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UU
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED_SECURITY_GROUPS_SET;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.areValidRoles;
-import static com.vmturbo.auth.component.store.AuthProviderHelper.changePasswordAllowed;
+import static com.vmturbo.auth.component.store.AuthProviderHelper.hasRoleAdministrator;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.mayAlterUserWithRoles;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.roleMatched;
 
@@ -43,6 +43,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
@@ -801,35 +803,35 @@ public class AuthProvider extends AuthProviderBase {
             logger_.error("AUDIT::FAILURE:UNKNOWN: Error modifying unknown user: " +
                           userName);
             return false;
-        } else {
-            final String jsonData = json.get();
-            final UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
-            // check to see if the requesting user is allowed to change the password for the given user
-            if (!changePasswordAllowed(info)) {
-                logger_.error("AUDIT::FAILURE:AUTH: Cannot change Password - not owner " +
-                        "or administrator: " + userName);
-                throw new SecurityException("Cannot change Password - not owner or administrator");
-            }
+        }
 
-            try {
-                // Check the authentication.
-                // We add this bypass, since MT does not provide the existing password.
-                if (password != null && !HashAuthUtils.checkSecureHash(info.passwordHash, password)) {
-                    throw new SecurityException("AUDIT::NEGATIVE: Password mismatch");
-                }
-                // Update password if necessary.
-                if (passwordNew.isEmpty()) {
-                    throw new SecurityException("Empty new password");
-                }
-                info.passwordHash = HashAuthUtils.secureHash(passwordNew);
-                // Update KV store.
-                putKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LOCAL, userName), GSON.toJson(info));
-                logger_.info("AUDIT::SUCCESS: Success modifying user: " + userName);
-                return true;
-            } catch (SecurityException e) {
-                logger_.error("AUDIT::FAILURE:AUTH: Error setting password for " + userName);
-                throw e;
+        // check to see if the requesting user is allowed to change the password for the given user
+        if (!changePasswordAllowed(userName)) {
+            logger_.error("AUDIT::FAILURE:AUTH: Cannot change Password - not owner " +
+                "or administrator: " + userName);
+            throw new SecurityException("Cannot change Passwword - not owner or administrator");
+        }
+
+        try {
+            String jsonData = json.get();
+            UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
+            // Check the authentication.
+            // We add this bypass, since MT does not provide the existing password.
+            if (password != null && !HashAuthUtils.checkSecureHash(info.passwordHash, password)) {
+                throw new SecurityException("AUDIT::NEGATIVE: Password mismatch");
             }
+            // Update password if necessary.
+            if (passwordNew.isEmpty()) {
+                throw new SecurityException("Empty new password");
+            }
+            info.passwordHash = HashAuthUtils.secureHash(passwordNew);
+            // Update KV store.
+            putKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LOCAL, userName), GSON.toJson(info));
+            logger_.info("AUDIT::SUCCESS: Success modifying user: " + userName);
+            return true;
+        } catch (SecurityException e) {
+            logger_.error("AUDIT::FAILURE:AUTH: Error setting password for " + userName);
+            throw e;
         }
     }
 
@@ -1303,6 +1305,26 @@ public class AuthProvider extends AuthProviderBase {
                     "group: " + groupName + ", " + e.getMessage());
         }
     }
+
+    /**
+     * To change a user's password, the request must either come from the user or from
+     * a user with ADMINISTRATOR role.
+     *
+     * @param userName the user whose password is about to be changed
+     * @return true if the requesting user is allowed to change this user's password
+     */
+    @VisibleForTesting
+    boolean changePasswordAllowed(@Nonnull final String userName) {
+        final Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return false;
+        }
+        return hasRoleAdministrator(authentication) || SAMLUserUtils.getAuthUserDTO()
+                .map(authUserDTO -> userName.equals(authUserDTO.getUser()))
+                .orElse(false);
+   }
+
 
 
     /**

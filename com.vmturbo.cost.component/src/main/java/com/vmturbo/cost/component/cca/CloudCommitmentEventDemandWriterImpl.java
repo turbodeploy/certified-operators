@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.persistence;
+package com.vmturbo.cost.component.cca;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +14,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint.Builder;
+import com.vmturbo.cloud.commitment.analysis.writer.CloudCommitmentDemandWriter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -26,30 +27,30 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VM
  * Class used for constructing and filtering the allocation demand for a workload to be recorded to
  * the db.
  */
-public class CloudCommitmentDemandWriterImpl implements CloudCommitmentDemandWriter {
+public class CloudCommitmentEventDemandWriterImpl implements CloudCommitmentDemandWriter {
 
     private final Logger logger = LogManager.getLogger();
 
-    private final ComputeTierAllocationStore computeTierAllocationStore;
+    private final ComputeTierAllocationStore sqlComputeTierAllocationStore;
 
     private final boolean recordCloudAllocationData;
 
     /**
      * Constructs the CloudCommitmentEventDemandWriter.
      *
-     * @param computeTierAllocationStore The computeTierAllocationStore which actually does
+     * @param sqlComputeTierAllocationStore The sqlComputeTierAllocationStore which actually does
      *                                      the db transactions.
      * @param recordAllocationData A configurable boolean specifying whether we want to record
      *                             allocation demand,
      */
-    public CloudCommitmentDemandWriterImpl(@Nonnull final ComputeTierAllocationStore computeTierAllocationStore,
+    public CloudCommitmentEventDemandWriterImpl(@Nonnull final SQLComputeTierAllocationStore sqlComputeTierAllocationStore,
                                                 @Nonnull final Boolean recordAllocationData) {
-        this.computeTierAllocationStore = computeTierAllocationStore;
+        this.sqlComputeTierAllocationStore = sqlComputeTierAllocationStore;
         this.recordCloudAllocationData = recordAllocationData;
     }
 
     @Override
-    public void writeAllocationDemand(final CloudTopology<TopologyEntityDTO> cloudTopology, final TopologyInfo topologyInfo) {
+    public void writeAllocationDemand(final CloudTopology cloudTopology, final TopologyInfo topologyInfo) {
         if (recordCloudAllocationData) {
             final List<TopologyEntityDTO> listOfWorkloadsToBeUpdated = filterWorkloads(cloudTopology);
             final List<ComputeTierAllocationDatapoint> allocationDataPointsPersisted = new ArrayList<>();
@@ -63,7 +64,7 @@ public class CloudCommitmentDemandWriterImpl implements CloudCommitmentDemandWri
                             + " name {} and oid {}", entity.getDisplayName(), entity.getOid());
                 }
             }
-            computeTierAllocationStore.persistAllocations(topologyInfo, allocationDataPointsPersisted);
+            sqlComputeTierAllocationStore.persistAllocations(topologyInfo, allocationDataPointsPersisted);
         }
     }
 
