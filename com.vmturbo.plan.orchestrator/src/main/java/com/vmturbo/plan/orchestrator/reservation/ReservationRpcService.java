@@ -46,7 +46,12 @@ public class ReservationRpcService extends ReservationServiceImplBase {
 
     private final ReservationManager reservationManager;
 
-
+    /**
+     * constructor for ReservationRpcService.
+     * @param templateDao to get template information from db.
+     * @param reservationDao for updating reservation to db.
+     * @param reservationManager method with all reservation related changes.
+     */
     public ReservationRpcService(@Nonnull final TemplatesDao templateDao,
                                  @Nonnull final ReservationDao reservationDao,
                                  @Nonnull final ReservationManager reservationManager) {

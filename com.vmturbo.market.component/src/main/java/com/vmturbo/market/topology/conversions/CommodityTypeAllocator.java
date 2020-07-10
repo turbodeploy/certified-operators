@@ -1,10 +1,10 @@
 package com.vmturbo.market.topology.conversions;
 
+import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Pattern;
 import java.util.Set;
 
 import javax.annotation.Nonnull;

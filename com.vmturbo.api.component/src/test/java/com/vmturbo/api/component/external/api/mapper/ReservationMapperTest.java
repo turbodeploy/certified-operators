@@ -25,8 +25,8 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
-import com.vmturbo.api.dto.reservation.FailureInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
+import com.vmturbo.api.dto.reservation.ReservationFailureInfoDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.enums.ReservationAction;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -350,10 +350,10 @@ public class ReservationMapperTest {
                 .getPlacements().getStorageResources() == null);
         assertEquals(1, reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getFailureInfos().size());
-        FailureInfoDTO failureInfo = reservationApiDTO.getDemandEntities().get(0)
+        ReservationFailureInfoDTO failureInfo = reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getFailureInfos().get(0);
         assertEquals(pmServiceEntity.getDisplayName(), failureInfo.getClosestSeller().getDisplayName());
-        assertEquals("MEM", failureInfo.getCommodity());
+        assertEquals("MEM", failureInfo.getResource());
         assertEquals(1000, Math.round(failureInfo.getMaxQuantityAvailable().doubleValue()));
         assertEquals(1200, Math.round(failureInfo.getQuantityRequested().doubleValue()));
     }

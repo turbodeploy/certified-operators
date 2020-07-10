@@ -34,10 +34,10 @@ import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
-import com.vmturbo.api.dto.reservation.FailureInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.reservation.ReservationConstraintApiDTO;
+import com.vmturbo.api.dto.reservation.ReservationFailureInfoDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -460,7 +460,7 @@ public class ReservationMapper {
             @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
             throws UnknownObjectException {
         PlacementInfoDTO placementInfoApiDTO = new PlacementInfoDTO();
-        addFailureInfoDTO(placementInfo.failureInfos,
+        addReservationFailureInfoDTO(placementInfo.failureInfos,
                 placementInfoApiDTO,
                 serviceEntityApiDTOMap);
         for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
@@ -484,9 +484,9 @@ public class ReservationMapper {
      * @param placementInfoApiDTO    {@link PlacementInfoDTO}.
      * @param serviceEntityApiDTOMap a Map which key is oid, value is {@link ServiceEntityApiDTO}.
      */
-    private void addFailureInfoDTO(List<InitialPlacementFailureInfo> failureInfos,
-                                   PlacementInfoDTO placementInfoApiDTO,
-                                   @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap) {
+    private void addReservationFailureInfoDTO(List<InitialPlacementFailureInfo> failureInfos,
+                                              PlacementInfoDTO placementInfoApiDTO,
+                                              @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap) {
         for (InitialPlacementFailureInfo failureInfo : failureInfos) {
             Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional
                     .ofNullable(serviceEntityApiDTOMap
@@ -498,12 +498,12 @@ public class ReservationMapper {
             providerBaseApiDTO.setClassName(serviceEntityApiDTO.get().getClassName());
             providerBaseApiDTO.setDisplayName(serviceEntityApiDTO.get().getDisplayName());
             providerBaseApiDTO.setUuid(serviceEntityApiDTO.get().getUuid());
-            String commodityName = COMMODITY_TYPE_NAME_MAP.get(
+            String resource = COMMODITY_TYPE_NAME_MAP.get(
                     failureInfo.getCommType().getType()) == null
                     ? CommodityType.UNKNOWN.name()
                     : COMMODITY_TYPE_NAME_MAP.get(failureInfo.getCommType().getType());
-            placementInfoApiDTO.getFailureInfos().add(new FailureInfoDTO(
-                    commodityName,
+            placementInfoApiDTO.getFailureInfos().add(new ReservationFailureInfoDTO(
+                    resource,
                     providerBaseApiDTO,
                     failureInfo.getMaxQuantityAvailable(),
                     failureInfo.getRequestedQuantity()));
