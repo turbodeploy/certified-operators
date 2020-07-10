@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -57,7 +58,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResp
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
@@ -110,7 +110,7 @@ public class EntitySettingsResolver {
      * @param groupServiceClient The service to use to retrieve group definitions.
      * @param settingServiceClient The service to use to retrieve setting service definitions.
      * @param settingPolicyServiceAsyncStub The service to use to retrieve setting service
-*                                      definitions asynchronously.
+     *                                      definitions asynchronously.
      * @param scheduleServiceBlockingStub The service to use to retrieve schedules.
      * @param chunkSize Size of chunks for uploading entity settings to the group component.
      */
@@ -149,6 +149,8 @@ public class EntitySettingsResolver {
      *                         so all overrides are global.
      * @param topologyInfo used to get the topology context id
      * @param consistentScalingManager consistenet scaling manager
+     * @param settingPolicyEditors a list of SettingPolicyEditors to be applied before resolving
+     *                             settings.
      * @return List of EntitySettings
      *
      */
@@ -157,13 +159,14 @@ public class EntitySettingsResolver {
             @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
             @Nonnull final SettingOverrides settingOverrides,
             @Nonnull final TopologyInfo topologyInfo,
-            @Nonnull final ConsistentScalingManager consistentScalingManager) {
+            @Nonnull final ConsistentScalingManager consistentScalingManager,
+            @Nullable final List<SettingPolicyEditor> settingPolicyEditors) {
 
         // map from policy ID to settings policy
         final Map<Long, SettingPolicy> policyById =
             getAllSettingPolicies(settingPolicyServiceClient, topologyInfo.getTopologyContextId());
 
-        final List<SettingPolicy> userAndDiscoveredSettingPolicies =
+        List<SettingPolicy> userAndDiscoveredSettingPolicies =
             SettingDTOUtil.extractUserAndDiscoveredSettingPolicies(policyById.values());
 
         final Set<Long> referencedGroups = userAndDiscoveredSettingPolicies.stream()
@@ -176,6 +179,14 @@ public class EntitySettingsResolver {
 
         // let the setting overrides handle any max utilization settings
         settingOverrides.resolveGroupOverrides(groups);
+
+        // Apply any edits.
+        if (settingPolicyEditors != null) {
+            for (SettingPolicyEditor settingPolicyEditor : settingPolicyEditors) {
+                userAndDiscoveredSettingPolicies = settingPolicyEditor
+                    .applyEdits(userAndDiscoveredSettingPolicies, groups);
+            }
+        }
 
         // EntityId(OID) -> Map<<Settings.name, SettingAndPolicyIdRecord> mapping
         final Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName = new HashMap<>();

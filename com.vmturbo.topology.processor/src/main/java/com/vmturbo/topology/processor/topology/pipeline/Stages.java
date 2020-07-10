@@ -1001,7 +1001,8 @@ public class Stages {
         public StageResult<GraphWithSettings> execute(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
             final GraphWithSettings graphWithSettings = entitySettingsResolver.resolveSettings(
                 getContext().getGroupResolver(), topologyGraph,
-                settingOverrides, getContext().getTopologyInfo(), consistentScalingManager);
+                settingOverrides, getContext().getTopologyInfo(), consistentScalingManager,
+                getContext().getSettingPolicyEditors());
             return StageResult.withResult(graphWithSettings)
                 // TODO (roman, Oct 23 2018): Provide some information about number of
                 // setting policies applied.

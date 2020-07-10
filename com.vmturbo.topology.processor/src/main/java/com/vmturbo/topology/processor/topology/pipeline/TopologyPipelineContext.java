@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -15,6 +17,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo.Builder;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.settings.SettingPolicyEditor;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 
 /**
@@ -47,6 +50,12 @@ public class TopologyPipelineContext {
     private final Set<Long> destinationEntities;
 
     /**
+     * Hooks that stages prior to SettingsResolutionStage can register to modify
+     * the settings policies applied.
+     */
+    private final List<SettingPolicyEditor> settingPolicyEditors;
+
+    /**
      * Grouping info (if set) that is used to create placement policies later in PolicyStage.
      * This is mainly used for cloud migration case, where first element of pair is the grouping
      * for source entities being migrated, and second element is the target region group that the
@@ -65,6 +74,7 @@ public class TopologyPipelineContext {
         sourceEntities = new HashSet<>();
         destinationEntities = new HashSet<>();
         policyGroups = new HashSet<>();
+        settingPolicyEditors = new ArrayList<>();
     }
 
     @Nonnull
@@ -159,5 +169,25 @@ public class TopologyPipelineContext {
     @Nonnull
     public ConsistentScalingManager getConsistentScalingManager() {
         return consistentScalingManager;
+    }
+
+    /**
+     * Get the list of setting policies editor hooks to be applied by the SettingsResolutionStage.
+     *
+     * @return a list of editor methods to be called.
+     */
+    @Nonnull
+    public List<SettingPolicyEditor> getSettingPolicyEditors() {
+        return settingPolicyEditors;
+    }
+
+    /**
+     * Add a setting policies editor hook to be applied by the SettingsResolutionStage.
+     *
+     * @param settingPolicyEditor a hook to be applied for editing setting policies.
+     */
+    @Nonnull
+    public void addSettingPolicyEditor(@Nonnull SettingPolicyEditor settingPolicyEditor) {
+        settingPolicyEditors.add(settingPolicyEditor);
     }
 }

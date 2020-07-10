@@ -456,13 +456,13 @@ public class StagesTest {
 
         final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
 
-        when(entitySettingsResolver.resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any(), any()))
+        when(entitySettingsResolver.resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any(), any(), any()))
             .thenReturn(graphWithSettings);
 
         stage.setContext(context);
         stage.execute(topologyGraph);
 
-        verify(entitySettingsResolver).resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any(), any());
+        verify(entitySettingsResolver).resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any(), any(), any());
     }
 
     @Test

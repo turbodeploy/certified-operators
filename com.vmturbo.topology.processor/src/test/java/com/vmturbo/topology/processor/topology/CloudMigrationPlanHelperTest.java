@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
 import static com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper.COMMODITIES_TO_SKIP;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadTopologyBuilderDTO;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadTopologyInfo;
@@ -7,30 +8,53 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.topology.processor.group.GroupConfig;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
+import com.vmturbo.topology.processor.group.policy.PolicyManager;
+import com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper.CloudMigrationSettingsPolicyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
  * Test coverage for cloud migration stage helper.
  */
 public class CloudMigrationPlanHelperTest {
+    private static final String IRRELEVANT_SETTING_POLICY = "Irrelevant";
+
     /**
      * Single helper instance.
      */
@@ -71,6 +95,11 @@ public class CloudMigrationPlanHelperTest {
      */
     private TopologyInfo consumptionTopologyInfo;
 
+    private static final long EXISTING_SETTING_POLICY_GROUP_OID = 100;
+    private static final Set<Long> DISCOVERED_EXCLUDED_TIER_OIDS = Sets.newHashSet(101L, 102L, 103L);
+    private static final Set<Long> EXISTING_CLOUD_VM_OIDS = Sets.newHashSet(1L, 2L, 3L);
+    private static final Set<Long> MIGRATING_VM_OIDS = Sets.newHashSet(4L, 5L, 6L);
+
     /**
      * Creates new instance with dependencies.
      */
@@ -90,6 +119,8 @@ public class CloudMigrationPlanHelperTest {
         consumptionTopologyInfo = loadTopologyInfo("cloud-migration-topo-info-consumption.json");
         vm1Azure = loadTopologyBuilderDTO("cloud-migration-vm-1-azure.json");
         vm1Aws = loadTopologyBuilderDTO("cloud-migration-vm-1-aws.json");
+
+        IdentityGenerator.initPrefix(1L);
     }
 
     /**
@@ -344,6 +375,94 @@ public class CloudMigrationPlanHelperTest {
         assertEquals(settings.totalAccess, actualAccessCount.get());
         assertEquals(settings.totalSkipped, actualSkipCount.get());
         assertEquals(settings.totalInactive, actualInactiveCount.get());
+    }
+
+    /**
+     * Check that the CloudMigrationSettingsPolicyEditor adds a group of migrating VMs
+     * to certain discovered policies (and only those policies).
+     */
+    @Test
+    public void testSettingsPolicyEditor() {
+        TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getSourceEntities()).thenReturn(MIGRATING_VM_OIDS);
+
+        Grouping existingCloudVMsGrouping = PolicyManager.generateStaticGroup(
+            EXISTING_CLOUD_VM_OIDS,
+            VIRTUAL_MACHINE_VALUE,
+            "Existing Cloud VMs with an exclusion policy");
+
+        ResolvedGroup existingCloudVMsResolvedGroup = new ResolvedGroup(
+            existingCloudVMsGrouping,
+            Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE, EXISTING_CLOUD_VM_OIDS));
+
+        Map<Long, ResolvedGroup> groups = new HashMap<>();
+        groups.put(existingCloudVMsGrouping.getId(), existingCloudVMsResolvedGroup);
+
+        List<SettingPolicy> settingPolicies = new ArrayList<>();
+
+        settingPolicies.add(
+            createExclusionSettingsPolicy(IRRELEVANT_SETTING_POLICY,
+                existingCloudVMsGrouping.getId()));
+
+        settingPolicies.add(
+            createExclusionSettingsPolicy("blahblah:Cloud Compute Tier AWS:standard:blahblah",
+                existingCloudVMsGrouping.getId()));
+
+        settingPolicies.add(
+            createExclusionSettingsPolicy("blahblah:Cloud Compute Tier Azure:standard:blahblah",
+                existingCloudVMsGrouping.getId()));
+
+        CloudMigrationSettingsPolicyEditor editor = new CloudMigrationSettingsPolicyEditor(
+            MIGRATING_VM_OIDS);
+
+        List<SettingPolicy> updatedSettingPolicies = editor.applyEdits(settingPolicies, groups);
+        assertEquals(settingPolicies.size(), updatedSettingPolicies.size());
+
+        // Find groups newly added to the map
+        List<Long> addedGroupOids = groups.keySet().stream()
+            .filter(oid -> oid != existingCloudVMsGrouping.getId())
+            .collect(Collectors.toList());
+
+        // There should be one added group consisting of the migrating VMs.
+        assertEquals(1, addedGroupOids.size());
+        long addedGroupOid = addedGroupOids.get(0);
+
+        ResolvedGroup addedGroup = groups.get(addedGroupOid);
+        Set<Long> vmOids = addedGroup.getEntitiesOfType(ApiEntityType.VIRTUAL_MACHINE);
+        assertEquals(MIGRATING_VM_OIDS, vmOids);
+
+        // The group should now be included in the scope of the two policies that are
+        // discovered exclusion polices for enforcing standard tiers, but not to the
+        // "Irrelevant" settings policy.
+
+        assertEquals(2, updatedSettingPolicies.stream()
+            .filter(sp -> !IRRELEVANT_SETTING_POLICY.equals(sp.getInfo().getName()))
+            .filter(sp -> sp.getInfo().getScope().getGroupsList().contains(addedGroupOid))
+            .count());
+    }
+
+    private SettingPolicy createExclusionSettingsPolicy(@Nonnull final String name,
+                                                        final Long scopeGroupOid) {
+        Scope scope = Scope.newBuilder().addGroups(scopeGroupOid).build();
+
+        SortedSetOfOidSettingValue oids = SortedSetOfOidSettingValue.newBuilder()
+            .addAllOids(DISCOVERED_EXCLUDED_TIER_OIDS)
+            .build();
+
+        Setting setting = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ExcludedTemplates.getSettingName())
+            .setSortedSetOfOidSettingValue(oids)
+            .build();
+
+        SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
+            .setName(name)
+            .setScope(scope)
+            .addSettings(setting).build();
+
+        return SettingPolicy.newBuilder().setId(100L)
+            .setSettingPolicyType(Type.DISCOVERED)
+            .setInfo(info)
+            .build();
     }
 }
 

@@ -47,12 +47,19 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.OSMigration;
+import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -63,8 +70,10 @@ import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.processor.entity.EntityNotFoundException;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
+import com.vmturbo.topology.processor.group.settings.SettingPolicyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
@@ -192,6 +201,13 @@ public class CloudMigrationPlanHelper {
         prepareEntities(context, outputGraph, migrationChange);
         prepareProviders(outputGraph, context.getTopologyInfo());
         savePolicyGroups(context, outputGraph, migrationChange);
+
+        if (migrationChange.getDestinationEntityType()
+            .equals(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)) {
+            context.addSettingPolicyEditor(new CloudMigrationSettingsPolicyEditor(
+                context.getSourceEntities()));
+        }
+
         return outputGraph;
     }
 
@@ -952,5 +968,88 @@ public class CloudMigrationPlanHelper {
     private boolean isCloudEntity(@Nonnull final TopologyEntity entity) {
         return entity.getOwner().isPresent() && entity.getOwner().get().getEntityType()
                 == BUSINESS_ACCOUNT_VALUE;
+    }
+
+    /**
+     * Finds discovered cloud tier exclusion policies used to keep VMs on "standard" tiers
+     * and extend them so that migrating VMs also stick to these tiers.
+     */
+    public static class CloudMigrationSettingsPolicyEditor implements SettingPolicyEditor {
+        // NOTE: trailing colon is important so we don't pick up other family groups whose
+        // names start with standard, like standardNCSv3Family
+        private static final String AWS_STANDARD_POLICY = "Cloud Compute Tier AWS:standard:";
+        private static final String AZURE_STANDARD_POLICY = "Cloud Compute Tier Azure:standard:";
+
+        private ResolvedGroup resolvedMigratingVmGroup;
+
+        CloudMigrationSettingsPolicyEditor(@Nonnull final Set<Long> migratingVmOids) {
+            this.resolvedMigratingVmGroup = new ResolvedGroup(
+                PolicyManager.generateStaticGroup(
+                    migratingVmOids,
+                    VIRTUAL_MACHINE_VALUE,
+                    POLICY_GROUP_DESCRIPTION),
+                Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE, migratingVmOids));
+        }
+
+        @Nonnull
+        @Override
+        public List<SettingPolicy> applyEdits(@Nonnull final List<SettingPolicy> settingPolicies,
+                                              @Nonnull final Map<Long, ResolvedGroup> groups) {
+            groups.put(resolvedMigratingVmGroup.getGroup().getId(), resolvedMigratingVmGroup);
+
+            return settingPolicies.stream().map(this::editSettingPolicy).collect(Collectors.toList());
+        }
+
+        /**
+         * Check if the setting policy is for discovered template exclusion policies for
+         * "standard" compute tiers, and if so return a new one with its scope expanded
+         * to include the migrating VMs.
+         *
+         * <p>We can only recognize these by name currently, but since we're only looking
+         * at discovered policies and no other probes should create policies whose
+         * names reference AWS and Azure cloud tiers, it should be safe.
+         *
+         * <p>For the time being we apply these policies from all subscriptions and for
+         * both AWS and Azure regardless of the migration target, because the policies
+         * are the same for all subscriptions and it doesn't hurt to exclude AWS compute
+         * tiers from a migration to Azure or vice versa.
+         *
+         * <p>TODO: it would be nice if a probe could explicitly indicate policies
+         * that it wants to apply to migrations. This could be done with the
+         * addition of new fields, or perhaps using tags. This could also allow
+         * the probe to indicate policies that are region-specific and/or
+         * subscription-specific, such as expired Promo exclusions. It would also be nice
+         * if the existing groups in the scope had the owner set so we could limit
+         * application by subscription easily.
+         *
+         * @param settingPolicy a setting policy to check and possibly replace
+         * @return Either the original setting policy, or a new one if its scope
+         * needed to be expanded.
+         */
+        private SettingPolicy editSettingPolicy(@Nonnull final SettingPolicy settingPolicy) {
+            if (Type.DISCOVERED.equals(settingPolicy.getSettingPolicyType())) {
+                SettingPolicyInfo info = settingPolicy.getInfo();
+                if (hasTemplateExclusionSetting(info.getSettingsList())) {
+                    if (info.getName().contains(AWS_STANDARD_POLICY)
+                        || info.getName().contains(AZURE_STANDARD_POLICY)) {
+
+                        // Add the group of migrating VMs to the scope of this SettingPolicy.
+                        Scope newScope = info.getScope().toBuilder().addGroups(
+                            resolvedMigratingVmGroup.getGroup().getId()).build();
+                        SettingPolicyInfo newInfo = info.toBuilder().setScope(newScope).build();
+
+                        return settingPolicy.toBuilder().setInfo(newInfo).build();
+                    }
+                }
+            }
+
+            return settingPolicy;
+        }
+
+        private boolean hasTemplateExclusionSetting(final @Nonnull List<Setting> settings) {
+            return settings.stream().anyMatch(
+                setting -> setting.getSettingSpecName()
+                    .equals(EntitySettingSpecs.ExcludedTemplates.getSettingName()));
+        }
     }
 }
