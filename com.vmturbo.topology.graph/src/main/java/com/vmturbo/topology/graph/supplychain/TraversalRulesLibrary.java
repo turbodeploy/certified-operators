@@ -57,6 +57,9 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                 // (Cloud native)
                 new WorkloadControllerRule<>(),
 
+                // never traverse from a tier to an aggregating region or zone
+                new TierRule<>(),
+
                 // use default traversal rule in all other cases
                 new DefaultTraversalRule<>());
 
@@ -229,8 +232,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
 
         @Override
         public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            return entity.getEntityType() == EntityType.STORAGE_VALUE
-                        || entity.getEntityType() == EntityType.STORAGE_TIER_VALUE;
+            return entity.getEntityType() == EntityType.STORAGE_VALUE;
         }
 
         @Override
@@ -379,6 +381,31 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
             } else {
                 return allProviders;
             }
+        }
+    }
+
+    /**
+     * Tier-specific rule: when not in seed, do not traverse to regions
+     * or availability zones.
+     *
+     * @param <E> The type of {@link TopologyGraphEntity} in the graph.
+     */
+    private static class TierRule<E extends TopologyGraphEntity<E>>
+            extends DefaultTraversalRule<E> {
+        @Override
+        public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
+            return (entity.getEntityType() == EntityType.STORAGE_TIER_VALUE
+                                || entity.getEntityType() == EntityType.COMPUTE_TIER_VALUE
+                                || entity.getEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE
+                                || entity.getEntityType() == EntityType.DATABASE_TIER_VALUE)
+                        && traversalMode != TraversalMode.START;
+        }
+
+        @Override
+        protected Stream<E> getFilteredAggregators(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
+            return super.getFilteredAggregators(entity, traversalMode)
+                            .filter(e -> e.getEntityType() != EntityType.REGION_VALUE)
+                            .filter(e -> e.getEntityType() != EntityType.AVAILABILITY_ZONE_VALUE);
         }
     }
 }

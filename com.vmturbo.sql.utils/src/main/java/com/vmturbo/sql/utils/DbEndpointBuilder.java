@@ -257,6 +257,61 @@ public class DbEndpointBuilder {
         return this;
     }
 
+    /**
+     * Specify that this endpoint is abstract, and will never be operationalized.
+     *
+     * @return this endpoint
+     */
+    public DbEndpointBuilder setAbstract() {
+        config.setDbAbstract();
+        return this;
+    }
+
+    /**
+     * Enable or disable both database and user provisioning for this endpoint.
+     *
+     * @param dbShouldProvision whether database and user provisioning should be done
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withDbShouldProvision(boolean dbShouldProvision) {
+        return withDbShouldProvisionDatabase(dbShouldProvision)
+                .withDbShouldProvisionUser(dbShouldProvision);
+    }
+
+    /**
+     * Enable or disable database provisioning for this endpoint.
+     *
+     * @param shouldProvisionDatabase whether database provisioning should be done
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withDbShouldProvisionDatabase(boolean shouldProvisionDatabase) {
+        config.setDbShouldProvisionDatabase(shouldProvisionDatabase);
+        return this;
+    }
+
+    /**
+     * Enable or disable user provisioning for this endpoint.
+     *
+     * @param shouldProvisionUser whether user provisioning should be done
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withDbShouldProvisionUser(boolean shouldProvisionUser) {
+        config.setDbShouldProvisionUser(shouldProvisionUser);
+        return this;
+    }
+
+    /**
+     * Set a provisioning suffix for this endpoint.
+     *
+     * <p>This is normally used in tests, and affects names of provisioned database objects.</p>
+     *
+     * @param dbProvisioningSuffix provisioning suffix
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withDbProvisioningSuffix(String dbProvisioningSuffix) {
+        config.setDbProvisioningSuffix(dbProvisioningSuffix);
+        return this;
+    }
 
     /**
      * Specify that this endpoint should be configured like another used as a template..

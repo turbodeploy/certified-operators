@@ -135,6 +135,7 @@ public enum SearchEntityMetadata {
                 // type specific fields
                 .put(PrimitiveFieldApiDTO.primitive("cpuModel"), SearchMetadataMapping.PRIMITIVE_CPU_MODEL)
                 .put(PrimitiveFieldApiDTO.primitive("model"), SearchMetadataMapping.PRIMITIVE_MODEL)
+                .put(PrimitiveFieldApiDTO.primitive("numCpus"), SearchMetadataMapping.PRIMITIVE_PM_NUM_CPUS)
                 .put(PrimitiveFieldApiDTO.primitive("timezone"), SearchMetadataMapping.PRIMITIVE_TIMEZONE)
                 // commodities
                 .put(CommodityFieldApiDTO.percentile(CommodityType.BALLOONING), SearchMetadataMapping.COMMODITY_BALLOONING_PERCENTILE)
@@ -152,6 +153,7 @@ public enum SearchEntityMetadata {
                 .put(CommodityFieldApiDTO.utilization(CommodityType.SWAPPING), SearchMetadataMapping.COMMODITY_SWAPPING_UTILIZATION)
                 // related entities
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.DATACENTER), SearchMetadataMapping.RELATED_DATA_CENTER)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.STORAGE), SearchMetadataMapping.RELATED_STORAGE)
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.SWITCH), SearchMetadataMapping.RELATED_SWITCH)
                 .put(RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE), SearchMetadataMapping.NUM_VMS)
                 // related groups
@@ -573,6 +575,7 @@ public enum SearchEntityMetadata {
                 .put(CommodityFieldApiDTO.utilization(CommodityType.VSTORAGE), SearchMetadataMapping.COMMODITY_VSTORAGE_UTILIZATION)
                 // related entities
                 .put(RelatedEntityFieldApiDTO.entityNames(EntityType.BUSINESS_ACCOUNT), SearchMetadataMapping.RELATED_ACCOUNT)
+                .put(RelatedEntityFieldApiDTO.entityNames(EntityType.REGION), SearchMetadataMapping.RELATED_REGION)
                 .putAll(Constants.BASIC_APPLICATION_FIELDS)
                 // related groups
                 .put(RelatedGroupFieldApiDTO.groupNames(GroupType.RESOURCE), SearchMetadataMapping.RELATED_RESOURCE_GROUP_NAME_FOR_DB)

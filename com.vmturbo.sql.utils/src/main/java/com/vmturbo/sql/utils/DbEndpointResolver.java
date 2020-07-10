@@ -76,6 +76,10 @@ public class DbEndpointResolver {
     public static final String DB_NAME_SUFFIX_PROPERTY = "dbNameSuffix";
     /** dbRetryBackoffTimesSec property. */
     public static final String DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY = "dbRetryBackoffTimesSec";
+    /** dbShouldProvisionDatabase property. */
+    public static final String DB_SHOULD_PROVISION_DATABASE_PROPERTY = "dbShouldProvisionDatabase";
+    /** dbShouldProvisionUser property. */
+    public static final String DB_SHOULD_PROVISION_USER_PROPERTY = "dbShouldProvisionUser";
 
     /** system property name for retrieving component name for certain property defaults. */
     public static final String COMPONENT_TYPE_PROPERTY = "component_type";
@@ -88,10 +92,12 @@ public class DbEndpointResolver {
     public static final int DEFAULT_POSTGRES_PORT = 5432;
     /** default for secure connection. */
     public static final Boolean DEFAULT_DB_SECURE_VALUE = Boolean.FALSE;
-    /** default migration location. */
-    public static final String DEFAULT_DB_MIGRATION_LOCATION_VALUE = "db.migration";
+    /** default migration location, prepended to component name. */
+    public static final String DEFAULT_DB_MIGRATION_LOCATION_PREFIX = "db.migration.";
     /** default for access level. */
     public static final String DEFAULT_DB_ACCESS_VALUE = DbEndpointAccess.READ_ONLY.name();
+    /** default value for host name. */
+    public static final String DEFAULT_DB_HOST_VALUE = "localhost";
 
     /** separator between tag name and property name when configuring tagged endpoints. */
     public static final String TAG_PREFIX_SEPARATOR = "_";
@@ -118,28 +124,32 @@ public class DbEndpointResolver {
         this.config = config;
         this.resolver = resolver;
         this.dbPasswordUtil = dbPasswordUtil;
-        this.tag = config.getTag();
+        this.tag = Strings.isNullOrEmpty(config.getTag()) ? null : config.getTag();
         this.dialect = config.getDialect();
         this.template = config.getTemplate() != null ? config.getTemplate().getConfig() : null;
     }
 
     void resolve() throws UnsupportedDialectException {
-        resolveDbProvisioningSuffix();
-        resolveDbHost();
-        resolveDbPort();
-        resolveDbDatabaseName();
-        resolveDbSchemaName();
-        resolveDbUserName();
-        resolveDbPassword();
-        resolveDbAccess();
-        resolveDbRootUserName();
-        resolveDbRootPassword();
-        resolveDbDriverProperties();
-        resolveDbSecure();
-        resolveDbMigrationLocations();
-        resolveDbFlywayCallbacks();
-        resolveDbDestructiveProvisioningEnabled();
-        resolveDbEndpointEnabled();
+        if (!config.dbIsAbstract()) {
+            resolveDbProvisioningSuffix();
+            resolveDbHost();
+            resolveDbPort();
+            resolveDbDatabaseName();
+            resolveDbSchemaName();
+            resolveDbUserName();
+            resolveDbPassword();
+            resolveDbAccess();
+            resolveDbRootUserName();
+            resolveDbRootPassword();
+            resolveDbDriverProperties();
+            resolveDbSecure();
+            resolveDbMigrationLocations();
+            resolveDbFlywayCallbacks();
+            resolveDbDestructiveProvisioningEnabled();
+            resolveDbEndpointEnabled();
+            resolveDbShouldProvisionDatabase();
+            resolveDbShouldProvisionUser();
+        }
     }
 
     /**
@@ -148,9 +158,9 @@ public class DbEndpointResolver {
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
     private void resolveDbHost() throws UnsupportedDialectException {
-        final String fromTemplate = template != null ? template.getDbHost() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbHost);
         config.setDbHost(choosePropertyValue(dbTag(DB_HOST_PROPERTY),
-                or(config.getDbHost(), fromTemplate)));
+                or(config.getDbHost(), fromTemplate, DEFAULT_DB_HOST_VALUE)));
     }
 
     /**
@@ -159,11 +169,11 @@ public class DbEndpointResolver {
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
     private void resolveDbPort() throws UnsupportedDialectException {
-        String fromTemplate = template != null ? Integer.toString(template.getDbPort()) : null;
+        String fromTemplate = getFromTemplate(DbEndpointConfig::getDbPort);
         String fromDefault = Integer.toString(getDefaultPort(dialect));
-        String curretnValue = config.getDbPort() != null ? config.getDbPort().toString() : null;
+        String currentValue = config.getDbPort() != null ? config.getDbPort().toString() : null;
         String propValue = choosePropertyValue(dbTag(DB_PORT_PROPERTY),
-                or(curretnValue, fromTemplate, fromDefault));
+                or(currentValue, fromTemplate, fromDefault));
         config.setDbPort(Integer.parseInt(propValue));
     }
 
@@ -173,7 +183,7 @@ public class DbEndpointResolver {
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
     public void resolveDbDatabaseName() throws UnsupportedDialectException {
-        final String fromTemplate = template != null ? template.getDbDatabaseName() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbDatabaseName);
         final String value = choosePropertyValue(dbTag(DB_DATABASE_NAME_PROPERTY),
                 or(config.getDbDatabaseName(), fromTemplate, tag, getComponentName()));
         config.setDbDatabaseName(addSuffix(value));
@@ -185,7 +195,7 @@ public class DbEndpointResolver {
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
     public void resolveDbSchemaName() throws UnsupportedDialectException {
-        final String fromTemplate = template != null ? template.getDbSchemaName() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbSchemaName);
         final String value = choosePropertyValue(dbTag(DB_SCHEMA_NAME_PROPERTY),
                 or(config.getDbSchemaName(), fromTemplate, tag, getComponentName()));
         config.setDbSchemaName(addSuffix(value));
@@ -197,8 +207,9 @@ public class DbEndpointResolver {
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
     public void resolveDbUserName() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbUserName);
         final String value = choosePropertyValue(dbTag(DB_USER_NAME_PROPERTY),
-                or(config.getDbUserName(), tag, getComponentName()));
+                or(config.getDbUserName(), fromTemplate, tag, getComponentName()));
         config.setDbUserName(addSuffix(value));
     }
 
@@ -208,8 +219,9 @@ public class DbEndpointResolver {
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
     public void resolveDbPassword() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbPassword);
         config.setDbPassword(choosePropertyValue(dbTag(DB_PASSWORD_PROPERTY),
-                or(config.getDbPassword(), dbPasswordUtil.getSqlDbRootPassword())));
+                or(config.getDbPassword(), fromTemplate, dbPasswordUtil.getSqlDbRootPassword())));
     }
 
     /**
@@ -219,8 +231,9 @@ public class DbEndpointResolver {
      */
     public void resolveDbAccess() throws UnsupportedDialectException {
         String currentValue = config.getDbAccess() != null ? config.getDbAccess().name() : null;
+        String fromTemplate = getFromTemplate(DbEndpointConfig::getDbAccess);
         config.setDbAccess(DbEndpointAccess.valueOf(choosePropertyValue(
-                dbTag(DB_ACCESS_PROPERTY), or(currentValue, DEFAULT_DB_ACCESS_VALUE))));
+                dbTag(DB_ACCESS_PROPERTY), or(currentValue, fromTemplate, DEFAULT_DB_ACCESS_VALUE))));
     }
 
     /**
@@ -229,7 +242,7 @@ public class DbEndpointResolver {
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
     public void resolveDbRootUserName() throws UnsupportedDialectException {
-        final String fromTemplate = template != null ? template.getDbRootUserName() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbRootUserName);
         config.setDbRootUserName(choosePropertyValue(dbTag(DB_ROOT_USER_NAME_PROPERTY),
                 or(config.getDbRootUserName(), fromTemplate,
                         dbPasswordUtil.getSqlDbRootUsername(dialect.toString()))));
@@ -241,7 +254,7 @@ public class DbEndpointResolver {
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
     public void resolveDbRootPassword() throws UnsupportedDialectException {
-        final String fromTemplate = template != null ? template.getDbRootPassword() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbRootPassword);
         config.setDbRootPassword(choosePropertyValue(dbTag(DB_ROOT_PASSWORD_PROPERTY),
                 or(config.getDbRootPassword(), fromTemplate, dbPasswordUtil.getSqlDbRootPassword())));
     }
@@ -250,12 +263,18 @@ public class DbEndpointResolver {
     /**
      * Resolve the dbDriverProperties property for this endpoint.
      *
+     * <p>This is more complicated than most of the other properties because it's a map. It works
+     * by first selecting a "base" map, which is either a value already set for this endpoint, or
+     * the value set for the template if any, or the default for this endpoint's dialect. Then if
+     * there's a configured value, it is merged into the base, overriding the values for any keys
+     * that appear in both.</p>
+     *
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
     public void resolveDbDriverProperties() throws UnsupportedDialectException {
         Map<String, String> base = config.getDbDriverProperties();
         if (base == null) {
-            base = template != null ? template.getDbDriverProperties() : null;
+            base = getFromTemplate(template, DbEndpointConfig::getDbDriverProperties);
         }
         if (base == null) {
             base = new HashMap<>(getDefaultDriverProperties(dialect));
@@ -276,33 +295,34 @@ public class DbEndpointResolver {
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
     public void resolveDbSecure() throws UnsupportedDialectException {
-        if (config.getDbSecure() == null) {
-            final String fromTemplate = template != null
-                    ? Boolean.toString(template.getDbSecure()) : null;
-            final String currentValue =
-                    config.getDbSecure() != null ? Boolean.toString(config.getDbSecure()) : null;
-            config.setDbSecure(Boolean.parseBoolean(choosePropertyValue(dbTag(SECURE_PROPERTY_NAME),
-                    or(currentValue, fromTemplate, DEFAULT_DB_SECURE_VALUE.toString()))));
-        }
+        final String currentValue = config.getDbSecure() != null ? config.getDbSecure().toString() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbSecure);
+        config.setDbSecure(Boolean.parseBoolean(choosePropertyValue(dbTag(SECURE_PROPERTY_NAME),
+                or(currentValue, fromTemplate, DEFAULT_DB_SECURE_VALUE.toString()))));
     }
 
     /**
      * Resolve the dbMigrationLocations property for this endpoint.
+     *
+     * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbMigrationLocations() {
-        if (config.getDbMigrationLocations() == null) {
-            String defaultLocations = template != null ? "" : DEFAULT_DB_MIGRATION_LOCATION_VALUE;
-            config.setDbMigrationLocations(choosePropertyValue(tag(DB_MIGRATION_LOCATIONS_PROPERTY),
-                    or(config.getDbMigrationLocations(), defaultLocations)));
-        }
+    public void resolveDbMigrationLocations() throws UnsupportedDialectException {
+        String fromTemplate = getFromTemplate(DbEndpointConfig::getDbMigrationLocations);
+        config.setDbMigrationLocations(choosePropertyValue(dbTag(DB_MIGRATION_LOCATIONS_PROPERTY),
+                or(config.getDbMigrationLocations(), fromTemplate,
+                        DEFAULT_DB_MIGRATION_LOCATION_PREFIX + getComponentName())));
     }
 
     /**
      * Get the flyway callbacks declared for this endpoint.
+     *
+     * <p>This property cannot be set via external configuration.</p>
      */
     public void resolveDbFlywayCallbacks() {
         if (config.getDbFlywayCallbacks() == null) {
-            config.setDbFlywayCallbacks(new FlywayCallback[0]);
+            final FlywayCallback[] fromTemplate =
+                    getFromTemplate(template, DbEndpointConfig::getDbFlywayCallbacks);
+            config.setDbFlywayCallbacks(fromTemplate != null ? fromTemplate : new FlywayCallback[0]);
         }
     }
 
@@ -314,9 +334,10 @@ public class DbEndpointResolver {
     public void resolveDbDestructiveProvisioningEnabled() throws UnsupportedDialectException {
         final String currentValue = config.getDbDestructiveProvisioningEnabled() != null
                 ? config.getDbDestructiveProvisioningEnabled().toString() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbDestructiveProvisioningEnabled);
         config.setDbDestructiveProvisioningEnabled(Boolean.parseBoolean(
                 choosePropertyValue(dbTag(DB_DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY),
-                        or(currentValue, Boolean.FALSE.toString()))));
+                        or(currentValue, fromTemplate, Boolean.FALSE.toString()))));
     }
 
     /**
@@ -327,18 +348,51 @@ public class DbEndpointResolver {
     public void resolveDbEndpointEnabled() throws UnsupportedDialectException {
         final String currentValue = config.getDbEndpointEnabled() != null
                 ? config.getDbEndpointEnabled().toString() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbEndpointEnabled);
         config.setDbEndpointEnabled(Boolean.parseBoolean(
                 choosePropertyValue(dbTag(DB_ENDPOINT_ENABLED_PROPERTY),
-                        or(currentValue, Boolean.TRUE.toString()))));
+                        or(currentValue, fromTemplate, Boolean.TRUE.toString()))));
     }
 
 
     /**
      * Resolve the dbProvisioningSuffix property for this endpoint.
+     *
+     * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbProvisioningSuffix() {
-        config.setDbNameSuffix(
-                choosePropertyValue(tag(DB_NAME_SUFFIX_PROPERTY), or(config.getDbNameSuffix(), "")));
+    public void resolveDbProvisioningSuffix() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbProvisioningSuffix);
+        config.setDbProvisioningSuffix(
+                choosePropertyValue(dbTag(DB_NAME_SUFFIX_PROPERTY),
+                        or(config.getDbProvisioningSuffix(), fromTemplate, "")));
+    }
+
+    /**
+     * Resolve the dbShouldProvisionDatabase property.
+     *
+     * @throws UnsupportedDialectException if endpoint is misconfigured
+     */
+    public void resolveDbShouldProvisionDatabase() throws UnsupportedDialectException {
+        final String currentValue = config.getDbShouldProvisionDatabase() != null
+                ? config.getDbShouldProvisionDatabase().toString() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbShouldProvisionDatabase);
+        config.setDbShouldProvisionDatabase(Boolean.parseBoolean(
+                choosePropertyValue(dbTag(DB_SHOULD_PROVISION_DATABASE_PROPERTY),
+                        or(currentValue, fromTemplate, Boolean.toString(false)))));
+    }
+
+    /**
+     * Resolve the dbShouldProvisionUser property.
+     *
+     * @throws UnsupportedDialectException if endpoint is misconfigured
+     */
+    public void resolveDbShouldProvisionUser() throws UnsupportedDialectException {
+        final String currentValue = config.getDbShouldProvisionUser() != null
+                ? config.getDbShouldProvisionUser().toString() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbShouldProvisionUser);
+        config.setDbShouldProvisionUser(Boolean.parseBoolean(
+                choosePropertyValue(dbTag(DB_SHOULD_PROVISION_USER_PROPERTY),
+                        or(currentValue, fromTemplate, Boolean.toString(false)))));
     }
 
     /**
@@ -351,7 +405,8 @@ public class DbEndpointResolver {
      * @param choiceStreams streams providing choices to be considered for this property
      * @return first non-null choice, or null if there was none
      */
-    private String choosePropertyValue(final Stream<String>... choiceStreams) {
+    @SafeVarargs
+    private final String choosePropertyValue(final Stream<String>... choiceStreams) {
         return Arrays.stream(choiceStreams)
                 .flatMap(Function.identity())
                 .filter(Objects::nonNull)
@@ -384,35 +439,41 @@ public class DbEndpointResolver {
         }
     }
 
-    private Stream<String> tag(String propertyName) {
-        return tagPrefixes().map(pfx -> pfx + propertyName).map(resolver);
-    }
-
     private Stream<String> tagPrefixes() {
-        return tag != null ? Stream.of(tag + "_", "") : Stream.of("");
+        return Strings.isNullOrEmpty(tag) ? Stream.of("") : Stream.of(tag + "_", "");
     }
 
     private Stream<String> or(String... choices) {
         return Stream.of(choices);
     }
 
-    /**
-     * Prepend the tag, if non-null, to the given property name.
-     *
-     * @param tag          tag, or null for no tag
-     * @param propertyName property name to tag
-     * @return tag-prefixed property name
-     */
-    public static String taggedPropertyName(String tag, String propertyName) {
-        return tag != null ? tag + TAG_PREFIX_SEPARATOR + propertyName : propertyName;
-    }
-
     private String addSuffix(String value) {
-        final String suffix = config.getDbNameSuffix();
+        final String suffix = config.getDbProvisioningSuffix();
         return !Strings.isNullOrEmpty(suffix) && !value.endsWith(suffix)
                 ? value + suffix
                 : value;
     }
+
+    private <T> String getFromTemplate(Function<DbEndpointConfig, T> getter) {
+        return getFromTemplate(getter, Object::toString);
+    }
+
+    private <T> String getFromTemplate(Function<DbEndpointConfig, T> getter, Function<T, String> toString) {
+        final T value = getFromTemplate(template, getter);
+        return value != null ? toString.apply(value) : null;
+    }
+
+    private <T> T getFromTemplate(DbEndpointConfig tConfig, Function<DbEndpointConfig, T> getter) {
+        while (tConfig != null) {
+            T value = getter.apply(tConfig);
+            if (value != null) {
+                return value;
+            }
+            tConfig = tConfig.getTemplate() != null ? tConfig.getTemplate().getConfig() : null;
+        }
+        return null;
+    }
+
 
     /**
      * Get the name of this component from configuration.
