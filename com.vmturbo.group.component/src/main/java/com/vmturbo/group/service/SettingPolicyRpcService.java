@@ -663,7 +663,8 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         Set<SettingPolicy> policies = new HashSet<>();
         try {
             entitySettingStore.getEntitySettingPolicies(request.getEntityOidListList()
-                .stream().collect(Collectors.toSet())).forEach(p -> policies.add(p));
+                .stream().collect(Collectors.toSet()), request.getIncludeInactive())
+                .forEach(p -> policies.add(p));
             response.addAllSettingPolicies(policies);
             responseStreamObserver.onNext(response.build());
             responseStreamObserver.onCompleted();

@@ -11,7 +11,7 @@
             {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByBusinessApplication"},
             {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByBusinessTransaction"},
             {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByService"},
-            {"inputType": "*", "elements": "PhysicalMachine:MemberOf:Cluster:displayName:PRODUCES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByClusterName"},
+            {"inputType": "*", "elements": "PhysicalMachine:MemberOf:Cluster:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDC"},
             {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "vmsByState", "loadOptions": true},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vmsByTag", "loadOptions": true},

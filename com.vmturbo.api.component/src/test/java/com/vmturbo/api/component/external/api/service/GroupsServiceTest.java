@@ -1212,7 +1212,7 @@ public class GroupsServiceTest {
         when(multiEntityRequest.getFullEntities()).thenReturn(entities.stream());
         groupsService.getSettingPoliciesByGroupUuid(groupUuid);
         verify(settingPolicyServiceSpy).getEntitySettingPolicies(GetEntitySettingPoliciesRequest
-                .newBuilder().addAllEntityOidList(members).build());
+                .newBuilder().addAllEntityOidList(members).setIncludeInactive(true).build());
     }
 
     /**
