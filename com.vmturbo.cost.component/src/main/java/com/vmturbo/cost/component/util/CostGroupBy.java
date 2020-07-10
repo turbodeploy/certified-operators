@@ -35,6 +35,7 @@ public class CostGroupBy {
 
     private final Collection<String> groupByFields;
     private final TimeFrame timeFrame;
+    private final long realtimeTopologyContextId;
     private Long topologyContextId = null;
 
     private static final TreeMap<String, String> GROUP_FIELD_CONVERTER = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
@@ -51,8 +52,11 @@ public class CostGroupBy {
      *
      * @param items     items to group By. See {@link com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy}.
      * @param timeFrame {@link TimeFrame}.
+     * @param realtimeTopologyContextId RT topology context Id
      */
-    public CostGroupBy(@Nonnull final Set<String> items, @Nonnull final TimeFrame timeFrame) {
+    public CostGroupBy(@Nonnull final Set<String> items, @Nonnull final TimeFrame timeFrame,
+            long realtimeTopologyContextId) {
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
         Set<String> listOfFields = Sets.newHashSet(items);
         listOfFields.add(CREATED_TIME);
         groupByFields = listOfFields.stream().map(field -> GROUP_FIELD_CONVERTER.getOrDefault(field, field))
@@ -66,11 +70,13 @@ public class CostGroupBy {
      * @param items     items to group By. See {@link com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy}.
      * @param timeFrame {@link TimeFrame}.
      * @param topologyContextId If non-null, the topology context ID.
+     * @param realtimeTopologyContextId RT topology context ID.
      */
     public CostGroupBy(@Nonnull final Set<String> items, @Nonnull final TimeFrame timeFrame,
-                       @Nullable Long topologyContextId) {
-        this(items, timeFrame);
+                       @Nullable Long topologyContextId, long realtimeTopologyContextId) {
+        this(items, timeFrame, realtimeTopologyContextId);
         this.topologyContextId = topologyContextId;
+
     }
 
     /**
@@ -98,7 +104,7 @@ public class CostGroupBy {
      * @return Table to be used for storing and querying.
      */
     public Table<?> getTable() {
-        if (this.topologyContextId != null) {
+        if (this.topologyContextId != null && topologyContextId != realtimeTopologyContextId) {
             return PLAN_ENTITY_COST;
         } else if (this.timeFrame == null || this.timeFrame.equals(TimeFrame.LATEST)) {
             return ENTITY_COST;
