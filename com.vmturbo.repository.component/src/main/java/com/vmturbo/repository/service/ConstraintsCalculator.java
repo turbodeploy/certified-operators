@@ -149,8 +149,8 @@ public class ConstraintsCalculator {
         // Perform the pagination
         final Map<Long, RepoGraphEntity> potentialPlacements = entityGraph.entities()
             // Filter by entity type
-            .filter(entity -> potentialEntityTypes.isEmpty() ||
-                potentialEntityTypes.contains(entity.getEntityType()))
+            .filter(entity -> potentialEntityTypes.isEmpty()
+                || potentialEntityTypes.contains(entity.getEntityType()))
             // Filter by commodity sold type
             .filter(entity -> entity.getTopologyEntity().getCommoditySoldListList().stream()
                 .map(CommoditySoldDTO::getCommodityType).collect(Collectors.toSet()).containsAll(constraints))
