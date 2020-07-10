@@ -2,7 +2,9 @@ package com.vmturbo.platform.analysis.actions;
 
 import static org.junit.Assert.*;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -19,12 +21,13 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
-import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -36,12 +39,14 @@ import junitparams.naming.TestCaseName;
 @RunWith(JUnitParamsRunner.class)
 public final class MoveTest {
     // Fields
-    private static final DoubleTernaryOperator MAX_DOUBLE = (a, b, c) -> Math.max(a, b);
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
     private static final CommoditySpecification DRS = new CommoditySpecification(1);
     private static final CommoditySpecification LAT1 = new CommoditySpecification(2);
     private static final CommoditySpecification MEM = new CommoditySpecification(3);
     private static final CommoditySpecification LAT2 = new CommoditySpecification(4);
+    private static final CommoditySpecification STORAGE_ACCESS = new CommoditySpecification(5);
+    private static final CommoditySpecification IO_THROUGHPUT = new CommoditySpecification(6);
+    private static final CommoditySpecification STORAGE_AMOUNT = new CommoditySpecification(7);
 
     private static final Basket EMPTY = new Basket();
     private static final Basket PM = new Basket(CPU, MEM);
@@ -50,7 +55,11 @@ public final class MoveTest {
 
     private static final Basket BASKET1 = new Basket(CPU, LAT1, MEM, LAT2);
     private static final Basket BASKET2 = new Basket(CPU, DRS, LAT1, MEM);
+    private static final Basket STORAGE_BASKET = new Basket(STORAGE_ACCESS, IO_THROUGHPUT,
+        STORAGE_AMOUNT);
 
+    private static final double STORAGE_ACCESS_NEW_ASSIGNED_CAPACITY = 3000;
+    private static final double STORAGE_ACCESS_OLD_ASSIGNED_CAPACITY = 1000;
     // Methods
 
     /**
@@ -352,6 +361,41 @@ public final class MoveTest {
         assertEquals(15, pm2.getCommoditySold(LAT1).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(150, pm1.getCommoditySold(LAT2).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(0, pm2.getCommoditySold(LAT2).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Test that take() updates Move target's shopping list with
+     * new assigned capacities from CommodityContexts and creates the resize CommodityContexts.
+     */
+    @Test
+    public void testShoppingListUpdatedWithContext() {
+        final Economy economy = new Economy();
+        final Trader vm = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
+        final Trader storageTier = economy.addTrader(0, TraderState.ACTIVE, STORAGE_BASKET);
+        final ShoppingList vmStorageShoppingList = economy.addBasketBought(vm, STORAGE_BASKET);
+        vmStorageShoppingList.addAssignedCapacity(STORAGE_ACCESS.getBaseType(),
+            STORAGE_ACCESS_OLD_ASSIGNED_CAPACITY);
+        final List<CommodityContext> commodityContexts =
+            Collections.singletonList(new CommodityContext(STORAGE_ACCESS,
+                STORAGE_ACCESS_NEW_ASSIGNED_CAPACITY, true));
+        final Move move = new Move(economy, vmStorageShoppingList, storageTier, storageTier,
+            Optional.empty(), commodityContexts);
+
+        move.take();
+
+        final Double storageAccessAssignedCapacity =
+            vmStorageShoppingList.getAssignedCapacity(STORAGE_ACCESS.getBaseType());
+        assertNotNull(storageAccessAssignedCapacity);
+        assertEquals(STORAGE_ACCESS_NEW_ASSIGNED_CAPACITY, storageAccessAssignedCapacity,
+            TestUtils.FLOATING_POINT_DELTA);
+        final List<MoveTO.CommodityContext> resizeCommodityContexts =
+            move.getResizeCommodityContexts();
+        assertFalse(resizeCommodityContexts.isEmpty());
+        final MoveTO.CommodityContext commodityContext = resizeCommodityContexts.iterator().next();
+        assertEquals(commodityContext.getNewCapacity(), STORAGE_ACCESS_NEW_ASSIGNED_CAPACITY,
+            TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(commodityContext.getOldCapacity(), STORAGE_ACCESS_OLD_ASSIGNED_CAPACITY,
+            TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test

@@ -1,19 +1,18 @@
 package com.vmturbo.platform.analysis.ede;
 
 import static com.vmturbo.platform.analysis.testUtilities.TestUtils.PM_TYPE;
+import static com.vmturbo.platform.analysis.testUtilities.TestUtils.ST_TYPE;
 import static com.vmturbo.platform.analysis.testUtilities.TestUtils.VM_TYPE;
 import static org.junit.Assert.assertEquals;
 
 import java.lang.reflect.Field;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -22,19 +21,30 @@ import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
+import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
+import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
@@ -48,7 +58,10 @@ public class CloudActionsIntegrationTest {
     private static final CommoditySpecification FAMILY = new CommoditySpecification(2).setDebugInfoNeverUseInCode("FAMILY");
     private static final CommoditySpecification LICENSE = new CommoditySpecification(0, 0).setDebugInfoNeverUseInCode("LICENSE");
     private static final CommoditySpecification TEMPLATE = new CommoditySpecification(6).setDebugInfoNeverUseInCode("TEMPLATE");
+    private static final CommoditySpecification STORAGE_AMOUNT =
+        new CommoditySpecification(7).setDebugInfoNeverUseInCode("STORAGE_AMOUNT");
     private static final Basket SOLDbyTP = new Basket(CPU, COUPON, FAMILY, LICENSE);
+    private static final Basket SOLDbyST = new Basket(STORAGE_AMOUNT);
     private static final Basket soldByTemplateFamilyTP = new Basket(CPU, COUPON, LICENSE, TEMPLATE);
     private static final Basket SOLDbyCBTP = new Basket(CPU, COUPON, LICENSE);
     private static final Basket BOUGHTbyVM = new Basket(CPU, COUPON, LICENSE);
@@ -1088,6 +1101,101 @@ public class CloudActionsIntegrationTest {
         assertEquals(couponSoldUsed + couponAllocated, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
         assertEquals(couponAllocated, slVM1.getQuantity(1), 0);
     }
+
+    /**
+     * Test that even when Storage Tier does not change, Move action is created if a decisive
+     * commodity is changing assigned capacity.
+     */
+    @Test
+    public void testVolumeMoveActionSameTier() {
+        // given
+        final Economy economy = new Economy();
+        final Trader storageTierTrader = createStorageTierTrader(economy);
+        final ShoppingList shoppingList = createVmTraderVolumeShoppingList(economy,
+            storageTierTrader, 800, 900);
+
+        // when
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+        final PlacementResults placementResults = Placement.generatePlacementDecisions(economy,
+            Collections.singleton(shoppingList));
+
+        // then
+        final List<Action> actions = placementResults.getActions();
+        Assert.assertEquals(1, actions.size());
+        final Move move = (Move)actions.get(0);
+        final List<ActionDTOs.MoveTO.CommodityContext> commodityContexts =
+            move.getResizeCommodityContexts();
+        Assert.assertEquals(1, commodityContexts.size());
+        Assert.assertEquals(1000, commodityContexts.get(0).getNewCapacity(), 0.1);
+    }
+
+    /**
+     * Test that even when Storage Tier does not change, no Move action is created if there are
+     * no decisive commodities whose assigned capacity is changing.
+     */
+    @Test
+    public void testNoVolumeMoveActionSameTier() {
+        // given
+        final Economy economy = new Economy();
+        final Trader storageTierTrader = createStorageTierTrader(economy);
+        final ShoppingList shoppingList = createVmTraderVolumeShoppingList(economy,
+            storageTierTrader, 850, 1000);
+
+        // when
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+        final PlacementResults placementResults = Placement.generatePlacementDecisions(economy,
+            Collections.singleton(shoppingList));
+
+        // then
+        final List<Action> actions = placementResults.getActions();
+        Assert.assertTrue(actions.isEmpty());
+    }
+
+    private ShoppingList createVmTraderVolumeShoppingList(final Economy economy,
+                                                          final Trader storageTierTrader,
+                                                          final float demandQuantity,
+                                                          final float assignedCapacity) {
+        final Basket vmFromST = new Basket(STORAGE_AMOUNT);
+        final Trader vmTrader = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket(),
+            vmFromST);
+        vmTrader.getSettings().setContext(new Context(REGION, -1,
+            new BalanceAccount(100, 100, 100, BA)));
+        vmTrader.setOid(1L);
+        vmTrader.setDebugInfoNeverUseInCode("VM1");
+        final ShoppingList shoppingList = getSl(economy, vmTrader);
+        shoppingList.setMovable(true);
+        shoppingList.setDemandScalable(true);
+        shoppingList.move(storageTierTrader);
+        shoppingList.addAssignedCapacity(STORAGE_AMOUNT.getBaseType(), assignedCapacity);
+        final int index = shoppingList.getBasket().indexOf(STORAGE_AMOUNT.getType());
+        shoppingList.setQuantity(index, demandQuantity);
+        return shoppingList;
+    }
+
+    private Trader createStorageTierTrader(final Economy economy) {
+        final Trader storageTierTrader = economy.addTrader(ST_TYPE, TraderState.ACTIVE, SOLDbyST);
+        storageTierTrader.getSettings().setCanAcceptNewCustomers(true);
+        storageTierTrader.addCommoditySold(STORAGE_AMOUNT);
+        final CostFunction storageCostFunction = CostFunctionFactory.createCostFunction(
+            CostDTO.newBuilder().setStorageTierCost(StorageTierCostDTO.newBuilder()
+                .addStorageResourceLimitation(StorageResourceLimitation.newBuilder()
+                    .setResourceType(AnalysisToProtobuf.commoditySpecificationTO(STORAGE_AMOUNT))
+                    .setMaxCapacity(2000)
+                    .setMinCapacity(1000).setCheckMinCapacity(true))
+                .addStorageResourceCost(StorageResourceCost.newBuilder()
+                    .setResourceType(AnalysisToProtobuf.commoditySpecificationTO(STORAGE_AMOUNT))
+                    .addStorageTierPriceData(StorageTierPriceData.newBuilder()
+                        .addCostTupleList(CostTuple.newBuilder()
+                            .setBusinessAccountId(BA)
+                            .setRegionId(REGION).setPrice(1.0).build())
+                        .setIsAccumulativeCost(false).setIsUnitPrice(true)
+                        .setUpperBound(Double.MAX_VALUE))).build()).build());
+        storageTierTrader.getSettings().setCostFunction(storageCostFunction);
+        storageTierTrader.getSettings().setQuoteFunction(QuoteFunctionFactory
+            .budgetDepletionRiskBasedQuoteFunction());
+        return storageTierTrader;
+    }
+
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestCouponUpdationOnMoveFromTpToCbtpWithOverhead() {

@@ -55,6 +55,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Evacuation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.InitialPlacement;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO.CommodityContext;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Performance;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.CommodityMaxAmountAvailableEntry;
@@ -142,14 +143,18 @@ public final class AnalysisToProtobuf {
      *
      * @param quantity The quantity to pack.
      * @param peakQuantity The peak quantity to pack.
+     * @param assignedCapacity The assigned capacity to pack.
      * @param specification The {@link CommoditySpecification} to pack.
      * @return The resulting {@link CommodityBoughtTO}.
      */
-    public static @NonNull CommodityBoughtTO commodityBoughtTO(double quantity, double peakQuantity,
+    public static @NonNull CommodityBoughtTO commodityBoughtTO(double quantity,
+                                                               double peakQuantity,
+                                                               double assignedCapacity,
                                                                @NonNull CommoditySpecification specification) {
         return CommodityBoughtTO.newBuilder()
             .setQuantity((float)quantity)
             .setPeakQuantity((float)peakQuantity)
+            .setAssignedCapacityForBuyer((float)assignedCapacity)
             .setSpecification(commoditySpecificationTO(specification)).build();
     }
 
@@ -226,10 +231,12 @@ public final class AnalysisToProtobuf {
         }
         Basket basketBought = shoppingList.getBasket();
         for (int i = 0; i < basketBought.size() ; ++i) {
+            final int baseType = basketBought.get(i).getBaseType();
             builder.addCommoditiesBought(commodityBoughtTO(shoppingList.getQuantity(i),
-                                                           shoppingList.getPeakQuantity(i), basketBought.get(i)));
+                shoppingList.getPeakQuantity(i),
+                Optional.ofNullable(shoppingList.getAssignedCapacity(baseType)).orElse(0D),
+                basketBought.get(i)));
         }
-
         return builder.build();
     }
 
@@ -370,6 +377,10 @@ public final class AnalysisToProtobuf {
                 if (!scalingGroupId.isEmpty()) {
                     moveTO.setScalingGroupId(scalingGroupId);
                 }
+            }
+            final List<CommodityContext> commodityContexts = move.getResizeCommodityContexts();
+            if (!commodityContexts.isEmpty()) {
+                moveTO.addAllCommodityContext(commodityContexts);
             }
             // the provision by demand action may not have been handled
             if (!newSupplier.isOidSet()) {

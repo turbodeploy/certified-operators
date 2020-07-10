@@ -34,10 +34,12 @@ import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.Placement;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 
 /**
  * An action to move a {@link ShoppingList} from one supplier to another.
@@ -47,7 +49,12 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     // Fields
     private final @Nullable Trader destination_;
     private final Optional<Context> context_;
-
+    // Contains new assigned capacities for bought commodities, generated in Quote, which is used
+    // to update shoppingList's assigned capacities when action is taken
+    private final List<CommodityContext> commodityContexts_;
+    // Contains old and new values for assigned capacities for bought commodities in the
+    // shoppingList that need to be resized as a part of the action
+    private final List<MoveTO.CommodityContext> resizeCommodityContexts_ = new ArrayList<>();
     // Constructors
 
     /**
@@ -58,7 +65,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param destination The trader, target is going to move to.
      */
     public Move(@NonNull Economy economy, @NonNull ShoppingList target, @Nullable Trader destination) {
-        this(economy,target,target.getSupplier(),destination, Optional.empty());
+        this(economy, target, target.getSupplier(), destination, Optional.empty(), null);
     }
 
     /**
@@ -73,7 +80,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      */
     public Move(@NonNull Economy economy, @NonNull ShoppingList target,
                 @Nullable Trader source, @Nullable Trader destination) {
-        this(economy,target,source,destination, Optional.empty());
+        this(economy, target, source, destination, Optional.empty(), null);
     }
 
     /**
@@ -94,6 +101,31 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         super(economy, target, source);
         destination_ = destination;
         context_ = context;
+        commodityContexts_ = null;
+    }
+
+
+    /**
+     * Constructs a new move action.
+     *
+     * @param economy       The economy containing target and destination.
+     * @param target        The shopping list that will move.
+     * @param source The trader, target is going to move from. Note that this argument is mostly
+     *               needed when combining actions. Another version of the constructor infers it
+     *               from <b>target</b>.
+     * @param destination   The trader, target is going to move to.
+     * @param context Additional information about the Move,
+     *               like the region that has the lowest cost.
+     * @param commodityContexts contains commodity demand values that may have been adjusted during
+     *                      Placement.
+     */
+    public Move(@NonNull Economy economy, @NonNull ShoppingList target,
+                @Nullable Trader source, @Nullable Trader destination,
+                Optional<Context> context, @Nullable List<CommodityContext> commodityContexts) {
+        super(economy, target, source);
+        destination_ = destination;
+        context_ = context;
+        commodityContexts_ = commodityContexts;
     }
 
     // Methods
@@ -123,17 +155,46 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      */
     private @NonNull Move internalTake() {
         super.take();
+        final ShoppingList shoppingList = getTarget();
         if (getSource() != getDestination() ||
-                isContextChangeValid(getTarget().getBuyer())) {
+                isContextChangeValid(shoppingList.getBuyer())) {
             // unplacing the sl
-            getTarget().move(null);
-            updateQuantities(getEconomy(), getTarget(), getSource(), FunctionalOperatorUtil.SUB_COMM);
+            shoppingList.move(null);
+            updateQuantities(getEconomy(), shoppingList, getSource(),
+                FunctionalOperatorUtil.SUB_COMM);
             // moving sl to destination
-            getTarget().move(destination_);
-            updateQuantities(getEconomy(), getTarget(), getDestination(), FunctionalOperatorUtil.ADD_COMM);
-            getTarget().setContext(getContext().orElse(null));
+            shoppingList.move(destination_);
+            updateQuantities(getEconomy(), shoppingList, getDestination(),
+                FunctionalOperatorUtil.ADD_COMM);
+            shoppingList.setContext(getContext().orElse(null));
         }
+        Optional.ofNullable(commodityContexts_)
+            .ifPresent(contexts -> contexts.forEach(context -> {
+                final CommoditySpecification commoditySpecification =
+                    context.getCommoditySpecification();
+                final int baseType = commoditySpecification.getBaseType();
+                final double newCapacityOnSeller = context.getNewCapacityOnSeller();
+                    if (context.isCommodityDecisiveOnSeller()) {
+                        final Double oldCapacity = shoppingList.getAssignedCapacity(baseType);
+                        if (oldCapacity != null
+                            && Double.compare(newCapacityOnSeller, oldCapacity) != 0) {
+                            resizeCommodityContexts_.add(
+                                MoveTO.CommodityContext.newBuilder()
+                                    .setSpecification(AnalysisToProtobuf
+                                    .commoditySpecificationTO(commoditySpecification))
+                                    .setOldCapacity(oldCapacity.floatValue())
+                                    .setNewCapacity((float)newCapacityOnSeller)
+                                    .build());
+                        }
+                    }
+                    shoppingList.addAssignedCapacity(baseType, newCapacityOnSeller);
+                }
+            ));
         return this;
+    }
+
+    public List<MoveTO.CommodityContext> getResizeCommodityContexts() {
+        return resizeCommodityContexts_;
     }
 
     public boolean isContextChangeValid(Trader buyer) {

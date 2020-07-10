@@ -30,6 +30,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
+import com.vmturbo.platform.analysis.utilities.Quote;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
 
 /**
@@ -269,7 +270,8 @@ public class Placement {
                             .isEqualCoverages(minimizer.getBestQuote().getContext())) ||
                 // isScalingGroupConsistentlySized() is only meaningful for cloud providers.
                 // Anything else will return consistently sized.
-                (cheapestSeller != null && !economy.isScalingGroupConsistentlySized(shoppingList))) {
+                (cheapestSeller != null && !economy.isScalingGroupConsistentlySized(shoppingList))
+                || anyDecisiveCommodityResized(minimizer.getBestQuote(), shoppingList)) {
             double savings = currentQuote - cheapestQuote;
             if (Double.isInfinite(savings)) {
                 savings = Double.MAX_VALUE;
@@ -283,7 +285,8 @@ public class Placement {
             // create recommendation, add it to the result list and  update the economy to
             // reflect the decision
             Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
-                cheapestSeller, minimizer.getBestQuote().getContext());
+                cheapestSeller, minimizer.getBestQuote().getContext(),
+                minimizer.getBestQuote().getCommodityContexts());
             placementResults.addAction(move.take().setImportance(savings));
             if (economy.getSettings().isUseExpenseMetricForTermination()) {
                 Market myMarket = economy.getMarket(shoppingList);
@@ -301,6 +304,18 @@ public class Placement {
             }
         }
         return placementResults;
+    }
+
+    private static boolean anyDecisiveCommodityResized(final Quote quote,
+                                                 final ShoppingList shoppingList) {
+        return quote.getCommodityContexts().stream()
+            .anyMatch(context -> {
+                final Double assignedCapacity =
+                    shoppingList.getAssignedCapacity(context.getCommoditySpecification()
+                .getBaseType());
+                return context.isCommodityDecisiveOnSeller() && assignedCapacity != null
+                    &&  Double.compare(assignedCapacity, context.getNewCapacityOnSeller()) != 0;
+            });
     }
 
     /**
