@@ -21,15 +21,15 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-
-import io.grpc.StatusRuntimeException;
-import javafx.util.Pair;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
@@ -67,12 +67,13 @@ public class EntityConstraintsRpcServiceTest {
 
     private static final long VM1 = 1;
     // OID and entity type
-    private static final Pair<Long, Integer> PM1 = new Pair(10L, EntityType.PHYSICAL_MACHINE_VALUE);
-    private static final Pair<Long, Integer> PM2 = new Pair(11L, EntityType.PHYSICAL_MACHINE_VALUE);
-    private static final Pair<Long, Integer> PM3 = new Pair(12L, EntityType.PHYSICAL_MACHINE_VALUE);
-    private static final Pair<Long, Integer> ST1 = new Pair(20L, EntityType.STORAGE_VALUE);
-    private static final Pair<Long, Integer> ST2 = new Pair(21L, EntityType.STORAGE_VALUE);
-    private static final Pair<Long, Integer> ST3 = new Pair(22L, EntityType.STORAGE_VALUE);
+
+    private static final Pair<Long, Integer> PM1 = Pair.of(10L, EntityType.PHYSICAL_MACHINE_VALUE);
+    private static final Pair<Long, Integer> PM2 = Pair.of(11L, EntityType.PHYSICAL_MACHINE_VALUE);
+    private static final Pair<Long, Integer> PM3 = Pair.of(12L, EntityType.PHYSICAL_MACHINE_VALUE);
+    private static final Pair<Long, Integer> ST1 = Pair.of(20L, EntityType.STORAGE_VALUE);
+    private static final Pair<Long, Integer> ST2 = Pair.of(21L, EntityType.STORAGE_VALUE);
+    private static final Pair<Long, Integer> ST3 = Pair.of(22L, EntityType.STORAGE_VALUE);
     private final LiveTopologyStore liveTopologyStore = spy(new LiveTopologyStore(new GlobalSupplyChainCalculator()));
     private EntitySeverityServiceMole entitySeverityMole = spy(EntitySeverityServiceMole.class);
 
@@ -104,6 +105,7 @@ public class EntityConstraintsRpcServiceTest {
      * ST1 which sells storage cluster and dspm.
      * ST2 which sells storage cluster and dspm (but the keys are not the keys the VM needs).
      * ST3 which sells storage cluster and dspm.
+     * @throws IOException ioException
      */
     @Before
     public void setUp() throws IOException {
@@ -153,6 +155,9 @@ public class EntityConstraintsRpcServiceTest {
         clientStub = EntityConstraintsServiceGrpc.newBlockingStub(testServer2.getChannel());
     }
 
+    /**
+     * Teardown.
+     */
     @After
     public void teardown() {
         testServer1.close();
