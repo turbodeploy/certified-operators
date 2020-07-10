@@ -137,7 +137,6 @@ data:
         # Schedule for the Reserved Instance tables cleanup scheduler
         reservedInstanceStatCleanup.scheduler: 360000
         retention.updateRetentionIntervalSeconds: 10
-        projectedTopologyListenerTimeOut: 3600
       group:
         identityGeneratorPrefix: 4
         createDefaultSettingPolicyRetryIntervalSec: 30

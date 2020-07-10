@@ -66,9 +66,6 @@ public class ReservedInstanceConfig {
     @Value("${riCoverageCacheExpireMinutes:120}")
     private int riCoverageCacheExpireMinutes;
 
-    @Value("${projectedTopologyListenerTimeOut}")
-    private int projectedTopologyTimeOut;
-
     @Value("${persistEntityCostChunkSize}")
     private int persistEntityCostChunkSize;
 
@@ -283,20 +280,15 @@ public class ReservedInstanceConfig {
      */
     @Bean
     public PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore() {
-        PlanProjectedRICoverageAndUtilStore PlanProjectedRICoverageAndUtilStore
+        final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore
                 = new PlanProjectedRICoverageAndUtilStore(databaseConfig.dsl(),
-                                                   projectedTopologyTimeOut,
                                                    repositoryServiceClient(),
-                                                   repositoryClientConfig.repositoryClient(),
                                                    planReservedInstanceService(),
                                                    reservedInstanceSpecConfig
                                                            .reservedInstanceSpecStore(),
-                                                   supplyChainRpcServiceConfig
-                                                           .supplyChainRpcService(),
-                                                   persistEntityCostChunkSize,
-                                                   realtimeTopologyContextId);
-        repositoryClientConfig.repository().addListener(PlanProjectedRICoverageAndUtilStore);
-        return PlanProjectedRICoverageAndUtilStore;
+                                                   persistEntityCostChunkSize);
+        repositoryClientConfig.repository().addListener(planProjectedRICoverageAndUtilStore);
+        return planProjectedRICoverageAndUtilStore;
     }
 
     @Bean
