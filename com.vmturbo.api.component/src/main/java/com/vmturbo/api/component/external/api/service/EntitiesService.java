@@ -792,6 +792,7 @@ public class EntitiesService implements IEntitiesService {
         GetEntitySettingPoliciesRequest request =
                 GetEntitySettingPoliciesRequest.newBuilder()
                         .addEntityOidList(Long.valueOf(uuid))
+                        .setIncludeInactive(true)
                         .build();
 
         GetEntitySettingPoliciesResponse response =

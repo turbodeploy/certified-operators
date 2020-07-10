@@ -801,7 +801,7 @@ public class GroupMapperTest {
         assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.PHYSICAL_MACHINE), param.getStartingFilter());
 
         // 2 search filters after starting filter
-        assertEquals(2, param.getSearchFilterCount());
+        assertEquals(3, param.getSearchFilterCount());
 
         // 1. first one is Cluster Membership Filter, verify that it was created
         assertTrue(param.getSearchFilter(0).hasGroupFilter());
@@ -811,9 +811,15 @@ public class GroupMapperTest {
         assertEquals("^" + FOO + "$", groupFilter.getGroupSpecifier()
                         .getStringFilter().getStringPropertyRegex());
 
-        // 2. second one is traversal filter (produces) used to traverse to vm
-        assertEquals(param.getSearchFilter(1), SearchProtoUtil.searchFilterTraversal(
-                SearchProtoUtil.traverseToType(TraversalDirection.PRODUCES, EntityType.VIRTUAL_MACHINE)));
+        // 2. second one is traversal filter (produces) used to traverse one hop
+        assertEquals(SearchProtoUtil.searchFilterTraversal(
+                SearchProtoUtil.numberOfHops(TraversalDirection.PRODUCES, 1)),
+                param.getSearchFilter(1));
+
+        // 3. third one is an entity type filter to only return VMs
+        assertEquals(SearchProtoUtil.searchFilterProperty(
+                SearchProtoUtil.entityTypeFilter(EntityType.VIRTUAL_MACHINE_VALUE)),
+                param.getSearchFilter(2));
 
         // test conversion from GroupApiDTO back to FilterApiDTO
         groupDto.setDisplayName("TestGroupDto");

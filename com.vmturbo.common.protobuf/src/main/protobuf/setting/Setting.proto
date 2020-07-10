@@ -586,6 +586,20 @@ message EntitySettings {
     // policy definitions.
     optional int64 default_setting_policy_id = 3;
 
+    // The policy settings associated to entity. One may say this can be derived from the
+    // user_settings but that is not the case as there are two cases that is not happening. One
+    // is that when we have scheduled policy that is not currently active. The other is a policy
+    // that none of its settings wins as an9 entity setting.
+    repeated EntitySettingsPolicy entity_policies = 4;
+
+    // Keeps an policy id and if it is active or not.
+    message EntitySettingsPolicy {
+        // The id for the policy setting
+        optional int64 policy_id = 1;
+        // Indicates if the policy is active or not
+        optional bool active = 2;
+    }
+
     message SettingToPolicyId {
 
         // The setting applied to the entity after conflict resolution.
@@ -774,6 +788,8 @@ message ResetSettingPolicyResponse {
 message GetEntitySettingPoliciesRequest{
 
     repeated int64 entity_oid_list = 1;
+
+    optional bool includeInactive = 2 [default = false];
 }
 
 message GetEntitySettingPoliciesResponse {
