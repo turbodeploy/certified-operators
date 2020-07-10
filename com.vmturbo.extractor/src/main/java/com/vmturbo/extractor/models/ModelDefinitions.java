@@ -74,9 +74,25 @@ public class ModelDefinitions {
                     COMMODITY_PROVIDER)
             .build();
 
+    /** Column for file path. */
+    public static final Column<String> FILE_PATH = Column.stringColumn("path");
+    /** Column for last modification time. */
+    public static final Column<Timestamp> MODIFICATION_TIME = Column.timestampColumn("modification_time");
+    /** Column for file size. */
+    public static final Column<Long> FILE_SIZE = Column.longColumn("file_size_kb");
+    /** Column for storage oid. */
+    public static final Column<Long> STORAGE_OID = Column.longColumn("storage_oid");
+    /** Column for storage displayName. */
+    public static final Column<String> STORAGE_NAME = Column.stringColumn("storage_name");
+
+    /** wasted_file table. */
+    public static final Table WASTED_FILE_TABLE = Table.named("wasted_file")
+            .withColumns(FILE_PATH, FILE_SIZE, MODIFICATION_TIME, STORAGE_OID, STORAGE_NAME)
+            .build();
+
     /** REPORTING_MODEL. */
     public static final Model REPORTING_MODEL = Model.named("reporting")
-            .withTables(ENTITY_TABLE, METRIC_TABLE)
+            .withTables(ENTITY_TABLE, METRIC_TABLE, WASTED_FILE_TABLE)
             .build();
 
     /**

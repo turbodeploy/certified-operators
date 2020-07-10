@@ -1,5 +1,9 @@
 package com.vmturbo.extractor.util;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -10,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
@@ -27,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -372,7 +378,6 @@ public class TopologyTestUtil {
 
     private static StorageInfo fillStorage(StorageInfo.Builder builder) {
         return builder.addExternalName("foo")
-                .setIgnoreWastedFiles(true)
                 .setIsLocal(true)
                 .setPolicy(StoragePolicy.newBuilder()
                         .setFailuresToTolerate(10)
@@ -506,6 +511,48 @@ public class TopologyTestUtil {
                                         .setType(MemberType.newBuilder()
                                                 .setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
                                         .addAllMembers(members))))
+                .build();
+    }
+
+    public static TopologyEntityDTO onPremVolume(List<VirtualVolumeFileDescriptor> files,
+            AttachmentState attachmentState, long storageId) {
+        return mkEntity(VIRTUAL_VOLUME).toBuilder()
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                                .setAttachmentState(attachmentState)
+                                .addAllFiles(files)))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(storageId)
+                        .setConnectedEntityType(STORAGE.getNumber()))
+                .build();
+    }
+
+    public static TopologyEntityDTO cloudVolume(List<VirtualVolumeFileDescriptor> files,
+            AttachmentState attachmentState, long storageTierId) {
+        return mkEntity(VIRTUAL_VOLUME).toBuilder()
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                                .setAttachmentState(attachmentState)
+                                .addAllFiles(files)))
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(storageTierId)
+                        .setProviderEntityType(STORAGE_TIER_VALUE)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setUsed(20)
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))))
+                .build();
+    }
+
+    public static VirtualVolumeFileDescriptor file(String fileName, VirtualMachineFileType fileType,
+            long fileSize, long lastModificationTime) {
+        return VirtualVolumeFileDescriptor.newBuilder()
+                .setPath(fileName)
+                .setSizeKb(fileSize)
+                .setModificationTimeMs(lastModificationTime)
+                .setType(fileType)
                 .build();
     }
 }

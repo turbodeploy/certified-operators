@@ -26,14 +26,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -329,9 +329,7 @@ public class VirtualVolumeAspectMapperTest {
         .setDisplayName(storage2DisplayName)
         .setEntityType(EntityType.STORAGE_VALUE)
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setStorage(StorageInfo.newBuilder()
-                .setIgnoreWastedFiles(true)
-                .build())
+            .setStorage(StorageInfo.getDefaultInstance())
             .build())
         .build();
 
@@ -1183,6 +1181,8 @@ public class VirtualVolumeAspectMapperTest {
                 return ApiTestUtils.mockSearchCountReq(0);
             } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId4, TraversalDirection.CONNECTED_FROM, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(storageId2, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME))) {
+                return ApiTestUtils.mockSearchFullReq(Collections.emptyList());
             } else {
                 throw new IllegalArgumentException(param.toString());
             }
@@ -1196,10 +1196,6 @@ public class VirtualVolumeAspectMapperTest {
 
         VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO) volumeAspectMapper.mapEntitiesToAspect(
             Lists.newArrayList(storage1, storage2));
-
-        // if ignoreWastedFiles for storage2 was honored, we should never search for storage2
-        verify(repositoryApi, never()).newSearchRequest(SearchProtoUtil.neighborsOfType(storageId2,
-            TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME));
 
         assertEquals(2, aspect.getVirtualDisks().size());
 
