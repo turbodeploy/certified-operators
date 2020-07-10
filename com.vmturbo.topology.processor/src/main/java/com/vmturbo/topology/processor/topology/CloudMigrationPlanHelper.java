@@ -29,6 +29,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -265,9 +266,57 @@ public class CloudMigrationPlanHelper {
             // commodities like segmentation.
             prepareBoughtCommodities(builder, context.getTopologyInfo());
 
+            // Add coupon commodity to allow existing RIs to be utilized
+            addCouponCommodity(entity);
+
             // Add license access commodities for VMs being migrated.
             updateLicenseAccessCommodities(entity, licenseCommodityKeyByOS);
         }
+    }
+
+    /**
+     * In order to allow a migrating workload to utilize an existing reserved instance, a coupon
+     * commodity must be on it's shopping list. This function recreates the
+     * CommoditiesBoughtFromProviders list of each cloud-bound migrating VM to include that
+     * commodity if it's not already present.
+     *
+     * @param vm the {@link TopologyEntity} source entity being processed
+     */
+    private void addCouponCommodity(final TopologyEntity vm) {
+        if (vm.getEntityType() != VIRTUAL_MACHINE_VALUE) {
+            // Only updating coupon commodity for VMs
+            return;
+        }
+
+        final TopologyEntityDTO.Builder vmBuilder = vm.getTopologyEntityDtoBuilder();
+        final List<CommoditiesBoughtFromProvider> originalCommBoughtGroupings =
+                vmBuilder.getCommoditiesBoughtFromProvidersList();
+        final List<CommoditiesBoughtFromProvider> newCommBoughtGroupings = Lists.newArrayList();
+
+        originalCommBoughtGroupings.forEach(commoditiesBoughtFromProvider -> {
+            // first, verify that we're dealing with a compute provider, and that this VM isn't
+            // already buying a coupon commodity from it
+            if (EntityType.PHYSICAL_MACHINE_VALUE == commoditiesBoughtFromProvider.getProviderEntityType()
+                    && !commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
+                        .anyMatch(commodityBoughtDTO -> CommodityType.COUPON.equals(commodityBoughtDTO.getCommodityType()))) {
+                //Add CouponCommodity
+                CommoditiesBoughtFromProvider newCommoditiesBoughtFromProvider =
+                        CommoditiesBoughtFromProvider.newBuilder(commoditiesBoughtFromProvider)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(
+                                        CommodityType.COUPON_VALUE).build())
+                                .setPeak(0)
+                                .setUsed(0)
+                                .build())
+                        .build();
+                newCommBoughtGroupings.add(newCommoditiesBoughtFromProvider);
+            } else {
+                newCommBoughtGroupings.add(commoditiesBoughtFromProvider);
+            }
+        });
+
+        vmBuilder.clearCommoditiesBoughtFromProviders();
+        vmBuilder.addAllCommoditiesBoughtFromProviders(newCommBoughtGroupings);
     }
 
     /**
