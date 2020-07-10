@@ -1,17 +1,15 @@
 package com.vmturbo.stitching;
 
 import java.util.Collection;
-import java.util.Objects;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.apache.commons.lang.StringUtils;
-
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 
 /**
  * A class that represents a property of an entity used for matching.  Since entity properties may
@@ -20,18 +18,18 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
  */
 public class MatchingProperty implements MatchingPropertyOrField<String> {
     private final String propertyName;
-    private final String delimiter;
+    private final Pattern splitter;
 
     /**
      * Create {@link MatchingProperty} instance.
      *
      * @param propertyName name of the property which value will be extracted.
-     * @param delimiter delimiter that might be used to separate individual values
+     * @param splitter splitter that might be used to separate individual values
      *                 in one string value.
      */
-    public MatchingProperty(@Nonnull String propertyName, @Nullable String delimiter) {
+    public MatchingProperty(@Nonnull String propertyName, @Nullable String splitter) {
         this.propertyName = propertyName;
-        this.delimiter = delimiter;
+        this.splitter = splitter == null ? null : Pattern.compile(splitter);
     }
 
     /**
@@ -51,13 +49,13 @@ public class MatchingProperty implements MatchingPropertyOrField<String> {
      */
     @Nonnull
     private Collection<String> parse(@Nonnull Collection<String> rawProperty) {
-        if (StringUtils.isEmpty(delimiter)) {
+        if (splitter == null) {
             return rawProperty;
 
         }
         return rawProperty.stream()
-                        .map(item -> item.split(delimiter))
-                        .map(Lists::newArrayList)
+                        .map(splitter::split)
+                        .map(Sets::newHashSet)
                         .flatMap(Collection::stream)
                         .filter(StringUtils::isNotBlank)
                         .collect(Collectors.toSet());
@@ -66,12 +64,12 @@ public class MatchingProperty implements MatchingPropertyOrField<String> {
     @Nonnull
     @Override
     public Collection<String> getMatchingValue(@Nonnull StitchingEntity entity) {
-        final Collection<String> values =
-                        entity.getEntityBuilder().getEntityPropertiesList().stream()
-                                        .filter(ep -> Objects.equals(propertyName, ep.getName()))
-                                        .map(EntityProperty::getValue)
-                                        .filter(StringUtils::isNotBlank)
-                                        .collect(Collectors.toSet());
-        return parse(values);
+        return parse(entity.getPropertyValues(propertyName));
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s [propertyName=%s, delimiter=%s]", getClass().getSimpleName(),
+                        this.propertyName, splitter == null ? null : splitter.pattern());
     }
 }

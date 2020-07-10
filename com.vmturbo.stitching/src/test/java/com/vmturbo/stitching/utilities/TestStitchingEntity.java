@@ -1,14 +1,18 @@
 package com.vmturbo.stitching.utilities;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import org.apache.commons.lang.StringUtils;
 
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -16,6 +20,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Entity
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
@@ -176,5 +181,15 @@ public class TestStitchingEntity implements StitchingEntity {
     @Override
     public boolean hasMergeInformation() {
         throw new IllegalStateException();
+    }
+
+    @Nonnull
+    @Override
+    public Collection<String> getPropertyValues(@Nonnull String name) {
+        return entityBuilder.getEntityPropertiesList().stream()
+                        .filter(p -> Objects.equals(p.getName(), name))
+                        .map(EntityProperty::getValue)
+                        .filter(StringUtils::isNotBlank)
+                        .collect(Collectors.toSet());
     }
 }

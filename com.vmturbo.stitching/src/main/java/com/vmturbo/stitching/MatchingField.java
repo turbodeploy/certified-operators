@@ -1,12 +1,13 @@
 package com.vmturbo.stitching;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-import com.google.common.collect.Lists;
 import com.google.protobuf.MessageOrBuilder;
 
 import org.apache.logging.log4j.LogManager;
@@ -26,20 +27,24 @@ import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
 public class MatchingField<RETURN_TYPE> implements MatchingPropertyOrField<RETURN_TYPE> {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final String FIELD_MISSING_SKIPPING_ENTRY =
+                    "Could not find field {} for entity {}.  Skipping this entity";
 
-    final private List<String> messagePath;
+    private final List<String> messagePath;
 
     /**
-     * Construct an instance of MatchingField that retrieves the value of the field represented
-     * by the sequence of structures in the EntityDTO protobuf represented by the list of Strings
+     * Construct an instance of MatchingField that retrieves the value of the field represented by
+     * the sequence of structures in the EntityDTO protobuf represented by the list of Strings
      * passed in.
      *
-     * @param messagePath List of protobuf messagePath to call in order to get the matching value.  This is
-     *               the simple, unqualified name of the field.  For example, "storage_data" and
-     *               not "com.vmturbo.platform.common.dto.EntityDTO.storage_data"
+     * @param fieldName name of the field that will be
+     * @param messagePath List of protobuf messagePath to call in order to get the
+     *                 matching value.  This is the simple, unqualified name of the field.  For
+     *                 example, "storage_data" and not "com.vmturbo.platform.common.dto.EntityDTO.storage_data"
      */
     public MatchingField(@Nonnull List<String> messagePath, @Nonnull String fieldName) {
-        this.messagePath = Lists.newArrayList(messagePath);
+        this.messagePath = new ArrayList<>(messagePath.size() + 1);
+        this.messagePath.addAll(messagePath);
         this.messagePath.add(fieldName);
     }
 
@@ -50,24 +55,10 @@ public class MatchingField<RETURN_TYPE> implements MatchingPropertyOrField<RETUR
      * @return Optional of the value of the matching field, or Optional empty if the field does not
      * exist.
      */
+    @Nonnull
     @Override
     public Collection<RETURN_TYPE> getMatchingValue(@Nonnull final StitchingEntity entity) {
-        Object nextObject = entity.getEntityBuilder();
-        for (String nextFieldName : messagePath) {
-            if (!(nextObject instanceof MessageOrBuilder)) {
-                logger.error("Could not find field {} for entity {}.  Skipping this entity",
-                        nextFieldName, nextObject);
-                return Collections.emptySet();
-            }
-            try {
-                nextObject = DTOFieldAndPropertyHandler
-                        .getFieldFromMessageOrBuilder((MessageOrBuilder) nextObject, nextFieldName);
-            } catch (NoSuchFieldException e) {
-                logger.error("Could not find field {} for entity {}.  Skipping this entity",
-                        nextFieldName, nextObject);
-                return Collections.emptySet();
-            }
-        }
+        Object nextObject = getFieldValue(entity.getEntityBuilder());
         try {
             if (nextObject instanceof Collection) {
                 @SuppressWarnings("unchecked")
@@ -86,5 +77,30 @@ public class MatchingField<RETURN_TYPE> implements MatchingPropertyOrField<RETUR
                     entity.getDisplayName(), messagePath.toString(), nextObject.getClass(), cce);
             return Collections.emptySet();
         }
+    }
+
+    @Nullable
+    private Object getFieldValue(@Nonnull MessageOrBuilder source) {
+        Object result = source;
+        for (String nextFieldName : messagePath) {
+            if (!(result instanceof MessageOrBuilder)) {
+                logger.error(FIELD_MISSING_SKIPPING_ENTRY, nextFieldName, result);
+                return null;
+            }
+            try {
+                result = DTOFieldAndPropertyHandler
+                                .getFieldFromMessageOrBuilder((MessageOrBuilder)result,
+                                                nextFieldName);
+            } catch (NoSuchFieldException e) {
+                logger.error(FIELD_MISSING_SKIPPING_ENTRY, nextFieldName, result);
+                return null;
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s [messagePath=%s]", getClass().getSimpleName(), this.messagePath);
     }
 }
