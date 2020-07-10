@@ -498,7 +498,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
             @Nonnull final CostFilter entityCostFilter,
             @Nonnull final Field<LocalDateTime> createdTime,
             @Nonnull final Table<?> table) {
-        if (entityCostFilter.isLatest() && !entityCostFilter.hasTopologyContextId()) {
+        if (entityCostFilter.isLatest() && !entityCostFilter.hasPlanTopologyContextId()) {
             return createdTime.eq(dsl.select(max(createdTime)).from(table));
         } else {
             return trueCondition();

@@ -66,6 +66,7 @@ public class SqlEntityCostStoreTest {
     private static final long REGION2_ID = 21;
     private static final long AZ1_ID = 31;
     private static final long AZ2_ID = 32;
+    private static final long RT_TOPO_CONTEXT_ID = 777777L;
 
     private static final int DEFAULT_CURRENCY = CurrencyAmount.getDefaultInstance().getCurrency();
 
@@ -135,7 +136,7 @@ public class SqlEntityCostStoreTest {
     private EntityCostFilter getLastHourFilter() {
         final long startDuration = clock.instant().minus(1, ChronoUnit.HOURS).toEpochMilli();
         final long endDuration = clock.millis();
-        return EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+        return EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                 .duration(startDuration, endDuration)
                 .build();
     }
@@ -145,7 +146,7 @@ public class SqlEntityCostStoreTest {
             throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = EntityCostFilterBuilder.newBuilder(TimeFrame.HOUR)
+        final EntityCostFilter entityCostFilter = EntityCostFilterBuilder.newBuilder(TimeFrame.HOUR, RT_TOPO_CONTEXT_ID)
                 .duration(now.toInstant(OffsetDateTime.now().getOffset()).toEpochMilli(),
                         now.plusDays(1L).toInstant(OffsetDateTime.now().getOffset()).toEpochMilli())
                 .build();
@@ -169,7 +170,7 @@ public class SqlEntityCostStoreTest {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
         final EntityCostFilter entityCostFilter =
-                EntityCostFilterBuilder.newBuilder(TimeFrame.MONTH)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.MONTH, RT_TOPO_CONTEXT_ID)
                         .duration(now.toInstant(OffsetDateTime.now().getOffset()).toEpochMilli(),
                                 now.plusDays(1L)
                                         .toInstant(OffsetDateTime.now().getOffset())
@@ -194,7 +195,7 @@ public class SqlEntityCostStoreTest {
             throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter entityCostFilter = EntityCostFilterBuilder.newBuilder(TimeFrame.DAY)
+        final EntityCostFilter entityCostFilter = EntityCostFilterBuilder.newBuilder(TimeFrame.DAY, RT_TOPO_CONTEXT_ID)
                 .duration(now.toInstant(OffsetDateTime.now().getOffset()).toEpochMilli(),
                         now.plusDays(1L).toInstant(OffsetDateTime.now().getOffset()).toEpochMilli())
                 .build();
@@ -218,7 +219,7 @@ public class SqlEntityCostStoreTest {
         saveCosts();
 
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter filter = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+        final EntityCostFilter filter = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                 .entityIds(ImmutableSet.of(1L, 2L))
                 .duration(clock.instant().minus(1, ChronoUnit.HOURS).toEpochMilli(), clock.millis())
                 .build();
@@ -236,7 +237,7 @@ public class SqlEntityCostStoreTest {
             throws DbException, InvalidEntityCostsException {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
-        final EntityCostFilter filter = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+        final EntityCostFilter filter = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                 .entityIds(ImmutableSet.of(1L, 2L))
                 .duration(clock.instant().minus(1, ChronoUnit.DAYS).toEpochMilli(), clock.millis())
                 .build();
@@ -260,7 +261,7 @@ public class SqlEntityCostStoreTest {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
         final EntityCostFilter entityCostFilter =
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .entityIds(ImmutableSet.of(1L, 2L))
                         .entityTypes(Collections.singleton(1))
                         .duration(clock.instant().minus(1, ChronoUnit.DAYS).toEpochMilli(),
@@ -334,7 +335,7 @@ public class SqlEntityCostStoreTest {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
         final Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .latestTimestampRequested(true)
                         .build());
         validateResults(results, 1, 2, 2);
@@ -354,7 +355,7 @@ public class SqlEntityCostStoreTest {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
         final Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .topologyContextId(2116L)
                         .build());
         validateResults(results, 1, 2, 2);
@@ -374,7 +375,7 @@ public class SqlEntityCostStoreTest {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
         final Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .entityIds(Collections.singleton(1L))
                         .latestTimestampRequested(true)
                         .build());
@@ -390,7 +391,7 @@ public class SqlEntityCostStoreTest {
                         .allMatch(entityCost -> entityCost.getComponentCostCount() == 2)));
 
         final Map<Long, EntityCost> costsBySourceAndCategory = store.getEntityCosts(
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .entityIds(Collections.singleton(1L))
                         .costSources(false,
                                 Collections.singleton(CostSource.ON_DEMAND_RATE.getNumber()))
@@ -419,7 +420,7 @@ public class SqlEntityCostStoreTest {
         // get by date
         final LocalDateTime now = LocalDateTime.now(clock);
         final Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .entityTypes(Collections.singleton(1))
                         .latestTimestampRequested(true)
                         .build());
@@ -453,7 +454,7 @@ public class SqlEntityCostStoreTest {
         store.persistEntityCost(ImmutableMap.of(ID1, journal1), topology, clock.millis(), false);
 
         final Map<Long, Map<Long, EntityCost>> costs = store.getEntityCosts(
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .duration(clock.millis(), clock.millis())
                         .build());
         final Map<Long, EntityCost> costMap = costs.get(clock.millis());
@@ -489,7 +490,7 @@ public class SqlEntityCostStoreTest {
     public void testGetCostsForAccount() throws Exception {
         // ARRANGE
         final EntityCostFilter entityCostFilter =
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .accountIds(Collections.singleton(ACCOUNT1_ID))
                         .build();
 
@@ -519,7 +520,7 @@ public class SqlEntityCostStoreTest {
     public void testGetCostsForAvailabilityZone() throws Exception {
         // ARRANGE
         final EntityCostFilter entityCostFilter =
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .availabilityZoneIds(Collections.singleton(AZ1_ID))
                         .build();
 
@@ -549,7 +550,7 @@ public class SqlEntityCostStoreTest {
     public void testGetCostsForRegion() throws Exception {
         // ARRANGE
         final EntityCostFilter entityCostFilter =
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .regionIds(Collections.singleton(REGION1_ID))
                         .build();
 
