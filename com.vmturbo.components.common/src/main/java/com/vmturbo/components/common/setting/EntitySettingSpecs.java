@@ -913,6 +913,16 @@ public enum EntitySettingSpecs {
             numeric(90f, 99f, 97f), true),
 
     /**
+     * DbCacheHitRate utilization threshold.
+     * This is not exposed to the user and has a fixed value. If we ever want to expose
+     * it then add it to settingManagers.json.
+     */
+    DbCacheHitRateUtilization("dbCacheHitRateUtilization", "DB Cache Hit Rate Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DATABASE_SERVER),
+            numeric(80f, 99f, 90f), true),
+
+    /**
      * DBMem utilization threshold.
      */
     DBMemUtilization("dbmemUtilization", "DBMem Utilization",
