@@ -842,7 +842,10 @@ public enum EntitySettingSpecs {
 
     /**
      * Response Time SLO used by Application and Database.
+     * @deprecated since ResponseTimeSLO was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     ResponseTimeCapacity("responseTimeCapacity", "Response Time SLO [ms]",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
@@ -857,7 +860,10 @@ public enum EntitySettingSpecs {
      * of the ResponseTimeCapacity setting or to calculate it as the max of the commodity's capacity,
      * used value, and the ResponseTimeCapacity setting.
      * Used by Application and Database.
+     * @deprecated since ResponseTimeSLOEnabled was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     AutoSetResponseTimeCapacity("autoSetResponseTimeCapacity", "Disable Response Time SLO",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
@@ -869,7 +875,10 @@ public enum EntitySettingSpecs {
 
     /**
      * Transaction SLO used by Application and Database.
+     * @deprecated since TransactionSLO was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     TransactionsCapacity("transactionsCapacity", "Transaction SLO",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
@@ -884,13 +893,70 @@ public enum EntitySettingSpecs {
      * of the TransactionsCapacity setting or to calculate it as the max of the commodity's capacity,
      * used value, and the TransactionsCapacity setting.
      * Used by Application and Database.
+     * @deprecated since TransactionSLOEnabled was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Disable Transaction SLO",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
                     EntityType.BUSINESS_TRANSACTION, EntityType.DATABASE_SERVER,
                     EntityType.APPLICATION_COMPONENT),
+            new BooleanSettingDataType(false),
+            true),
+
+    /**
+     * Response Time SLO for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     * This value will be set only if the ResponseTimeSLOEnabled setting is "true".
+     * The default value is 2 seconds, and the user can set it to anything between 1 millisecond
+     * and a 1000 years.
+     */
+    ResponseTimeSLO("responseTimeSLO", "Response Time SLO [ms]",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
+            numeric(1.0f, 31536000000000.0f, 2000.0f),
+            true),
+
+    /**
+     * Indicates whether to use the ResponseTimeSLO setting value as the Response Time capacity for
+     * the entity.
+     * This setting is used for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     */
+    ResponseTimeSLOEnabled("responseTimeSLOEnabled", "Enable Response Time SLO",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
+            new BooleanSettingDataType(false),
+            true),
+
+    /**
+     * Transaction SLO for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     * This value will be set only if the TransactionSLOEnabled setting is "true".
+     * The default value is 10 (transactions per minute), and the user can set it to anything between
+     * 1 transaction and 31536000000000 transactions.
+     */
+    TransactionSLO("transactionSLO", "Transaction SLO",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
+            numeric(1.0f, 31536000000000.0f, 10.0f),
+            true),
+
+    /**
+     * Indicates whether to use the TransactionSLO setting value as the Transaction capacity for
+     * the entity.
+     * This setting is used for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     */
+    TransactionSLOEnabled("transactionSLOEnabled", "Enable Transaction SLO",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
             new BooleanSettingDataType(false),
             true),
 

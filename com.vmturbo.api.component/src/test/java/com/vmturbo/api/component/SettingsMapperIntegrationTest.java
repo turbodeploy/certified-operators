@@ -111,6 +111,12 @@ public class SettingsMapperIntegrationTest {
         Assert.assertTrue(enumSettingsNames.remove("remainingGcCapacityUtilization"));
         Assert.assertTrue(enumSettingsNames.remove("dbCacheHitRateUtilization"));
 
+        // old SLO settings are deprecated - remove them
+        Assert.assertTrue(enumSettingsNames.remove("responseTimeCapacity"));
+        Assert.assertTrue(enumSettingsNames.remove("autoSetResponseTimeCapacity"));
+        Assert.assertTrue(enumSettingsNames.remove("transactionsCapacity"));
+        Assert.assertTrue(enumSettingsNames.remove("autoSetTransactionsCapacity"));
+
         Assert.assertEquals(testError(enumSettingsNames, visibleSettings), enumSettingsNames, visibleSettings);
 
         server.shutdownNow();
