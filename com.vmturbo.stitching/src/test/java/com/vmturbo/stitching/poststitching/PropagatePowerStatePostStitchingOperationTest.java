@@ -47,14 +47,14 @@ public class PropagatePowerStatePostStitchingOperationTest {
             TopologyEntityDTO.newBuilder()
                 .setOid(appOid1)
                 .setDisplayName("RealApp")
-                .setEntityType(EntityType.APPLICATION_VALUE)
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .setEntityState(EntityState.POWERED_ON));
 
         final TopologyEntity.Builder app2 = TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
                 .setOid(appOid2)
                 .setDisplayName("GuestLoad[vm1]")
-                .setEntityType(EntityType.APPLICATION_VALUE)
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .setEntityState(EntityState.POWERED_OFF)
                 .putEntityPropertyMap(
                     GuestLoadAppPostStitchingOperation.APPLICATION_TYPE_PATH,
@@ -64,7 +64,7 @@ public class PropagatePowerStatePostStitchingOperationTest {
             TopologyEntityDTO.newBuilder()
                 .setOid(appOid3)
                 .setDisplayName("GuestLoad[vm2]")
-                .setEntityType(EntityType.APPLICATION_VALUE)
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .setEntityState(EntityState.POWERED_ON)
                 .putEntityPropertyMap(
                     GuestLoadAppPostStitchingOperation.APPLICATION_TYPE_PATH,

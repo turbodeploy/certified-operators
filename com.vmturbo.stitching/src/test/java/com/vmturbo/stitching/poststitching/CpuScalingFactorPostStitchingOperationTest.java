@@ -82,7 +82,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
     final List<CommodityBoughtDTO> appCommoditiesBoughtList = Lists.newArrayList(
             vcpuBoughtCommodity);
     private TopologyEntity.Builder app1 = makeTopologyEntityBuilder(APP_OID,
-            EntityType.APPLICATION.getNumber(),
+            EntityType.APPLICATION_COMPONENT.getNumber(),
             Collections.emptyList(),
             appCommoditiesBoughtList);
 

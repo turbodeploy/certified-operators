@@ -46,7 +46,7 @@ public class GuestLoadAppPostStitchingOperation implements PostStitchingOperatio
     @Override
     public StitchingScope<TopologyEntity> getScope(
             @Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
-        return stitchingScopeFactory.entityTypeScope(EntityType.APPLICATION);
+        return stitchingScopeFactory.entityTypeScope(EntityType.APPLICATION_COMPONENT);
     }
 
     @Nonnull
@@ -198,8 +198,9 @@ public class GuestLoadAppPostStitchingOperation implements PostStitchingOperatio
      */
     static boolean isGuestLoadApplication(@Nonnull TopologyEntity entity) {
         TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
-        return EntityType.APPLICATION_VALUE == entityBuilder.getEntityType() &&
-            SupplyChainConstants.GUEST_LOAD.equals(
+        return (EntityType.APPLICATION_VALUE == entityBuilder.getEntityType()
+                || EntityType.APPLICATION_COMPONENT_VALUE == entityBuilder.getEntityType())
+                && SupplyChainConstants.GUEST_LOAD.equals(
                 entityBuilder.getEntityPropertyMapMap().get(APPLICATION_TYPE_PATH));
     }
 }

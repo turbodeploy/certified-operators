@@ -226,7 +226,7 @@ public class ConstraintsEditorTest {
                 CommodityDTO.CommodityType.DATASTORE.getNumber(), "datastore"));
         topology.put(4L, buildTopologyEntity(4L, EntityType.VIRTUAL_MACHINE,
                 CommodityDTO.CommodityType.STORAGE.getNumber(), null));
-        topology.put(5L, buildTopologyEntity(5L, EntityType.APPLICATION,
+        topology.put(5L, buildTopologyEntity(5L, EntityType.APPLICATION_COMPONENT,
                 CommodityDTO.CommodityType.VCPU.getNumber(), "vcpu"));
         List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
                 .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(

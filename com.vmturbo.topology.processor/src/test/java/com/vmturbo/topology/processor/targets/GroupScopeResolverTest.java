@@ -270,7 +270,7 @@ public class GroupScopeResolverTest {
                     .setFullEntity(TopologyEntityDTO.newBuilder()
                         .setOid(guestLoadId[index])
                         .setDisplayName(guestLoadDisplayName[index])
-                        .setEntityType(EntityType.APPLICATION_VALUE)
+                        .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                         .setOrigin(Origin.newBuilder()
                                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
                                         .putDiscoveredTargetData(targetId[index],
