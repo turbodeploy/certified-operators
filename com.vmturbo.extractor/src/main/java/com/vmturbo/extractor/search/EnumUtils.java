@@ -55,6 +55,20 @@ public class EnumUtils {
                     .build();
 
     /**
+     * Mapping between {@link com.vmturbo.api.enums.GroupType} and
+     * {@link GroupType}.
+     */
+    private static final BiMap<com.vmturbo.api.enums.GroupType, GroupType> GROUP_TYPE_MAPPING =
+            new ImmutableBiMap.Builder<com.vmturbo.api.enums.GroupType, GroupType>()
+                    .put(com.vmturbo.api.enums.GroupType.GROUP, GroupType.REGULAR)
+                    .put(com.vmturbo.api.enums.GroupType.RESOURCE, GroupType.RESOURCE)
+                    .put(com.vmturbo.api.enums.GroupType.COMPUTE_HOST_CLUSTER, GroupType.COMPUTE_HOST_CLUSTER)
+                    .put(com.vmturbo.api.enums.GroupType.STORAGE_CLUSTER, GroupType.STORAGE_CLUSTER)
+                    .put(com.vmturbo.api.enums.GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
+                    .put(com.vmturbo.api.enums.GroupType.BILLING_FAMILY, GroupType.BILLING_FAMILY)
+                    .build();
+
+    /**
      * Private constructor.
      */
     private EnumUtils() {}
@@ -128,7 +142,7 @@ public class EnumUtils {
      * @return proto {@link GroupType}
      */
     public static GroupType groupTypeFromApiToProto(com.vmturbo.api.enums.GroupType apiGroupType) {
-        return GroupType.valueOf(apiGroupType.name());
+        return GROUP_TYPE_MAPPING.get(apiGroupType);
     }
 
     /**

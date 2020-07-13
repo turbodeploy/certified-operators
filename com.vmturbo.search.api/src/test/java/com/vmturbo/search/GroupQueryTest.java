@@ -198,11 +198,11 @@ public class GroupQueryTest {
     @Test
     public void buildSelectFieldsWithNoExtraFieldsSpecified() {
         //GIVEN
-        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.REGULAR).build();
+        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.GROUP).build();
         final GroupQueryApiDTO request = GroupQueryApiDTO.queryGroup(selectGroup);
         GroupQuery query = groupQuery(request);
 
-        Map<FieldApiDTO, SearchMetadataMapping> mappings = SearchGroupMetadata.REGULAR.getMetadataMappingMap();
+        Map<FieldApiDTO, SearchMetadataMapping> mappings = SearchGroupMetadata.GROUP.getMetadataMappingMap();
         //WHEN
         Set<String> fields =
                 query.buildSelectFields().stream().map(Field::getName).collect(Collectors.toSet());
