@@ -19,6 +19,7 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
@@ -28,6 +29,7 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.topology.Topology;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -254,13 +256,16 @@ public class ResizerTest {
     @Test
     public void testResizeDecisions_resizeDownWithDependencyForPlan() {
         Economy economy = setupTopologyForResizeTest(100, 100,
-                        100, 100, 70, 70, 20, 20, 0.65, 0.8,
+                        100, 100, 10, 70, 10, 10, 0.65, 0.8,
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         final double cpuUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
         final double memUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
-
+        // setting historicalQnty on the VM.
+        for (CommoditySold cs : vm.getCommoditiesSold()) {
+            cs.setHistoricalQuantity(cs.getQuantity());
+        }
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         //Assert that VCPU and VMEM of VM were resized down.
@@ -277,11 +282,12 @@ public class ResizerTest {
                         Arrays.asList(resize1.getResizedCommoditySpec(),
                                         resize2.getResizedCommoditySpec()));
         assertEquals(EXPECTED_COMM_SPECS_TO_BE_RESIZED, actualCommSpecsResized);
-        //Check that the quantites of the dependent commodities decreased.
+        //Check that the quantites of the dependent commodities changed appropriately.
         double cpuUsedOnCommSoldAfterResize =
                         pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
-        assertTrue(cpuUsedOnCommSoldBeforeResize > cpuUsedOnCommSoldAfterResize);
+        // when the usage on the underlying provider is lower than the newCap, we should not increase the usage
+        assertEquals(cpuUsedOnCommSoldBeforeResize, cpuUsedOnCommSoldAfterResize, 0);
         double memUsedOnCommSoldAfterResize =
                         pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
@@ -309,6 +315,12 @@ public class ResizerTest {
         final double memUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                 .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
         economy.getSettings().setResizeDependentCommodities(false);
+        TestUtils.setupHistoryBasedResizeDependencyMap(economy);
+        // setting historicalQnty on the VM.
+        for (CommoditySold cs : vm.getCommoditiesSold()) {
+            cs.setHistoricalQuantity(cs.getQuantity());
+        }
+
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         //Assert that VCPU and VMEM of VM were resized down.
@@ -325,7 +337,7 @@ public class ResizerTest {
                 Arrays.asList(resize1.getResizedCommoditySpec(),
                         resize2.getResizedCommoditySpec()));
         assertEquals(EXPECTED_COMM_SPECS_TO_BE_RESIZED, actualCommSpecsResized);
-        //Check that the quantites of the dependent commodities decreased.
+        //Check that the quantites of the dependent commodities did not decrease.
         double cpuUsedOnCommSoldAfterResize =
                 pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
@@ -469,10 +481,11 @@ public class ResizerTest {
     }
 
     /**
-     * When historical and max quantity are both set, resize should not go below max quantity.
+     * When historical and max quantity or both set, resize should go below max quantity, but not
+     * below historical quantity.
      */
     @Test
-    public void testHistoricalUsageLowerThanMaxQuantity() {
+    public void testResizeDownLowerThanMaxQuantityAndHistoricalUsage() {
         final float maxQuantity = 90;
         final float historicalQuantity = 25;
         Economy economy = setupTopologyForResizeTest(100, 100,
@@ -488,7 +501,7 @@ public class ResizerTest {
         Resize resize1 = (Resize)actions.get(0);
         assertEquals(resize1.getActionTarget(), vm);
         assertEquals(resize1.getOldCapacity(),  100, TestUtils.FLOATING_POINT_DELTA);
-        assertFalse("new capacity (" + resize1.getNewCapacity() + ") should not resize below max quantity (" + maxQuantity + ").",
+        assertTrue("new capacity (" + resize1.getNewCapacity() + ") should resize below max quantity (" + maxQuantity + ").",
             resize1.getNewCapacity() < 90);
         assertTrue("new capacity (" + resize1.getNewCapacity() + ") should resize above historical quantity (" + historicalQuantity + ")",
             resize1.getNewCapacity() >= 25);
@@ -496,7 +509,7 @@ public class ResizerTest {
         Resize resize2 = (Resize)actions.get(1);
         assertEquals(resize2.getActionTarget(), vm);
         assertEquals(resize2.getOldCapacity(),  100, TestUtils.FLOATING_POINT_DELTA);
-        assertFalse("new capacity (" + resize2.getNewCapacity() + ") should not resize below max quantity (" + maxQuantity + ").",
+        assertTrue("new capacity (" + resize2.getNewCapacity() + ") should resize below max quantity (" + maxQuantity + ").",
             resize2.getNewCapacity() < 90);
         assertTrue("new capacity (" + resize2.getNewCapacity() + ") should resize above historical quantity (" + historicalQuantity + ")",
             resize1.getNewCapacity() >= 25);
@@ -1016,6 +1029,8 @@ public class ResizerTest {
                     double economyRightSizeLower, double economyRightSizeUpper,
                     boolean shouldSetupCommodityResizeDependencyMap) {
         Economy economy = new Economy();
+        Topology topo = new Topology();
+        economy.setTopology(topo);
         pm = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM),
                         new double[]{pmCpuCapacity, pmMemCapacity}, true, false);
@@ -1028,6 +1043,7 @@ public class ResizerTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm,
                         new double[]{cpuUsedByVm, memUsedByVm}, pm);
+
         //Create app and place on VM
         app = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
                         Arrays.asList(0L), Arrays.asList(), new double[]{}, false, false);
@@ -1041,7 +1057,6 @@ public class ResizerTest {
         economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
         TestUtils.setupRawCommodityMap(economy);
         if (shouldSetupCommodityResizeDependencyMap) {
-
             TestUtils.setupCommodityResizeDependencyMap(economy);
         }
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
