@@ -9,7 +9,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -23,8 +22,13 @@ import org.jooq.Batch;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterators;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMaps;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.ActionSnapshotLatest;
@@ -77,6 +81,8 @@ public class LiveActionsStatistician {
 
     private final ActionStatCleanupScheduler actionStatCleanupScheduler;
 
+    private PreviousBroadcastActions previousBroadcastActions;
+
     public LiveActionsStatistician(@Nonnull final DSLContext dsl,
             final int batchSize,
             @Nonnull final ActionGroupStore actionGroupStore,
@@ -95,6 +101,7 @@ public class LiveActionsStatistician {
         this.aggregatorFactories = Objects.requireNonNull(aggregatorFactories);
         this.actionStatRollupScheduler = Objects.requireNonNull(rollupScheduler);
         this.actionStatCleanupScheduler = Objects.requireNonNull(cleanupScheduler);
+        previousBroadcastActions = new PreviousBroadcastActions();
     }
 
     /**
@@ -109,27 +116,23 @@ public class LiveActionsStatistician {
      *
      * @param actionStream A stream of actions representing a snapshot of actions in a
      *        {@link LiveActionStore} at a particular point in time.
-     * @param newActionIds a set of IDs of the actions that are newly recommended, i.e. not
-     *                     recommended previously
      */
     public void recordActionStats(@Nonnull final TopologyInfo topologyInfo,
-                                  @Nonnull final Stream<ActionView> actionStream,
-                                  @Nonnull final Set<Long> newActionIds) {
+                                  @Nonnull final Stream<ActionView> actionStream) {
         if (topologyInfo.getTopologyType() != TopologyType.REALTIME) {
             throw new IllegalArgumentException("Attempting to insert non-realtime topology info " +
                 "stats into the actions statistician: " + topologyInfo);
         }
 
         try {
-            internalRecordActionStats(topologyInfo, actionStream, newActionIds);
+            internalRecordActionStats(topologyInfo, actionStream);
         } catch (RuntimeException e) {
             logger.error("Failed to record action stats due to error!", e);
         }
     }
 
     private void internalRecordActionStats(final TopologyInfo sourceTopologyInfo,
-                                           @Nonnull final Stream<ActionView> actionStream,
-                                           @Nonnull final Set<Long> newActionIds) {
+                                           @Nonnull final Stream<ActionView> actionStream) {
         final LocalDateTime topologyCreationTime = LocalDateTime.ofInstant(
             Instant.ofEpochMilli(sourceTopologyInfo.getCreationTime()),
             clock.getZone());
@@ -190,7 +193,7 @@ public class LiveActionsStatistician {
             snapshot.actions().forEach(action -> {
                 startedAggregators.forEach(startedAggregator -> {
                     try {
-                        startedAggregator.processAction(action, newActionIds);
+                        startedAggregator.processAction(action, previousBroadcastActions);
                     } catch (RuntimeException e) {
                         logger.debug("Aggregator {} got exception when processing action." +
                                 " Message: {}", startedAggregator, e.getLocalizedMessage());
@@ -199,6 +202,9 @@ public class LiveActionsStatistician {
                     }
                 });
             });
+
+            // Update the map to track the action -> action group mappings from the last broadcast.
+            previousBroadcastActions.updateActions(snapshot);
 
             if (!aggregatorErrorCounts.isEmpty()) {
                 logger.error("Some aggregators encounted the following number of errors. Turn on " +
@@ -279,6 +285,16 @@ public class LiveActionsStatistician {
     }
 
     /**
+     * This is now only used for testing.
+     *
+     * @return a mapping from action id to its old {@link ActionGroupKey}
+     */
+    @VisibleForTesting
+    PreviousBroadcastActions getPreviousBroadcastActions() {
+        return previousBroadcastActions;
+    }
+
+    /**
      * Metrics for {@link LiveActionsStatistician}
      */
     private static class Metrics {
@@ -340,6 +356,32 @@ public class LiveActionsStatistician {
             snapshotRecord.setTopologyId(topologyId());
             snapshotRecord.setActionsCount(actions().size());
             return snapshotRecord;
+        }
+    }
+
+    /**
+     * A utility class that stores a mapping from action id to its old {@link ActionGroupKey}.
+     */
+    public static class PreviousBroadcastActions {
+        private Long2ObjectMap<ActionGroupKey> actionIdToActionGroupKey = Long2ObjectMaps.emptyMap();
+
+        public int size() {
+            return actionIdToActionGroupKey.size();
+        }
+
+        public ActionGroupKey getActionGroupKey(final long actionId) {
+            return actionIdToActionGroupKey.get(actionId);
+        }
+
+        public boolean actionChanged(final long actionId, @Nonnull final ActionGroupKey actionGroupKey) {
+            final ActionGroupKey oldKey = actionIdToActionGroupKey.get(actionId);
+            return oldKey == null || !oldKey.equals(actionGroupKey);
+        }
+
+        void updateActions(@Nonnull final LiveActionsSnapshot snapshot) {
+            actionIdToActionGroupKey = new Long2ObjectOpenHashMap<>(snapshot.actions().size());
+            snapshot.actions().forEach(action ->
+                actionIdToActionGroupKey.put(action.recommendation().getId(), action.actionGroupKey()));
         }
     }
 }

@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.ImmutableStatsActionView;
+import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician.PreviousBroadcastActions;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.aggregator.BusinessAccountActionAggregator.BusinessAccountActionAggregatorFactory;
@@ -124,8 +125,8 @@ public class BusinessAccountActionAggregatorTest {
         final BusinessAccountActionAggregator aggregator = factory.newAggregator(LocalDateTime.now(clock));
         aggregator.start();
 
-        aggregator.processAction(e10Snapshot, Collections.emptySet());
-        aggregator.processAction(e11Snapshot, Collections.emptySet());
+        aggregator.processAction(e10Snapshot, new PreviousBroadcastActions());
+        aggregator.processAction(e11Snapshot, new PreviousBroadcastActions());
 
         final Map<Integer, ActionStatsLatestRecord> recordsByMu =
             aggregator.createRecords(ImmutableMap.of(b1Subgroup.key(), b1Subgroup,
