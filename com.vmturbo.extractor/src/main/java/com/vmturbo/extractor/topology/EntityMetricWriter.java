@@ -3,8 +3,14 @@ package com.vmturbo.extractor.topology;
 import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.QX_VCPU_BASE_COEFFICIENT;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TABLE;
+import static com.vmturbo.extractor.models.ModelDefinitions.FILE_PATH;
+import static com.vmturbo.extractor.models.ModelDefinitions.FILE_SIZE;
 import static com.vmturbo.extractor.models.ModelDefinitions.METRIC_TABLE;
+import static com.vmturbo.extractor.models.ModelDefinitions.MODIFICATION_TIME;
+import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_NAME;
+import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
+import static com.vmturbo.extractor.models.ModelDefinitions.WASTED_FILE_TABLE;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -13,11 +19,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,10 +55,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslRecordSink;
+import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
 import com.vmturbo.extractor.models.ModelDefinitions;
@@ -59,6 +71,7 @@ import com.vmturbo.extractor.topology.EntityHashManager.SnapshotManager;
 import com.vmturbo.extractor.topology.mapper.GroupMappers;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -102,6 +115,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private final EntityHashManager entityHashManager;
 
     /**
+     * List of wasted files records by storage oid.
+     */
+    private final Long2ObjectMap<List<Record>> wastedFileRecordsByStorageId = new Long2ObjectOpenHashMap<>();
+
+    /**
      * Create a new writer instance.
      *
      * @param dbEndpoint        db endpoint for persisting data
@@ -139,6 +157,8 @@ public class EntityMetricWriter extends TopologyWriterBase {
         // supply chain will be added during finish processing
         entityRecordsMap.put(oid, entitiesRecord);
         writeMetrics(e, oid);
+        // cache wasted file records, since storage name can only be fetched later
+        createWastedFileRecords(e);
     }
 
     private void writeMetrics(final TopologyEntityDTO e, final long oid) {
@@ -192,6 +212,44 @@ public class EntityMetricWriter extends TopologyWriterBase {
         });
     }
 
+    /**
+     * Create records for wasted files on the given entity.
+     *
+     * @param entity {@link TopologyEntityDTO}
+     */
+    private void createWastedFileRecords(@Nonnull TopologyEntityDTO entity) {
+        // not volume entity or no volume info
+        if (entity.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE
+                || !entity.getTypeSpecificInfo().hasVirtualVolume()) {
+            return;
+        }
+
+        final VirtualVolumeInfo volumeInfo = entity.getTypeSpecificInfo().getVirtualVolume();
+        // not wasted files volume
+        if (volumeInfo.getAttachmentState() != AttachmentState.UNATTACHED) {
+            return;
+        }
+
+        final Optional<Long> storage = TopologyDTOUtil.getVolumeProvider(entity);
+        if (!storage.isPresent()) {
+            logger.error("No storage provider for volume: {}:{}", entity.getOid(),
+                    entity.getDisplayName());
+            return;
+        }
+
+        final Long storageId = storage.get();
+        volumeInfo.getFilesList().forEach(file -> {
+            Record wastedFileRecord = new Record(WASTED_FILE_TABLE);
+            wastedFileRecord.set(FILE_PATH, file.getPath());
+            wastedFileRecord.set(FILE_SIZE, file.getSizeKb());
+            wastedFileRecord.set(MODIFICATION_TIME,  new Timestamp(file.getModificationTimeMs()));
+            wastedFileRecord.set(STORAGE_OID, storageId);
+            // storage name will be added later in finish stage
+            wastedFileRecordsByStorageId.computeIfAbsent((long)storageId, k -> new ArrayList<>())
+                    .add(wastedFileRecord);
+        });
+    }
+
     @Override
     public int finish(final DataProvider dataProvider)
             throws UnsupportedDialectException, SQLException, InterruptedException {
@@ -203,13 +261,16 @@ public class EntityMetricWriter extends TopologyWriterBase {
              TableWriter entitiesUpdater = ENTITY_TABLE.open(getEntityUpdaterSink(
                      dsl, updateIncludes, updateMatches, updateUpdates));
              TableWriter metricInserter = METRIC_TABLE.open(getMetricInserterSink(dsl));
-             SnapshotManager snapshotManager = entityHashManager.open(topologyInfo.getCreationTime())) {
+             SnapshotManager snapshotManager = entityHashManager.open(topologyInfo.getCreationTime());
+             TableWriter wastedFileReplacer = WASTED_FILE_TABLE.open(getWastedFileReplacerSink(dsl))) {
 
             // prepare and write all our entity and metric records
             writeGroupsAsEntities(dataProvider);
             upsertEntityRecords(dataProvider, entitiesUpserter, snapshotManager);
             writeMetricRecords(metricInserter);
             snapshotManager.processChanges(entitiesUpdater);
+            // write wasted files records
+            writeWastedFileRecords(wastedFileReplacer, dataProvider);
             return n;
         }
     }
@@ -231,6 +292,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
             final ImmutableList<Column<?>> upsertConflicts, final ImmutableList<Column<?>> upsertUpdates) {
         return new DslUpsertRecordSink(dsl, ENTITY_TABLE, config, pool, "upsert",
                 upsertConflicts, upsertUpdates);
+    }
+
+    @VisibleForTesting
+    DslRecordSink getWastedFileReplacerSink(final DSLContext dsl) {
+        return new DslReplaceRecordSink(dsl, WASTED_FILE_TABLE, config, pool, "replace");
     }
 
     private void writeGroupsAsEntities(final DataProvider dataProvider) {
@@ -293,6 +359,28 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 try (Record r = tableWriter.open(partialMetricRecord)) {
                     r.set(TIME, time);
                     r.set(ModelDefinitions.ENTITY_HASH, hash);
+                }
+            });
+        });
+    }
+
+    /**
+     * Write the wasted files records into the table.
+     *
+     * @param tableWriter table writer {@link DslReplaceRecordSink}
+     * @param dataProvider data provider
+     */
+    private void writeWastedFileRecords(TableWriter tableWriter, DataProvider dataProvider) {
+        wastedFileRecordsByStorageId.long2ObjectEntrySet().forEach(entry -> {
+            final long storageId = entry.getLongKey();
+            final String storageName = dataProvider.getDisplayName(storageId).orElseGet(() -> {
+                // this should not happen, use empty string as default
+                logger.error("No display name for storage {}", storageId);
+                return "";
+            });
+            entry.getValue().forEach(partialWastedFileRecord -> {
+                try (Record r = tableWriter.open(partialWastedFileRecord)) {
+                    r.set(STORAGE_NAME, storageName);
                 }
             });
         });

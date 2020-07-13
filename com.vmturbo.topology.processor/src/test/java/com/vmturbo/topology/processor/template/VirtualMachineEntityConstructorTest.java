@@ -115,40 +115,4 @@ public class VirtualMachineEntityConstructorTest {
                         topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
                         CommodityType.EXTENT_VALUE));
     }
-
-    @Test
-    public void testReservationVMConvert() throws Exception {
-        IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
-        Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
-
-        TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor(true)
-                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, null, TemplateActionType.CLONE,
-                        identityProvider, null);
-        assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());
-        assertEquals(2, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
-        assertEquals(400.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
-                CommodityType.VCPU_VALUE), epsilon);
-        assertEquals(100.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
-                CommodityType.VMEM_VALUE), epsilon);
-        assertEquals(300.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
-                CommodityType.VSTORAGE_VALUE), epsilon);
-        assertEquals(0.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-                CommodityType.MEM_VALUE), epsilon);
-        assertEquals(100.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-                CommodityType.MEM_PROVISIONED_VALUE), epsilon);
-        assertEquals(0.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-                CommodityType.STORAGE_ACCESS_VALUE), epsilon);
-        assertEquals(0.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-                CommodityType.STORAGE_AMOUNT_VALUE), epsilon);
-        assertEquals(300.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-                CommodityType.STORAGE_PROVISIONED_VALUE), epsilon);
-        assertEquals(0.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-                CommodityType.IO_THROUGHPUT_VALUE), epsilon);
-        assertEquals(0.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-                CommodityType.NET_THROUGHPUT_VALUE), epsilon);
-        assertEquals(0.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-                CommodityType.CPU_VALUE), epsilon);
-        assertEquals(400.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-                CommodityType.CPU_PROVISIONED_VALUE), epsilon);
-    }
 }

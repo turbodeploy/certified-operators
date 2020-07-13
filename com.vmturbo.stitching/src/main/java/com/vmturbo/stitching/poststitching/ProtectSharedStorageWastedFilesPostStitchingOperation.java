@@ -19,15 +19,15 @@ import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.utilities.WastedFiles;
 
 /**
- * Prevent removal of files that we aren't sure are wasted.  We mark any storages that are missing
- * at least one derived storage browsing target for the corresponding main target with
- * ignoreWastedFiles = true.  This protects files that are on
- * shared VC Storages where one or more VC targets of the shared storage have storage browsing
- * enabled and one or more do not.  In this case, we may not have discovered some files that
- * reside on VMs in the targets that don't have storage browsing enabled.  In WastedFilesAnalysis,
- * we skip any storages marked with ignoreWastedFiles = true.
+ * Prevent removal of files that we aren't sure are wasted. We remove files from associated
+ * wasted volume of the storages that are missing at least one derived storage browsing target for
+ * the corresponding main target. This protects files that are on shared VC Storages where one or
+ * more VC targets of the shared storage have storage browsing enabled and one or more do not.
+ * In this case, we may not have discovered some files that reside on VMs in the targets that
+ * don't have storage browsing enabled. This will avoid creating delete actions for those files.
  */
 public class ProtectSharedStorageWastedFilesPostStitchingOperation
     implements PostStitchingOperation {
@@ -57,13 +57,16 @@ public class ProtectSharedStorageWastedFilesPostStitchingOperation
         // The scope will ensure that only shared storages that we can't definitively identify
         // wasted files on are passed in.
         entities.forEach(storage -> {
-            // Just for logging purposes, collect a set of storages for which we will be
-            // removing wasted files from their wasted files volumes
-            storagesBrowsingDisabled.add(storage);
-            resultBuilder.queueUpdateEntityAlone(storage, toUpdate ->
-                toUpdate.getTopologyEntityDtoBuilder()
-                    .getTypeSpecificInfoBuilder()
-                    .getStorageBuilder().setIgnoreWastedFiles(true));
+            WastedFiles.getWastedFilesVirtualVolume(storage).ifPresent(wastedFilesVolume -> {
+                // Just for logging purposes, collect a set of storages for which we will be
+                // removing wasted files from their wasted files volumes
+                storagesBrowsingDisabled.add(storage);
+                resultBuilder.queueUpdateEntityAlone(wastedFilesVolume, toUpdate ->
+                        toUpdate.getTopologyEntityDtoBuilder()
+                                .getTypeSpecificInfoBuilder()
+                                .getVirtualVolumeBuilder()
+                                .clearFiles());
+            });
         });
         if (!storagesBrowsingDisabled.isEmpty()) {
             logger.info("No delete wasted file actions will be generated for {} storages "

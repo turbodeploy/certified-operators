@@ -1,13 +1,12 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -15,43 +14,46 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.grpc.stub.StreamObserver;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
+import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerResponse;
+import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
+import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
-import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.ReservationProtoUtil;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
-import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
-import com.vmturbo.plan.orchestrator.plan.PlanStatusListener;
+import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Handle reservation related stuff. This is the place where we check if the current
@@ -59,71 +61,60 @@ import com.vmturbo.plan.orchestrator.plan.PlanStatusListener;
  * We also kickoff a new reservation plan if no other plan is running.
  * All the state transition logic is handled by this class.
  */
-public class ReservationManager implements PlanStatusListener, ReservationDeletedListener {
+public class ReservationManager implements ReservationDeletedListener {
     private final Logger logger = LogManager.getLogger();
 
     private final ReservationDao reservationDao;
 
-    private final PlanDao planDao;
-
-    private final PlanRpcService planService;
+    private final TemplatesDao templatesDao;
 
     private final ReservationNotificationSender reservationNotificationSender;
 
-    private static final String DISABLED = "DISABLED";
+    private final InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub;
 
     private static final Object reservationSetLock = new Object();
 
+    private Map<Long, ReservationConstraintInfo> constraintIDToCommodityTypeMap = new HashMap<>();
+
     /**
      * constructor for ReservationManager.
-     * @param planDao input plan dao.
      * @param reservationDao input reservation dao.
-     * @param planRpcService input plan service.
      * @param reservationNotificationSender the reservation notification sender.
+     * @param initialPlacementServiceBlockingStub for grpc call to market component.
+     * @param templatesDao  input template dao
      */
-    public ReservationManager(@Nonnull final PlanDao planDao,
-                              @Nonnull final ReservationDao reservationDao,
-                              @Nonnull final PlanRpcService planRpcService,
-                              @Nonnull final ReservationNotificationSender reservationNotificationSender) {
-        this.planDao = Objects.requireNonNull(planDao);
+    public ReservationManager(@Nonnull final ReservationDao reservationDao,
+                              @Nonnull final ReservationNotificationSender reservationNotificationSender,
+                              @Nonnull final InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub,
+                              @Nonnull final TemplatesDao templatesDao
+    ) {
         this.reservationDao = Objects.requireNonNull(reservationDao);
-        this.planService = Objects.requireNonNull(planRpcService);
         this.reservationNotificationSender = Objects.requireNonNull(reservationNotificationSender);
         this.reservationDao.addListener(this);
+        this.initialPlacementServiceBlockingStub = Objects.requireNonNull(initialPlacementServiceBlockingStub);
+        this.templatesDao = templatesDao;
+    }
+
+    /**
+     * Add the constraint id and reservationConstraintInfo send from TP to the map for future lookup.
+     * @param id Constraint ID
+     * @param reservationConstraintInfo the associated constraint info.
+     */
+    public void addToConstraintIDToCommodityTypeMap(Long id, ReservationConstraintInfo reservationConstraintInfo) {
+        constraintIDToCommodityTypeMap.put(id, reservationConstraintInfo);
+    }
+
+    /**
+     * Checks if the constraint id is valud and populated in constraintIDToCommodityTypeMap.
+     * @param constraintId the constraint id of interest.
+     * @return true if the constraintIDToCommodityTypeMap keyset contains constraintId.
+     */
+    public boolean isConstraintIdValid(Long constraintId) {
+        return constraintIDToCommodityTypeMap.containsKey(constraintId);
     }
 
     public ReservationDao getReservationDao() {
         return reservationDao;
-    }
-
-    public PlanDao getPlanDao() {
-        return planDao;
-    }
-
-    /**
-     * Update all inprogress reservations to placement_failed on plan failure.
-     * Also kick start a new reservation plan by calling checkAndStartReservationPlan.
-     */
-    private void updateReservationsOnPlanFailure() {
-        synchronized (reservationSetLock) {
-            final Set<Reservation> inProgressSet =
-                    reservationDao.getAllReservations().stream()
-                            .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
-                            .collect(Collectors.toSet());
-            Set<Reservation> updatedReservation = new HashSet<>();
-            for (ReservationDTO.Reservation reservation : inProgressSet) {
-                updatedReservation.add(ReservationProtoUtil.invalidateReservation(reservation));
-            }
-            try {
-                reservationDao.updateReservationBatch(updatedReservation);
-                logger.info("Marked reservations {} as invalid.", () -> inProgressSet.stream()
-                    .map(reservation -> reservation.getId() + "(" + reservation.getName() + ")")
-                    .collect(Collectors.joining(",")));
-            } catch (NoSuchObjectException e) {
-                logger.error("Reservation update failed" + e);
-            }
-        }
-        checkAndStartReservationPlan();
     }
 
     /**
@@ -131,6 +122,7 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
      * then start a new reservation plan.
      */
     public void checkAndStartReservationPlan() {
+        Set<Reservation> currentReservations = new HashSet<>();
         synchronized (reservationSetLock) {
             final Set<Reservation> inProgressSet = new HashSet<>();
             final Set<Reservation> unfulfilledSet = new HashSet<>();
@@ -143,44 +135,314 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                 }
             }
             if (inProgressSet.size() == 0 && unfulfilledSet.size() > 0) {
-                Set<Reservation> updatedReservation = new HashSet<>();
                 for (ReservationDTO.Reservation reservation : unfulfilledSet) {
-                    updatedReservation.add(reservation.toBuilder()
-                            .setStatus(ReservationStatus.INPROGRESS).build());
+                    currentReservations.add(reservation.toBuilder()
+                            .setStatus(ReservationStatus.INPROGRESS)
+                            .build());
                 }
                 try {
-                    reservationDao.updateReservationBatch(updatedReservation);
+                    reservationDao.updateReservationBatch(currentReservations);
                 } catch (NoSuchObjectException e) {
                     logger.error("Reservation update failed" + e);
                 }
-                Set<Long> reservationPlanIDs = planDao.getAllPlanInstances().stream()
-                        .filter(pl -> pl.getProjectType() ==
-                                PlanProjectType.RESERVATION_PLAN)
-                        .map(resPlan -> resPlan.getPlanId())
-                        .collect(Collectors.toSet());
-                for (Long planID : reservationPlanIDs) {
-                    try {
-                        planDao.deletePlan(planID);
-                    } catch (NoSuchObjectException e) {
-                        logger.error("Reservation plan : {} deletion failed" + e, planID);
-                    }
-                }
-                runPlanForBatchReservation();
             }
         }
+        if (!currentReservations.isEmpty()) {
+            // TODO We should have a timeout on this.
+            FindInitialPlacementRequest initialPlacementRequest =
+                    buildIntialPlacementRequest(currentReservations);
+            FindInitialPlacementResponse response = initialPlacementServiceBlockingStub
+                    .findInitialPlacement(initialPlacementRequest);
+            Set<Reservation> updatedReservations = updateProviderInfoForReservations(response,
+                    currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
+            updateReservationResult(updatedReservations);
+        }
+
     }
 
     /**
-     * Update the reservation to UNFULFILLED/FUTURE based on if the reservation is
-     * currently active.
+     * Update the provider info of the reservation using the initial placement response.
+     *
+     * @param response            initial placement response from market.
+     * @param currentReservations reservations which are sent to the market. We have to make sure
+     *                            we only update the reservations which are part of the request.
+     * @return all in-progress reservations with the provider info updated.
+     */
+    public Set<Reservation> updateProviderInfoForReservations(final FindInitialPlacementResponse response,
+                                                              Set<Long> currentReservations) {
+        Map<Long, Reservation> updatedReservations = new HashMap<>();
+        reservationDao.getAllReservations().stream()
+                .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
+                .filter(res -> currentReservations.contains(res.getId()))
+                .forEach(inProgressRes -> updatedReservations.put(inProgressRes.getId(), inProgressRes));
+        Map<Long, Reservation> buyerIdToReservation = new HashMap<>();
+        for (Reservation reservation : updatedReservations.values()) {
+            for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection().getReservationTemplateList()) {
+                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                    buyerIdToReservation.put(reservationInstance.getEntityId(), reservation);
+                }
+            }
+        }
+        for (InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo : response.getInitialPlacementBuyerPlacementInfoList()) {
+            Reservation currentReservation = buyerIdToReservation.get(initialPlacementBuyerPlacementInfo.getBuyerId());
+            if (currentReservation == null) {
+                logger.error("The buyer id {} does not "
+                                + "correspond to any reservation in the request",
+                        initialPlacementBuyerPlacementInfo.getBuyerId());
+                continue;
+            }
+            Reservation reservation = (updatedReservations.get(currentReservation.getId()) == null)
+                    ? currentReservation
+                    : updatedReservations.get(currentReservation.getId());
+            Reservation.Builder updatedReservation = reservation.toBuilder();
+            ReservationTemplateCollection.Builder reservationTemplateCollection = updatedReservation.getReservationTemplateCollection().toBuilder();
+
+            //find templateIndex, InstanceIndex and the placementInfoIndex. We have to update the
+            // placementInfo based on initialPlacementBuyerPlacementInfo.
+            int templateIndex = 0;
+            int instanceIndex = 0;
+            int placementInfoIndex = 0;
+            boolean foundPlacementInfo = false;
+            for (ReservationTemplate reservationTemplate : reservationTemplateCollection.getReservationTemplateList()) {
+                instanceIndex = 0;
+                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                    if (reservationInstance.getEntityId() == initialPlacementBuyerPlacementInfo.getBuyerId()) {
+                        for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                            if (placementInfo.getPlacementInfoId()
+                                    == initialPlacementBuyerPlacementInfo
+                                    .getCommoditiesBoughtFromProviderId()) {
+                                foundPlacementInfo = true;
+                                break;
+                            }
+                            placementInfoIndex++;
+                        }
+                        break;
+                    }
+                    instanceIndex++;
+                }
+                if (foundPlacementInfo) {
+                    break;
+                }
+                templateIndex++;
+            }
+
+            if (!foundPlacementInfo) {
+                continue;
+            }
+
+            ReservationTemplate.Builder reservationTemplate = updatedReservation.getReservationTemplateCollection().getReservationTemplateList()
+                    .get(templateIndex).toBuilder();
+            ReservationInstance.Builder reservationInstance = reservationTemplate.getReservationInstanceList()
+                    .get(instanceIndex).toBuilder();
+            PlacementInfo.Builder placementInfo = reservationInstance
+                    .getPlacementInfo(placementInfoIndex)
+                    .toBuilder();
+            if (initialPlacementBuyerPlacementInfo.hasInitialPlacementSuccess()) {
+                placementInfo
+                        .setProviderId(
+                                initialPlacementBuyerPlacementInfo.getInitialPlacementSuccess()
+                                        .getProviderOid());
+            } else {
+                reservationInstance
+                        .addAllFailureInfo(
+                                initialPlacementBuyerPlacementInfo.getInitialPlacementFailure()
+                                        .getFailureInfoList());
+            }
+            reservationInstance.setPlacementInfo(placementInfoIndex, placementInfo);
+            reservationTemplate.setReservationInstance(instanceIndex, reservationInstance);
+            reservationTemplateCollection.setReservationTemplate(templateIndex, reservationTemplate);
+            updatedReservation.setReservationTemplateCollection(reservationTemplateCollection);
+            updatedReservations.put(reservation.getId(), updatedReservation.build());
+        }
+        return updatedReservations.values().stream().collect(Collectors.toSet());
+    }
+
+    /**
+     * build a initial placement request for the given set of reservations.
+     *
+     * @param reservations the input set of reservations.
+     * @return the constructed initial placement request. buyerIdToReservation is updated.
+     */
+    public FindInitialPlacementRequest buildIntialPlacementRequest(Set<Reservation> reservations) {
+        FindInitialPlacementRequest.Builder initialPlacementRequestBuilder = FindInitialPlacementRequest.newBuilder();
+        for (Reservation reservation : reservations) {
+            for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection()
+                    .getReservationTemplateList()) {
+                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                    long buyerId = reservationInstance.getEntityId();
+                    InitialPlacementBuyer.Builder intialPlacementBuyerBuilder =
+                            InitialPlacementBuyer.newBuilder().setBuyerId(buyerId).setReservationId(reservation.getId());
+                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                        intialPlacementBuyerBuilder.addInitialPlacementCommoditiesBoughtFromProvider(
+                                InitialPlacementCommoditiesBoughtFromProvider.newBuilder()
+                                        .setCommoditiesBoughtFromProviderId(placementInfo
+                                                .getPlacementInfoId())
+                                        .setCommoditiesBoughtFromProvider(TopologyEntityDTO
+                                                .CommoditiesBoughtFromProvider.newBuilder()
+                                                .setProviderEntityType(placementInfo
+                                                        .getProviderType())
+                                                .addAllCommodityBought(placementInfo
+                                                        .getCommodityBoughtList())));
+                    }
+                    initialPlacementRequestBuilder.addInitialPlacementBuyer(intialPlacementBuyerBuilder);
+                }
+            }
+        }
+        return initialPlacementRequestBuilder.build();
+    }
+
+    /**
+     * add reservation instance/fake entity to the reservation.
+     *
+     * @param reservation the reservation of interest.
+     * @return reservation with the reservation instance updated.
+     */
+    public Reservation addEntityToReservation(Reservation reservation) {
+        List<ReservationTemplate> reservationTemplateList = new ArrayList<>();
+        int entityNameSuffix = 0;
+        for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection()
+                .getReservationTemplateList()) {
+            ReservationTemplate.Builder reservationTemplateBuilder = reservationTemplate.toBuilder();
+            Optional<Template> templateOptional = templatesDao.getTemplate(reservationTemplateBuilder.getTemplateId());
+            if (!templateOptional.isPresent()) {
+                return reservation;
+            }
+            final Template template = templateOptional.get();
+            reservationTemplateBuilder.setTemplate(template);
+            final TemplateInfo templateInfo = template.getTemplateInfo();
+            List<Double> diskSizes = new ArrayList<>();
+            double memorySize = 0;
+            double numOfCpu = 0;
+            double cpuSpeed = 0;
+            for (TemplateResource templateResource : templateInfo.getResourcesList()) {
+                for (TemplateField templateField : templateResource.getFieldsList()) {
+                    switch (templateField.getName()) {
+                        case TemplateProtoUtil
+                                .VM_STORAGE_DISK_SIZE:
+                            diskSizes.add(Double.parseDouble(templateField.getValue()));
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED:
+                            cpuSpeed = Double.parseDouble(templateField.getValue());
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_MEM_SIZE:
+                            memorySize = Double.parseDouble(templateField.getValue());
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU:
+                            numOfCpu = Double.parseDouble(templateField.getValue());
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            List<PlacementInfo.Builder> storagePlacementInfos = new ArrayList<>();
+            for (Double diskSize : diskSizes) {
+                storagePlacementInfos.add(PlacementInfo
+                        .newBuilder().clearProviderId()
+                        .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                                .CommodityType.STORAGE_PROVISIONED_VALUE, diskSize))
+                        .setProviderType(EntityType.STORAGE_VALUE));
+            }
+
+            PlacementInfo.Builder computePlacementInfo = PlacementInfo.newBuilder().clearProviderId()
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.CPU_PROVISIONED_VALUE, numOfCpu * cpuSpeed))
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.MEM_PROVISIONED_VALUE, memorySize))
+                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE);
+
+            for (ReservationConstraintInfo constraintInfo
+                    : reservation.getConstraintInfoCollection()
+                    .getReservationConstraintInfoList()) {
+                if (constraintInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+                    switch (constraintInfo.getType()) {
+                        case DATA_CENTER:
+                            computePlacementInfo.addCommodityBought(
+                                    createCommodityBoughtDTO(CommodityDTO
+                                                    .CommodityType.DATACENTER_VALUE,
+                                            Optional.of(constraintInfo.getKey()), 1));
+                            break;
+                        case CLUSTER:
+                            computePlacementInfo.addCommodityBought(
+                                    createCommodityBoughtDTO(CommodityDTO
+                                                    .CommodityType.CLUSTER_VALUE,
+                                            Optional.of(constraintInfo.getKey()), 1));
+                            break;
+                        case POLICY:
+                            computePlacementInfo.addCommodityBought(
+                                    createCommodityBoughtDTO(CommodityDTO
+                                                    .CommodityType.SEGMENTATION_VALUE,
+                                            Optional.of(constraintInfo.getKey()), 1));
+                            break;
+                        default:
+                            break;
+
+                    }
+                } else if (constraintInfo.getProviderType() == EntityType.STORAGE_VALUE) {
+                    switch (constraintInfo.getType()) {
+                        case STORAGE_CLUSTER:
+                            storagePlacementInfos.stream().forEach(storagePlacementInfo -> {
+                                storagePlacementInfo.addCommodityBought(
+                                        createCommodityBoughtDTO(CommodityDTO
+                                                        .CommodityType.STORAGE_CLUSTER_VALUE,
+                                                Optional.of(constraintInfo.getKey()), 1));
+                            });
+                            break;
+                        case POLICY:
+                            storagePlacementInfos.stream().forEach(storagePlacementInfo -> {
+                                storagePlacementInfo.addCommodityBought(
+                                        createCommodityBoughtDTO(CommodityDTO
+                                                        .CommodityType.SEGMENTATION_VALUE,
+                                                Optional.of(constraintInfo.getKey()), 1));
+                            });
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            List<PlacementInfo.Builder> placementInfos = new ArrayList<>();
+            placementInfos.addAll(storagePlacementInfos);
+            placementInfos.add(computePlacementInfo);
+
+            for (int i = 0; i < reservationTemplateBuilder.getCount(); i++) {
+                ReservationInstance.Builder reservationInstanceBuilder = ReservationInstance
+                        .newBuilder().setEntityId(IdentityGenerator.next())
+                        .setName(reservation.getName() + "_" + entityNameSuffix);
+                entityNameSuffix++;
+                placementInfos.forEach(p -> {
+                    reservationInstanceBuilder.addPlacementInfo(p.setPlacementInfoId(
+                            IdentityGenerator.next()).build());
+                });
+                reservationTemplateBuilder.addReservationInstance(ReservationInstance
+                        .newBuilder(reservationInstanceBuilder.build()));
+            }
+
+            reservationTemplateList.add(reservationTemplateBuilder.build());
+        }
+
+        Reservation updatedReservation = reservation.toBuilder()
+                .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                        .addAllReservationTemplate(reservationTemplateList))
+                .build();
+        return updatedReservation;
+    }
+
+
+    /**
+     * Add entities to the reservation. Update the reservation to UNFULFILLED/FUTURE
+     * based on if the reservation is currently active.
      * @param reservation the reservation of interest
      * @return reservation with updated status
      */
     public Reservation intializeReservationStatus(Reservation reservation) {
         synchronized (reservationSetLock) {
-            Reservation updatedReservation = reservation.toBuilder()
-                    .setStatus(isReservationActiveNow(reservation) ?
-                            ReservationStatus.UNFULFILLED
+            Reservation reservationWithConstraintInfo = addConstraintInfoDetails(reservation);
+            ReservationDTO.Reservation reservationWithEntity =
+                    addEntityToReservation(reservationWithConstraintInfo);
+            Reservation updatedReservation = reservationWithEntity.toBuilder()
+                    .setStatus(isReservationActiveNow(reservationWithEntity)
+                            ? ReservationStatus.UNFULFILLED
                             : ReservationStatus.FUTURE)
                     .build();
             try {
@@ -191,6 +453,27 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
             return updatedReservation;
         }
     }
+
+    /**
+     * update the constraint info of the reservation.
+     *
+     * @param reservation the reservation of interest.
+     * @return reservation with the constraintInfo updated.
+     */
+    public Reservation addConstraintInfoDetails(Reservation reservation) {
+        ConstraintInfoCollection.Builder constraintInfoCollection = ConstraintInfoCollection.newBuilder();
+        for (ReservationConstraintInfo reservationConstraintInfo
+                : reservation.getConstraintInfoCollection().getReservationConstraintInfoList()) {
+            ReservationConstraintInfo updatedReservationConstraintInfo =
+                    constraintIDToCommodityTypeMap.get(reservationConstraintInfo.getConstraintId());
+            if (updatedReservationConstraintInfo != null) {
+                constraintInfoCollection.addReservationConstraintInfo(updatedReservationConstraintInfo);
+            }
+        }
+        return reservation.toBuilder().setConstraintInfoCollection(constraintInfoCollection).build();
+    }
+
+
 
     /**
      * Check if the reservation is active now or has a future start date.
@@ -227,21 +510,25 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
             Set<ReservationDTO.Reservation> statusUpdatedReservation = new HashSet<>();
             for (ReservationDTO.Reservation reservation : reservationSet) {
                 boolean isSuccessful = isReservationSuccessful(reservation);
-                ReservationDTO.Reservation.Builder updatedReservation = reservation.toBuilder();
+                ReservationDTO.Reservation updatedReservation;
                 // We should call the updateReservationBatch for all reservations including the ones
                 // whose status didn't change..Because the provider could have changed.
                 if (isSuccessful) {
-                    updatedReservation.setStatus(ReservationStatus.RESERVED);
+                    updatedReservation = ReservationProtoUtil.clearReservationInstance(
+                            reservation,
+                            false, true).toBuilder()
+                            .setStatus(ReservationStatus.RESERVED).build();
                 } else {
-                    updatedReservation.setStatus(ReservationStatus.PLACEMENT_FAILED);
+                    updatedReservation = reservation.toBuilder()
+                            .setStatus(ReservationStatus.PLACEMENT_FAILED).build();
                 }
-                updatedReservations.add(updatedReservation.build());
+                updatedReservations.add(updatedReservation);
                 // we should not broadcast the reservation change to the UI if the status does not change.
                 // The provider change happens only during the main market and that need not be updated
                 // in the UI. A refresh of screen will get the user the new providers.
                 if (updatedReservation.getStatus() != reservation.getStatus()) {
                     logger.info("Finished Reservation: " + reservation.getName());
-                    statusUpdatedReservation.add(updatedReservation.build());
+                    statusUpdatedReservation.add(updatedReservation);
                 }
             }
             try {
@@ -322,153 +609,33 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
         return true;
     }
 
-    /**
-     * Send request to run initial placement plan.
-     */
-    public void runPlanForBatchReservation() {
-        try {
-            final List<ScenarioChange> settingOverrides = createPlacementActionSettingOverride();
-            ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
-                    .build();
-            Map<Long, String> scopeIds = getAllScopeEntities();
-            PlanScope.Builder planScopeBuilder = PlanScope.newBuilder();
-            if (!scopeIds.isEmpty()) {
-                for (Entry<Long, String> scopeid : scopeIds.entrySet()) {
-                    PlanScopeEntry planScopeEntry = PlanScopeEntry
-                            .newBuilder().setScopeObjectOid(scopeid.getKey())
-                            .setClassName(scopeid.getValue()).build();
-                    planScopeBuilder.addScopeEntries(planScopeEntry);
-                }
-            }
-            final Scenario scenario = Scenario.newBuilder()
-                    .setScenarioInfo(ScenarioInfo.newBuilder(scenarioInfo)
-                            .clearChanges()
-                            .addAllChanges(settingOverrides)
-                            .setScope(planScopeBuilder))
-                    .build();
-
-            final PlanInstance planInstance = planDao
-                    .createPlanInstance(scenario, PlanProjectType.RESERVATION_PLAN);
-            planService.runPlan(
-                    PlanId.newBuilder()
-                            .setPlanId(planInstance.getPlanId())
-                            .build(),
-                    new StreamObserver<PlanInstance>() {
-                        @Override
-                        public void onNext(PlanInstance value) {
-                        }
-
-                        @Override
-                        public void onError(Throwable t) {
-                            logger.error("Error occurred while executing plan {}.",
-                                    planInstance.getPlanId());
-                        }
-
-                        @Override
-                        public void onCompleted() {
-                        }
-                    });
-        } catch (Exception e) {
-            logger.error("Failed to create a plan instance for initial placement: ", e);
-        }
+    private CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, double used) {
+        return createCommodityBoughtDTO(commodityType, Optional.empty(), used);
     }
 
-    /**
-     * Create settingOverride in order to disable move and
-     * provision for placed entity and only unplaced entity could move.
-     *
-     * @return list of {@link ScenarioChange}.
-     */
-    @VisibleForTesting
-    List<ScenarioChange> createPlacementActionSettingOverride() {
-        // disable all actions
-        List<EntitySettingSpecs> placementPlanSettingsToDisable =
-                Arrays.asList(EntitySettingSpecs.Move,
-                EntitySettingSpecs.Provision, EntitySettingSpecs.StorageMove,
-                EntitySettingSpecs.Resize, EntitySettingSpecs.Suspend,
-                EntitySettingSpecs.Reconfigure,
-                EntitySettingSpecs.Activate);
-        ArrayList<ScenarioChange> placementSettingOverrides =
-                new ArrayList<>(placementPlanSettingsToDisable.size());
-        placementPlanSettingsToDisable.forEach(settingSpec -> {
-            // disable setting
-            placementSettingOverrides.add(ScenarioChange.newBuilder()
-                    .setSettingOverride(SettingOverride.newBuilder()
-                            .setSetting(Setting.newBuilder()
-                                    .setSettingSpecName(settingSpec.getSettingName())
-                                    .setEnumSettingValue(EnumSettingValue
-                                            .newBuilder().setValue(DISABLED))))
-                    .build());
-        });
-        return placementSettingOverrides;
-    }
-
-    @Override
-    public void onPlanStatusChanged(@Nonnull final PlanInstance plan) throws PlanStatusListenerException {
-        if (plan.getProjectType() == PlanProjectType.RESERVATION_PLAN) {
-            if (plan.getStatus() == PlanStatus.FAILED) {
-                logger.error("Reservation plan {} failed. Message: {}." +
-                    " Marking reservations as INVALID.", plan.getPlanId(), plan.getStatusMessage());
-                // We know that the failed plan relates to the current in-progress
-                // reservations because successful reservations delete the plan they relate
-                // to while holding a lock.
-                updateReservationsOnPlanFailure();
-            }
-        }
-    }
-
-    @Override
-    public void onPlanDeleted(@Nonnull final PlanInstance plan) throws PlanStatusListenerException {
-        // We ignore plan deletions for reservations, since we delete them very eagerly.
-    }
-
-    /**
-     * Get all the constraint ids of inprogress reservation.
-     * If one of the in-progress reservation is un -constrained (full scope) the return empty list.
-     *
-     * @return Map of constraint id and the type of constraint.
-     */
-    private Map<Long, String> getAllScopeEntities() {
-        Map<Long, String> scope = new HashMap<>();
-        final Set<Reservation> reservations =
-                reservationDao.getAllReservations().stream()
-                        .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
-                        .collect(Collectors.toSet());
-        for (Reservation reservation : reservations) {
-            if (!reservation.hasConstraintInfoCollection() ||
-                    reservation
-                            .getConstraintInfoCollection()
-                            .getReservationConstraintInfoList() == null ||
-                    reservation.getConstraintInfoCollection()
-                            .getReservationConstraintInfoList().isEmpty()) {
-                return new HashMap<>();
-            } else {
-                List<ReservationConstraintInfo> reservationConstraintInfos = reservation
-                        .getConstraintInfoCollection().getReservationConstraintInfoList();
-                for (ReservationConstraintInfo reservationConstraintInfo
-                        : reservationConstraintInfos) {
-                    if (reservationConstraintInfo.getType() == Type.CLUSTER) {
-                        scope.put(reservationConstraintInfo
-                                .getConstraintId(), StringConstants.CLUSTER);
-                    } else if (reservationConstraintInfo.getType() ==
-                            Type.VIRTUAL_DATA_CENTER) {
-                        scope.put(reservationConstraintInfo
-                                .getConstraintId(), StringConstants.VDC);
-                    } else if (reservationConstraintInfo
-                            .getType() == Type.DATA_CENTER) {
-                        scope.put(reservationConstraintInfo
-                                .getConstraintId(), StringConstants.DATA_CENTER);
-                    } else {
-                        return new HashMap<>();
-                    }
-                }
-            }
-        }
-        return scope;
+    private CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, Optional<String> key, double used) {
+        final CommodityType.Builder commType = CommodityType.newBuilder().setType(commodityType);
+        key.ifPresent(commType::setKey);
+        return CommodityBoughtDTO.newBuilder()
+                .setUsed(used)
+                .setActive(true)
+                .setCommodityType(commType)
+                .build();
     }
 
     @Override
     public void onReservationDeleted(@Nonnull final Reservation reservation) {
+        DeleteInitialPlacementBuyerRequest.Builder deleteInitialPlacementBuyerRequest =
+                DeleteInitialPlacementBuyerRequest.newBuilder();
+        reservation.getReservationTemplateCollection().getReservationTemplateList()
+                .stream().forEach(template -> template.getReservationInstanceList()
+                .stream().forEach(buyer -> deleteInitialPlacementBuyerRequest
+                        .addBuyerId(buyer.getEntityId())));
+        DeleteInitialPlacementBuyerResponse response = initialPlacementServiceBlockingStub
+                .deleteInitialPlacementBuyer(deleteInitialPlacementBuyerRequest.build());
+        if (!response.getResult()) {
+            logger.error("Deletion of Initial Placement Buyer failed");
+        }
         checkAndStartReservationPlan();
     }
 }

@@ -264,10 +264,9 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                 return true;
             }
         } else {
-            if (settingsCollection.getEntitySetting(entity.getOid(), autoSetSettingName)
-                .get().getBooleanSettingValue().getValue()) {
-                return true;
-            }
+                return settingsCollection.getEntitySetting(entity.getOid(), autoSetSettingName)
+                    .map(settings -> settings.getBooleanSettingValue().getValue())
+                    .orElse(false);
         }
         return false;
     }

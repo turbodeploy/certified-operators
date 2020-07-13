@@ -106,8 +106,10 @@ public class SettingsMapperIntegrationTest {
             .map(SettingSpec::getName)
             .collect(Collectors.toSet()));
 
-        // remainingGcCapacityUtilization is purposely an invisible setting
-        enumSettingsNames.remove("remainingGcCapacityUtilization");
+        // remainingGcCapacityUtilization and dbCacheHitRateUtilization
+        // are purposely an invisible settings
+        Assert.assertTrue(enumSettingsNames.remove("remainingGcCapacityUtilization"));
+        Assert.assertTrue(enumSettingsNames.remove("dbCacheHitRateUtilization"));
 
         Assert.assertEquals(testError(enumSettingsNames, visibleSettings), enumSettingsNames, visibleSettings);
 

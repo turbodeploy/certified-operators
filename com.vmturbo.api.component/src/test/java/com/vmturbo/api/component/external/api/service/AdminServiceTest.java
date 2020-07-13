@@ -265,7 +265,7 @@ public class AdminServiceTest {
      * @throws Exception If anything is wrong.
      */
     @Test
-    public void testSetProxyConfigInsureProxy() throws Exception {
+    public void testSetProxyConfigInsecureProxy() throws Exception {
         HttpProxyDTO dto = new HttpProxyDTO();
         dto.setProxyHost("10.10.10.1");
         dto.setProxyPortNumber(3306);
@@ -276,6 +276,25 @@ public class AdminServiceTest {
         verify(keyValueStoreTest).put(eq(PROXY_PORT_NUMBER), eq("3306"));
         verify(keyValueStoreTest, never()).put(eq(PROXY_USER_NAME), anyString());
         verify(keyValueStoreTest, never()).put(eq(PROXY_USER_PASSWORD), anyString());
+    }
+
+    /**
+     * Test disable proxy will clean up proxy information in key/value store.
+     *
+     * @throws Exception If anything is wrong.
+     */
+    @Test
+    public void testDisableProxyConfig() throws Exception {
+        HttpProxyDTO dto = new HttpProxyDTO();
+        dto.setProxyHost("10.10.10.1");
+        dto.setProxyPortNumber(3306);
+        dto.setIsProxyEnabled(false);
+        serviceUnderTest.setProxyConfig(dto);
+        verify(keyValueStoreTest).removeKey(eq(PROXY_ENABLED));
+        verify(keyValueStoreTest).removeKey(eq(PROXY_HOST));
+        verify(keyValueStoreTest).removeKey(eq(PROXY_PORT_NUMBER));
+        verify(keyValueStoreTest).removeKey(eq(PROXY_USER_NAME));
+        verify(keyValueStoreTest).removeKey(eq(PROXY_USER_PASSWORD));
     }
 
     /**

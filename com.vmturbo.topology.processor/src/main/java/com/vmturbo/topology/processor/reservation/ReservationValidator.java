@@ -61,6 +61,9 @@ public class ReservationValidator {
                     case POLICY:
                         visitor.onPolicyConstraint(rId, constraintId);
                         break;
+                    case STORAGE_CLUSTER:
+                        visitor.onClusterConstraint(rId, constraintId);
+                        break;
                     default:
                         // Nothing.
                 }

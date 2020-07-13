@@ -19,16 +19,26 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Sets;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementSuccess;
+import com.vmturbo.common.protobuf.market.InitialPlacementMoles.InitialPlacementServiceMole;
+import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc;
+import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementFailureInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
@@ -36,21 +46,27 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
-import com.vmturbo.plan.orchestrator.plan.PlanDao;
-import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
+import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Test cases for {@link ReservationManager}.
  */
 public class ReservationManagerTest {
 
-    private PlanDao planDao;
-
     private ReservationDao reservationDao;
-
-    private PlanRpcService planRpcService;
 
     private ReservationManager reservationManager;
 
@@ -58,8 +74,35 @@ public class ReservationManagerTest {
 
     private ReservationNotificationSender resNotificationSender;
 
+
+    private InitialPlacementServiceMole initialPlacementService = spy(new InitialPlacementServiceMole());
+
+    /**
+     * mock server for initialPlacementService.
+     */
+    @Rule
+    public GrpcTestServer mockServer = GrpcTestServer.newServer(initialPlacementService);
+
+    private InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub;
+
+    private TemplatesDao templatesDao;
+
     @Captor
     private ArgumentCaptor<Set<Reservation>> updateBatchCaptor;
+
+    private Template template = Template.newBuilder()
+            .setId(234L)
+            .setTemplateInfo(TemplateInfo.newBuilder()
+                    .setName("templateName")
+                    .addResources(TemplateResource.newBuilder()
+                            .addFields(TemplateField.newBuilder().setValue("10").setName("diskSize"))
+                            .addFields(TemplateField.newBuilder().setValue("20").setName("diskSize"))
+                            .addFields(TemplateField.newBuilder().setValue("30").setName("diskSize"))
+                            .addFields(TemplateField.newBuilder().setValue("40").setName("cpuSpeed"))
+                            .addFields(TemplateField.newBuilder().setValue("50").setName("memorySize"))
+                            .addFields(TemplateField.newBuilder().setValue("3").setName("numOfCores"))
+                    ))
+            .build();
 
     private Reservation testReservation = Reservation.newBuilder()
             .setId(1000)
@@ -102,6 +145,38 @@ public class ReservationManagerTest {
                             .setCount(1L)
                             .setTemplateId(234L)
                             .addReservationInstance(ReservationInstance.newBuilder())))
+            .build();
+
+    private Reservation fastReservation = Reservation.newBuilder()
+            .setId(10000)
+            .setName("fast-reservation")
+            .setStatus(ReservationStatus.INPROGRESS)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(2L)
+                            .setTemplateId(234L)))
+            .build();
+
+    private Reservation fastReservationWithConstraints = Reservation.newBuilder()
+            .setId(10000)
+            .setName("fast-reservation")
+            .setStatus(ReservationStatus.INPROGRESS)
+            .setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
+                    .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                            .setConstraintId(1111L))
+                    .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                            .setConstraintId(1112L))
+                    .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                            .setConstraintId(1113L))
+                    .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                            .setConstraintId(1114L))
+                    .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                            .setConstraintId(1115L)))
+
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(2L)
+                            .setTemplateId(234L)))
             .build();
 
     private Reservation inProgressReservation2 = Reservation.newBuilder()
@@ -154,40 +229,40 @@ public class ReservationManagerTest {
             .build();
 
     private Reservation testReservationForBroadcast1 = Reservation.newBuilder()
-        .setId(1008)
-        .setName("test-reservation1")
-        .setStatus(ReservationStatus.RESERVED)
-        .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-            .addReservationTemplate(ReservationTemplate.newBuilder()
-                .setCount(10L)
-                .setTemplateId(4444L)))
-        .build();
+            .setId(1008)
+            .setName("test-reservation1")
+            .setStatus(ReservationStatus.RESERVED)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(10L)
+                            .setTemplateId(4444L)))
+            .build();
 
     private Reservation testReservationForBroadcast2 = Reservation.newBuilder()
-        .setId(1009)
-        .setName("test-reservation2")
-        .setStatus(ReservationStatus.PLACEMENT_FAILED)
-        .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-            .addReservationTemplate(ReservationTemplate.newBuilder()
-                .setCount(20L)
-                .setTemplateId(5555L)))
-        .build();
+            .setId(1009)
+            .setName("test-reservation2")
+            .setStatus(ReservationStatus.PLACEMENT_FAILED)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(20L)
+                            .setTemplateId(5555L)))
+            .build();
 
     /**
      * Initial setup.
+     *
      * @throws Exception because of calls to reservationDao methods.
      */
     @Before
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
-        planDao = Mockito.mock(PlanDao.class);
         reservationDao = Mockito.mock(ReservationDao.class);
-        planRpcService = Mockito.mock(PlanRpcService.class);
-
+        initialPlacementServiceBlockingStub = InitialPlacementServiceGrpc.newBlockingStub(mockServer.getChannel());
+        templatesDao = Mockito.mock(TemplatesDao.class);
         sender = Mockito.mock(IMessageSender.class);
         resNotificationSender = new ReservationNotificationSender(sender);
 
-        reservationManager = new ReservationManager(planDao, reservationDao, planRpcService, resNotificationSender);
+        reservationManager = new ReservationManager(reservationDao, resNotificationSender, initialPlacementServiceBlockingStub, templatesDao);
     }
 
     /**
@@ -195,8 +270,10 @@ public class ReservationManagerTest {
      */
     @Test
     public void testIntializeFutureReservationStatus() {
+        ReservationManager reservationManagerSpy = spy(reservationManager);
+        Mockito.doReturn(testFutureReservation).when(reservationManagerSpy).addEntityToReservation(Matchers.any());
         Reservation queuedReservation =
-                reservationManager.intializeReservationStatus(testFutureReservation);
+                reservationManagerSpy.intializeReservationStatus(testFutureReservation);
         assert (queuedReservation.getStatus().equals(ReservationStatus.FUTURE));
     }
 
@@ -205,8 +282,10 @@ public class ReservationManagerTest {
      */
     @Test
     public void testIntializeTodayReservationStatus() {
+        ReservationManager reservationManagerSpy = spy(reservationManager);
+        Mockito.doReturn(testReservation).when(reservationManagerSpy).addEntityToReservation(Matchers.any());
         Reservation queuedReservation =
-                reservationManager.intializeReservationStatus(testReservation);
+                reservationManagerSpy.intializeReservationStatus(testReservation);
         assert (queuedReservation.getStatus().equals(ReservationStatus.UNFULFILLED));
     }
 
@@ -226,20 +305,27 @@ public class ReservationManagerTest {
     @Test
     public void testCheckAndStartReservationPlanSuccess() {
         ReservationManager reservationManagerSpy = spy(reservationManager);
-        Mockito.doNothing().when(reservationManagerSpy).runPlanForBatchReservation();
+        Mockito.doNothing().when(reservationManagerSpy).updateReservationResult(anySet());
         when(reservationDao.getAllReservations())
                 .thenReturn(new HashSet<>(Arrays.asList(unfulfilledReservation)));
+        FindInitialPlacementRequest findInitialPlacementRequest = FindInitialPlacementRequest.newBuilder()
+                .addInitialPlacementBuyer(InitialPlacementBuyer.newBuilder().setBuyerId(6).build()).build();
+        Mockito.when(reservationManagerSpy.buildIntialPlacementRequest(anySet())).thenReturn(findInitialPlacementRequest);
         reservationManagerSpy.checkAndStartReservationPlan();
+        when(initialPlacementService.findInitialPlacement(findInitialPlacementRequest))
+                .thenReturn(FindInitialPlacementResponse.getDefaultInstance());
         try {
             verify(reservationDao, times(1)).updateReservationBatch(updateBatchCaptor.capture());
             Set<Reservation> updatedReservations = updateBatchCaptor.getValue();
             assertThat(updatedReservations, containsInAnyOrder(unfulfilledReservation.toBuilder()
-                .setStatus(ReservationStatus.INPROGRESS)
-                .build()));
+                    .setStatus(ReservationStatus.INPROGRESS)
+                    .build()));
         } catch (NoSuchObjectException e) {
             e.printStackTrace();
         }
+        verify(initialPlacementService, times(1)).findInitialPlacement(findInitialPlacementRequest);
     }
+
 
     /**
      * Test checkAndStartReservationPlan method with in progress reservation.
@@ -247,7 +333,6 @@ public class ReservationManagerTest {
     @Test
     public void testCheckAndStartReservationPlanFailure() {
         ReservationManager reservationManagerSpy = spy(reservationManager);
-        Mockito.doNothing().when(reservationManagerSpy).runPlanForBatchReservation();
         when(reservationDao.getAllReservations())
                 .thenReturn(new HashSet<>(Arrays.asList(inProgressReservation1, unfulfilledReservation)));
         reservationManagerSpy.checkAndStartReservationPlan();
@@ -260,7 +345,231 @@ public class ReservationManagerTest {
         } catch (NoSuchObjectException e) {
             e.printStackTrace();
         }
+        verify(initialPlacementService, times(0)).findInitialPlacement(Matchers.any());
     }
+
+    /**
+     * Test the constraints are properly converted to commodities.
+     */
+    @Test
+    public void testConstraintInfo() {
+        IdentityGenerator.initPrefix(0);
+        ReservationManager reservationManagerSpy = spy(reservationManager);
+        when(templatesDao.getTemplate(234L)).thenReturn(java.util.Optional.ofNullable(template));
+        ReservationConstraintInfo reservationConstraintInfo1 = ReservationConstraintInfo.newBuilder()
+                .setConstraintId(1111L)
+                .setType(Type.CLUSTER)
+                .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setKey("KEY001").build();
+        ReservationConstraintInfo reservationConstraintInfo2 = ReservationConstraintInfo.newBuilder()
+                .setConstraintId(1112L)
+                .setType(Type.STORAGE_CLUSTER)
+                .setProviderType(EntityType.STORAGE_VALUE)
+                .setKey("KEY002").build();
+        ReservationConstraintInfo reservationConstraintInfo3 = ReservationConstraintInfo.newBuilder()
+                .setConstraintId(1113L)
+                .setType(Type.DATA_CENTER)
+                .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setKey("KEY003").build();
+        ReservationConstraintInfo reservationConstraintInfo4 = ReservationConstraintInfo.newBuilder()
+                .setConstraintId(1114L)
+                .setType(Type.POLICY)
+                .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setKey("KEY004").build();
+        ReservationConstraintInfo reservationConstraintInfo5 = ReservationConstraintInfo.newBuilder()
+                .setConstraintId(1115L)
+                .setType(Type.POLICY)
+                .setProviderType(EntityType.STORAGE_VALUE)
+                .setKey("KEY005").build();
+        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1111L, reservationConstraintInfo1);
+        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1112L, reservationConstraintInfo2);
+        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1113L, reservationConstraintInfo3);
+        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1114L, reservationConstraintInfo4);
+        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1115L, reservationConstraintInfo5);
+        Reservation updateReservation = reservationManagerSpy.addConstraintInfoDetails(fastReservationWithConstraints);
+        updateReservation = reservationManagerSpy.addEntityToReservation(updateReservation);
+        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .findAny().get().getCommodityBoughtList().stream().filter(a -> a.getCommodityType().getType() == CommodityDTO
+                        .CommodityType.CLUSTER_VALUE).findFirst().get().getCommodityType().getKey().equals("KEY001"));
+        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                .filter(pInfo -> pInfo.getProviderType() == EntityType.STORAGE_VALUE)
+                .findAny().get().getCommodityBoughtList().stream()
+                .filter(a -> a.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE)
+                .findFirst().get().getCommodityType().getKey().equals("KEY002"));
+        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .findAny().get().getCommodityBoughtList().stream()
+                .filter(a -> a.getCommodityType().getType() == CommodityType.DATACENTER_VALUE)
+                .findFirst().get().getCommodityType().getKey().equals("KEY003"));
+        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .findAny().get().getCommodityBoughtList().stream()
+                .filter(a -> a.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE)
+                .findFirst().get().getCommodityType().getKey().equals("KEY004"));
+        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                .filter(pInfo -> pInfo.getProviderType() == EntityType.STORAGE_VALUE)
+                .findAny().get().getCommodityBoughtList().stream()
+                .filter(a -> a.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE)
+                .findFirst().get().getCommodityType().getKey().equals("KEY005"));
+    }
+
+    /**
+     * End to end testing for fast reservation success scenario. Add the
+     * fake entity to the reservation using addEntityToReservation. Build the
+     * initial placement request using buildIntialPlacementRequest.
+     * Create a "success like" response findInitialPlacementResponseBuilder.
+     * Update the provider info from the response using updateProviderInfoForReservations.
+     * Update reservation status using updateReservationResult after the providers are updated.
+     * Verify the reservation status is RESERVED.
+     */
+    @Test
+    public void testFastReservationSuccess() {
+        IdentityGenerator.initPrefix(0);
+        ReservationManager reservationManagerSpy = spy(reservationManager);
+        when(templatesDao.getTemplate(234L)).thenReturn(java.util.Optional.ofNullable(template));
+        Reservation updateReservation = reservationManagerSpy.addEntityToReservation(fastReservation);
+        Set<Reservation> reservations = new HashSet<>();
+        reservations.add(updateReservation);
+        FindInitialPlacementRequest findInitialPlacementRequest =
+                reservationManagerSpy.buildIntialPlacementRequest(reservations);
+        FindInitialPlacementResponse.Builder findInitialPlacementResponseBuilder =
+                FindInitialPlacementResponse.newBuilder();
+        for (ReservationTemplate reservationTemplate : updateReservation.getReservationTemplateCollection().getReservationTemplateList()) {
+            for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                    findInitialPlacementResponseBuilder.addInitialPlacementBuyerPlacementInfo(
+                            InitialPlacementBuyerPlacementInfo.newBuilder()
+                                    .setBuyerId(reservationInstance.getEntityId())
+                                    .setCommoditiesBoughtFromProviderId(placementInfo.getPlacementInfoId())
+                                    .setInitialPlacementSuccess(InitialPlacementSuccess
+                                            .newBuilder().setProviderOid(100L)));
+                }
+            }
+        }
+
+        when(reservationDao.getAllReservations())
+                .thenReturn(Sets.newHashSet(updateReservation));
+        FindInitialPlacementResponse findInitialPlacementResponse =
+                findInitialPlacementResponseBuilder.build();
+        Set<Reservation> updatedReservations = reservationManagerSpy
+                .updateProviderInfoForReservations(findInitialPlacementResponse,
+                        reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
+        ArgumentCaptor<HashSet<Reservation>> captor =
+                ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
+                        .class);
+        reservationManagerSpy.updateReservationResult(updatedReservations);
+        try {
+            verify(reservationDao, times(1))
+                    .updateReservationBatch(captor.capture());
+            Set<Long> reservedReservations =
+                    captor.getValue().stream()
+                            .filter(a -> a.getStatus() == ReservationStatus.RESERVED)
+                            .map(a -> a.getId())
+                            .collect(Collectors.toSet());
+            assert (reservedReservations.contains(10000L));
+            // assert the provider is updated
+        } catch (NoSuchObjectException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    /**
+     * End to end testing for fast reservation failure scenario. Add the
+     * fake entity to the reservation using addEntityToReservation. Build the
+     * initial placement request using buildIntialPlacementRequest.
+     * Create a "failure like" response findInitialPlacementResponseBuilder.
+     * Update the provider info from the response using updateProviderInfoForReservations.
+     * Update reservation status using updateReservationResult after the providers are updated.
+     * Verify the reservation status is PLACEMENT_FAILED.
+     */
+    @Test
+    public void testFastReservationFailure() {
+        IdentityGenerator.initPrefix(0);
+        ReservationManager reservationManagerSpy = spy(reservationManager);
+        when(templatesDao.getTemplate(234L)).thenReturn(java.util.Optional.ofNullable(template));
+        Reservation updateReservation =
+                reservationManagerSpy.addEntityToReservation(fastReservation);
+        Set<Reservation> reservations = new HashSet<>();
+        reservations.add(updateReservation);
+        FindInitialPlacementRequest findInitialPlacementRequest =
+                reservationManagerSpy.buildIntialPlacementRequest(reservations);
+        FindInitialPlacementResponse.Builder findInitialPlacementResponseBuilder =
+                FindInitialPlacementResponse.newBuilder();
+        when(reservationDao.getAllReservations())
+                .thenReturn(Sets.newHashSet(updateReservation));
+        Long buyerid = updateReservation.getReservationTemplateCollection()
+                .getReservationTemplate(0)
+                .getReservationInstance(0).getEntityId();
+        for (ReservationTemplate reservationTemplate : updateReservation.getReservationTemplateCollection().getReservationTemplateList()) {
+            for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                if (reservationInstance.getEntityId() == buyerid) {
+                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                        findInitialPlacementResponseBuilder.addInitialPlacementBuyerPlacementInfo(
+                                InitialPlacementBuyerPlacementInfo.newBuilder()
+                                        .setBuyerId(buyerid).setCommoditiesBoughtFromProviderId(placementInfo
+                                        .getPlacementInfoId())
+                                        .setInitialPlacementSuccess(InitialPlacementSuccess
+                                                .newBuilder().setProviderOid(100L)));
+                    }
+                }
+            }
+        }
+        long failedBuyerId = updateReservation.getReservationTemplateCollection()
+                .getReservationTemplate(0)
+                .getReservationInstance(1).getEntityId();
+        InitialPlacementFailure initialPlacementFailure = InitialPlacementFailure.newBuilder()
+                .addFailureInfo(InitialPlacementFailureInfo.newBuilder()).build();
+        for (ReservationTemplate reservationTemplate : updateReservation.getReservationTemplateCollection().getReservationTemplateList()) {
+            for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                if (reservationInstance.getEntityId() == failedBuyerId) {
+                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                        findInitialPlacementResponseBuilder.addInitialPlacementBuyerPlacementInfo(
+                                InitialPlacementBuyerPlacementInfo.newBuilder()
+                                        .setBuyerId(failedBuyerId).setCommoditiesBoughtFromProviderId(placementInfo
+                                        .getPlacementInfoId())
+                                        .setInitialPlacementFailure(initialPlacementFailure));
+                    }
+                }
+            }
+        }
+
+        FindInitialPlacementResponse findInitialPlacementResponse =
+                findInitialPlacementResponseBuilder.build();
+        Set<Reservation> updatedReservations = reservationManagerSpy
+                .updateProviderInfoForReservations(findInitialPlacementResponse,
+                        reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
+        ArgumentCaptor<HashSet<Reservation>> captor =
+                ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
+                        .class);
+        reservationManagerSpy.updateReservationResult(updatedReservations);
+        try {
+            verify(reservationDao, times(1))
+                    .updateReservationBatch(captor.capture());
+            Reservation failedReservation =
+                    captor.getValue().stream()
+                            .filter(a -> a.getStatus() == ReservationStatus.PLACEMENT_FAILED)
+                            .findFirst().get();
+            assertEquals(10000L, failedReservation.getId());
+            assertEquals(failedBuyerId, failedReservation.getReservationTemplateCollection()
+                    .getReservationTemplate(0).getReservationInstanceList().stream().filter(a -> a.getFailureInfoList().size() == 4)
+                    .findFirst().get().getEntityId());
+            assertEquals(initialPlacementFailure.getFailureInfo(0), failedReservation.getReservationTemplateCollection()
+                    .getReservationTemplate(0).getReservationInstanceList().stream().filter(a -> a.getFailureInfoList().size() == 4)
+                    .map(a -> a.getFailureInfo(0)).findFirst().get());
+            // assert the provider is updated
+        } catch (NoSuchObjectException e) {
+            e.printStackTrace();
+        }
+
+    }
+
 
     /**
      * Test updateReservationResult method with 3 in progress reservations.
@@ -336,41 +645,6 @@ public class ReservationManagerTest {
     }
 
     /**
-     * Test that a reservation plan failure marks in-progress reservations as invalid.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testPlanFailure() throws Exception {
-        when(reservationDao.getAllReservations())
-            .thenReturn(Sets.newHashSet(inProgressReservation1, inProgressReservation2, inProgressReservation3, unfulfilledReservation));
-
-        reservationManager.onPlanStatusChanged(PlanInstance.newBuilder()
-            .setPlanId(1)
-            .setProjectType(PlanProjectType.RESERVATION_PLAN)
-            .setStatus(PlanStatus.FAILED)
-            .build());
-
-        verify(reservationDao).updateReservationBatch(updateBatchCaptor.capture());
-
-        final Set<Reservation> updatedReservations = updateBatchCaptor.getValue();
-
-        // We should have updated the in-progress reservation to invalid.
-        for (Reservation reservation : updatedReservations) {
-            assertTrue(reservation.getStatus() == ReservationStatus.INVALID);
-            for (ReservationTemplate reservationTemplate
-                    : reservation.getReservationTemplateCollection().getReservationTemplateList()) {
-                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
-                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
-                        assertFalse(placementInfo.hasProviderId());
-                    }
-                }
-            }
-
-        }
-    }
-
-    /**
      * Test that broadcasting a reservation change will appropriately invoke the message sender.
      *
      * @throws Exception if an error occurs.
@@ -382,7 +656,7 @@ public class ReservationManagerTest {
         newReservations.add(testReservationForBroadcast2);
 
         ArgumentCaptor<ReservationChanges> resChangesCaptor =
-            ArgumentCaptor.forClass(ReservationChanges.class);
+                ArgumentCaptor.forClass(ReservationChanges.class);
         reservationManager.broadcastReservationChange(newReservations);
 
         verify(sender).sendMessage(resChangesCaptor.capture());
@@ -391,15 +665,15 @@ public class ReservationManagerTest {
         assertEquals(2, resChanges.getReservationChangeCount());
 
         Set<Long> reservedReservations =
-            resChanges.getReservationChangeList().stream()
-                .filter(a -> ReservationStatus.RESERVED == a.getStatus())
-                .map(a -> a.getId())
-                .collect(Collectors.toSet());
+                resChanges.getReservationChangeList().stream()
+                        .filter(a -> ReservationStatus.RESERVED == a.getStatus())
+                        .map(a -> a.getId())
+                        .collect(Collectors.toSet());
         Set<Long> failedReservations =
-            resChanges.getReservationChangeList().stream()
-                .filter(a -> a.getStatus() == ReservationStatus.PLACEMENT_FAILED)
-                .map(a -> a.getId())
-                .collect(Collectors.toSet());
+                resChanges.getReservationChangeList().stream()
+                        .filter(a -> a.getStatus() == ReservationStatus.PLACEMENT_FAILED)
+                        .map(a -> a.getId())
+                        .collect(Collectors.toSet());
         assert (reservedReservations.size() == 1);
         assert (reservedReservations.contains(1008L));
         assert (failedReservations.size() == 1);

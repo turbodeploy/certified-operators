@@ -19,8 +19,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.topology.graph.TopologyGraphEntity;
 
 /**
- * {@link TopologyGraphEntity} for use in the repository. The intention is to make it as small as
- * possible while supporting all the searches and {@link com.vmturbo.common.protobuf.search.SearchableProperties}.
+ * {@link SupplyChainEntity} for use in the extractor. The intention is to make it as small as
+ * possible while supporting all the basic data needed for reporting/search data ingestion.
  */
 public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity> {
 
@@ -40,7 +40,6 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     private final List<SupplyChainEntity> controlledEntities = new ArrayList<>(0);
     private final List<SupplyChainEntity> providers = new ArrayList<>(0);
     private final List<SupplyChainEntity> consumers = new ArrayList<>(0);
-    private boolean deletable = true;
 
     /**
      * Representation of an entity in the supply chain.
@@ -51,10 +50,6 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         this.oid = src.getOid();
         this.displayName = src.getDisplayName();
         this.type = src.getEntityType();
-
-        if (src.hasAnalysisSettings()) {
-            this.deletable = src.getAnalysisSettings().getDeletable();
-        }
     }
 
     public int getType() {

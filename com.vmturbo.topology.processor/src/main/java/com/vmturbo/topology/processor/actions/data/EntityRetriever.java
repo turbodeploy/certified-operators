@@ -131,7 +131,7 @@ public class EntityRetriever {
      * @return entity data corresponding to the provided entities
      */
     public List<TopologyEntityDTO> retrieveTopologyEntities(List<Long> entities) {
-        final CachedTopologyResult cachedTopologyResult = cachedTopology.getTopology(null);
+        final CachedTopologyResult cachedTopologyResult = cachedTopology.getTopology();
         final List<Long> retrieveFromRepository = new ArrayList<>();
         final List<TopologyEntityDTO> results = new ArrayList<>(entities.size());
         for (Long entityId: entities) {

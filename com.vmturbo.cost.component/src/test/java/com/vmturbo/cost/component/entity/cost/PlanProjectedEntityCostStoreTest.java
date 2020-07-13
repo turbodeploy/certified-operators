@@ -43,6 +43,9 @@ import com.vmturbo.sql.utils.DbConfigurationRule;
  * Unit tests for the plan projected entity cost store.
  */
 public class PlanProjectedEntityCostStoreTest {
+
+    private static final long RT_TOPO_CONTEXT_ID = 777777L;
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -185,7 +188,8 @@ public class PlanProjectedEntityCostStoreTest {
     @Test
     public void testGetPlanProjectedStatRecordsByGroup() {
         final PlanProjectedEntityCostStore store = initializeCostStore(chunkSize);
-        final EntityCostFilter filter = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+        final EntityCostFilter filter = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST,
+                RT_TOPO_CONTEXT_ID)
                         .latestTimestampRequested(true)
                         .entityIds(Arrays.asList(7L, 8L))
                         .costCategoryFilter(CostCategoryFilter.newBuilder().addCostCategory(CostCategory.STORAGE)

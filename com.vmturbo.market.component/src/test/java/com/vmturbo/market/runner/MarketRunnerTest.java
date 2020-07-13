@@ -56,6 +56,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
@@ -124,12 +125,15 @@ public class MarketRunnerTest {
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
 
+    private InitialPlacementFinder initialPlacementFinder =
+            mock(InitialPlacementFinder.class);
+
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0);
         threadPool = Executors.newFixedThreadPool(2);
         runner = new MarketRunner(threadPool, serverApi,
-            analysisFactory, Optional.empty(), PASSTHROUGH_GATE);
+            analysisFactory, Optional.empty(), PASSTHROUGH_GATE, initialPlacementFinder);
 
         topologyContextId += 100;
 
@@ -163,8 +167,8 @@ public class MarketRunnerTest {
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                     wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
                     mock(AnalysisRICoverageListener.class),
-                    consistentScalingHelperFactory);
-        }).when(analysisFactory).newAnalysis(any(), any(), any());
+                    consistentScalingHelperFactory, initialPlacementFinder);
+        }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
     }
 
     @After
@@ -230,7 +234,7 @@ public class MarketRunnerTest {
     public void testBadPlan() throws InterruptedException {
         Set<TopologyEntityDTO> badDtos = dtos(false);
         Analysis badAnalysis = mock(Analysis.class);
-        doReturn(badAnalysis).when(analysisFactory).newAnalysis(any(), any(), any());
+        doReturn(badAnalysis).when(analysisFactory).newAnalysis(any(), any(), any(), any());
 
         when(badAnalysis.getContextId()).thenReturn(topologyInfo.getTopologyContextId());
         when(badAnalysis.isDone()).thenReturn(true);

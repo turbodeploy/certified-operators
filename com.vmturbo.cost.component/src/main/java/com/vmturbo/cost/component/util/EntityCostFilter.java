@@ -73,9 +73,10 @@ public class EntityCostFilter extends CostFilter {
                      @Nullable final Set<Long> availabilityZoneIds,
                      @Nullable final Set<Long> regionIds,
                      final boolean latestTimeStampRequested,
-                     @Nullable final Long topologyContextId) {
+                     @Nullable final Long topologyContextId,
+                     long realtimeTopologyContextId) {
         super(entityFilters, entityTypeFilters, startDateMillis, endDateMillis, timeFrame,
-            CREATED_TIME, latestTimeStampRequested, topologyContextId);
+            CREATED_TIME, latestTimeStampRequested, topologyContextId, realtimeTopologyContextId);
         this.excludeCostSources = excludeCostSources;
         this.costSources = costSources;
         this.costCategoryFilter = costCategoryFilter;
@@ -94,7 +95,8 @@ public class EntityCostFilter extends CostFilter {
             ? null
             : new CostGroupBy(listOfFields.stream()
                                   .map(columnName -> columnName.toLowerCase(Locale.getDefault()))
-                                  .collect(Collectors.toSet()), timeFrame, topologyContextId);
+                                  .collect(Collectors.toSet()), timeFrame, topologyContextId,
+                    realtimeTopologyContextId);
     }
 
     /**
@@ -163,7 +165,7 @@ public class EntityCostFilter extends CostFilter {
             conditions.add(table.field(ENTITY_COST.REGION_ID.getName()).in(regionIds));
         }
 
-        if (hasTopologyContextId()) {
+        if (hasPlanTopologyContextId()) {
             conditions.add(PLAN_ENTITY_COST.PLAN_ID.eq(topologyContextId));
         }
 
@@ -177,7 +179,7 @@ public class EntityCostFilter extends CostFilter {
 
     @Override
     public Table<?> getTable() {
-        if (this.hasTopologyContextId()) {
+        if (this.hasPlanTopologyContextId()) {
             return Tables.PLAN_ENTITY_COST;
         } else if (this.timeFrame == null || this.timeFrame.equals(TimeFrame.LATEST)) {
             return Tables.ENTITY_COST;
@@ -338,27 +340,31 @@ public class EntityCostFilter extends CostFilter {
         private Set<Long> regionIds = null;
         private Long topologyContextId = null;
 
-        private EntityCostFilterBuilder(@Nonnull TimeFrame timeFrame) {
+        private EntityCostFilterBuilder(@Nonnull TimeFrame timeFrame,
+                long realtimeTopologyContextId) {
+            super(realtimeTopologyContextId);
             this.timeFrame = timeFrame;
         }
 
         /**
          * Factory method.
          * @param timeFrame  the time frame that we are making this query for.
+         * @param realtimeTopologyContextId RT topology context ID
          * @return a new instance of builder class.
          */
         @Nonnull
-        public static EntityCostFilterBuilder newBuilder(@Nonnull TimeFrame timeFrame) {
-            return new EntityCostFilterBuilder(timeFrame);
+        public static EntityCostFilterBuilder newBuilder(@Nonnull TimeFrame timeFrame,
+                long realtimeTopologyContextId) {
+            return new EntityCostFilterBuilder(timeFrame, realtimeTopologyContextId);
         }
 
         @Override
         @Nonnull
         public EntityCostFilter build() {
             return new EntityCostFilter(entityIds, entityTypeFilters, startDateMillis,
-                endDateMillis, timeFrame, groupByFields, excludeCostSources, costSources, costCategoryFilter,
-                accountIds, availabilityZoneIds, regionIds, latestTimeStampRequested,
-                    topologyContextId);
+                    endDateMillis, timeFrame, groupByFields, excludeCostSources, costSources, costCategoryFilter,
+                    accountIds, availabilityZoneIds, regionIds, latestTimeStampRequested,
+                    topologyContextId, realtimeTopologyContextId);
         }
 
         /**
@@ -371,7 +377,7 @@ public class EntityCostFilter extends CostFilter {
          */
         @Nonnull
         public EntityCostFilterBuilder costSources(boolean excludeCostSources,
-                                                   @Nonnull Set<Integer> costSources) {
+                @Nonnull Set<Integer> costSources) {
             this.excludeCostSources = excludeCostSources;
             this.costSources = costSources;
             return this;

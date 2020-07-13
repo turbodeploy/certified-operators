@@ -35,6 +35,7 @@ public abstract class CostFilter {
     protected final String snapshotTime;
     protected final boolean latestTimeStampRequested;
     protected final Long topologyContextId;
+    protected final long realtimeTopologyContextId;
 
 
     CostFilter(@Nullable final Set<Long> entityFilters,
@@ -44,7 +45,8 @@ public abstract class CostFilter {
                @Nullable final TimeFrame timeFrame,
                @Nonnull final String snapshotTime,
                final boolean latestTimeStampRequested,
-               @Nullable final Long topologyContextId) {
+               @Nullable final Long topologyContextId,
+               long realtimeTopologyContextId) {
         this.startDateMillis = startDateMillis;
         this.endDateMillis = endDateMillis;
         this.timeFrame = timeFrame;
@@ -53,6 +55,7 @@ public abstract class CostFilter {
         this.entityTypeFilters = entityTypeFilters;
         this.latestTimeStampRequested = latestTimeStampRequested;
         this.topologyContextId = topologyContextId;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
@@ -153,11 +156,11 @@ public abstract class CostFilter {
     }
 
     /**
-     * Checks whether the query is for a specific topology context ID
-     * @return true if a topology context ID is present in the query.
+     * Checks whether the query is for a specific Plan topology context ID
+     * @return true if a topology context ID is presented in the query is a not RT topology context ID.
      */
-    public boolean hasTopologyContextId() {
-        return topologyContextId != null;
+    public boolean hasPlanTopologyContextId() {
+        return topologyContextId != null && topologyContextId != realtimeTopologyContextId;
     }
 
     /**
@@ -167,6 +170,7 @@ public abstract class CostFilter {
      */
     public abstract static class CostFilterBuilder<B extends CostFilterBuilder,
             F extends CostFilter> {
+        protected final long realtimeTopologyContextId;
         protected Long startDateMillis = null;
         protected Long endDateMillis = null;
         protected Set<Integer> entityTypeFilters = null;
@@ -174,6 +178,14 @@ public abstract class CostFilter {
         protected TimeFrame timeFrame = null;
         protected boolean latestTimeStampRequested = false;
         protected Set<String> groupByFields = Sets.newHashSet();
+
+        /**
+         * Create {@link CostFilterBuilder} instance.
+         * @param realtimeTopologyContextId RT topology context Id
+         */
+        public CostFilterBuilder(long realtimeTopologyContextId) {
+            this.realtimeTopologyContextId = realtimeTopologyContextId;
+        }
 
         /**
          * Returns the new instance of built filter.

@@ -600,26 +600,22 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         // storage's ConnectedFrom and keeping only the virtual volume that has 0 VirtualMachines
         // in its ConnectedFrom relationship.  Get the files on each wasted volume and convert them
         // into VirtualDiskApiDTOs.  Take the list of VirtualDiskApiDTOs and stick them into the
-        // EntityAspect we're returning. Skip storages that have ignoreWastedFiles == true.
-        storages.stream()
-            .filter(storage -> !storage.hasTypeSpecificInfo()
-                || !storage.getTypeSpecificInfo().hasStorage()
-                || !storage.getTypeSpecificInfo().getStorage().getIgnoreWastedFiles())
-            .forEach(storage ->
-                repositoryApi.newSearchRequest(SearchProtoUtil.neighborsOfType(
-                    storage.getOid(), TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME)).getFullEntities()
-                    .filter(topoEntity ->
-                        repositoryApi.newSearchRequest(SearchProtoUtil.neighborsOfType(
-                            topoEntity.getOid(),
-                            TraversalDirection.CONNECTED_FROM,
-                            ApiEntityType.VIRTUAL_MACHINE)).count() == 0)
-                    .filter(TopologyEntityDTO::hasTypeSpecificInfo)
-                    .map(TopologyEntityDTO::getTypeSpecificInfo)
-                    .filter(TypeSpecificInfo::hasVirtualVolume)
-                    .map(TypeSpecificInfo::getVirtualVolume)
-                    .flatMap(virtualVolInfo -> virtualVolInfo.getFilesList().stream())
-                    .map(fileDescriptor -> fileToDiskApiDto(storage, fileDescriptor))
-                    .forEach(virtualDisks::add));
+        // EntityAspect we're returning.
+        storages.forEach(storage ->
+            repositoryApi.newSearchRequest(SearchProtoUtil.neighborsOfType(
+                storage.getOid(), TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME)).getFullEntities()
+                .filter(topoEntity ->
+                    repositoryApi.newSearchRequest(SearchProtoUtil.neighborsOfType(
+                        topoEntity.getOid(),
+                        TraversalDirection.CONNECTED_FROM,
+                        ApiEntityType.VIRTUAL_MACHINE)).count() == 0)
+                .filter(TopologyEntityDTO::hasTypeSpecificInfo)
+                .map(TopologyEntityDTO::getTypeSpecificInfo)
+                .filter(TypeSpecificInfo::hasVirtualVolume)
+                .map(TypeSpecificInfo::getVirtualVolume)
+                .flatMap(virtualVolInfo -> virtualVolInfo.getFilesList().stream())
+                .map(fileDescriptor -> fileToDiskApiDto(storage, fileDescriptor))
+                .forEach(virtualDisks::add));
         final VirtualDisksAspectApiDTO aspect = new VirtualDisksAspectApiDTO();
         aspect.setVirtualDisks(virtualDisks);
         return aspect;
