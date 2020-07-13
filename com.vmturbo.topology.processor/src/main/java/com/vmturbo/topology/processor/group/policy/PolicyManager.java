@@ -143,7 +143,6 @@ public class PolicyManager {
                                                   @Nonnull final TopologyGraph<TopologyEntity> graph,
                                                   @Nonnull final List<ScenarioChange> changes) {
         final GroupResolver groupResolver = context.getGroupResolver();
-        final TopologyInfo topologyInfo = context.getTopologyInfo();
 
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
             final long startTime = System.currentTimeMillis();
