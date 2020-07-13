@@ -39,6 +39,7 @@ public class SupplyChainCalculatorTest {
     private static final long VOL_ID = 1L;
     private static final long AZ_ID = 2L;
     private static final long REG_ID = 3L;
+
     /**
      * Constants for on-prem checks.
      */
@@ -97,6 +98,7 @@ public class SupplyChainCalculatorTest {
     private SupplyChainNode vdcTopoPm;
     private SupplyChainNode vdcTopoVdc;
     private SupplyChainNode vdcTopoVm;
+
     /**
      * Constants and variables for checks related to container topologies with VDCs.
      */
@@ -1702,6 +1704,41 @@ public class SupplyChainCalculatorTest {
         assertEquals(Collections.singleton(VDC_CONTAINERS_TOPO_VM_1_ID), getAllNodeIds(vmNode));
         assertEquals(Collections.singleton(VDC_ID), getAllNodeIds(vdcNode));
         assertEquals(Collections.singleton(POD_1_ID), getAllNodeIds(podNode));
+    }
+
+    /**
+     * We should not traverse tier -> region relations.
+     */
+    @Test
+    public void testTierRule() {
+        /*
+         *  Topology:
+         *  VM
+         *   | \
+         *   |  REG1   REG2
+         *   |  /      /
+         *   | /      /
+         *   COMPUTE_TIER
+         *
+         *   scoping on VM will not bring REG2
+         */
+        final long vmId = 1L;
+        final long computeTierId = 2L;
+        final long region1Id = 3L;
+        final long region2Id = 4L;
+        final TopologyGraph<TestGraphEntity> graph =
+                TestGraphEntity.newGraph(
+                        TestGraphEntity.newBuilder(vmId, ApiEntityType.VIRTUAL_MACHINE)
+                                .addProviderId(computeTierId)
+                                .addConnectedEntity(region1Id, ConnectionType.AGGREGATED_BY_CONNECTION),
+                        TestGraphEntity.newBuilder(computeTierId, ApiEntityType.COMPUTE_TIER)
+                                .addConnectedEntity(region1Id, ConnectionType.AGGREGATED_BY_CONNECTION)
+                                .addConnectedEntity(region2Id, ConnectionType.AGGREGATED_BY_CONNECTION),
+                        TestGraphEntity.newBuilder(region1Id, ApiEntityType.REGION),
+                        TestGraphEntity.newBuilder(region2Id, ApiEntityType.REGION));
+        final SupplyChainNode regionNode = getSupplyChain(graph, vmId)
+                                                .get(ApiEntityType.REGION.typeNumber());
+        assertThat(getAllNodeIds(regionNode), containsInAnyOrder(region1Id));
     }
 
     private Map<Integer, SupplyChainNode> getSupplyChain(

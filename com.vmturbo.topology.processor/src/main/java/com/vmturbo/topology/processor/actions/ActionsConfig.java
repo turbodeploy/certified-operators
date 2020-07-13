@@ -107,6 +107,11 @@ public class ActionsConfig {
      */
     @Value("${actionAuditBatchSize:50}")
     private int actionAuditBatchSize;
+    /**
+     * Max elements is queue contains state updates to send to external approval backend.
+     */
+    @Value("${maxSizeOfStateUpdatesQueue:500000}")
+    private int maxSizeOfStateUpdatesQueue;
 
     @Bean
     public ActionDataManager actionDataManager() {
@@ -200,7 +205,8 @@ public class ActionsConfig {
         return new ActionUpdateStateService(targetConfig.targetStore(),
                 operationConfig.operationManager(),
                 aoClientConfig.createActionStateUpdateListener(), actionRelatedScheduler(),
-                actionStateUpdatesSendPeriodSec, actionStateUpdatesBatchSize);
+                actionStateUpdatesSendPeriodSec, actionStateUpdatesBatchSize,
+                maxSizeOfStateUpdatesQueue);
     }
 
     /**

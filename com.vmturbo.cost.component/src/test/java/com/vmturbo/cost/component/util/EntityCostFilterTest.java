@@ -26,6 +26,8 @@ import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
  */
 public class EntityCostFilterTest {
 
+    private static final long RT_TOPO_CONTEXT_ID = 777777L;
+
     /**
      * This method implements methods {@code equals}, {@code hashCode}, {@code toString} that
      * has been overridden in this class.
@@ -33,7 +35,7 @@ public class EntityCostFilterTest {
     @Test
     public void testObjectOverrideMethods() {
         EntityCostFilter filter =
-            EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+            EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                     .duration(1L, 2L)
                     .entityIds(Collections.singleton(5L))
                     .costCategoryFilter(CostCategoryFilter.newBuilder()
@@ -52,7 +54,7 @@ public class EntityCostFilterTest {
         assertThat(filter.getEndDateMillis(), is(Optional.of(2L)));
 
         final EntityCostFilterBuilder builder =
-            EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+            EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                 .duration(1L, 2L)
                 .entityIds(Collections.singleton(5L))
                     .costCategoryFilter(CostCategoryFilter.newBuilder()
@@ -99,7 +101,7 @@ public class EntityCostFilterTest {
         SUT
          */
         EntityCostFilter filter =
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .costCategoryFilter(CostCategoryFilter.newBuilder()
                                 .setExclusionFilter(false)
                                 .addCostCategory(CostCategory.IP)
@@ -121,7 +123,7 @@ public class EntityCostFilterTest {
         SUT
          */
         EntityCostFilter filter =
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .costCategoryFilter(CostCategoryFilter.newBuilder()
                                 .setExclusionFilter(true)
                                 .addCostCategory(CostCategory.IP)
@@ -143,7 +145,7 @@ public class EntityCostFilterTest {
         SUT
          */
         EntityCostFilter filter =
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .costSources(false, Collections.singleton(
                                 CostSource.BUY_RI_DISCOUNT.getNumber()))
                         .build();
@@ -162,7 +164,7 @@ public class EntityCostFilterTest {
         SUT
          */
         EntityCostFilter filter =
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .costSources(true, Collections.singleton(
                                 CostSource.BUY_RI_DISCOUNT.getNumber()))
                         .build();
@@ -173,7 +175,7 @@ public class EntityCostFilterTest {
     @Test
     public void testCreateGroupBy() {
         EntityCostFilterBuilder builder =
-                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .groupByFields(ImmutableSet.of("unknown_field", "plan_id", CostGroupBy.ENTITY));
 
         // The unknown_field field should be ignored. The plan_id field is only valid when a topology ID

@@ -143,6 +143,8 @@ public class EntitySettingsApplicator {
                         CommodityType.HEAP),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.RemainingGcCapacityUtilization,
                         CommodityType.REMAINING_GC_CAPACITY),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.DbCacheHitRateUtilization,
+                        CommodityType.DB_CACHE_HIT_RATE),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.VCPURequestUtilization,
                         CommodityType.VCPU_REQUEST),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.PoolCpuUtilizationThreshold,

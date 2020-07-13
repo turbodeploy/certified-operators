@@ -58,6 +58,8 @@ public class SqlAccountExpensesStoreTest {
     private static final long USAGE_DATE_1 = 1576627200000L; // Wed, 18 Dec 2019 GMT
     private static final long USAGE_DATE_2 = 1576713600000L; // Thu, 19 Dec 2019 GMT
 
+    private static final long RT_TOPO_CONTEXT_ID = 777777L;
+
     final AccountExpenses.AccountExpensesInfo accountExpensesInfo1 = AccountExpensesInfo.newBuilder()
             .addServiceExpenses(ServiceExpenses
                     .newBuilder()
@@ -113,7 +115,7 @@ public class SqlAccountExpensesStoreTest {
         expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_2, accountExpensesInfo2);
 
         Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore
-                .getAccountExpenses(AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                .getAccountExpenses(AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .latestTimestampRequested(true)
                         .build()
                 );
@@ -143,7 +145,7 @@ public class SqlAccountExpensesStoreTest {
         expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_2, accountExpensesInfo3);
 
         Collection<AccountExpenses> ret = expensesStore.getAccountExpenses(
-                AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .accountIds(Collections.singleton(ACCOUNT_ID_1))
                         .latestTimestampRequested(true)
                         .build()).values()
@@ -184,7 +186,7 @@ public class SqlAccountExpensesStoreTest {
 
         // get most recent expenses per account
         Collection<AccountExpenses> ret = expensesStore.getAccountExpenses(
-                AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .latestTimestampRequested(true).build())
                 .values()
                 .stream()
@@ -216,7 +218,7 @@ public class SqlAccountExpensesStoreTest {
 
         Map<Long, Map<Long, AccountExpenses>> accountExpenses = expensesStore
                 .getAccountExpenses(
-                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                                 .entityIds(Collections.singleton(CLOUD_SERVICE_ID_1))
                                 .latestTimestampRequested(true).build());
 
@@ -235,7 +237,7 @@ public class SqlAccountExpensesStoreTest {
         // get expenses for entityID = 0, entityType = any
         Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore
                 .getAccountExpenses(
-                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                                 .entityIds(Collections.singleton(0L))
                                 .latestTimestampRequested(true).build());
 
@@ -243,7 +245,7 @@ public class SqlAccountExpensesStoreTest {
 
         Map<Long, Map<Long, AccountExpenses>> accountExpenses2 = expensesStore
                 .getAccountExpenses(
-                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                                 .entityTypes(Collections.singleton(ENTITY_TYPE_1))
                                 .latestTimestampRequested(true).build());
         assertEquals(1, accountExpenses2.size());
@@ -251,7 +253,7 @@ public class SqlAccountExpensesStoreTest {
         // get expenses for entityID = 1, entityType = 0
         Map<Long, Map<Long, AccountExpenses>> accountExpenses3 = expensesStore
                 .getAccountExpenses(
-                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+                        AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                                 .entityIds(Collections.singleton(CLOUD_SERVICE_ID_1))
                                 .entityTypes(Collections.singleton(0))
                                 .latestTimestampRequested(true).build());
@@ -267,33 +269,33 @@ public class SqlAccountExpensesStoreTest {
     public void tesGetAccountExpenseFilter() throws DbException, AccountExpenseNotFoundException, InterruptedException {
 
         final AccountExpensesFilter entityCostFilter1 = AccountExpenseFilterBuilder
-                .newBuilder(TimeFrame.LATEST)
+                .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                 .duration(USAGE_DATE_1, USAGE_DATE_2)
                 .entityIds(Collections.singleton(CLOUD_SERVICE_ID_1))
                 .entityTypes(Collections.singleton(ENTITY_TYPE_1))
                 .build();
 
         final AccountExpensesFilter entityCostFilter2 = AccountExpenseFilterBuilder
-            .newBuilder(TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .duration(USAGE_DATE_1, USAGE_DATE_2)
             .entityIds(Collections.singleton(CLOUD_SERVICE_ID_1))
             .build();
 
         final AccountExpensesFilter entityCostFilter3 = AccountExpenseFilterBuilder
-            .newBuilder(TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .duration(USAGE_DATE_1, USAGE_DATE_2)
             .entityTypes(Collections.singleton(ENTITY_TYPE_1))
             .build();
 
         final AccountExpensesFilter entityCostFilter4 = AccountExpenseFilterBuilder
-            .newBuilder(TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .duration(USAGE_DATE_1, USAGE_DATE_2)
             .entityIds(Collections.singleton(Long.MAX_VALUE))
             .entityTypes(Collections.singleton(Integer.MAX_VALUE))
             .build();
 
         final AccountExpensesFilter entityCostFilter5 = AccountExpenseFilterBuilder
-            .newBuilder(TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .duration(USAGE_DATE_1, USAGE_DATE_2)
             .build();
 

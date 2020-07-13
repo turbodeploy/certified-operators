@@ -79,6 +79,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -145,6 +146,9 @@ public class AnalysisTest {
     private BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
             mock(BuyRIImpactAnalysisFactory.class);
     private BuyRIImpactAnalysis buyRIImpactAnalysis = mock(BuyRIImpactAnalysis.class);
+
+    private InitialPlacementFinder initialPlacementFinder =
+            mock(InitialPlacementFinder.class);
 
     private ConsistentScalingHelper csm = mock(ConsistentScalingHelper.class);
     @Rule
@@ -224,7 +228,8 @@ public class AnalysisTest {
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
-                listener, consistentScalingHelperFactory, migratedWorkloadCloudCommitmentAnalysisService);
+                listener, consistentScalingHelperFactory, initialPlacementFinder,
+                migratedWorkloadCloudCommitmentAnalysisService);
     }
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of

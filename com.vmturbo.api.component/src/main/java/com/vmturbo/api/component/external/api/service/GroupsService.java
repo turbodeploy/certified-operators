@@ -824,6 +824,7 @@ public class GroupsService implements IGroupsService {
         GetEntitySettingPoliciesRequest request =
             GetEntitySettingPoliciesRequest.newBuilder()
                 .addAllEntityOidList(members)
+                .setIncludeInactive(true)
                 .build();
         GetEntitySettingPoliciesResponse response =
             settingPolicyServiceBlockingStub.getEntitySettingPolicies(request);

@@ -17,7 +17,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
-import com.vmturbo.cost.component.cca.CloudCommitmentEventDemandStatsConfig;
+import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
@@ -26,7 +26,7 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 /**
  * Class for handling cost diagnostics export and import.
  */
-@Import({CloudCommitmentEventDemandStatsConfig.class,
+@Import({CloudCommitmentAnalysisStoreConfig.class,
         EntityCostConfig.class,
         ReservedInstanceConfig.class,
         ComputeTierDemandStatsConfig.class,
@@ -35,7 +35,7 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 public class CostDiagnosticsConfig {
 
     @Autowired
-    public CloudCommitmentEventDemandStatsConfig cloudCommitmentEventDemandStatsConfig;
+    public CloudCommitmentAnalysisStoreConfig cloudCommitmentAnalysisStoreConfig;
 
     @Autowired
     private EntityCostConfig entityCostConfig;
@@ -118,8 +118,8 @@ public class CostDiagnosticsConfig {
 
             // If true, add the allocation store for RI buy 2.0 and the demand recording store for RI buy 1.0.
             if (saveAllocationDemandDiags) {
-                storesToSave.add(cloudCommitmentEventDemandStatsConfig.sqlComputeTierAllocationStore());
-                storesToSave.add(cloudCommitmentEventDemandStatsConfig.sqlCloudScopeStore());
+                storesToSave.add(cloudCommitmentAnalysisStoreConfig.computeTierAllocationStore());
+                storesToSave.add(cloudCommitmentAnalysisStoreConfig.cloudScopeStore());
                 storesToSave.add(computeTierDemandStatsConfig.riDemandStatsStore());
             }
         }

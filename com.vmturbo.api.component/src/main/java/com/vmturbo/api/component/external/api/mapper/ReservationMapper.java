@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,15 +14,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.ReservationNotificationDTO;
 import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
@@ -37,6 +37,7 @@ import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
 import com.vmturbo.api.dto.reservation.PlacementInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.reservation.ReservationConstraintApiDTO;
+import com.vmturbo.api.dto.reservation.ReservationFailureInfoDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -52,6 +53,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementFailureInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
@@ -64,8 +66,8 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -142,14 +144,14 @@ public class ReservationMapper {
                 .collect(Collectors.toSet());
         final List<ReservationConstraintInfo> constraintInfos = new ArrayList<>();
         for (Long constraintId : constraintIds) {
-            generateRelateConstraint(constraintId).ifPresent(constraintInfos::add);
+            constraintInfos.add(ReservationConstraintInfo.newBuilder()
+                    .setConstraintId(constraintId).build());
         }
         reservationBuilder.setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
                 .addAllReservationConstraintInfo(constraintInfos)
                 .build());
         return reservationBuilder.build();
     }
-
 
     /**
      * Convert {@link Reservation} to {@link DemandReservationApiDTO}. Right now, it only pick the
@@ -231,16 +233,19 @@ public class ReservationMapper {
         //TODO: need to make sure templates are always available, if templates are deleted, need to
         // mark Reservation not available or also delete related reservations.
         try {
-            final Template template = templateService.getTemplate(GetTemplateRequest.newBuilder()
+            final Template template = reservationTemplate.getTemplate() != null
+                    ? reservationTemplate.getTemplate()
+                    : templateService.getTemplate(GetTemplateRequest.newBuilder()
                     .setTemplateId(reservationTemplate.getTemplateId())
                     .build()).getTemplate();
+
             final List<PlacementInfo> placementInfos = reservationTemplate.getReservationInstanceList().stream()
                     .map(reservationInstance -> {
                         final List<ProviderInfo> providerInfos = reservationInstance.getPlacementInfoList().stream()
-                                .map(a -> new ProviderInfo(a.getProviderId(), a.getCommodityBoughtList()))
+                                .map(a -> new ProviderInfo(a.getProviderId(), a.getCommodityBoughtList(), a.hasProviderId()))
                                 .collect(Collectors.toList());
                         return new PlacementInfo(reservationInstance.getEntityId(),
-                                ImmutableList.copyOf(providerInfos));
+                                ImmutableList.copyOf(providerInfos), reservationInstance.getFailureInfoList());
                     }).collect(Collectors.toList());
             final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(placementInfos);
             final List<DemandEntityInfoDTO> demandEntityInfoDTOS = new ArrayList<>();
@@ -386,6 +391,7 @@ public class ReservationMapper {
 
     /**
      * Send request to repository to fetch entity information by entity ids.
+     * This set contains provider oid if placed or closest seller oid if not placed.
      *
      * @param placementInfos contains all initial placement results which only keep ids.
      * @return a map which key is entity id, value is {@link ServiceEntityApiDTO}.
@@ -395,11 +401,18 @@ public class ReservationMapper {
     private Map<Long, ServiceEntityApiDTO> getServiceEntityMap(
             @Nonnull final List<PlacementInfo> placementInfos)
             throws ConversionException, InterruptedException {
-        final Set<Long> entitiesOid = placementInfos.stream()
-                .map(placementInfo -> Sets.newHashSet(placementInfo.getProviderInfos())
-                        .stream().map(a -> a.getProviderId()).collect(Collectors.toSet()))
-                .flatMap(Set::stream)
-                .collect(Collectors.toSet());
+        // This set contains provider oid if placed or closest seller oid if not placed.
+        Set<Long> entitiesOid = new HashSet<>();
+        for (PlacementInfo placementInfo : placementInfos) {
+            for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
+                if (providerInfo.isPlaced()) {
+                    entitiesOid.add(providerInfo.getProviderId());
+                }
+            }
+            for (InitialPlacementFailureInfo failureInfo : placementInfo.getFailureInfos()) {
+                entitiesOid.add(failureInfo.getClosestSeller());
+            }
+        }
 
         final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
             repositoryApi.entitiesRequest(entitiesOid)
@@ -432,8 +445,12 @@ public class ReservationMapper {
     private BaseApiDTO generateTemplateBaseApiDTO(@Nonnull final Template template) {
         BaseApiDTO templateApiDTO = new BaseApiDTO();
         templateApiDTO.setDisplayName(template.getTemplateInfo().getName());
-        templateApiDTO.setClassName(ApiEntityType.fromType(
-                template.getTemplateInfo().getEntityType()).apiStr() + TemplatesUtils.PROFILE);
+        if (template.getTemplateInfo().hasEntityType()) {
+            templateApiDTO.setClassName(ApiEntityType.fromType(
+                    template.getTemplateInfo().getEntityType()).apiStr() + TemplatesUtils.PROFILE);
+        } else {
+            templateApiDTO.setClassName("TEMP-" + TemplatesUtils.PROFILE);
+        }
         templateApiDTO.setUuid(String.valueOf(template.getId()));
         return templateApiDTO;
     }
@@ -443,16 +460,54 @@ public class ReservationMapper {
             @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
             throws UnknownObjectException {
         PlacementInfoDTO placementInfoApiDTO = new PlacementInfoDTO();
+        addReservationFailureInfoDTO(placementInfo.failureInfos,
+                placementInfoApiDTO,
+                serviceEntityApiDTOMap);
         for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
-            try {
-                addResourcesApiDTO(providerInfo,
-                        serviceEntityApiDTOMap, placementInfoApiDTO);
-            } catch (ProviderIdNotRecognizedException e) {
-                // If there are providerId not found, it means this reservation is unplaced.
-                logger.info(e.getMessage());
+            if (providerInfo.isPlaced()) {
+                try {
+                    addResourcesApiDTO(providerInfo,
+                            serviceEntityApiDTOMap, placementInfoApiDTO);
+                } catch (ProviderIdNotRecognizedException e) {
+                    // If there are providerId not found, it means this reservation is unplaced.
+                    logger.error("providerId not found", e);
+                }
             }
         }
         return placementInfoApiDTO;
+    }
+
+    /**
+     * Create failure info for reservations that failed.
+     *
+     * @param failureInfos           list of failure infos
+     * @param placementInfoApiDTO    {@link PlacementInfoDTO}.
+     * @param serviceEntityApiDTOMap a Map which key is oid, value is {@link ServiceEntityApiDTO}.
+     */
+    private void addReservationFailureInfoDTO(List<InitialPlacementFailureInfo> failureInfos,
+                                              PlacementInfoDTO placementInfoApiDTO,
+                                              @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap) {
+        for (InitialPlacementFailureInfo failureInfo : failureInfos) {
+            Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional
+                    .ofNullable(serviceEntityApiDTOMap
+                            .get(failureInfo.getClosestSeller()));
+            if (!serviceEntityApiDTO.isPresent()) {
+                return;
+            }
+            final BaseApiDTO providerBaseApiDTO = new BaseApiDTO();
+            providerBaseApiDTO.setClassName(serviceEntityApiDTO.get().getClassName());
+            providerBaseApiDTO.setDisplayName(serviceEntityApiDTO.get().getDisplayName());
+            providerBaseApiDTO.setUuid(serviceEntityApiDTO.get().getUuid());
+            String resource = COMMODITY_TYPE_NAME_MAP.get(
+                    failureInfo.getCommType().getType()) == null
+                    ? CommodityType.UNKNOWN.name()
+                    : COMMODITY_TYPE_NAME_MAP.get(failureInfo.getCommType().getType());
+            placementInfoApiDTO.getFailureInfos().add(new ReservationFailureInfoDTO(
+                    resource,
+                    providerBaseApiDTO,
+                    failureInfo.getMaxQuantityAvailable(),
+                    failureInfo.getRequestedQuantity()));
+        }
     }
 
     /**
@@ -545,21 +600,37 @@ public class ReservationMapper {
         private final long entityId;
         // a list of oids which are the providers of entityId.
         private final List<ProviderInfo> providerInfos;
+        // failure information when reservation fails.
+        private final List<InitialPlacementFailureInfo> failureInfos;
 
         /**
          * Constructor.
          *
-         * @param entityId The ID of the template entity.
+         * @param entityId         The ID of the template entity.
          * @param providerInfoList The list of provider OIDs.
+         * @param failureInfos information for failed reservations.
          */
-        public PlacementInfo(final long entityId, @Nonnull final List<ProviderInfo> providerInfoList) {
+        public PlacementInfo(final long entityId,
+                             @Nonnull final List<ProviderInfo> providerInfoList,
+                             @Nonnull final List<InitialPlacementFailureInfo> failureInfos) {
             this.entityId = entityId;
             this.providerInfos = Collections.unmodifiableList(providerInfoList);
+            this.failureInfos = failureInfos;
+        }
+
+        /**
+         * Getter method for failureInfos.
+         * @return the failureInfos.
+         */
+        public List<InitialPlacementFailureInfo> getFailureInfos() {
+            return failureInfos;
         }
 
         public long getEntityId() {
             return this.entityId;
         }
+
+
 
         public List<ProviderInfo> getProviderInfos() {
             return this.providerInfos;
@@ -575,16 +646,25 @@ public class ReservationMapper {
 
         private final Long providerId;
         private final List<CommodityBoughtDTO> commoditiesBought;
+        private final boolean placed;
 
         /**
          * Constructor.
          *
          * @param providerId       the oid of the provider
          * @param commoditiesBought the commodities bought by the template from the provider.
+         * @param placed true if the reserved instance is placed.
          */
-        public ProviderInfo(final long providerId, @Nonnull final List<CommodityBoughtDTO> commoditiesBought) {
+        public ProviderInfo(final long providerId,
+                            @Nonnull final List<CommodityBoughtDTO> commoditiesBought,
+                            final boolean placed) {
             this.providerId = providerId;
             this.commoditiesBought = Collections.unmodifiableList(commoditiesBought);
+            this.placed = placed;
+        }
+
+        public boolean isPlaced() {
+            return placed;
         }
 
         public Long getProviderId() {

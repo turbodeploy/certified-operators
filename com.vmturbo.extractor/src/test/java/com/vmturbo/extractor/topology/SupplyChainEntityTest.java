@@ -61,8 +61,6 @@ public class SupplyChainEntityTest {
      */
     @Test
     public void testSupplyChainBuilder() {
-        assertThat(vm.getType(), is(VIRTUAL_MACHINE_VALUE));
-        assertThat(pm.getType(), is(PHYSICAL_MACHINE_VALUE));
         assertThat(vm.getEntityType(), is(VIRTUAL_MACHINE_VALUE));
         assertThat(pm.getEntityType(), is(PHYSICAL_MACHINE_VALUE));
         assertThat(vm.getOid(), is(vmEntity.getOid()));

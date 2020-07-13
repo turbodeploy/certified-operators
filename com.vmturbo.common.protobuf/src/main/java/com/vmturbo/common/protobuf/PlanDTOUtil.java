@@ -30,7 +30,6 @@ public class PlanDTOUtil {
      * various components of the system that save per-plan data.
      */
     public static final Set<PlanProjectType> NO_PERSISTENCE_PLAN_PROJECT = ImmutableSet.of(
-        PlanProjectType.RESERVATION_PLAN,
         PlanProjectType.CLUSTER_HEADROOM);
 
     /**

@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 import org.apache.commons.lang3.mutable.MutableInt;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -103,6 +104,25 @@ public class PolicyApplicator {
 
         // Go through the remaining policies, regardless of the order.
         return results;
+    }
+
+    /**
+     * Get the commodity type associated with a placement policy.
+     *
+     * @param policy The input policy.
+     * @param groupResolver The {@link GroupResolver} to use to resolve groups.
+     * @param topologyGraph The {@link TopologyGraph} for the currently constructed topology.
+     * @return commodity type associated with the policy.
+     */
+    public TopologyDTO.CommodityType commodityTypeAssociatedWithPlacementPolicy(
+            @Nonnull final PlacementPolicy policy,
+            @Nonnull final GroupResolver groupResolver,
+            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
+        final PlacementPolicyApplication application =
+                policyFactory.newPolicyApplication(policy.getPolicyDefinition()
+                        .getPolicyInfo().getPolicyDetailCase(), groupResolver, topologyGraph);
+
+        return application.commoditySold(policy).getCommodityType();
     }
 
     /**

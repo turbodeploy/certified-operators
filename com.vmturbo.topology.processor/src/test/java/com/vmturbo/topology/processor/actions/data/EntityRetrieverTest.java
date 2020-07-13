@@ -53,7 +53,7 @@ public class EntityRetrieverTest {
         repoData = new ArrayList<>();
         final CachedTopologyResult cachedTopologyResult = Mockito.mock(CachedTopologyResult.class);
         Mockito.when(cachedTopologyResult.getEntities()).thenReturn(cachedEntities);
-        Mockito.when(cachedTopology.getTopology(Mockito.any())).thenReturn(cachedTopologyResult);
+        Mockito.when(cachedTopology.getTopology()).thenReturn(cachedTopologyResult);
         Mockito.when(repositoryClient.retrieveTopologyEntities(Mockito.any(), Mockito.anyLong()))
                 .thenAnswer(invocation -> {
                     @SuppressWarnings("unchecked")

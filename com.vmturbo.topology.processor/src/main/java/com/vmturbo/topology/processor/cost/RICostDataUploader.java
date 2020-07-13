@@ -523,7 +523,7 @@ public class RICostDataUploader {
 
         // we will lazily-populate the map of VM local id -> oid mapping,
         // since we should only need it when RI's are in use.
-        Map<String, Long> vmLocalIdToOid = null;
+        final Map<String, Long> vmLocalIdToOid = new HashMap<>();
         riCostComponentData.entityLevelReservedInstanceCoverages = new ArrayList<>();
         riCostComponentData.accountLevelReservedInstanceCoverages = new ArrayList<>();
         for (final Entry<Long, TargetCostData> entry : costDataByTargetIdSnapshot.entrySet()) {
@@ -557,11 +557,13 @@ public class RICostDataUploader {
                 final Map<String, Double> accountCoverageByRIs = new HashMap<>();
                 final List<EntityRICoverageUpload.Builder> entityRICoverages = new ArrayList<>();
                 final BillingData billingData = csd.getBillingData();
-                if (!billingData.getVirtualMachinesList().isEmpty() && vmLocalIdToOid == null) {
+                if (!billingData.getVirtualMachinesList().isEmpty() && vmLocalIdToOid.isEmpty()) {
                     logger.debug("Building VM local id -> oid map");
-                    vmLocalIdToOid = stitchingContext.getEntitiesOfType(EntityType.VIRTUAL_MACHINE)
-                            .collect(Collectors.toMap(RICostDataUploader::getBillingId,
-                                    TopologyStitchingEntity::getOid));
+                    stitchingContext.getEntitiesOfType(EntityType.VIRTUAL_MACHINE)
+                            .forEach(vm -> {
+                                vmLocalIdToOid.put(getBillingId(vm),
+                                        vm.getOid());
+                            });
                 }
                 for (final EntityDTO vm : billingData.getVirtualMachinesList()) {
                     final Long entityOid = vmLocalIdToOid.get(vm.getId());

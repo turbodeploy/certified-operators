@@ -264,10 +264,13 @@ public class EntitySettingStore {
     /**
      * Return the Setting Policies associated with an entity set.
      * @param entityIds ID set of the entities
+     * @param includeInActive a parameter indicating that if we should return the policies which
+     *                        their schedule is inactive or not.
      * @return Stream of Setting Policies associated with the entity.
      * @throws StoreOperationException on error operating with DB backend
      */
-    public Collection<SettingPolicy> getEntitySettingPolicies(@Nonnull final Set<Long> entityIds)
+    public Collection<SettingPolicy> getEntitySettingPolicies(@Nonnull final Set<Long> entityIds,
+                                                                             boolean includeInActive)
             throws StoreOperationException {
         final ContextSettingSnapshotCache contextCache =
                 entitySettingSnapshots.get(realtimeTopologyContextId);
@@ -279,17 +282,22 @@ public class EntitySettingStore {
             return Collections.emptySet();
         }
 
-        Set<Long> settingPolicyIds = new HashSet<>();
-        entityIds.stream().forEach(entityId -> settingPolicyIds.addAll(snapshot.get()
-                .getEntitySettingPolicyIds(entityId)));
-        if (settingPolicyIds.isEmpty()) {
+        Map<Long, Boolean> settingPolicies = new HashMap<>();
+        entityIds.stream().forEach(entityId -> snapshot.get()
+                .getEntitySettingPolicyIds(entityId)
+                .stream()
+                .filter(s -> s.getActive() || includeInActive)
+                .forEach(s -> settingPolicies.put(s.getPolicyId(), s.getActive())));
+        if (settingPolicies.isEmpty()) {
             return Collections.emptySet();
         }
 
         SettingPolicyFilter.Builder settingPolicyFilter = SettingPolicyFilter.newBuilder()
                 .withType(Type.USER)
                 .withType(Type.DISCOVERED);
-            settingPolicyIds.forEach(settingPolicyId -> settingPolicyFilter.withId(settingPolicyId));
+            settingPolicies.keySet().forEach(settingPolicyId -> settingPolicyFilter.withId(settingPolicyId));
+
+
         return settingStore.getSettingPolicies(settingPolicyFilter.build());
     }
 
@@ -594,17 +602,13 @@ public class EntitySettingStore {
          * @return Set of setting policy ids associated with the entity.
          */
         @Nonnull
-        Set<Long> getEntitySettingPolicyIds(long entityId) {
+        List<EntitySettings.EntitySettingsPolicy> getEntitySettingPolicyIds(long entityId) {
             final EntitySettings userSettings = settingsByEntity.get(entityId);
             if (userSettings == null) {
-                return Collections.emptySet();
+                return Collections.emptyList();
             }
 
-            return userSettings.getUserSettingsList()
-                    .stream()
-                    .map(SettingToPolicyId::getSettingPolicyIdList)
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toSet());
+            return userSettings.getEntityPoliciesList();
         }
 
     }

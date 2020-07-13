@@ -25,9 +25,11 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -63,8 +65,8 @@ import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
@@ -212,11 +214,15 @@ public class EntitySettingsResolver {
         final Map<SettingPolicy, Collection<TopologyProcessorSetting<?>>> policyToSettingsInPolicy =
                 convertSettingsToTopologyProcessorSettings(userAndDiscoveredSettingPolicies);
 
+        final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings =
+            ArrayListMultimap.create();
+
         // For each group, apply the settings from the SettingPolicies associated with the group
         // to the resolved entities
         policyToSettingsInPolicy.forEach(
                 (key, value) -> resolveAllEntitySettings(key, value, groups,
-                        userSettingsByEntityAndName, settingSpecNameToSettingSpecs, schedules));
+                        userSettingsByEntityAndName, settingSpecNameToSettingSpecs,
+                        schedules, entityToPolicySettings));
 
         final List<SettingPolicy> defaultSettingPolicies =
                 SettingDTOUtil.extractDefaultSettingPolicies(policyById.values());
@@ -242,7 +248,7 @@ public class EntitySettingsResolver {
                 userSettingsByEntityAndName.getOrDefault(topologyEntity.getOid(), Collections.emptyMap())
                     .values(),
                 defaultSettingPoliciesByEntityType,
-                settingOverrides))
+                settingOverrides, entityToPolicySettings))
             .collect(Collectors.toMap(EntitySettings::getEntityOid, Function.identity()));
         return new GraphWithSettings(topologyGraph, settings, defaultSettingPoliciesById);
     }
@@ -341,6 +347,8 @@ public class EntitySettingsResolver {
      *             settingsSpecName
      * @param settingSpecNameToSettingSpecs Map of SettingSpecName to SettingSpecs
      * @param schedules Schedules used by settings policies
+     * @param entityToPolicySettings a map from entities to the list of pairs of policy id and if
+     *                              they are currently active. This map gets updated in this call.
      */
     @VisibleForTesting
     void resolveAllEntitySettings(@Nonnull final SettingPolicy settingPolicy,
@@ -348,25 +356,30 @@ public class EntitySettingsResolver {
                                   @Nonnull final Map<Long, ResolvedGroup> resolvedGroups,
                                   @Nonnull Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName,
                                   @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecs,
-                                  @Nonnull final Map<Long, Schedule> schedules) {
+                                  @Nonnull final Map<Long, Schedule> schedules,
+                                  @Nonnull final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings) {
         checkNotNull(userSettingsByEntityAndName);
 
-        if (inEffectNow(settingPolicy, schedules)) {
-            final SettingPolicy.Type spType = settingPolicy.getSettingPolicyType();
-            final Set<Long> entities = new HashSet<>();
-            settingPolicy.getInfo().getScope().getGroupsList()
-                .forEach(groupId -> {
-                    final ResolvedGroup resolvedGroup = resolvedGroups.get(groupId);
-                    if (resolvedGroup == null) {
-                        logger.error("Group {} referenced by policy {} ({}) is unresolved. Skipping.",
-                            groupId, settingPolicy.getId(), settingPolicy.getInfo().getName());
-                    } else {
-                        // Collecting into a set to de-dupe across groups in scope.
-                        entities.addAll(resolvedGroup.getEntitiesOfType(ApiEntityType.fromType(settingPolicy.getInfo().getEntityType())));
-                    }
-                });
+        final SettingPolicy.Type spType = settingPolicy.getSettingPolicyType();
+        final Set<Long> entities = new HashSet<>();
+        settingPolicy.getInfo().getScope().getGroupsList()
+            .forEach(groupId -> {
+                final ResolvedGroup resolvedGroup = resolvedGroups.get(groupId);
+                if (resolvedGroup == null) {
+                    logger.error("Group {} referenced by policy {} ({}) is unresolved. Skipping.",
+                        groupId, settingPolicy.getId(), settingPolicy.getInfo().getName());
+                } else {
+                    // Collecting into a set to de-dupe across groups in scope.
+                    entities.addAll(resolvedGroup.getEntitiesOfType(ApiEntityType.fromType(settingPolicy.getInfo().getEntityType())));
+                }
+            });
 
-            for (Long oid : entities) {
+        final boolean isInEffect = inEffectNow(settingPolicy, schedules);
+
+        for (Long oid : entities) {
+            entityToPolicySettings.put(oid, Pair.create(settingPolicy.getId(), isInEffect));
+
+            if (isInEffect) {
                 // settingSpecName-> Setting mapping. userSettingsByEntityAndName has already been
                 // populated by the consistent scaling manager with shared settings maps for all
                 // scaling group members.  By using a shared map, adding setting for a scaling group
@@ -425,13 +438,16 @@ public class EntitySettingsResolver {
      * @param userSettings List of user Setting
      * @param defaultSettingPoliciesByEntityType Mapping of entityType to SettingPolicyId
      * @param settingOverrides The map of overrides, by setting name.
+     * @param entityToPolicySettings a map from entities to the list of pairs of policy id and if
+     *                              they are currently active. This map gets updated in this call.
      * @return EntitySettings message
      *
      */
     private EntitySettings createEntitySettingsMessage(TopologyEntity entity,
                 @Nonnull final Collection<SettingAndPolicyIdRecord> userSettings,
                 @Nonnull final Map<Integer, SettingPolicy> defaultSettingPoliciesByEntityType,
-                @Nonnull final SettingOverrides settingOverrides) {
+                @Nonnull final SettingOverrides settingOverrides,
+                @Nonnull final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings) {
 
         final EntitySettings.Builder entitySettingsBuilder =
                 EntitySettings.newBuilder().setEntityOid(entity.getOid());
@@ -456,6 +472,11 @@ public class EntitySettingsResolver {
             entitySettingsBuilder.setDefaultSettingPolicyId(
                 defaultSettingPoliciesByEntityType.get(entity.getEntityType()).getId());
         }
+
+        entityToPolicySettings.get(entity.getOid()).stream()
+            .map(p -> EntitySettings.EntitySettingsPolicy.newBuilder()
+                .setPolicyId(p.getFirst()).setActive(p.getSecond()).build())
+            .forEach(entitySettingsBuilder::addEntityPolicies);
 
         return entitySettingsBuilder.build();
     }

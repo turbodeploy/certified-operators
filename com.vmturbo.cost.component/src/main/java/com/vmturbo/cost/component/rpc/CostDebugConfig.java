@@ -6,8 +6,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.cloud.commitment.analysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cost.CostDebugREST.CostDebugServiceController;
 import com.vmturbo.common.protobuf.trax.TraxREST.TraxConfigurationServiceController;
+import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIImpactReportGenerator;
@@ -27,7 +29,9 @@ import com.vmturbo.trax.rpc.TraxConfigurationRpcService;
         TopologyListenerConfig.class,
         BuyRIAnalysisConfig.class,
         ReservedInstanceSpecConfig.class,
-        EntityCostConfig.class
+        EntityCostConfig.class,
+        CloudCommitmentAnalysisStoreConfig.class,
+        CloudCommitmentAnalysisConfig.class,
 })
 public class CostDebugConfig {
 
@@ -46,6 +50,9 @@ public class CostDebugConfig {
     @Autowired
     private EntityCostConfig entityCostConfig;
 
+    @Autowired
+    private CloudCommitmentAnalysisConfig cloudCommitmentAnalysisConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -60,7 +67,8 @@ public class CostDebugConfig {
                 topologyListenerConfig.costJournalRecorder(),
                 reservedInstanceConfig.entityReservedInstanceMappingStore(),
                 buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(),
-                buyRIImpactReportGenerator());
+                buyRIImpactReportGenerator(),
+                cloudCommitmentAnalysisConfig.cloudCommitmentAnalysisManager());
     }
 
     /**

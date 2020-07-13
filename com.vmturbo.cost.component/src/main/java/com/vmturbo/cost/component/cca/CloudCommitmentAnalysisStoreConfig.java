@@ -7,19 +7,22 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.cloud.commitment.analysis.writer.CloudCommitmentDemandWriter;
+import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationStore;
+import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
+import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriterImpl;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
+import com.vmturbo.cost.component.entity.scope.CloudScopeStore;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
 import com.vmturbo.cost.component.stats.CostStatsConfig;
 
 /**
- * The Cloud Commitment Even Demand Stats Config class.
+ * The Cloud Commitment Demand Stats Config class.
  */
 @Import({CostDBConfig.class,
         TopologyProcessorListenerConfig.class,
         CostStatsConfig.class})
-public class CloudCommitmentEventDemandStatsConfig {
+public class CloudCommitmentAnalysisStoreConfig {
 
     @Autowired
     private CostDBConfig dbConfig;
@@ -42,18 +45,35 @@ public class CloudCommitmentEventDemandStatsConfig {
     @Value("${reservedInstanceStatCleanup.scheduler:360000}")
     private int cleanupSchedulerPeriod;
 
+    /**
+     * Bean for the cloud commitment demand writer.
+     *
+     * @return An instance of the CloudCommitmentDemandWriter.
+     */
     @Bean
     public CloudCommitmentDemandWriter cloudCommitmentDemandWriter() {
-        return new CloudCommitmentEventDemandWriterImpl(sqlComputeTierAllocationStore(), recordAllocationData);
+        return new CloudCommitmentDemandWriterImpl(computeTierAllocationStore(), recordAllocationData);
     }
 
-    public SQLComputeTierAllocationStore sqlComputeTierAllocationStore() {
+    /**
+     * Bean for the compute tier allocation store.
+     *
+     * @return An instance of the ComputeTierAllocationStore.
+     */
+    @Bean
+    public ComputeTierAllocationStore computeTierAllocationStore() {
         return new SQLComputeTierAllocationStore(dbConfig.dsl(), topologyProcessorListenerConfig.liveTopologyInfoTracker(),
                 statsRecordsBatchUpdateSize,
                 statsRecordsCommitBatchSize);
     }
 
-    public SQLCloudScopeStore sqlCloudScopeStore() {
+    /**
+     * Bean for the cloud scope store.
+     *
+     * @return An instance of the CloudScopeStore.
+     */
+    @Bean
+    public CloudScopeStore cloudScopeStore() {
         return new SQLCloudScopeStore(dbConfig.dsl(), costStatsConfig.taskScheduler(),
                 Duration.ofSeconds(cleanupSchedulerPeriod),
                 statsRecordsCommitBatchSize);

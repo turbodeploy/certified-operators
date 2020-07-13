@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -81,9 +82,8 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
+import com.vmturbo.topology.processor.reservation.GenerateConstraintMap;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
-import com.vmturbo.topology.processor.reservation.ReservationTrimmer;
-import com.vmturbo.topology.processor.reservation.ReservationTrimmer.TrimmingSummary;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
@@ -400,6 +400,36 @@ public class Stages {
     }
 
     /**
+     * This stage is for generating a map from constraints to commodities.
+     */
+    public static class GenerateConstraintMapStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
+        private final GenerateConstraintMap generateConstraintMap;
+
+        /**
+         * constructor for GenerateConstraintMapStage.
+         *
+         * @param policyManager      policy manager to get policy details
+         * @param groupServiceClient group service to get cluster and datacenter information
+         * @param reservationService reservation service to update the PO with the constraint map.
+         */
+        public GenerateConstraintMapStage(
+                @Nonnull final PolicyManager policyManager,
+                @Nonnull final GroupServiceBlockingStub groupServiceClient,
+                @Nonnull final ReservationServiceBlockingStub reservationService
+        ) {
+            this.generateConstraintMap = new GenerateConstraintMap(policyManager,
+                    groupServiceClient, reservationService);
+        }
+
+        @Nonnull
+        @Override
+        public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
+            return generateConstraintMap.createMap(topologyGraph, getContext().getGroupResolver());
+        }
+    }
+
+
+    /**
      * This stage uploads action constraints to the action orchestrator component.
      * We only do this for the live topology. Plan uses the same action constraints as real time.
      */
@@ -512,10 +542,7 @@ public class Stages {
         @Nonnull
         @Override
         public StageResult<Map<Long, Builder>> execute(@Nonnull final EntityStore entityStore) {
-            final CachedTopologyResult result = resultCache.getTopology(
-                    getContext().getTopologyInfo().hasPlanInfo()
-                            ? getContext().getTopologyInfo().getPlanInfo().getPlanProjectType()
-                            : null);
+            final CachedTopologyResult result = resultCache.getTopology();
             return StageResult.withResult(result.getEntities())
                 .andStatus(Status.success(result.toString()));
         }
@@ -868,23 +895,6 @@ public class Stages {
         }
     }
 
-    /**
-     * This stage is specific to the reservation plan - it creates a new {@link TopologyGraph} which
-     * contains ONLY the entities the market will need for reservation processing.
-     *
-     * <p/>Note - it should be run AFTER any logic that requires the full graph (e.g. scoping,
-     * policy application).
-     */
-    public static class ReservationTrimStage extends Stage<TopologyGraph<TopologyEntity>, TopologyGraph<TopologyEntity>> {
-
-        @Nonnull
-        @Override
-        public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull final TopologyGraph<TopologyEntity> input) {
-            final TrimmingSummary trimmingSummary = new ReservationTrimmer().trimTopologyGraph(input);
-            return StageResult.withResult(trimmingSummary.getNewGraph())
-                .andStatus(Status.success(trimmingSummary.toString()));
-        }
-    }
     /**
      * This stage applies policies to a {@link TopologyGraph<TopologyEntity>}. This makes changes
      * to the commodities of entities in the {@link TopologyGraph<TopologyEntity>} to reflect the

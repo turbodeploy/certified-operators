@@ -864,10 +864,11 @@ public class SettingPolicyRpcServiceTest {
         final SettingPolicy policy = SettingPolicy.newBuilder()
             .setInfo(SettingPolicyInfo.getDefaultInstance())
             .build();
-        when(entitySettingStore.getEntitySettingPolicies(eq(Sets.newHashSet(entityOid))))
+        when(entitySettingStore.getEntitySettingPolicies(eq(Sets.newHashSet(entityOid)), eq(false)))
             .thenReturn(Arrays.asList(policy));
         settingPolicyService.getEntitySettingPolicies(GetEntitySettingPoliciesRequest.newBuilder()
             .addEntityOidList(entityOid)
+            .setIncludeInactive(false)
             .build(), responseObserver);
         final ArgumentCaptor<GetEntitySettingPoliciesResponse> respCaptor =
             ArgumentCaptor.forClass(GetEntitySettingPoliciesResponse.class);

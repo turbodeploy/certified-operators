@@ -55,9 +55,10 @@ public class AccountExpensesFilter extends CostFilter {
                           @Nullable final TimeFrame timeFrame,
                           @Nonnull Set<String> groupByFields,
                           @Nullable final Set<Long> accountIds,
-                          final boolean latestTimeStampRequested) {
+                          final boolean latestTimeStampRequested,
+                          long realtimeTopologyContextId) {
         super(entityFilter, entityTypeFilter, startDateMillis, endDateMillis, timeFrame,
-                EXPENSE_DATE, latestTimeStampRequested, null);
+                EXPENSE_DATE, latestTimeStampRequested, null, realtimeTopologyContextId);
         this.accountIds = accountIds;
         this.conditions = generateConditions();
         this.costGroupBy = createGroupByFieldString(groupByFields);
@@ -71,7 +72,7 @@ public class AccountExpensesFilter extends CostFilter {
                 null :
                 new CostGroupBy(listOfFields.stream().map(columnName -> columnName.toLowerCase(Locale.getDefault()))
                         .collect(Collectors.toSet()),
-                        timeFrame);
+                        timeFrame, realtimeTopologyContextId);
     }
 
     /**
@@ -174,18 +175,22 @@ public class AccountExpensesFilter extends CostFilter {
         AccountExpensesFilter> {
         private Set<Long> accountIds;
 
-        private AccountExpenseFilterBuilder(@Nonnull TimeFrame timeFrame) {
+        private AccountExpenseFilterBuilder(@Nonnull TimeFrame timeFrame,
+                long realtimeTopologyContextId) {
+            super(realtimeTopologyContextId);
             this.timeFrame = timeFrame;
         }
 
         /**
          * Factory method.
          * @param timeFrame  the time frame that we are making this query for.
+         * @param realtimeTopologyContextId RT topology context ID.
          * @return a new instance of builder class.
          */
         @Nonnull
-        public static AccountExpenseFilterBuilder newBuilder(@Nonnull TimeFrame timeFrame) {
-            return new AccountExpenseFilterBuilder(timeFrame);
+        public static AccountExpenseFilterBuilder newBuilder(@Nonnull TimeFrame timeFrame,
+                long realtimeTopologyContextId) {
+            return new AccountExpenseFilterBuilder(timeFrame, realtimeTopologyContextId);
         }
 
         /**
@@ -204,7 +209,8 @@ public class AccountExpensesFilter extends CostFilter {
         @Override
         public AccountExpensesFilter build() {
             return new AccountExpensesFilter(entityIds, entityTypeFilters, startDateMillis,
-                endDateMillis, timeFrame, groupByFields, accountIds, latestTimeStampRequested);
+                endDateMillis, timeFrame, groupByFields, accountIds, latestTimeStampRequested,
+                    realtimeTopologyContextId);
         }
     }
 

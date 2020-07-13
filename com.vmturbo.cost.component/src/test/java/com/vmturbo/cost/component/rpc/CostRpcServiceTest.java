@@ -114,6 +114,8 @@ public class CostRpcServiceTest {
     private static final long PLAN_ID = 1234567L;
     private static final int MAX_INNER_STAT_RECORDS = 10;
 
+    private static final long RT_TOPO_CONTEXT_ID = 777777L;
+
     private RepositoryClient repositoryClient;
     private SupplyChainServiceBlockingStub serviceBlockingStub;
 
@@ -715,7 +717,7 @@ public class CostRpcServiceTest {
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
                 .convertEntityToStatRecord(accountIdToExpenseMap.values()));
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
-            .newBuilder(TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .latestTimestampRequested(true)
             .build())
         ).willReturn(snapshotToAccountExpensesMap);
@@ -772,7 +774,7 @@ public class CostRpcServiceTest {
 
         // ASSERT
         assertThat(argumentCaptor.getValue(), is(EntityCostFilter.EntityCostFilterBuilder
-            .newBuilder(TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .accountIds(Collections.singleton(55L))
             .regionIds(Collections.singleton(66L))
             .availabilityZoneIds(Collections.singleton(77L))
@@ -838,11 +840,11 @@ public class CostRpcServiceTest {
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
                 .convertEntityToStatRecord(accountIdToExpenseMap.values()));
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
-            .newBuilder(TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .duration(TIME, TIME)
             .build())).willReturn(snapshotToAccountExpensesMap);
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
-            .newBuilder(TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .latestTimestampRequested(true)
             .build()
         )).willReturn(snapshotToAccountExpensesMap);
@@ -880,14 +882,14 @@ public class CostRpcServiceTest {
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
                 .convertEntityToStatRecord(accountIdToExpenseMap.values()));
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
-                .newBuilder(TimeFrame.LATEST)
+                .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                 .duration(TIME, TIME)
                 .build())).willReturn(snapshotToAccountExpensesMap);
         final Map<Long, Collection<StatRecord>> latestEntityCostMap = new HashMap<>();
         latestEntityCostMap.put(MID_TIME, EntityCostToStatRecordConverter
                 .convertEntityToStatRecord(accountIdToExpenseMap.values()));
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
-                .newBuilder(TimeFrame.LATEST)
+                .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                 .latestTimestampRequested(true)
                 .build())).willReturn(latestEntityCostMap);
 
@@ -923,11 +925,11 @@ public class CostRpcServiceTest {
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
                 .convertEntityToStatRecord(accountIdToExpenseMap.values()));
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
-            .newBuilder(TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .duration(TIME, TIME)
             .build())).willReturn(snapshotToAccountExpensesMap);
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
-            .newBuilder(TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .latestTimestampRequested(true)
             .build())).willReturn(Collections.emptyMap());
 

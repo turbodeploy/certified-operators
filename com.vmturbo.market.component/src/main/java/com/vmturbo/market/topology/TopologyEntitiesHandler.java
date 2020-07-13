@@ -152,13 +152,11 @@ public class TopologyEntitiesHandler {
      * Create an {@link Topology} from a set of {@link TraderTO}s
      * @param traderTOs A set of trader TOs.
      * @param topologyInfo Information about the topology, including parameters for the analysis.
-     * @param analysisConfig has information about this round of analysis
      * @param analysis containing reference for replay actions.
      * @return The newly created topology.
      */
     public static Topology createTopology(Set<TraderTO> traderTOs,
                                           @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
-                                          final AnalysisConfig analysisConfig,
                                           final Analysis analysis) {
         // Sort the traderTOs based on their oids so that the input into analysis is consistent every cycle
         logger.info("Received TOs from marketComponent. Starting sorting of traderTOs.");
@@ -186,7 +184,9 @@ public class TopologyEntitiesHandler {
         topology.setTopologyId(topologyInfo.getTopologyId());
 
         populateCommodityResizeDependencyMap(topology);
-        populateHistoryBasedResizeDependencyMap(topology);
+        if (!topologyInfo.hasPlanInfo()) {
+            populateHistoryBasedResizeDependencyMap(topology);
+        }
         populateProducesDependencyMap(topology);
         populateRawMaterialsMap(topology);
         populateCommToAdjustOverheadInClone(topology, analysis);

@@ -104,6 +104,7 @@ public class ReservationsService implements IReservationsService {
             case PLACEMENT:
                 return new DemandReservationApiDTO();
             case RESERVATION:
+                logger.info("Received Reservation: " + demandApiInputDTO.getDemandName());
                 validatePlacementCount(demandApiInputDTO);
                 final Reservation reservation = reservationMapper.convertToReservation(demandApiInputDTO);
                 final CreateReservationRequest request = CreateReservationRequest.newBuilder()

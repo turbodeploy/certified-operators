@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.group.setting.EntitySettingStore.ContextSettingSnapshotCache;
 import com.vmturbo.group.setting.EntitySettingStore.ContextSettingSnapshotCacheFactory;
 import com.vmturbo.group.setting.EntitySettingStore.EntitySettingSnapshot;
@@ -66,6 +67,9 @@ public class EntitySettingStoreTest {
 
     private final long contextId = 10L;
     private final long topologyId = 11L;
+    private final long entityOid = 10001L;
+    private final long policy1Oid = 50001L;
+    private final long policy2Oid = 50002L;
 
     private EntitySettingSnapshot mockSnapshot = mock(EntitySettingSnapshot.class);
     private ContextSettingSnapshotCache mockSnapshotCache = mock(ContextSettingSnapshotCache.class);
@@ -686,6 +690,58 @@ public class EntitySettingStoreTest {
         // using == to assert they are exactly same object
         assertTrue(Lists.newArrayList(settingsResult).get(0) ==
             Lists.newArrayList(settingsResultNext).get(0));
+    }
+
+    /**
+     * Tests the case that when we get the setting policies for an entity.
+     *
+     * @throws StoreOperationException when something goes wrong.
+     */
+    @Test
+    public void testGetEntitySettingPolicies() throws StoreOperationException {
+        // ARRANGE
+        entitySettingStore.storeEntitySettings(realtimeContext, realtimeContext, Stream.empty());
+        when(mockSnapshotCache.getLatestSnapshot()).thenReturn(Optional.of(mockSnapshot));
+
+        final EntitySettings.EntitySettingsPolicy activeSettingPolicy =
+            EntitySettings.EntitySettingsPolicy.newBuilder()
+                .setPolicyId(policy1Oid)
+                .setActive(true)
+                .build();
+        final EntitySettings.EntitySettingsPolicy inactiveSettingPolicy =
+            EntitySettings.EntitySettingsPolicy.newBuilder()
+                .setPolicyId(policy2Oid)
+                .setActive(false)
+                .build();
+        when(mockSnapshot.getEntitySettingPolicyIds(eq(entityOid))).thenReturn(
+            Lists.newArrayList(activeSettingPolicy, inactiveSettingPolicy));
+        SettingPolicy settingPolicy1 = SettingPolicy.newBuilder()
+            .setId(policy1Oid)
+            .build();
+        SettingPolicy settingPolicy2 = SettingPolicy.newBuilder()
+            .setId(policy2Oid)
+            .build();
+        when(settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder()
+                .withType(Type.USER)
+                .withType(Type.DISCOVERED).withId(policy1Oid).build()))
+            .thenReturn(Collections.singletonList(settingPolicy1));
+        when(settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder()
+            .withType(Type.USER)
+            .withType(Type.DISCOVERED).withId(policy1Oid).withId(policy2Oid).build()))
+            .thenReturn(Lists.newArrayList(settingPolicy1, settingPolicy2));
+
+        // ACT
+        Collection<SettingPolicy> settingPoliciesActive =
+            entitySettingStore.getEntitySettingPolicies(Collections.singleton(entityOid),
+            false);
+        Collection<SettingPolicy> settingPoliciesInactive =
+            entitySettingStore.getEntitySettingPolicies(Collections.singleton(entityOid),
+                true);
+
+        // ASSERT
+        assertThat(settingPoliciesActive, is(Collections.singletonList(settingPolicy1)));
+        assertThat(settingPoliciesInactive, containsInAnyOrder(settingPolicy1, settingPolicy2));
+
     }
 
     private static List<Setting> getSettings(Collection<SettingToPolicyId> settingToPolicyIds) {

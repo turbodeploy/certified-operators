@@ -24,6 +24,8 @@ import com.vmturbo.cost.component.util.AccountExpensesFilter.AccountExpenseFilte
  */
 public class AccountExpensesFilterTest {
 
+    private static final long RT_TOPO_CONTEXT_ID = 777777L;
+
     /**
      * This method implements methods {@code equals}, {@code hashCode}, {@code toString} that
      * has been overridden in this class.
@@ -31,7 +33,7 @@ public class AccountExpensesFilterTest {
     @Test
     public void testObjectOverrideMethods() {
         AccountExpensesFilter filter = AccountExpenseFilterBuilder
-            .newBuilder(TimeFrame.LATEST)
+            .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .duration(1L, 2L)
             .entityIds(Collections.singleton(5L))
             .entityTypes(ImmutableSet.of(10, 11))
@@ -42,7 +44,7 @@ public class AccountExpensesFilterTest {
         assertThat(filter.getEndDateMillis(), is(Optional.of(2L)));
 
         AccountExpenseFilterBuilder builder =
-            AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+            AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                 .duration(1L, 2L)
                 .entityIds(Collections.singleton(5L))
                 .entityTypes(ImmutableSet.of(10, 11))
@@ -97,7 +99,7 @@ public class AccountExpensesFilterTest {
     }
 
     private AccountExpensesFilter createAccountExpenseFilter(final TimeFrame timeFrame) {
-        return AccountExpenseFilterBuilder.newBuilder(timeFrame).build();
+        return AccountExpenseFilterBuilder.newBuilder(timeFrame, RT_TOPO_CONTEXT_ID).build();
     }
 
     private void verifyTable(final Table<?> expectedTable,

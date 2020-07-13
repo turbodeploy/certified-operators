@@ -341,4 +341,14 @@ public class DataProvider {
         }
         return OptionalDouble.of(used.getAsDouble() / capacity.getAsDouble());
     }
+
+    /**
+     * Get display name for the given entity.
+     *
+     * @param entityOid id of the entity
+     * @return optional display name
+     */
+    public Optional<String> getDisplayName(long entityOid) {
+        return graph.getEntity(entityOid).map(SupplyChainEntity::getDisplayName);
+    }
 }

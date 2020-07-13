@@ -10,10 +10,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.matrix.component.external.MatrixInterface;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
@@ -142,6 +144,9 @@ public class TopologyConfig {
     @Autowired
     private OperationConfig operationConfig;
 
+    @Autowired
+    private PlanOrchestratorClientConfig planClientConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -260,7 +265,8 @@ public class TopologyConfig {
                 actionsConfig.actionConstraintsUploader(),
                 actionsConfig.actionMergeSpecsUploader(),
                 requestCommodityThresholdsInjector(),
-                ephemeralEntityEditor()
+                ephemeralEntityEditor(),
+                ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel())
         );
     }
 
@@ -314,7 +320,6 @@ public class TopologyConfig {
             entityConfig.entityStore(),
             apiConfig.topologyProcessorNotificationSender(),
             targetConfig.targetStore(),
-            useReservationPipeline,
             clockConfig.clock(),
             startupDiscoveryMaxDiscoveryWaitMinutes,
             TimeUnit.MINUTES);

@@ -32,6 +32,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -50,12 +51,14 @@ public interface AnalysisFactory {
      * @param topologyEntities The entities in the topology.
      * @param configCustomizer A {@link AnalysisConfigCustomizer} to tweak the configuration of
      *                         the analysis.
+     * @param initialPlacementFinder The class to perform fast reservation.
      * @return The {@link Analysis} object.
      */
     @Nonnull
     Analysis newAnalysis(@Nonnull final TopologyInfo topologyInfo,
                          @Nonnull final Set<TopologyEntityDTO> topologyEntities,
-                         @Nonnull final AnalysisConfigCustomizer configCustomizer);
+                         @Nonnull AnalysisConfigCustomizer configCustomizer,
+                         @Nonnull InitialPlacementFinder initialPlacementFinder);
 
     /**
      * A helper function to tweak the configuration of the analysis produced by the factory.
@@ -170,7 +173,8 @@ public interface AnalysisFactory {
         @Nonnull
         public Analysis newAnalysis(@Nonnull final TopologyInfo topologyInfo,
                                     @Nonnull final Set<TopologyEntityDTO> topologyEntities,
-                                    @Nonnull final AnalysisConfigCustomizer configCustomizer) {
+                                    @Nonnull final AnalysisConfigCustomizer configCustomizer,
+                                    @Nonnull final InitialPlacementFinder initialPlacementFinder) {
             final Map<String, Setting> globalSettings = retrieveSettings();
             final float quoteFactor = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo) ?
                     alleviatePressureQuoteFactor : standardQuoteFactor;
@@ -182,7 +186,7 @@ public interface AnalysisFactory {
                 configBuilder.build(), cloudTopologyFactory,
                 topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
                 buyRIImpactAnalysisFactory, tierExcluderFactory, listener, consistentScalingHelperFactory,
-                    migratedWorkloadCloudCommitmentAnalysisService);
+                initialPlacementFinder, migratedWorkloadCloudCommitmentAnalysisService);
         }
 
         /**

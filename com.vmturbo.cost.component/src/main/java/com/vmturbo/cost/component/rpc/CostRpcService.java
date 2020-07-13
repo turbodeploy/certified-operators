@@ -207,7 +207,8 @@ public class CostRpcService extends CostServiceImplBase {
         CostCategory category = request.getCostCategory();
         try {
             Map<Long, Map<Long, EntityCost>> queryResult =
-                entityCostStore.getEntityCosts(EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+                entityCostStore.getEntityCosts(EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST,
+                        realtimeTopologyContextId)
                     .entityIds(entityOids)
                     .costCategoryFilter(CostCategoryFilter.newBuilder()
                             .setExclusionFilter(false)
@@ -390,7 +391,7 @@ public class CostRpcService extends CostServiceImplBase {
                                           StreamObserver<GetCurrentAccountExpensesResponse> responseObserver) {
         try {
             AccountExpenseFilterBuilder builder = AccountExpenseFilterBuilder
-                .newBuilder(TimeFrame.LATEST)
+                .newBuilder(TimeFrame.LATEST, realtimeTopologyContextId)
                 .latestTimestampRequested(true);
 
             if (!request.getScope().getAllAccounts()) {
@@ -519,7 +520,8 @@ public class CostRpcService extends CostServiceImplBase {
         // If start and end date is set we get the cost for that duration
         if (request.hasStartDate() && request.hasEndDate()) {
             filterBuilder = AccountExpenseFilterBuilder.newBuilder(
-                timeFrameCalculator.millis2TimeFrame(request.getStartDate()))
+                timeFrameCalculator.millis2TimeFrame(request.getStartDate()),
+                    realtimeTopologyContextId)
                 .duration(request.getStartDate(), request.getEndDate());
             // if we don't have both start and end date, we will assume the latest
             // cost is requested
@@ -529,7 +531,7 @@ public class CostRpcService extends CostServiceImplBase {
                     " or neither of them. Ignoring the duration. Request : {}", request);
             }
 
-            filterBuilder = AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
+            filterBuilder = AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST, realtimeTopologyContextId)
                 .latestTimestampRequested(true);
         }
 
@@ -734,7 +736,7 @@ public class CostRpcService extends CostServiceImplBase {
         // If start and end date is set we get the cost for that duration
         if (request.hasStartDate() && request.hasEndDate()) {
             filterBuilder = EntityCostFilterBuilder.newBuilder(
-                timeFrameCalculator.millis2TimeFrame(request.getStartDate()))
+                timeFrameCalculator.millis2TimeFrame(request.getStartDate()), realtimeTopologyContextId)
                 .duration(request.getStartDate(), request.getEndDate());
             // if we don't have both start and end date, we will assume the latest
             // cost is requested
@@ -744,7 +746,7 @@ public class CostRpcService extends CostServiceImplBase {
                     " or neither of them. Ignoring the duration. Request : {}", request);
             }
 
-            filterBuilder = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
+            filterBuilder = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, realtimeTopologyContextId)
                 .latestTimestampRequested(true);
         }
 

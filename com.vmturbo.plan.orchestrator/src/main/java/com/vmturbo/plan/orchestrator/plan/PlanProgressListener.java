@@ -30,7 +30,6 @@ import com.vmturbo.cost.api.CostNotificationListener;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.StatsListener;
 import com.vmturbo.market.component.api.AnalysisStatusNotificationListener;
-import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
 import com.vmturbo.repository.api.RepositoryListener;
 import com.vmturbo.topology.processor.api.TopologySummaryListener;
 
@@ -42,8 +41,6 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
 
     private final PlanDao planDao;
 
-    private final ReservationPlacementHandler reservationPlacementHandler;
-
     private final long realtimeTopologyContextId;
 
     private static final Logger logger = LogManager.getLogger(PlanProgressListener.class);
@@ -52,11 +49,9 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
 
     public PlanProgressListener(@Nonnull final PlanDao planDao,
                                 @Nonnull final PlanRpcService planService,
-                                @Nonnull final ReservationPlacementHandler reservationPlacementHandler,
                                 final long realtimeTopologyContextId) {
         this.planDao = Objects.requireNonNull(planDao);
         this.planService = planService;
-        this.reservationPlacementHandler = Objects.requireNonNull(reservationPlacementHandler);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -207,10 +202,6 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
             } catch (NoSuchObjectException e) {
                 logger.warn("Could not find plan by topology context id {}", topologyContextId, e);
             }
-        } else {
-            logger.debug("Updating reservation based on real-time projected topology notification.");
-            reservationPlacementHandler.updateReservationsFromLiveTopology(topologyContextId, projectedTopologyId);
-            logger.debug("Finished update reservation based on real-time projected topology notification.");
         }
     }
 
