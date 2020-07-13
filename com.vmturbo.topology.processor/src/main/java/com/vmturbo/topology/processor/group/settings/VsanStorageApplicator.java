@@ -124,7 +124,7 @@ public class VsanStorageApplicator implements SettingApplicator {
         StorageInfo storageInfo = info.getStorage();
 
         if (!storageInfo.hasPolicy()) {
-            logger.error("Storage '{}' does not have Storage Policy. "
+            logger.debug("Storage '{}' does not have Storage Policy. "
                     + "Assuming RAID0. ", storage.getDisplayName() );
             return RAID_FACTOR_DEFAULT;
         }
@@ -132,7 +132,7 @@ public class VsanStorageApplicator implements SettingApplicator {
         StoragePolicy policy = storageInfo.getPolicy();
 
         if (!policy.hasRedundancy()) {
-            logger.error("Storage '{}' does not have Redundancy. "
+            logger.debug("Storage '{}' does not have Redundancy. "
                     + "Assuming RAID0. ", storage.getDisplayName() );
             return RAID_FACTOR_DEFAULT;
         }
@@ -140,7 +140,7 @@ public class VsanStorageApplicator implements SettingApplicator {
         StorageRedundancyMethod raidType = policy.getRedundancy();
 
         if (!policy.hasFailuresToTolerate()) {
-            logger.error("Storage '{}' does not have Failures To Tolerate. Assuming RAID0. ",
+            logger.debug("Storage '{}' does not have Failures To Tolerate. Assuming RAID0. ",
                     storage.getDisplayName() );
             return RAID_FACTOR_DEFAULT;
         }
