@@ -135,7 +135,7 @@ public class PolicyManager {
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
             final long startTime = System.currentTimeMillis();
             final List<Policy> livePolicies = new ArrayList<>();
-            policyService.getAllPolicies(PolicyRequest.getDefaultInstance())
+            policyService.getPolicies(PolicyRequest.getDefaultInstance())
                 .forEachRemaining(policyResp -> {
                     if (policyResp.hasPolicy()) {
                         livePolicies.add(policyResp.getPolicy());
@@ -206,7 +206,7 @@ public class PolicyManager {
             @Nonnull final GroupResolver groupResolver) {
 
         final List<Policy> livePolicies = new ArrayList<>();
-        policyService.getAllPolicies(PolicyRequest.getDefaultInstance())
+        policyService.getPolicies(PolicyRequest.getDefaultInstance())
                 .forEachRemaining(policyResp -> {
                     if (policyResp.hasPolicy()) {
                         livePolicies.add(policyResp.getPolicy());

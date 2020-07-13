@@ -30,7 +30,9 @@ import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceImplBase;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoREST.SupplyChainServiceController;
@@ -59,6 +61,8 @@ import com.vmturbo.repository.migration.RepositoryMigrationsLibrary;
 import com.vmturbo.repository.search.SearchHandler;
 import com.vmturbo.repository.service.ArangoRepositoryRpcService;
 import com.vmturbo.repository.service.ArangoSupplyChainRpcService;
+import com.vmturbo.repository.service.ConstraintsCalculator;
+import com.vmturbo.repository.service.EntityConstraintsRpcService;
 import com.vmturbo.repository.service.LiveTopologyPaginator;
 import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.service.PlanStatsService;
@@ -137,6 +141,12 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Value("${repositorySearchPaginationMaxLimit}")
     private int repositorySearchPaginationMaxLimit;
+
+    @Value("${repositoryEntityPaginationDefaultLimit}")
+    private int repositoryEntityPaginationDefaultLimit;
+
+    @Value("${repositoryEntityPaginationMaxLimit}")
+    private int repositoryEntityPaginationMaxLimit;
 
     @Value("${repositoryMaxEntitiesPerChunk:5}")
     private int maxEntitiesPerChunk;
@@ -259,7 +269,10 @@ public class RepositoryComponent extends BaseVmtComponent {
             GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
-
+    @Bean
+    public EntitySeverityServiceBlockingStub entitySeverityService() {
+        return EntitySeverityServiceGrpc.newBlockingStub(actionOrchestratorClientConfig.actionOrchestratorChannel());
+    }
 
     @Bean
     public SupplyChainServiceController supplyChainServiceController()
@@ -353,13 +366,29 @@ public class RepositoryComponent extends BaseVmtComponent {
         return new RepositoryMigrationsLibrary(repositoryComponentConfig.arangoDatabaseFactory());
     }
 
+    @Bean
+    public EntityConstraintsServiceImplBase entityConstraintRpcService() {
+        return new EntityConstraintsRpcService(
+            repositoryComponentConfig.liveTopologyStore(),
+            constraintsCalculator());
+    }
+
+    @Bean
+    public ConstraintsCalculator constraintsCalculator() {
+        return new ConstraintsCalculator(
+            entitySeverityService(),
+            repositoryEntityPaginationDefaultLimit,
+            repositoryEntityPaginationMaxLimit);
+    }
+
     @Nonnull
     @Override
     public List<BindableService> getGrpcServices() {
         try {
             return Arrays.asList(repositoryRpcService(),
                 searchRpcService(),
-                supplyChainRpcService());
+                supplyChainRpcService(),
+                entityConstraintRpcService());
         } catch (InterruptedException | CommunicationException | URISyntaxException e) {
             logger.error("Failed to start gRPC services due to exception.", e);
             return Collections.emptyList();

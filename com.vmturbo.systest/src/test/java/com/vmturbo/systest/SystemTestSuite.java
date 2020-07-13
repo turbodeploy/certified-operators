@@ -97,7 +97,7 @@ public class SystemTestSuite {
      */
     public static class PolicyServiceStub extends PolicyServiceGrpc.PolicyServiceImplBase {
         @Override
-        public void getAllPolicies(final PolicyDTO.PolicyRequest request,
+        public void getPolicies(final PolicyDTO.PolicyRequest request,
                                    final StreamObserver<PolicyDTO.PolicyResponse> responseObserver) {
             responseObserver.onCompleted();
         }

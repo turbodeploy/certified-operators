@@ -37,6 +37,7 @@ import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -45,6 +46,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsResponse.MatchedEntity;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
@@ -275,6 +277,32 @@ public class ServiceEntityMapper {
                     Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValuesList())));
 
         return seDTO;
+    }
+
+    /**
+     * Converts a {@link TopologyEntityDTO} instance to a {@link ServiceEntityApiDTO} instance
+     * to be returned by the REST API.
+     *
+     * <p>Note: because of the structure of {@link ServiceEntityApiDTO},
+     * only one of the discovering targets can be included in the result.
+     *
+     * @param entities a list of {@link MatchedEntity}s to convert
+     * @return an {@link ServiceEntityApiDTO} populated from the given topologyEntity
+     */
+    @Nonnull
+    public List<ServiceEntityApiDTO> toServiceEntityApiDTO(@Nonnull final List<MatchedEntity> entities) {
+        return entities.stream().map(entity -> {
+            // basic information
+            final ServiceEntityApiDTO baseApiDTO = new ServiceEntityApiDTO();
+            baseApiDTO.setDisplayName(Objects.requireNonNull(entity).getDisplayName());
+            baseApiDTO.setClassName(ApiEntityType.fromType(entity.getEntityType()).apiStr());
+            baseApiDTO.setUuid(String.valueOf(entity.getOid()));
+            setNonEmptyDisplayName(baseApiDTO);
+            baseApiDTO.setState(UIEntityState.fromEntityState(entity.getEntityState()).apiStr());
+            baseApiDTO.setSeverity(entity.hasSeverity() ? entity.getSeverity().name() : Severity.NORMAL.name());
+            setDiscoveredBy(entity::getDiscoveredTargetDataMap, baseApiDTO);
+            return baseApiDTO;
+        }).collect(Collectors.toList());
     }
 
     /**

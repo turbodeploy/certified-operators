@@ -231,7 +231,7 @@ public class ActionSpecMapperTest {
                 .setPolicyInfo(PolicyInfo.newBuilder()
                     .setName(POLICY_NAME)))
                 .build());
-        Mockito.when(policyMole.getAllPolicies(any())).thenReturn(policyResponses);
+        Mockito.when(policyMole.getPolicies(any())).thenReturn(policyResponses);
         PolicyServiceGrpc.PolicyServiceBlockingStub policyService =
                 PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final List<GetMultiSupplyChainsResponse> supplyChainResponses = ImmutableList.of(

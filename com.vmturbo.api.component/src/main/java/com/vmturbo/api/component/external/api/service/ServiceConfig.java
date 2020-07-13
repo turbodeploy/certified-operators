@@ -337,7 +337,12 @@ public class ServiceConfig {
                 mapperConfig.settingsMapper(),
                 actionSearchUtil(),
                 communicationConfig.repositoryApi(),
-                entitySettingQueryExecutor());
+                entitySettingQueryExecutor(),
+                communicationConfig.entityConstraintRpcService(),
+                communicationConfig.policyRpcService(),
+                communicationConfig.thinTargetCache(),
+                mapperConfig.paginationMapper(),
+                communicationConfig.serviceEntityMapper());
     }
 
     @Bean
