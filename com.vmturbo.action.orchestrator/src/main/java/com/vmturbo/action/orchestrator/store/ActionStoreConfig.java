@@ -139,7 +139,7 @@ public class ActionStoreConfig {
     @Value("${riskPropagationEnabled:true}")
     private boolean riskPropagationEnabled;
 
-    @Value("${actionIdentityCachePurgeIntervalSec:1800")
+    @Value("${actionIdentityCachePurgeIntervalSec:1800}")
     private int identityCachePurgeIntervalSec;
 
     @Bean
@@ -215,7 +215,7 @@ public class ActionStoreConfig {
      * @return the scheduler created
      */
     @Bean(destroyMethod = "shutdownNow")
-    private ScheduledExecutorService cleanupExecutorService() {
+    protected ScheduledExecutorService cleanupExecutorService() {
         final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
                 "act-cleanup-%d").build();
         return Executors.newScheduledThreadPool(1, threadFactory);
