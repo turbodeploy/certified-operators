@@ -1347,9 +1347,14 @@
                     <version>${jacocoVersion}</version>
                     <executions>
                         <execution>
+                            <id>jacoco-initialize</id>
+                            <phase>initialize</phase>
                             <goals>
                                 <goal>prepare-agent</goal>
                             </goals>
+                            <configuration>
+                                <propertyName>jacoco.agent.argLine</propertyName>
+                            </configuration>
                         </execution>
                         <execution>
                             <id>report</id>
@@ -1638,7 +1643,7 @@
                         </excludes>
                         <trimStackTrace>false</trimStackTrace>
                         <!-- Required to deal properly with non-ASCII characters across platforms. -->
-                        <argLine>-Dfile.encoding=UTF-8</argLine>
+                        <argLine>${jacoco.agent.argLine} -Dfile.encoding=UTF-8</argLine>
                     </configuration>
                 </plugin>
                 <plugin>
