@@ -121,6 +121,10 @@ variable "mssql" {
   default = false
 }
 
+variable "mysql" {
+  default = false
+}
+
 variable "netapp" {
   default = false
 }

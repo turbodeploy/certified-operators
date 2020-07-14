@@ -311,6 +311,10 @@ dependencies:
     repository: file://../probes/mediation-mssql
     version: 0.1.0
     condition: mssql.enabled
+  - name: mediation-mysql
+    repository: file://../probes/mediation-mysql
+    version: 0.1.0
+    condition: mysql.enabled
   - name: mediation-oneview
     repository: file://../probes/mediation-oneview
     version: 0.1.0

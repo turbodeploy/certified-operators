@@ -81,6 +81,8 @@ spec:
     enabled: false
   mssql:
     enabled: false
+  mysql:
+    enabled: false
   netapp:
     enabled: false
   netflow:
@@ -284,6 +286,10 @@ spec:
       limits:
         memory: 512Mi
   mediation-mssql:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-mysql:
     resources:
       limits:
         memory: 512Mi
