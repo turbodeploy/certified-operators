@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.store;
 import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
@@ -44,6 +45,7 @@ import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
+import com.vmturbo.components.common.utils.RteLoggingRunnable;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
@@ -137,6 +139,9 @@ public class ActionStoreConfig {
     @Value("${riskPropagationEnabled:true}")
     private boolean riskPropagationEnabled;
 
+    @Value("${actionIdentityCachePurgeIntervalSec:1800")
+    private int identityCachePurgeIntervalSec;
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator());
@@ -180,7 +185,9 @@ public class ActionStoreConfig {
 
     @Bean
     public ExecutorService automatedActionThreadpool() {
-        return Executors.newFixedThreadPool(concurrentAutomatedActions);
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
+                "auto-act-exec-%d").build();
+        return Executors.newFixedThreadPool(concurrentAutomatedActions, threadFactory);
     }
 
     @Bean
@@ -203,14 +210,31 @@ public class ActionStoreConfig {
     }
 
     /**
+     * Executor service to perform cleanup tasks. We do not need a lot of threads here.
+     *
+     * @return the scheduler created
+     */
+    @Bean(destroyMethod = "shutdownNow")
+    private ScheduledExecutorService cleanupExecutorService() {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
+                "act-cleanup-%d").build();
+        return Executors.newScheduledThreadPool(1, threadFactory);
+    }
+
+    /**
      * Identity service for market recommendations.
      *
      * @return identity service
      */
     @Bean
     public IdentityServiceImpl<ActionInfo, ActionInfoModel> actionIdentityService() {
-        return new IdentityServiceImpl<>(recommendationIdentityStore(),
-                new ActionInfoModelCreator(), Clock.systemUTC(), 24 * 3600 * 1000);
+        final IdentityServiceImpl<ActionInfo, ActionInfoModel> service = new IdentityServiceImpl<>(
+                recommendationIdentityStore(), new ActionInfoModelCreator(), Clock.systemUTC(),
+                24 * 3600 * 1000);
+        cleanupExecutorService().scheduleWithFixedDelay(
+                new RteLoggingRunnable(service::pruneObsoleteCache, "Prune action identity cache"),
+                identityCachePurgeIntervalSec, identityCachePurgeIntervalSec, TimeUnit.SECONDS);
+        return service;
     }
 
     /**
