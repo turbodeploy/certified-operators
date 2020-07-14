@@ -127,25 +127,25 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Autowired
     private RepositoryDiagnosticsConfig repositoryDiagnosticsConfig;
 
-    @Value("${repositoryEntityStatsPaginationDefaultLimit}")
+    @Value("${repositoryEntityStatsPaginationDefaultLimit:100}")
     private int repositoryEntityStatsPaginationDefaultLimit;
 
-    @Value("${repositoryEntityStatsPaginationMaxLimit}")
+    @Value("${repositoryEntityStatsPaginationMaxLimit:10000}")
     private int repositoryEntityStatsPaginationMaxLimit;
 
-    @Value("${repositoryEntityStatsPaginationDefaultSortCommodity}")
+    @Value("${repositoryEntityStatsPaginationDefaultSortCommodity:priceIndex}")
     private String repositoryEntityStatsPaginationDefaultSortCommodity;
 
-    @Value("${repositorySearchPaginationDefaultLimit}")
+    @Value("${repositorySearchPaginationDefaultLimit:100}")
     private int repositorySearchPaginationDefaultLimit;
 
-    @Value("${repositorySearchPaginationMaxLimit}")
+    @Value("${repositorySearchPaginationMaxLimit:10000}")
     private int repositorySearchPaginationMaxLimit;
 
-    @Value("${repositoryEntityPaginationDefaultLimit}")
+    @Value("${repositoryEntityPaginationDefaultLimit:100}")
     private int repositoryEntityPaginationDefaultLimit;
 
-    @Value("${repositoryEntityPaginationMaxLimit}")
+    @Value("${repositoryEntityPaginationMaxLimit:10000}")
     private int repositoryEntityPaginationMaxLimit;
 
     @Value("${repositoryMaxEntitiesPerChunk:5}")
