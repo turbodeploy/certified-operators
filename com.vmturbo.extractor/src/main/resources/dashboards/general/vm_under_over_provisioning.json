@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1593541576302,
+  "iteration": 1594313448158,
   "links": [],
   "panels": [
     {
@@ -113,7 +113,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "with vms_by_cluster as (\n    select distinct on (e.oid) g.name as cluster_name, e.oid as vm_oid, e.name as vm_name\n\tfrom entity g\n\tjoin entity e on g.\"type\" = 'COMPUTE_CLUSTER' and\n\t     array[g.oid] <@ e.scope\n\t     and e.\"type\" = 'VIRTUAL_MACHINE' and e.state = 'POWERED_ON'\n\t     and (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo()))\nselect max(cluster_name) as \"Cluster name\",\n       max(vm_name) as \"VM name\",\n       AVG(metric.capacity) filter (where metric.type = 'VMEM') as \"VMEM Capacity\",\n       AVG(metric.utilization) filter (where metric.type = 'VMEM') as \"VMEM Avg\",\n       max(metric.utilization) filter (where metric.type = 'VMEM') as \"VMEM Peak\",\n       AVG(metric.capacity) filter (where metric.type = 'VCPU') as \"VCPU Capacity\",\n       AVG(metric.utilization) filter (where metric.type = 'VCPU') as \"VCPU Avg\",\n       max(metric.utilization) filter (where metric.type = 'VCPU') as \"VCPU Peak\"\nfrom vms_by_cluster\njoin metric on\n       metric.entity_oid = vm_oid and \n       metric.\"type\" in ('VMEM', 'VCPU') and provider_oid isnull and $__timeFilter(metric.\"time\")\ngroup by vm_oid\nhaving max(metric.utilization) filter (where metric.type = 'VMEM') < 0.1 OR\n       max(metric.utilization) filter (where metric.type = 'VCPU') < 0.1\n",
+          "rawSql": "with vms_by_cluster as (\n    select distinct on (e.oid) g.name as cluster_name, e.oid as vm_oid, e.name as vm_name\n\tfrom entity g\n\tjoin entity e on g.\"type\" = 'COMPUTE_HOST_CLUSTER' and\n\t     array[g.oid] <@ e.scope\n\t     and e.\"type\" = 'VIRTUAL_MACHINE' and e.state = 'POWERED_ON'\n\t     and (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo()))\nselect max(cluster_name) as \"Cluster name\",\n       max(vm_name) as \"VM name\",\n       AVG(metric.capacity) filter (where metric.type = 'VMEM') as \"VMEM Capacity\",\n       AVG(metric.utilization) filter (where metric.type = 'VMEM') as \"VMEM Avg\",\n       max(metric.utilization) filter (where metric.type = 'VMEM') as \"VMEM Peak\",\n       AVG(metric.capacity) filter (where metric.type = 'VCPU') as \"VCPU Capacity\",\n       AVG(metric.utilization) filter (where metric.type = 'VCPU') as \"VCPU Avg\",\n       max(metric.utilization) filter (where metric.type = 'VCPU') as \"VCPU Peak\"\nfrom vms_by_cluster\njoin metric on\n       metric.entity_oid = vm_oid and \n       metric.\"type\" in ('VMEM', 'VCPU') and provider_oid isnull and $__timeFilter(metric.\"time\")\ngroup by vm_oid\nhaving max(metric.utilization) filter (where metric.type = 'VMEM') < 0.1 OR\n       max(metric.utilization) filter (where metric.type = 'VCPU') < 0.1\n",
           "refId": "B",
           "select": [
             [
@@ -235,7 +235,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "with vms_by_cluster as (\n    select distinct on (e.oid) g.name as cluster_name, e.oid as vm_oid, e.name as vm_name\n\tfrom entity g\n\tjoin entity e on g.\"type\" = 'COMPUTE_CLUSTER' and\n\t     array[g.oid] <@ e.scope\n\t     and e.\"type\" = 'VIRTUAL_MACHINE' and e.state = 'POWERED_ON'\n\t     and (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo()))\nselect max(cluster_name) as \"Cluster name\",\n       max(vm_name) as \"VM name\",\n       AVG(metric.capacity) filter (where metric.type = 'VMEM') as \"VMEM Capacity\",\n       AVG(metric.utilization) filter (where metric.type = 'VMEM') as \"VMEM Avg\",\n       max(metric.utilization) filter (where metric.type = 'VMEM') as \"VMEM Peak\",\n       AVG(metric.capacity) filter (where metric.type = 'VCPU') as \"VCPU Capacity\",\n       AVG(metric.utilization) filter (where metric.type = 'VCPU') as \"VCPU Avg\",\n       max(metric.utilization) filter (where metric.type = 'VCPU') as \"VCPU Peak\"\nfrom vms_by_cluster\njoin metric on\n       metric.entity_oid = vm_oid and \n       metric.\"type\" in ('VMEM', 'VCPU') and provider_oid isnull and $__timeFilter(metric.\"time\")\ngroup by vm_oid\nhaving max(metric.utilization) filter (where metric.type = 'VMEM') > 0.85 OR\n       max(metric.utilization) filter (where metric.type = 'VCPU') > 0.85\n",
+          "rawSql": "with vms_by_cluster as (\n    select distinct on (e.oid) g.name as cluster_name, e.oid as vm_oid, e.name as vm_name\n\tfrom entity g\n\tjoin entity e on g.\"type\" = 'COMPUTE_HOST_CLUSTER' and\n\t     array[g.oid] <@ e.scope\n\t     and e.\"type\" = 'VIRTUAL_MACHINE' and e.state = 'POWERED_ON'\n\t     and (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo()))\nselect max(cluster_name) as \"Cluster name\",\n       max(vm_name) as \"VM name\",\n       AVG(metric.capacity) filter (where metric.type = 'VMEM') as \"VMEM Capacity\",\n       AVG(metric.utilization) filter (where metric.type = 'VMEM') as \"VMEM Avg\",\n       max(metric.utilization) filter (where metric.type = 'VMEM') as \"VMEM Peak\",\n       AVG(metric.capacity) filter (where metric.type = 'VCPU') as \"VCPU Capacity\",\n       AVG(metric.utilization) filter (where metric.type = 'VCPU') as \"VCPU Avg\",\n       max(metric.utilization) filter (where metric.type = 'VCPU') as \"VCPU Peak\"\nfrom vms_by_cluster\njoin metric on\n       metric.entity_oid = vm_oid and \n       metric.\"type\" in ('VMEM', 'VCPU') and provider_oid isnull and $__timeFilter(metric.\"time\")\ngroup by vm_oid\nhaving max(metric.utilization) filter (where metric.type = 'VMEM') > 0.85 OR\n       max(metric.utilization) filter (where metric.type = 'VCPU') > 0.85\n",
           "refId": "B",
           "select": [
             [
@@ -310,7 +310,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "with vms_by_cluster as (\n  select distinct on(e.oid) g.name as cluster_name, e.oid as vm_oid\n\tfrom entity g\n\tjoin entity e on g.\"type\" = 'COMPUTE_CLUSTER' and array[g.oid] <@ e.scope and e.\"type\" = 'VIRTUAL_MACHINE'\n\t  \t\t\t\tand e.\"type\" = 'VIRTUAL_MACHINE' and e.state = 'POWERED_ON'\n\t  \t\t\t\tand (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo())),\nvm_peaks as (\n    SELECT MAX(cluster_name) as cluster_name,\n\t       MAX(metric.utilization) filter (where metric.type = 'VMEM') as vmem_peak,\n\t       MAX(metric.utilization) filter (where metric.type = 'VCPU') as vcpu_peak\n\tFROM vms_by_cluster\n\tjoin metric on vm_oid = metric.entity_oid \n\t      and $__timeFilter(metric.\"time\")\n\t      and metric.\"type\" in ('VMEM', 'VCPU')\n\t      and provider_oid isnull\n\tgroup by vm_oid)\nselect cluster_name as \"Cluster\", avg(vcpu_peak) as \"Avg(Peak VCPU)\", avg(vmem_peak) as \"Avg(Peak VMem)\"\nfrom vm_peaks\ngroup by cluster_name\n\n",
+          "rawSql": "with vms_by_cluster as (\n  select distinct on(e.oid) g.name as cluster_name, e.oid as vm_oid\n\tfrom entity g\n\tjoin entity e on g.\"type\" = 'COMPUTE_HOST_CLUSTER' and array[g.oid] <@ e.scope and e.\"type\" = 'VIRTUAL_MACHINE'\n\t  \t\t\t\tand e.\"type\" = 'VIRTUAL_MACHINE' and e.state = 'POWERED_ON'\n\t  \t\t\t\tand (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo())),\nvm_peaks as (\n    SELECT MAX(cluster_name) as cluster_name,\n\t       MAX(metric.utilization) filter (where metric.type = 'VMEM') as vmem_peak,\n\t       MAX(metric.utilization) filter (where metric.type = 'VCPU') as vcpu_peak\n\tFROM vms_by_cluster\n\tjoin metric on vm_oid = metric.entity_oid \n\t      and $__timeFilter(metric.\"time\")\n\t      and metric.\"type\" in ('VMEM', 'VCPU')\n\t      and provider_oid isnull\n\tgroup by vm_oid)\nselect cluster_name as \"Cluster\", avg(vcpu_peak) as \"Avg(Peak VCPU)\", avg(vmem_peak) as \"Avg(Peak VMem)\"\nfrom vm_peaks\ngroup by cluster_name\n\n",
           "refId": "A",
           "select": [
             [
@@ -375,6 +375,6 @@
     ]
   },
   "timezone": "",
-  "title": "VM Over or Under Provisioning 90 Days",
+  "title": "VM Over or Under Provisioning",
   "uid": "vm_under_over_provisioning"
 }
