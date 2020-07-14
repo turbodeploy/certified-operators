@@ -101,6 +101,7 @@ public class ExtractorDbConfig {
                     .withDbPassword(grafanaDataPassword)
                     .withDbDatabaseName(grafanaDataDbName)
                     .withNoDbMigrations()
+                    .withDbShouldProvision(true)
                     .build());
         } else {
             logger.info("Skipping database endpoint creation for Grafana.");
