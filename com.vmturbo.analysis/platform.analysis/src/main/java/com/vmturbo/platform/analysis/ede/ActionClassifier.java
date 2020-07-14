@@ -183,7 +183,7 @@ public class ActionClassifier {
                 }
             } catch (Exception ex) {
                 a.setExecutable(true);
-                printLogMessageInDebugForExecutableFlag(a);
+                printLogMessageInDebugForExecutableFlag(a, ex);
             }
         });
     }
@@ -202,7 +202,7 @@ public class ActionClassifier {
                 }
             } catch (Exception ex) {
                 a.setExecutable(true);
-                printLogMessageInDebugForExecutableFlag(a);
+                printLogMessageInDebugForExecutableFlag(a, ex);
             }
 
         });
@@ -222,7 +222,7 @@ public class ActionClassifier {
                 }
             } catch (Exception ex) {
                 a.setExecutable(true);
-                printLogMessageInDebugForExecutableFlag(a);
+                printLogMessageInDebugForExecutableFlag(a, ex);
             }
         });
     }
@@ -280,17 +280,16 @@ public class ActionClassifier {
             }
         } catch (Exception ex) {
             move.setExecutable(true);
-            printLogMessageInDebugForExecutableFlag(move);
+            printLogMessageInDebugForExecutableFlag(move, ex);
         }
     }
 
-    private void printLogMessageInDebugForExecutableFlag(Action a) {
-        if (logger.isDebugEnabled()) {
-            String additionalInfo = a.getActionTarget() != null
-                            ? a.getActionTarget().getDebugInfoNeverUseInCode() : a.toString();
-            ActionType actionType = a.getType();
-            logger.debug("Setting executable true for " + actionType + " target : " + additionalInfo);
-       }
+    private void printLogMessageInDebugForExecutableFlag(Action a, Exception e) {
+        String additionalInfo = a.getActionTarget() != null
+                        ? a.getActionTarget().getDebugInfoNeverUseInCode() : a.toString();
+        ActionType actionType = a.getType();
+        logger.error("Setting executable true for " + actionType + " target : " + additionalInfo
+                        + ". Error message: " + e.toString(), e);
     }
     /**
      * Find the corresponding {@link Trader} in the cloned {@link Economy}.
