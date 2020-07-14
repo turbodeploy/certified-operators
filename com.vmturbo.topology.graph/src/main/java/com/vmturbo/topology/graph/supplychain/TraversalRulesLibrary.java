@@ -40,8 +40,8 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                     // in which PMs can be providers to storage)
                 new StorageRule<>(),
 
-                // special rule for VMs and Container Pods
-                    // special treatment for related VDCs
+                // special rule for VMs, Container Pods, and BusinessUsers
+                    // special treatment for related VDCs and DesktopPools
                     // (traverse them, but do not continue traversal from them)
                 new VdcAsAggregatorRule<>(),
 
@@ -176,7 +176,8 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         @Override
         public boolean isApplicable(@Nonnull final E entity, @Nonnull final TraversalMode traversalMode) {
             return entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
-                        || entity.getEntityType() == EntityType.CONTAINER_POD_VALUE;
+                        || entity.getEntityType() == EntityType.CONTAINER_POD_VALUE
+                        || entity.getEntityType() == EntityType.BUSINESS_USER_VALUE;
         }
 
         @Override
@@ -191,12 +192,14 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                 //     SupplyChainCalculatorTest.testVdcInContainerTopology2
                 // as an example)
                 vdcAggregators = super.getFilteredProviders(entity, traversalMode)
-                                    .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE);
+                                    .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE
+                                        || e.getEntityType() == EntityType.DESKTOP_POOL_VALUE);
             } else {
                 // if at the seed or going up, treat all VDCs as aggregators
                 vdcAggregators = Stream.concat(super.getFilteredProviders(entity, traversalMode),
                                                super.getFilteredConsumers(entity, traversalMode))
-                                    .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE);
+                                    .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE
+                                                || e.getEntityType() == EntityType.DESKTOP_POOL_VALUE);
             }
 
             // combine with true aggregators
@@ -208,7 +211,8 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                                                  @Nonnull TraversalMode traversalMode) {
             // ignore VDCs, because they are treated as aggregators
             return super.getFilteredProviders(entity, traversalMode)
-                        .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE);
+                    .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE)
+                    .filter(e -> e.getEntityType() != EntityType.DESKTOP_POOL_VALUE);
         }
 
         @Override
@@ -216,7 +220,8 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                                                  @Nonnull TraversalMode traversalMode) {
             // ignore VDCs, because they are treated as aggregators
             return super.getFilteredConsumers(entity, traversalMode)
-                        .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE);
+                        .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE)
+                        .filter(e -> e.getEntityType() != EntityType.DESKTOP_POOL_VALUE);
         }
     }
 
