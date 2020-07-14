@@ -9,6 +9,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -18,12 +20,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Record2;
 import org.jooq.UpdatableRecord;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
+import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.enums.AccountToReservedInstanceMappingRiSourceCoverage;
 import com.vmturbo.cost.component.db.tables.records.AccountToReservedInstanceMappingRecord;
 
@@ -165,6 +169,25 @@ public class AccountRIMappingStore {
      */
     private Condition filterByOidsCondition(final Collection<Long> oids) {
         return oids.isEmpty() ? DSL.trueCondition() : ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.BUSINESS_ACCOUNT_OID.in(oids);
+    }
+
+    /**
+     * Gets the reserved instance to covered undiscovered accounts mapping.
+     *
+     * @param reservedInstances the reserved instances for getting accounts covered by them
+     * @return the reserved instance to covered accounts mapping.
+     */
+    @Nonnull
+    public Map<Long, Set<Long>> getUndiscoveredAccountsCoveredByReservedInstances(
+            @Nonnull final Collection<Long> reservedInstances) {
+        final Condition condition = reservedInstances.isEmpty() ? DSL.noCondition()
+                : Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID.in(
+                        reservedInstances);
+        return dsl.selectDistinct(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.BUSINESS_ACCOUNT_OID).from(
+                Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING).where(condition).fetchStream().collect(
+                Collectors.groupingBy(Record2::value1,
+                        Collectors.mapping(Record2::value2, Collectors.toSet())));
     }
 
     /**

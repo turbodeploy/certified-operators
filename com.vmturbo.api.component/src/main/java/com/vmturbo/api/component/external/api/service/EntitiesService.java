@@ -121,10 +121,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -1030,9 +1028,8 @@ public class EntitiesService implements IEntitiesService {
             throws StatusRuntimeException {
         final Stream<MinimalEntity> neighbors = repositoryApi.newSearchRequest(
             SearchProtoUtil.neighbors(oid, traversalDirection)).getMinimalEntities();
-        code.accept(neighbors.map(ServiceEntityMapper::toBasicEntity)
-            .collect(Collectors.toList())
-        );
+        code.accept(neighbors.map(ServiceEntityMapper::toBaseServiceEntityApiDTO)
+                .collect(Collectors.toList()));
     }
 
     /**

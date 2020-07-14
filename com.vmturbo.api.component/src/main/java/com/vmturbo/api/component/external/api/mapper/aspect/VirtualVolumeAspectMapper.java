@@ -20,15 +20,15 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -318,9 +318,9 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                     .filter(commBought -> commBought.getProviderEntityType()
                             == EntityType.STORAGE_TIER.getNumber())
                     .map(CommoditiesBoughtFromProvider::getProviderId)
-                    .forEach(storageTierId -> storageTierByVolumeId.put(
-                            volumeId,
-                            ServiceEntityMapper.toBasicEntity(storageTierById.get(storageTierId))));
+                    .forEach(storageTierId -> storageTierByVolumeId.put(volumeId,
+                            ServiceEntityMapper.toBaseServiceEntityApiDTO(
+                                    storageTierById.get(storageTierId))));
         });
 
         // get cost stats for all volumes
@@ -558,7 +558,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         repositoryApi.entitiesRequest(storageTierIds).getMinimalEntities()
                 .forEach(storageTierEntity -> {
                     final ServiceEntityApiDTO stTierBasicEntity =
-                            ServiceEntityMapper.toBasicEntity(storageTierEntity);
+                            ServiceEntityMapper.toBaseServiceEntityApiDTO(storageTierEntity);
                     stTierBasicEntityById.put(storageTierEntity.getOid(), stTierBasicEntity);
                 });
         storageTierIdByVolumeId.forEach((volId, stId) -> {
@@ -706,8 +706,8 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         return repositoryApi.newSearchRequest(SearchParameters.newBuilder()
                 .setStartingFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.STORAGE_TIER.apiStr()))
                 .build())
-            .getMinimalEntities()
-            .collect(Collectors.toMap(MinimalEntity::getOid, ServiceEntityMapper::toBasicEntity));
+            .getMinimalEntities().collect(Collectors.toMap(MinimalEntity::getOid,
+                        ServiceEntityMapper::toBaseServiceEntityApiDTO));
     }
 
     /**
@@ -724,7 +724,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         retVal.setUuid(storage.getOid() + file.getPath());
         retVal.setDisplayName(file.getPath());
         retVal.setEnvironmentType(EnvironmentType.ONPREM);
-        retVal.setProvider(ServiceEntityMapper.toBasicEntity(storage));
+        retVal.setProvider(ServiceEntityMapper.toBaseServiceEntityApiDTO(storage));
         retVal.setLastModified(file.getModificationTimeMs());
         retVal.setTier(UNKNOWN);
         // storage amount stats
@@ -732,7 +732,8 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         retVal.setStats(Collections.singletonList(createStatApiDTO(
             CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
             CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), file.getSizeKb() / 1024F,
-            file.getSizeKb() / 1024F, ServiceEntityMapper.toBasicEntity(storage), file.getPath())));
+            file.getSizeKb() / 1024F, ServiceEntityMapper.toBaseServiceEntityApiDTO(storage),
+            file.getPath())));
         return retVal;
     }
 
@@ -769,7 +770,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         // find region for the volume and set it in VirtualDiskApiDTO
         final ApiPartialEntity region = regionByVolumeId.get(volume.getOid());
         if (region != null) {
-            virtualDiskApiDTO.setDataCenter(ServiceEntityMapper.toBasicEntity(region));
+            virtualDiskApiDTO.setDataCenter(ServiceEntityMapper.toBaseServiceEntityApiDTO(region));
         }
         // set storage tier
         final ServiceEntityApiDTO storageTier = storageTierByVolumeId.get(volumeId);
@@ -800,7 +801,8 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             BaseApiDTO vm = new BaseApiDTO();
             vm.setUuid(String.valueOf(vmDTO.getOid()));
             vm.setDisplayName(vmDTO.getDisplayName());
-            virtualDiskApiDTO.setAttachedVirtualMachine(ServiceEntityMapper.toBasicEntity(vmDTO));
+            virtualDiskApiDTO.setAttachedVirtualMachine(
+                    ServiceEntityMapper.toBaseServiceEntityApiDTO(vmDTO));
 
             for (CommoditiesBoughtFromProvider cbfp : vmDTO.getCommoditiesBoughtFromProvidersList()) {
                 final long volumeOid = volume.getOid();

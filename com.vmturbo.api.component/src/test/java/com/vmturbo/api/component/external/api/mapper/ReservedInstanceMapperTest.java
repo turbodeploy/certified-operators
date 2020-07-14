@@ -9,6 +9,7 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -113,7 +114,8 @@ public class ReservedInstanceMapperTest {
         serviceEntityApiDTOMap.put(33L, templateEntity);
         serviceEntityApiDTOMap.put(44L, regionEntity);
         final ReservedInstanceApiDTO reservedInstanceApiDTO =
-                reservedInstanceMapper.mapToReservedInstanceApiDTO(riBought, riSpec, serviceEntityApiDTOMap);
+                reservedInstanceMapper.mapToReservedInstanceApiDTO(riBought, riSpec,
+                        serviceEntityApiDTOMap, 50, null);
         assertEquals("RI_ID", reservedInstanceApiDTO.getTrueID());
         assertEquals(String.valueOf(ACCOUNT_1_ID), reservedInstanceApiDTO.getAccountId());
         assertEquals("Account", reservedInstanceApiDTO.getAccountDisplayName());
@@ -134,6 +136,8 @@ public class ReservedInstanceMapperTest {
         assertEquals(300.0, reservedInstanceApiDTO.getActualHourlyCost(), delta);
         assertEquals(CloudType.AWS, reservedInstanceApiDTO.getCloudType());
         assertEquals(Arrays.asList("Account", "Sibling Account"), reservedInstanceApiDTO.getAppliedScopes());
+        Assert.assertEquals(50, (int)reservedInstanceApiDTO.getCoveredEntityCount());
+        Assert.assertNull(reservedInstanceApiDTO.getUndiscoveredAccountsCoveredCount());
     }
 
     /**
@@ -173,9 +177,12 @@ public class ReservedInstanceMapperTest {
         ReservedInstanceBought reservedInstanceBought = riBought.toBuilder().setReservedInstanceBoughtInfo(reservedInstanceBoughtInfo)
                 .build();
         // Act
-        final ReservedInstanceApiDTO reservedInstanceApiDTO = reservedInstanceMapper
-                .mapToReservedInstanceApiDTO(reservedInstanceBought, riSpec, serviceEntityApiDTOMap);
+        final ReservedInstanceApiDTO reservedInstanceApiDTO =
+                reservedInstanceMapper.mapToReservedInstanceApiDTO(reservedInstanceBought, riSpec,
+                        serviceEntityApiDTOMap, null, 100);
         assertEquals(reservedInstanceApiDTO.getExpDateEpochTime(), new Long(1L));
+        Assert.assertEquals(100, (int)reservedInstanceApiDTO.getUndiscoveredAccountsCoveredCount());
+        Assert.assertNull(reservedInstanceApiDTO.getCoveredEntityCount());
     }
 
     private void testMapToReservedInstanceApiDTOForAzureProbeType(SDKProbeType probeType)
@@ -191,9 +198,11 @@ public class ReservedInstanceMapperTest {
 
         // Act
         final ReservedInstanceApiDTO reservedInstanceApiDTO = reservedInstanceMapper
-            .mapToReservedInstanceApiDTO(riBought, riSpec, serviceEntityApiDTOMap);
+            .mapToReservedInstanceApiDTO(riBought, riSpec, serviceEntityApiDTOMap, 100, 50);
 
         // Assert
         assertEquals(CloudType.AZURE, reservedInstanceApiDTO.getCloudType());
+        Assert.assertEquals(100, (int)reservedInstanceApiDTO.getCoveredEntityCount());
+        Assert.assertEquals(50, (int)reservedInstanceApiDTO.getUndiscoveredAccountsCoveredCount());
     }
 }

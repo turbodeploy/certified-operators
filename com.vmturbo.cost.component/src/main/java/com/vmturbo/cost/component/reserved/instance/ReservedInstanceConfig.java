@@ -223,9 +223,10 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceUtilizationCoverageRpcService reservedInstanceUtilizationCoverageRpcService() {
         return new ReservedInstanceUtilizationCoverageRpcService(reservedInstanceUtilizationStore(),
-                        reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(),
-                        entityReservedInstanceMappingStore(), planProjectedRICoverageAndUtilStore(),
-                        timeFrameCalculator(), realtimeTopologyContextId);
+                reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(),
+                entityReservedInstanceMappingStore(), accountRIMappingStore(),
+                planProjectedRICoverageAndUtilStore(), timeFrameCalculator(),
+                realtimeTopologyContextId);
     }
 
     @Bean
