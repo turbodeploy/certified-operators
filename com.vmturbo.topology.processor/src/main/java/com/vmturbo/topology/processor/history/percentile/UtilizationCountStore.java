@@ -169,7 +169,22 @@ public class UtilizationCountStore {
      * @return serialized record
      */
     public synchronized PercentileRecord.Builder getLatestCountsRecord() {
-        return latest.serialize(fieldReference).setPeriod(1);
+        return serialize(latest, 1);
+    }
+
+    /**
+     * Serialize the full window counts array.
+     *
+     * @return serialized record
+     */
+    public synchronized PercentileRecord.Builder getFullCountsRecord() {
+        return serialize(full, periodDays);
+    }
+
+    @Nonnull
+    private PercentileRecord.Builder serialize(@Nonnull UtilizationCountArray full,
+                    int periodDays) {
+        return full.serialize(fieldReference).setPeriod(periodDays);
     }
 
     /**
@@ -202,7 +217,7 @@ public class UtilizationCountStore {
             }
         }
         latest.clear();
-        return full.serialize(fieldReference).setPeriod(periodDays);
+        return serialize(full, periodDays);
     }
 
     public int getPeriodDays() {

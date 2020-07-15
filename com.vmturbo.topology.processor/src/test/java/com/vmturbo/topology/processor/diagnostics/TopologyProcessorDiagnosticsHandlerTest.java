@@ -72,6 +72,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.ResourcePath;
+import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -210,6 +211,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private static final String DISCOVERED_PRICE_TABLE = "bar";
 
     private static final String TARGET_DISPLAY_NAME = "target name";
+    private Map<String, BinaryDiagsRestorable> statefulEditors = Collections.emptyMap();
 
     @Before
     public void setup() throws Exception {
@@ -252,6 +254,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         }).when(priceTableUploader).collectDiags(Mockito.any());
         Mockito.when(priceTableUploader.getFileName())
                 .thenReturn(PriceTableUploader.PRICE_TABLE_NAME);
+        statefulEditors = Collections.emptyMap();
     }
 
     private ZipInputStream dumpDiags() throws IOException {
@@ -260,7 +263,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TopologyProcessorDiagnosticsHandler handler =
                 new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
                         entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
-                        identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService);
+                        identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
+                                statefulEditors);
         handler.dump(zos);
         zos.close();
         return new ZipInputStream(new ByteArrayInputStream(zipBytes.toByteArray()));
@@ -397,7 +401,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         final TopologyProcessorDiagnosticsHandler handler =
             new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
                 entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
-                identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService);
+                identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
+                            statefulEditors);
         // Valid json, but not a target info
         final String invalidJsonTarget = GSON.toJson(targetSpecBuilder.setProbeId(3));
         // Invalid json
@@ -600,7 +605,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TopologyProcessorDiagnosticsHandler handler = new TopologyProcessorDiagnosticsHandler(
             simpleTargetStore, targetPersistentIdentityStore, scheduler, entityStore, probeStore,
             groupUploader, templateDeploymentProfileUploader, identityProvider,
-            discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService);
+            discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
+                        statefulEditors);
         when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
         when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
         handler.restore(new FileInputStream(ResourcePath.getTestResource(getClass(), "diags/compressed/diags0.zip").toFile()));

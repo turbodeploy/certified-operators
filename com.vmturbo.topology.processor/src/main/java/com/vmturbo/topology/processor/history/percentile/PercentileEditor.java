@@ -1,5 +1,9 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Collection;
@@ -22,6 +26,9 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,12 +36,15 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
-import com.vmturbo.commons.utils.ThrowingFunction;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.utils.ThrowingFunction;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -43,6 +53,8 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.AbstractCachingHistoricalEditor;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
@@ -171,7 +183,13 @@ public class PercentileEditor extends
                     throws HistoryCalculationException, InterruptedException {
         super.initContext(context, eligibleComms);
 
-        loadPersistedData(context);
+        loadPersistedData(context, checkpoint -> {
+            // read the latest and full window blobs if haven't yet, set into cache
+            final PercentilePersistenceTask task = createTask(checkpoint);
+            return Pair.create(task.getLastCheckpointMs(),
+                            task.load(Collections.emptyList(), getConfig()));
+        }, maintenance -> Pair.create(maintenance,
+                        createTask(maintenance).load(Collections.emptyList(), getConfig())));
         if (!context.isPlan()) {
             checkObservationPeriodsChanged(context);
         }
@@ -228,61 +246,70 @@ public class PercentileEditor extends
     private void persistBlob(long taskTimestamp, long periodMs,
                     ThrowingFunction<UtilizationCountStore, Builder, HistoryCalculationException> countStoreToRecordStore)
                     throws HistoryCalculationException, InterruptedException {
+        writeBlob(createBlob(countStoreToRecordStore), periodMs, taskTimestamp);
+    }
+
+    private PercentileCounts.Builder createBlob(
+                    ThrowingFunction<UtilizationCountStore, Builder, HistoryCalculationException> countStoreToRecordStore)
+                    throws HistoryCalculationException, InterruptedException {
         final PercentileCounts.Builder builder = PercentileCounts.newBuilder();
         for (PercentileCommodityData data : getCache().values()) {
             builder.addPercentileRecords(
                             countStoreToRecordStore.apply(data.getUtilizationCountStore()));
         }
-        writeBlob(builder, periodMs, taskTimestamp);
+        return builder;
     }
 
     private PercentilePersistenceTask createTask(long startTimestamp) {
         return createLoadingTask(Pair.create(startTimestamp, null));
     }
 
-    private void loadPersistedData(@Nonnull HistoryAggregationContext context) throws HistoryCalculationException, InterruptedException {
+    private void loadPersistedData(@Nonnull HistoryAggregationContext context,
+                    @Nonnull ThrowingFunction<Long, Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>>, HistoryCalculationException> latestLoader,
+                    @Nonnull ThrowingFunction<Long, Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>>, HistoryCalculationException> fullLoader)
+                    throws HistoryCalculationException, InterruptedException {
         if (!historyInitialized) {
             Stopwatch sw = Stopwatch.createStarted();
-            // read the latest and full window blobs if haven't yet, set into cache
-            final PercentilePersistenceTask task =
-                            createTask(PercentilePersistenceTask.TOTAL_TIMESTAMP);
-            Map<EntityCommodityFieldReference, PercentileRecord> fullPage =
-                            task.load(Collections.emptyList(), getConfig());
-            for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> fullEntry : fullPage.entrySet()) {
-                EntityCommodityFieldReference field = fullEntry.getKey();
-                PercentileRecord record = fullEntry.getValue();
-                PercentileCommodityData data =
-                                getCache().computeIfAbsent(field,
-                                                           ref -> historyDataCreator.get());
+
+            final Map<EntityCommodityFieldReference, PercentileRecord> fullPage =
+                            fullLoader.apply(PercentilePersistenceTask.TOTAL_TIMESTAMP).getSecond();
+            for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> fullEntry : fullPage
+                            .entrySet()) {
+                final EntityCommodityFieldReference field = fullEntry.getKey();
+                final PercentileRecord record = fullEntry.getValue();
+                final PercentileCommodityData data =
+                                getCache().computeIfAbsent(field, ref -> historyDataCreator.get());
                 data.init(field, null, getConfig(), context);
                 data.getUtilizationCountStore().addFullCountsRecord(record, true);
                 data.getUtilizationCountStore().setPeriodDays(record.getPeriod());
             }
             logger.info("Initialized percentile full window data for {} commodities in {}",
-                         fullPage::size, sw::toString);
+                            fullPage::size, sw::toString);
 
             sw.reset();
             sw.start();
             long checkpointMs = getCheckpoint();
-            Map<EntityCommodityFieldReference, PercentileRecord> latestPage =
-                        createTask(checkpointMs).load(Collections.emptyList(), getConfig());
-            for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> latestEntry : latestPage.entrySet()) {
-                PercentileCommodityData data =
+            final Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>> loaded =
+                            latestLoader.apply(checkpointMs);
+            final Map<EntityCommodityFieldReference, PercentileRecord> latestPage =
+                            loaded.getSecond();
+            for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> latestEntry : latestPage
+                            .entrySet()) {
+                final PercentileCommodityData data =
                                 getCache().computeIfAbsent(latestEntry.getKey(),
-                                                       ref -> historyDataCreator.get());
-                PercentileRecord record = latestEntry.getValue();
+                                                ref -> historyDataCreator.get());
+                final PercentileRecord record = latestEntry.getValue();
                 if (data.getUtilizationCountStore() == null) {
-                    data.init(latestEntry.getKey(), record, getConfig(),
-                              context);
+                    data.init(latestEntry.getKey(), record, getConfig(), context);
                 } else {
                     data.getUtilizationCountStore().setLatestCountsRecord(record);
                 }
             }
             logger.info("Initialized percentile latest window data for timestamp {} and {} commodities in {}",
-                         () -> checkpointMs, latestPage::size, sw::toString);
+                            () -> checkpointMs, latestPage::size, sw::toString);
 
             historyInitialized = true;
-            lastCheckpointMs = task.getLastCheckpointMs() != 0 ? task.getLastCheckpointMs() : checkpointMs;
+            lastCheckpointMs = loaded.getFirst() != 0 ? loaded.getFirst() : checkpointMs;
         }
     }
 
@@ -387,8 +414,8 @@ public class PercentileEditor extends
         try (DataMetricTimer timer = MAINTENANCE_SUMMARY_METRIC.startTimer();
                         CacheBackup backup = createCacheBackup()) {
             logger.debug("Performing percentile cache maintenance {} for {}",
-                         ++checkpoints,
-                         Instant.ofEpochMilli(checkpointMs));
+                        ++checkpoints,
+                        Instant.ofEpochMilli(checkpointMs));
             if (enforceMaintenance
                 && lastCheckpointMs + getMaintenanceWindowInMs() > checkpointMs) {
                 enforcedMaintenance(context, checkpointMs);
@@ -537,6 +564,79 @@ public class PercentileEditor extends
     private long getMaintenanceWindowInMs() {
         return getConfig().getMaintenanceWindowHours() *
                TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+    }
+
+    @Override
+    public void restoreDiags(@Nonnull final byte[] bytes) throws DiagnosticsException {
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                        .setTopologyId(getConfig().getRealtimeTopologyContextId()).build();
+        final Map<Integer, Collection<TopologyEntity>> typeToIndex = new HashMap<>();
+        final Long2ObjectMap<TopologyEntity> oidToEntity = new Long2ObjectOpenHashMap<>();
+        final TopologyGraph<TopologyEntity> graph = new TopologyGraph<>(oidToEntity, typeToIndex);
+        final Map<Long, EntitySettings> oidToSettings = new HashMap<>();
+        final Map<Long, SettingPolicy> defaultPolicies = new HashMap<>();
+        final GraphWithSettings graphWithSettings =
+                        new GraphWithSettings(graph, oidToSettings, defaultPolicies);
+        final HistoryAggregationContext context =
+                        new HistoryAggregationContext(topologyInfo, graphWithSettings, false);
+        try (InputStream source = new ByteArrayInputStream(bytes)) {
+            historyInitialized = false;
+            getCache().clear();
+            loadPersistedData(context, (timestamp) -> loadCachePart(timestamp, source, "latest"),
+                            (timestamp) -> loadCachePart(timestamp, source, "full"));
+        } catch (HistoryCalculationException | InterruptedException | IOException e) {
+            getCache().clear();
+            throw new DiagnosticsException(
+                            String.format("Cannot load percentile cache from '%s' file",
+                                            getFileName()), e);
+        }
+    }
+
+    @Nonnull
+    private static Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>> loadCachePart(
+                    @Nonnull Long timestamp, @Nonnull InputStream source, @Nonnull String partType)
+                    throws HistoryCalculationException {
+        try {
+            final Map<EntityCommodityFieldReference, PercentileRecord> result =
+                            PercentilePersistenceTask.parse(timestamp, source,
+                                            PercentileCounts::parseDelimitedFrom);
+            logger.info("Loaded '{}' {} records for '{}' timestamp.", result.size(), partType,
+                            timestamp);
+            return Pair.create(timestamp, result);
+        } catch (IOException ex) {
+            throw new HistoryCalculationException(String.format("Cannot read bytes to initialize '%s' records in cache", partType),
+                            ex);
+        }
+    }
+
+    @Override
+    protected void exportState(@Nonnull final OutputStream appender)
+                    throws DiagnosticsException, IOException {
+        try {
+            /*
+             * Order in the way to write those data is important. Data should be dumped in the
+             * way they are read in PercentileEditor#loadPersistedData method, i.e. first full,
+             * then latest.
+             */
+            final int fullSize = dumpPercentileCounts(appender,
+                            UtilizationCountStore::getFullCountsRecord);
+            final int latestSize = dumpPercentileCounts(appender,
+                            UtilizationCountStore::getLatestCountsRecord);
+            logger.info("Percentile cache stored in '{}' diagnostic file. Latest has '{}' record(s). Full has '{}' record(s).",
+                            getFileName(), latestSize, fullSize);
+        } catch (HistoryCalculationException | InterruptedException e) {
+            throw new DiagnosticsException(
+                            String.format("Cannot write percentile cache into '%s' file",
+                                            getFileName()));
+        }
+    }
+
+    private int dumpPercentileCounts(OutputStream output,
+                    ThrowingFunction<UtilizationCountStore, Builder, HistoryCalculationException> dumpingFunction)
+                    throws HistoryCalculationException, InterruptedException, IOException {
+        final PercentileCounts counts = createBlob(dumpingFunction).build();
+        counts.writeDelimitedTo(output);
+        return counts.getPercentileRecordsCount();
     }
 
     /**

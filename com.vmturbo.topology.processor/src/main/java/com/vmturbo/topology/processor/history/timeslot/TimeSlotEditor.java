@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.history.timeslot;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
@@ -31,6 +33,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -168,6 +171,12 @@ public class TimeSlotEditor extends
     }
 
     @Override
+    protected void exportState(@Nonnull OutputStream appender)
+                    throws DiagnosticsException, IOException {
+        // TODO Alexander Vasin
+    }
+
+    @Override
     protected boolean hasEnoughHistoricalData(@Nonnull HistoryAggregationContext context,
                     @Nonnull List<EntityCommodityReference> commodityRefs) {
         if (super.hasEnoughHistoricalData(context, commodityRefs)) {
@@ -262,5 +271,10 @@ public class TimeSlotEditor extends
         } finally {
             debugLogDataValues("Time slot data after maintenance %s");
         }
+    }
+
+    @Override
+    public void restoreDiags(@Nonnull byte[] bytes) throws DiagnosticsException {
+        // TODO Alexander Vasin
     }
 }
