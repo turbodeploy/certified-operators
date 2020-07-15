@@ -397,7 +397,6 @@ public class ServiceConfig {
     public MarketsService marketsService() {
         return new MarketsService(mapperConfig.actionSpecMapper(),
                 mapperConfig.uuidMapper(),
-                communicationConfig.actionsRpcService(),
                 policiesService(),
                 communicationConfig.policyRpcService(),
                 communicationConfig.planRpcService(),
@@ -658,7 +657,6 @@ public class ServiceConfig {
                 communicationConfig.apiComponentTargetListener(),
                 communicationConfig.repositoryApi(),
                 mapperConfig.actionSpecMapper(),
-                communicationConfig.actionsRpcService(),
                 actionSearchUtil(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 websocketConfig.websocketHandler(),

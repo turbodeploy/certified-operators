@@ -805,7 +805,7 @@ public class TargetsServiceTest {
                                                     Duration.ofMillis(100), Duration.ofMillis(50),
                                                     Duration.ofMillis(100), null,
                                                     apiComponentTargetListener, repositoryApi,
-                                                    actionSpecMapper, actionsRpcService, actionSearchUtil,
+                                                    actionSpecMapper, actionSearchUtil,
                                                     REALTIME_CONTEXT_ID, apiWebsocketHandler, true);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
@@ -833,7 +833,7 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener,
-            repositoryApi, actionSpecMapper, actionsRpcService, actionSearchUtil, REALTIME_CONTEXT_ID,
+            repositoryApi, actionSpecMapper, actionSearchUtil, REALTIME_CONTEXT_ID,
             apiWebsocketHandler, true);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
@@ -862,7 +862,7 @@ public class TargetsServiceTest {
                                                 Duration.ofMillis(100), Duration.ofMillis(50),
                                                 Duration.ofMillis(100), null,
                                                 apiComponentTargetListener, repositoryApi, actionSpecMapper,
-                                                actionsRpcService, actionSearchUtil, REALTIME_CONTEXT_ID,
+                                                actionSearchUtil, REALTIME_CONTEXT_ID,
                                                 apiWebsocketHandler, true);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
@@ -1227,7 +1227,7 @@ public class TargetsServiceTest {
                 new TargetsService(topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
                         Duration.ofMillis(50), Duration.ofMillis(100), null,
                         apiComponentTargetListener, repositoryApi, actionSpecMapper,
-                        actionsRpcService, actionSearchUtil, REALTIME_CONTEXT_ID,
+                        actionSearchUtil, REALTIME_CONTEXT_ID,
                         apiWebsocketHandler, false);
         // Get is allowed
         targetsService.getTargets(EnvironmentType.HYBRID);
@@ -1345,7 +1345,7 @@ public class TargetsServiceTest {
         public TargetsService targetsService() {
             return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1),
                 Duration.ofSeconds(60), Duration.ofSeconds(1), null,
-                apiComponentTargetListener(), repositoryApi(), actionSpecMapper(), actionRpcService(),
+                apiComponentTargetListener(), repositoryApi(), actionSpecMapper(),
                 new ActionSearchUtil(actionRpcService(), actionSpecMapper(),
                                      Mockito.mock(PaginationMapper.class),
                                      Mockito.mock(SupplyChainFetcherFactory.class),

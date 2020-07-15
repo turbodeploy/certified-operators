@@ -25,6 +25,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.TriConsumer;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
+import com.vmturbo.platform.common.dto.ActionExecution.ExternalActionInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 
 /**
@@ -38,16 +40,26 @@ public class ExternalActionApprovalManagerTest {
     private static final long ACTION3 = 10003L;
     private static final long RECOMMENDATION_ID = 10202L;
     private static final long ACTION_PLAN_ID = 10203L;
-
+    private static final String ACTION1_EXTERNAL_NAME = "CHG0030039";
+    private static final String ACTION1_EXTERNAL_URL =
+        "https://dev77145.service-now.com/nav_to.do?uri=%2Fchange_request.do%3Fsys_id%3Dee362595db02101093ac84da0b9619d9";
+    private static final String ACTION2_EXTERNAL_NAME = "CHG0030040";
+    private static final String ACTION2_EXTERNAL_URL =
+        "https://dev77145.service-now.com/nav_to.do?uri=%2Fchange_request.do%3Fsys_id%3Dee362595db02101093ac84da0b9619e0";
 
     @Captor
-    private ArgumentCaptor<TriConsumer<GetActionStateResponse, Runnable, SpanContext>> msgCaptor;
+    private ArgumentCaptor<TriConsumer<GetActionStateResponse, Runnable, SpanContext>> actionStateResponseMsgCaptor;
+    @Captor
+    private ArgumentCaptor<TriConsumer<ActionApprovalResponse, Runnable, SpanContext>> actionApprovalResponseMsgCaptor;
     @Mock
-    private IMessageReceiver<GetActionStateResponse> msgReceiver;
+    private IMessageReceiver<GetActionStateResponse> getActionStateResponseReceiver;
+    @Mock
+    private IMessageReceiver<ActionApprovalResponse> actionApprovalResponseReceiver;
     private ActionStorehouse storehouse;
     private ActionApprovalManager mgr;
     private RejectedActionsDAO rejectedActionsStore;
-    private TriConsumer<GetActionStateResponse, Runnable, SpanContext> consumer;
+    private TriConsumer<GetActionStateResponse, Runnable, SpanContext> getActionStateResponseConsumer;
+    private TriConsumer<ActionApprovalResponse, Runnable, SpanContext> actionApprovalResponseConsumer;
     private ActionStore actionStore;
 
     /**
@@ -65,12 +77,20 @@ public class ExternalActionApprovalManagerTest {
         storehouse = Mockito.mock(ActionStorehouse.class);
         Mockito.when(storehouse.getStore(CTX_ID))
                 .thenReturn(Optional.of(actionStore));
-        final ExternalActionApprovalManager externalManager =
-                new ExternalActionApprovalManager(mgr, storehouse, msgReceiver, CTX_ID,
+        // link the receivers to the ExternalActionApprovalManager. This ExternalActionApprovalManager
+        // will not be garbage collected because getActionStateResponseReceiver and actionApprovalResponseReceiver
+        // will hold reference to them.
+        new ExternalActionApprovalManager(mgr, storehouse,
+                        getActionStateResponseReceiver, actionApprovalResponseReceiver,
+                        CTX_ID,
                         rejectedActionsStore);
-        Mockito.verify(msgReceiver)
-                .addListener(msgCaptor.capture());
-        consumer = msgCaptor.getValue();
+        Mockito.verify(getActionStateResponseReceiver)
+                .addListener(actionStateResponseMsgCaptor.capture());
+        getActionStateResponseConsumer = actionStateResponseMsgCaptor.getValue();
+
+        Mockito.verify(actionApprovalResponseReceiver)
+            .addListener(actionApprovalResponseMsgCaptor.capture());
+        actionApprovalResponseConsumer = actionApprovalResponseMsgCaptor.getValue();
     }
 
     /**
@@ -98,7 +118,7 @@ public class ExternalActionApprovalManagerTest {
         Mockito.when(actionStore.getActionByRecommendationId(ACTION2))
                 .thenReturn(Optional.of(acceptedAction));
 
-        consumer.accept(GetActionStateResponse.newBuilder()
+        getActionStateResponseConsumer.accept(GetActionStateResponse.newBuilder()
                 .putActionState(ACTION1, ActionResponseState.PENDING_ACCEPT)
                 .putActionState(ACTION2, ActionResponseState.ACCEPTED)
                 .putActionState(ACTION3, ActionResponseState.REJECTED)
@@ -126,7 +146,7 @@ public class ExternalActionApprovalManagerTest {
     public void testNoLiveActionStore() {
         final Runnable commit = Mockito.mock(Runnable.class);
         Mockito.when(storehouse.getStore(Mockito.anyLong())).thenReturn(Optional.empty());
-        consumer.accept(GetActionStateResponse.newBuilder()
+        getActionStateResponseConsumer.accept(GetActionStateResponse.newBuilder()
                 .putActionState(ACTION1, ActionResponseState.PENDING_ACCEPT)
                 .putActionState(ACTION2, ActionResponseState.ACCEPTED)
                 .build(), commit, Mockito.mock(SpanContext.class));
@@ -141,7 +161,69 @@ public class ExternalActionApprovalManagerTest {
     public void testNoActionsInResponse() {
         final Runnable commit = Mockito.mock(Runnable.class);
         Mockito.when(storehouse.getStore(Mockito.anyLong())).thenReturn(Optional.empty());
-        consumer.accept(GetActionStateResponse.newBuilder().build(), commit, Mockito.mock(SpanContext.class));
+        getActionStateResponseConsumer.accept(GetActionStateResponse.newBuilder().build(), commit, Mockito.mock(SpanContext.class));
+        Mockito.verifyZeroInteractions(mgr);
+        Mockito.verify(commit).run();
+    }
+
+    /**
+     * The action view's external name and url should be set.
+     */
+    @Test
+    public void testExternalApprovalResponse() {
+        final Runnable commit = Mockito.mock(Runnable.class);
+        final Action action1 = Mockito.mock(Action.class);
+        final Action action2 = Mockito.mock(Action.class);
+
+        Mockito.when(actionStore.getActionByRecommendationId(ACTION1))
+            .thenReturn(Optional.of(action1));
+        Mockito.when(actionStore.getActionByRecommendationId(ACTION2))
+            .thenReturn(Optional.of(action2));
+
+        actionApprovalResponseConsumer.accept(ActionApprovalResponse.newBuilder()
+            .putActionState(ACTION1, ExternalActionInfo.newBuilder()
+                .setShortName(ACTION1_EXTERNAL_NAME)
+                .setUrl(ACTION1_EXTERNAL_URL)
+                .buildPartial())
+            .putActionState(ACTION2, ExternalActionInfo.newBuilder()
+                .setShortName(ACTION2_EXTERNAL_NAME)
+                .setUrl(ACTION2_EXTERNAL_URL)
+                .buildPartial())
+            .buildPartial(), commit, Mockito.mock(SpanContext.class));
+        Mockito.verifyZeroInteractions(mgr);
+        Mockito.verify(commit).run();
+
+        Mockito.verify(action1).setExternalActionName(ACTION1_EXTERNAL_NAME);
+        Mockito.verify(action1).setExternalActionUrl(ACTION1_EXTERNAL_URL);
+        Mockito.verify(action2).setExternalActionName(ACTION2_EXTERNAL_NAME);
+        Mockito.verify(action2).setExternalActionUrl(ACTION2_EXTERNAL_URL);
+    }
+
+    /**
+     * Tests no live actions store is present so nothing should happen. The commit should not be
+     * run.
+     */
+    @Test
+    public void testNoLiveActionStoreExternalApprovalResponse() {
+        final Runnable commit = Mockito.mock(Runnable.class);
+        Mockito.when(storehouse.getStore(Mockito.anyLong())).thenReturn(Optional.empty());
+        actionApprovalResponseConsumer.accept(ActionApprovalResponse.newBuilder()
+            .putActionState(1L, ExternalActionInfo.newBuilder()
+                .buildPartial())
+            .buildPartial(), commit, Mockito.mock(SpanContext.class));
+        Mockito.verifyZeroInteractions(mgr);
+        Mockito.verify(commit, Mockito.never()).run();
+    }
+
+    /**
+     * Tests no live actions store is present so nothing should happen. The commit should be
+     * run.
+     */
+    @Test
+    public void testNoActionsInResponseExternalApprovalResponse() {
+        final Runnable commit = Mockito.mock(Runnable.class);
+        actionApprovalResponseConsumer.accept(ActionApprovalResponse.newBuilder()
+            .buildPartial(), commit, Mockito.mock(SpanContext.class));
         Mockito.verifyZeroInteractions(mgr);
         Mockito.verify(commit).run();
     }

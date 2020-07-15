@@ -1112,6 +1112,12 @@ message ActionSpec {
         // The user that has accepted the action for execution window.
         optional string accepting_user = 7;
     }
+
+    // The name under which this action appears in third-party software or external approval backend.
+    optional string external_action_name = 16;
+
+    // URL to third-party software showing this action. Suitable for external action approval.
+    optional string external_action_url = 17;
 }
 
 // A filter to be supplied with action queries.

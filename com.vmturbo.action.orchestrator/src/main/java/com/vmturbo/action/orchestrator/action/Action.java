@@ -226,7 +226,14 @@ public class Action implements ActionView {
      */
     private final ActionCategory actionCategory;
 
+    @Nullable
     private ActionSchedule schedule;
+
+    @Nullable
+    private String externalActionName;
+
+    @Nullable
+    private String externalActionUrl;
 
     /**
      * Create an action from a state object that was used to serialize the state of the action.
@@ -650,6 +657,40 @@ public class Action implements ActionView {
     @Override
     public void setSchedule(@Nonnull ActionSchedule actionSchedule) {
         this.schedule = actionSchedule;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public Optional<String> getExternalActionName() {
+        return Optional.ofNullable(externalActionName);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setExternalActionName(@Nonnull String externalActionName) {
+        this.externalActionName = Objects.requireNonNull(externalActionName);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public Optional<String> getExternalActionUrl() {
+        return Optional.ofNullable(externalActionUrl);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setExternalActionUrl(@Nonnull String externalActionUrl) {
+        this.externalActionUrl = Objects.requireNonNull(externalActionUrl);
     }
 
     @Nonnull
