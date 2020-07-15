@@ -20,7 +20,6 @@
         <checker-qual.version>1.9.5</checker-qual.version>
         <log4j2Version>2.6.2</log4j2Version>
         <websocket.version>1.1</websocket.version>
-        <vmturbo.mt.branch.version>7.22.100-MPC-SNAPSHOT</vmturbo.mt.branch.version>
     </properties>
 
     <build>
@@ -36,6 +35,13 @@
           </excludes>
         </configuration>
       </plugin>
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-checkstyle-plugin</artifactId>
+              <configuration>
+                  <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+              </configuration>
+          </plugin>
         </plugins>
     </build>
 
@@ -87,7 +93,7 @@
             <artifactId>platform.analysis.protobuf</artifactId>
             <version>${project.version}</version>
         </dependency>
-	    <dependency>
+        <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.commons</artifactId>
             <version>${vmturbo.mt.branch.version}</version>

@@ -13,8 +13,10 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -33,16 +35,19 @@ import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 public class SuspensionTest {
     private static final int VM_TYPE = 0;
     private static final int PM_TYPE = 1;
+    private static final int ST_TYPE = 2;
     private static final double CAPACITY = 111;
     private static final double UTILIZATION_UPPER_BOUND = 0.9;
 
     // CommoditySpecifications to use in tests
     private static final CommoditySpecification CPU = TestUtils.CPU;
     private static final CommoditySpecification MEM = TestUtils.MEM;
+    private static final CommoditySpecification STORAGE = TestUtils.STORAGE;
 
     // Baskets to use in tests
     private static final Basket EMPTY = new Basket();
     private static final Basket PM_SMALL = new Basket(CPU, MEM);
+    private static final Basket ST_SMALL = new Basket(STORAGE);
     private static final Basket APPLICATION_BASKET =
         new Basket(TestUtils.RESPONSE_TIME, TestUtils.TRANSACTION);
     private static final Basket CONTAINER_BASKET =
@@ -180,6 +185,40 @@ public class SuspensionTest {
         suspension.adjustUtilThreshold(economy, true);
         assertTrue(commSoldSett.getUtilizationUpperBound() == commSoldSett.getOrigUtilizationUpperBound());
 
+    }
+
+    /**
+     * Resize Through Supplier deactivate test.
+     */
+    @Test
+    public void suspendProviderOfResizeThroughSupplier() {
+        Economy economy = new Economy();
+        Trader consumer = economy.addTrader(ST_TYPE, TraderState.ACTIVE, ST_SMALL);
+        consumer.getSettings().setResizeThroughSupplier(true);
+        consumer.getCommoditiesSold().get(0).setCapacity(200);
+        consumer.getCommoditiesSold().get(0).getSettings().setResizable(true);
+        ShoppingList consumerSL = economy.addBasketBought(consumer, ST_SMALL);
+        Trader seller = economy.addTrader(PM_TYPE, TraderState.ACTIVE, ST_SMALL);
+        seller.getCommoditiesSold().get(0).setCapacity(100);
+        seller.getCommoditiesSold().get(0).getSettings().setResizable(true);
+        consumerSL.move(seller);
+
+        CommoditySoldSettings commSoldSett = seller.getCommoditiesSold().get(0).getSettings();
+        commSoldSett.setUtilizationUpperBound(1.0).setOrigUtilizationUpperBound(1.0);
+
+        seller.getSettings().setMaxDesiredUtil(0.5);
+
+        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        suspension.adjustUtilThreshold(economy, true);
+
+        Deactivate deactivate = (Deactivate)new Deactivate(economy, seller, seller.getBasketSold()).take();
+
+        List<Action> resizeList = deactivate.getSubsequentActions().stream()
+            .filter(action -> action.getType() == ActionType.RESIZE).collect(Collectors.toList());
+        assertTrue(resizeList.size() == 1);
+        Resize resize = (Resize)resizeList.get(0);
+        assertTrue(resize.getNewCapacity() == 100.0);
+        assertTrue(consumer.getCommoditiesSold().get(0).getCapacity() == 100.0);
     }
 
     /**
