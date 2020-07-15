@@ -96,6 +96,12 @@ public class TopologyListenerConfig {
     private boolean enableSearchApi;
 
     /**
+     * Configuration used to enable/disable reporting data ingestion. Disabled by default.
+     */
+    @Value("${enableReporting:false}")
+    private boolean enableReporting;
+
+    /**
      * Create an instance of our topology listener.
      *
      * @return listener instance
@@ -199,7 +205,9 @@ public class TopologyListenerConfig {
         if (enableSearchApi) {
             builder.add(() -> new SearchEntityWriter(dbEndpoint, pool()));
         }
-        builder.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(), pool()));
+        if (enableReporting) {
+            builder.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(), pool()));
+        }
         return builder.build();
     }
 
