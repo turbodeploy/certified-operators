@@ -99,7 +99,7 @@ public class GroupCountQueryTest {
                 case "groupType":
                     EnumFieldValueApiDTO enumFieldValue = (EnumFieldValueApiDTO)resultValue;
                     com.vmturbo.api.enums.GroupType groupType =
-                        com.vmturbo.api.enums.GroupType.valueOf(enumFieldValue.getValue());
+                            com.vmturbo.api.enums.GroupType.fromString(enumFieldValue.getValue());
                     assertEquals(GroupType.COMPUTE_HOST_CLUSTER, groupType);
                     break;
                 case "origin":

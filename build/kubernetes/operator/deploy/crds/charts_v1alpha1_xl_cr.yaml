@@ -89,5 +89,7 @@ spec:
     enabled: true
   mssql:
     enabled: true
+  mysql:
+    enabled: false
   newrelic:
     enabled: true

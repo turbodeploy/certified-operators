@@ -170,6 +170,8 @@ istio:
   enabled: false
 mssql:
   enabled: false
+mysql:
+  enabled: false
 netapp:
   enabled: false
 netflow:

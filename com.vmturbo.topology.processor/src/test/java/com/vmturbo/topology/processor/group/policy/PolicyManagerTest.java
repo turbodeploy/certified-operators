@@ -108,7 +108,7 @@ public class PolicyManagerTest {
             .addAllId(Arrays.asList(id1, id2, id3, id4, id5)))
             .setReplaceGroupPropertyWithGroupMembershipFilter(true)
             .build())).thenReturn(Arrays.asList(group1, group2, group3, group4, group5));
-        when(policyServiceMole.getAllPolicies(any()))
+        when(policyServiceMole.getPolicies(any()))
             .thenReturn(Stream.of(policy12, policy34)
                 .map(policy -> PolicyResponse.newBuilder()
                     .setPolicy(policy)
@@ -129,7 +129,7 @@ public class PolicyManagerTest {
 
     @Test
     public void testNoPoliciesNoGroupRPC() {
-        when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.emptyList());
+        when(policyServiceMole.getPolicies(any())).thenReturn(Collections.emptyList());
         when(topologyGraph.entities()).thenReturn(Stream.empty());
         when(policyApplicator.applyPolicies(any(), any(), eq(topologyGraph)))
             .thenReturn(new Results());
@@ -144,7 +144,7 @@ public class PolicyManagerTest {
      */
     @Test
     public void testUserPolicyMissingGroup() {
-        when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.singletonList(PolicyResponse.newBuilder()
+        when(policyServiceMole.getPolicies(any())).thenReturn(Collections.singletonList(PolicyResponse.newBuilder()
             .setPolicy(policy12)
             .build()));
         // Do not configure the group service to return any of the groups.
@@ -167,7 +167,7 @@ public class PolicyManagerTest {
      */
     @Test(expected = IllegalStateException.class)
     public void testDiscoveredPolicyMissingGroupException() {
-        when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.singletonList(PolicyResponse.newBuilder()
+        when(policyServiceMole.getPolicies(any())).thenReturn(Collections.singletonList(PolicyResponse.newBuilder()
             .setPolicy(policy12.toBuilder()
                 .setTargetId(123)
                 .build())

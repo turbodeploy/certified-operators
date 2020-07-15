@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats;
 
+import static com.vmturbo.common.protobuf.PaginationProtoUtil.DEFAULT_PAGINATION;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CAPACITY;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CPU;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CPU_HEADROOM;
@@ -103,11 +104,6 @@ public class ClusterStatsReader {
      */
     private static final Set<String> STATS_STORED_IN_TWO_RECORDS;
     private int maxAmountOfEntitiesPerGrpcMessage;
-    private static final PaginationParameters DEFAULT_PAGINATION = PaginationParameters.newBuilder()
-                                                                        .setAscending(false)
-                                                                        .setCursor("0")
-                                                                        .setLimit(Integer.MAX_VALUE)
-                                                                        .build();
 
     static {
         final SortedSet<String> statsStoredInTwoRecords = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);

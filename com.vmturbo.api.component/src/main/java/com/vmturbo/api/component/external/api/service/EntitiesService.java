@@ -22,20 +22,23 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.tools.Longs;
 import org.springframework.hateoas.Link;
 import org.springframework.hateoas.mvc.ControllerLinkBuilder;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ConstraintsMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
@@ -52,6 +55,7 @@ import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQu
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
+import com.vmturbo.api.constraints.PlacementOptionApiDTO;
 import com.vmturbo.api.controller.GroupsController;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -69,6 +73,7 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
@@ -79,8 +84,12 @@ import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
+import com.vmturbo.api.pagination.EntityPaginationRequest;
+import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IEntitiesService;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
@@ -88,6 +97,17 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.EntityConstraints;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsRequest;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsRequest;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
@@ -96,11 +116,18 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPolicies
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 public class EntitiesService implements IEntitiesService {
     // these two constants are used to create hateos links for getEntitiesByUuid only.
@@ -145,6 +172,16 @@ public class EntitiesService implements IEntitiesService {
     private final RepositoryApi repositoryApi;
 
     private final EntitySettingQueryExecutor entitySettingQueryExecutor;
+
+    private final EntityConstraintsServiceBlockingStub entityConstraintsRpcService;
+
+    private final PolicyServiceBlockingStub policyRpcService;
+
+    private final ThinTargetCache thinTargetCache;
+
+    private final PaginationMapper paginationMapper;
+
+    private final ServiceEntityMapper serviceEntityMapper;
 
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
@@ -202,7 +239,13 @@ public class EntitiesService implements IEntitiesService {
         @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
         @Nonnull final SettingsMapper settingsMapper,
         @Nonnull final ActionSearchUtil actionSearchUtil,
-        @Nonnull final RepositoryApi repositoryApi, final EntitySettingQueryExecutor entitySettingQueryExecutor) {
+        @Nonnull final RepositoryApi repositoryApi,
+        final EntitySettingQueryExecutor entitySettingQueryExecutor,
+        @Nonnull final EntityConstraintsServiceBlockingStub entityConstraintsRpcService,
+        @Nonnull final PolicyServiceBlockingStub policyRpcService,
+        @Nonnull final ThinTargetCache thinTargetCache,
+        @Nonnull final PaginationMapper paginationMapper,
+        @Nonnull final ServiceEntityMapper serviceEntityMapper) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -220,6 +263,11 @@ public class EntitiesService implements IEntitiesService {
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.entitySettingQueryExecutor = entitySettingQueryExecutor;
+        this.entityConstraintsRpcService = entityConstraintsRpcService;
+        this.policyRpcService = policyRpcService;
+        this.thinTargetCache = thinTargetCache;
+        this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
     }
 
     @Override
@@ -812,79 +860,147 @@ public class EntitiesService implements IEntitiesService {
             throw new IllegalArgumentException(String.format("%s is illegal argument. " +
                     "Should be a numeric entity id.", uuid));
         }
-        final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
-                .topologyContextId(realtimeTopologyContextId)
-                .addSeedUuids(Lists.newArrayList(uuid))
-                .includeHealthSummary(false)
-                .entityDetailType(EntityDetailType.entity)
-                .fetch();
 
-        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = supplyChain.getSeMap().values()
-                .stream()
-                .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().values().stream())
-                .collect(Collectors.toMap(apiDTO -> {
-                    try {
-                        return uuidMapper.fromUuid(apiDTO.getUuid()).oid();
-                    } catch (OperationFailedException e) {
-                        throw new IllegalArgumentException(
-                                String.format("The uuid %s can not be mapped to oid",
-                                        apiDTO.getUuid()), e);
-                    }
-                }, Function.identity()));
-
-        Optional<String> myEntityType = getEntityType(uuid, supplyChain);
-        // Get the consumers of this entity.
-        final Set<String> consumerOids = new HashSet<>();
-        if (myEntityType.isPresent()) {
-            SupplychainEntryDTO supplychainEntryDTO = supplyChain.getSeMap().get(myEntityType.get());
-            if (supplychainEntryDTO != null) {
-                Set<String> consumerTypes = supplychainEntryDTO.getConnectedConsumerTypes();
-                if (consumerTypes != null){
-                    consumerOids.addAll(consumerTypes.stream()
-                            .map(type -> supplyChain.getSeMap().get(type))
-                            .filter(Objects::nonNull)
-                            .map(dto -> dto.getInstances())
-                            .filter(Objects::nonNull)
-                            .flatMap(serviceEntityApiMap -> serviceEntityApiMap.keySet().stream())
-                            .collect(Collectors.toSet()));
-                }
-            }
-        }
-
-        // Now query repo to get the TopologyEntityDTO for the current entity and its consumers.
-        List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>();
-        Set<Long> oidsToQuery = new HashSet<>();
-        for (String sUuid : consumerOids) {
-            oidsToQuery.add(uuidMapper.fromUuid(sUuid).oid());
-        }
         long oid = uuidMapper.fromUuid(uuid).oid();
-        oidsToQuery.add(oid);
+        final EntityConstraintsResponse response = entityConstraintsRpcService.getConstraints(
+            EntityConstraintsRequest.newBuilder().setOid(oid).build());
+        String discoveringTargets = response.getDiscoveringTargetIdsList().stream()
+            .map(targetId -> thinTargetCache.getTargetInfo(targetId))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .map(thinTargetInfo -> thinTargetInfo.probeInfo().type())
+            .collect(Collectors.joining(", "));
 
-        // The constraints are embedded in the commodities. We have to fetch the TopologyEntityDTO
-        // to get the commodities info.
-        Map<Long, TopologyEntityDTO> entityDtos = repositoryApi.entitiesRequest(oidsToQuery)
-            .getFullEntities()
-            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        final List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>(response.getEntityConstraintCount());
+        for (EntityConstraint entityConstraint : response.getEntityConstraintList()) {
+            ConstraintApiDTO constraintApiDTO = new ConstraintApiDTO();
 
-        // We don't have to query the providers as we already have the provider info inside
-        // the commoditiesBought object.
-        // We don't support fully parity with classic. We just populate the ConstraintType(CommodityDTO.Type)
-        // and the ConstraintKey(CommodityDTO.Key)
-        constraintApiDtos.addAll(ConstraintsMapper.createConstraintApiDTOs(
-                Collections.singletonList(entityDtos.get(oid)),
-                serviceEntityMap, RelationType.bought));
-        List<TopologyEntityDTO> constraintDTOs = new ArrayList<>();
-        for (String consumerOid : consumerOids) {
-            constraintDTOs.add(entityDtos.get(uuidMapper.fromUuid(consumerOid).oid()));
+            constraintApiDTO.setEntityType(ApiEntityType.fromType(entityConstraint.getEntityType()).apiStr());
+
+            // We only care about RelationType.bought.
+            constraintApiDTO.setRelation(RelationType.bought);
+
+            constraintApiDTO.setNumPotentialEntities(entityConstraint.getNumPotentialPlacements());
+
+            final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
+            serviceEntityApiDTO.setDisplayName(entityConstraint.getCurrentPlacement().getDisplayName());
+            constraintApiDTO.setRelatedEntities(Collections.singletonList(serviceEntityApiDTO));
+
+            final List<PlacementOptionApiDTO> placementOptionApiDTOs =
+                new ArrayList<>(entityConstraint.getPotentialPlacementsCount());
+            List<Long> policyIdsToFetch = entityConstraint.getPotentialPlacementsList().stream()
+                .map(PotentialPlacements::getCommodityType)
+                .filter(c -> c.getType() == CommodityType.SEGMENTATION_VALUE
+                    || isCommodityTypeEligibleForMerge(c))
+                .filter(c -> c.hasKey())
+                .map(c -> Longs.tryParse(c.getKey()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+            Map<Long, Policy> policies = Maps.newHashMap();
+            if (!policyIdsToFetch.isEmpty()) {
+                policyRpcService.getPolicies(PolicyRequest.newBuilder()
+                    .addAllPolicyIds(policyIdsToFetch).build())
+                    .forEachRemaining(policy -> policies.put(
+                        policy.getPolicy().getId(), policy.getPolicy()));
+            }
+
+            for (PotentialPlacements potentialPlacement : entityConstraint.getPotentialPlacementsList()) {
+                final PlacementOptionApiDTO placementOptionApiDTO = new PlacementOptionApiDTO();
+                String source = discoveringTargets;
+
+                placementOptionApiDTO.setConstraintType(ClassicEnumMapper.getCommodityString(
+                    CommodityType.forNumber(potentialPlacement.getCommodityType().getType())));
+                placementOptionApiDTO.setKey(potentialPlacement.getCommodityType().getKey());
+
+                placementOptionApiDTO.setNumPotentialEntities(potentialPlacement.getNumPotentialPlacements());
+
+                final BaseApiDTO baseApiDTO = new BaseApiDTO();
+                baseApiDTO.setDisplayName(initializeScopeDisplayName(potentialPlacement));
+                TopologyDTO.CommodityType cType = potentialPlacement.getCommodityType();
+                boolean isTurboConstraint = false;
+                if (cType.getType() == CommodityType.SEGMENTATION_VALUE || isCommodityTypeEligibleForMerge(cType)) {
+                    Long policyId = Longs.tryParse(potentialPlacement.getCommodityType().getKey());
+                    if (policyId != null && policies.containsKey(policyId)) {
+                        baseApiDTO.setDisplayName(policies.get(policyId).getPolicyInfo().getName());
+                        if (!policies.get(policyId).hasTargetId()) {
+                            // it is a policy created in Turbonomic, so it is a turbonomic constraint
+                            isTurboConstraint = true;
+
+                        }
+                    }
+                }
+                placementOptionApiDTO.setScope(baseApiDTO);
+                // Only set the target if the constraint is not created in Turbo.
+                // If the constraint is created in Turbo, then don't set the target. The UI by
+                // default will show "Turbonomic" as the source of the constraint
+                if (!isTurboConstraint) {
+                    TargetApiDTO target = new TargetApiDTO();
+                    target.setType(source);
+                    placementOptionApiDTO.setTarget(target);
+                }
+
+                placementOptionApiDTOs.add(placementOptionApiDTO);
+            }
+            constraintApiDTO.setPlacementOptions(placementOptionApiDTOs);
+
+            constraintApiDtos.add(constraintApiDTO);
         }
-        constraintApiDtos.addAll(ConstraintsMapper.createConstraintApiDTOs(
-                constraintDTOs, serviceEntityMap, RelationType.sold));
         return constraintApiDtos;
     }
 
+    private boolean isCommodityTypeEligibleForMerge(TopologyDTO.CommodityType commodityType) {
+        return (commodityType.getType() == CommodityType.CLUSTER_VALUE
+            || (commodityType.getType() == CommodityType.STORAGE_CLUSTER_VALUE
+            && TopologyDTOUtil.isRealStorageClusterCommodityKey(commodityType.getKey()))
+            || commodityType.getType() == CommodityType.DATACENTER_VALUE
+            || commodityType.getType() == CommodityType.ACTIVE_SESSIONS_VALUE);
+    }
+
+    private String initializeScopeDisplayName(PotentialPlacements potentialPlacementRecord) {
+        if (!StringUtils.isEmpty(potentialPlacementRecord.getScopeDisplayName())) {
+            return potentialPlacementRecord.getScopeDisplayName();
+        } else {
+            return ActionDTOUtil.getCommodityDisplayName(potentialPlacementRecord.getCommodityType());
+        }
+    }
+
     @Override
-    public List<ServiceEntityApiDTO> getPotentialEntitiesByEntity(String uuid, ConstraintApiInputDTO inputDto) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public EntityPaginationResponse getPotentialEntitiesByEntity(String uuid, ConstraintApiInputDTO inputDto,
+                                                                 EntityPaginationRequest paginationRequest) throws Exception {
+        if (!uuidMapper.fromUuid(uuid).isEntity()) {
+            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
+                "Should be a numeric entity id.", uuid));
+        }
+
+        final PotentialPlacementsRequest.Builder request =
+            PotentialPlacementsRequest.newBuilder()
+                .setOid(uuidMapper.fromUuid(uuid).oid())
+                .setRelationType(EntityConstraints.RelationType.BOUGHT)
+                .addAllCommodityType(inputDto.getPlacementOptions().stream()
+                    .filter(option -> !"".equals(option.getKey()))
+                    .map(option -> TopologyDTO.CommodityType.newBuilder()
+                        .setType(ClassicEnumMapper.commodityType(option.getConstraintType()).getNumber())
+                        .setKey(option.getKey()).build())
+                    .collect(Collectors.toList()))
+                .setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+
+        if (inputDto.getEntityTypeFilter() != null) {
+            // TODO: Add a mapper for API EntityType enum (OM-60615)
+            request.addPotentialEntityTypes(ApiEntityType.fromString(
+                inputDto.getEntityTypeFilter().getDisplayName()).typeNumber());
+        }
+
+        final PotentialPlacementsResponse response =
+            entityConstraintsRpcService.getPotentialPlacements(request.build());
+
+        final List<ServiceEntityApiDTO> nextPage = serviceEntityMapper.toServiceEntityApiDTO(
+            response.getEntitiesList());
+
+        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+            .map(nextCursor -> paginationRequest.nextPageResponse(
+                nextPage, nextCursor, response.getPaginationResponse().getTotalRecordCount()))
+            .orElseGet(() -> paginationRequest.finalPageResponse(
+                nextPage, response.getPaginationResponse().getTotalRecordCount()));
     }
 
     private static Link generateLinkTo(@Nonnull Object invocationValue, @Nonnull String relation) {

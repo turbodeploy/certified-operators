@@ -995,8 +995,9 @@ public class TopologyConverter {
                     // then do not include it in the projected topology.
                     continue;
                 } else {
+                    //If the traderTO has cloneOf, it is a provisioned SE.
                     commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), sl.getOid(),
-                        commBought, reservedCapacityAnalysis, originalEntity, timeSlotsByCommType).ifPresent(commList::add);
+                        commBought, reservedCapacityAnalysis, originalEntity, timeSlotsByCommType, traderTO.hasCloneOf()).ifPresent(commList::add);
                 }
             }
             // the shopping list might not exist in shoppingListOidToInfos, because it might be
@@ -1831,6 +1832,7 @@ public class TopologyConverter {
      * @param reservedCapacityAnalysis the reserved capacity information
      * @param originalEntity the original entity DTO
      * @param timeSlotsByCommType Timeslot values arranged by {@link CommodityBoughtTO}
+     * @param isProvisioned Whether this trader is a provisioned trader which doesn't have shoppinglist.
      * @return {@link TopologyDTO.CommoditySoldDTO} that the trader sells
      */
     @Nonnull
@@ -1839,7 +1841,8 @@ public class TopologyConverter {
             @Nonnull final CommodityBoughtTO commBoughtTO,
             @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
             final TopologyEntityDTO originalEntity,
-            @Nonnull Map<CommodityType, List<Double>> timeSlotsByCommType) {
+            @Nonnull Map<CommodityType, List<Double>> timeSlotsByCommType,
+            boolean isProvisioned) {
 
 
         float peak = commBoughtTO.getPeakQuantity();
@@ -1887,17 +1890,20 @@ public class TopologyConverter {
                             we should calculate projected percentile value and use it
                        }
                      */
-                    final Double projectedPercentile =
+                    //A provisioned trader doesn't have shopping list info and boughtCommodities
+                    //so don't populate projected percentile for it.
+                    if (!isProvisioned) {
+                        final Double projectedPercentile =
                                     boughtDTObyTraderFromProjectedSellerInRealTopology
                                                     .map(CommodityBoughtDTO::getHistoricalUsed)
                                                     .map(HistoricalValues::getPercentile)
                                                     .orElse(getProjectedPercentileValue(supplierOid,
                                                                                         shoppingListInfo,
                                                                                         commType));
-                    if (projectedPercentile != null) {
-                        builder.setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(projectedPercentile).build());
+                        if (projectedPercentile != null) {
+                            builder.setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(projectedPercentile).build());
+                        }
                     }
-
 
                     // Set timeslot values if applies
                     if (timeSlotsByCommType.containsKey(commType)) {

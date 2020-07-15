@@ -182,7 +182,6 @@ public class ActionSpecMappingContextFactory {
      *
      * @param actions list of actions
      * @param topologyContextId the context id of the topology
-     * @param policiesService the API service implementation of policy
      * @return ActionSpecMappingContext
      * @throws ExecutionException on failure getting entities
      * @throws InterruptedException if thread has been interrupted
@@ -487,7 +486,7 @@ public class ActionSpecMappingContextFactory {
     @Nonnull
     private Map<Long, PolicyDTO.Policy> getPolicies() {
         final Map<Long, PolicyDTO.Policy> policies = new HashMap<>();
-        policyService.getAllPolicies(PolicyDTO.PolicyRequest.newBuilder().build()).forEachRemaining(
+        policyService.getPolicies(PolicyDTO.PolicyRequest.newBuilder().build()).forEachRemaining(
                         response -> policies
                                         .put(response.getPolicy().getId(), response.getPolicy()));
         return policies;

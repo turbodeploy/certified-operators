@@ -981,7 +981,7 @@ public class PlacementPolicySysTest {
         private Policy policy = null;
 
         @Override
-        public void getAllPolicies(final PolicyDTO.PolicyRequest request,
+        public void getPolicies(final PolicyDTO.PolicyRequest request,
                                    final StreamObserver<PolicyResponse> responseObserver) {
             if (getPolicy() != null) {
                 responseObserver.onNext(

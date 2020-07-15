@@ -129,7 +129,7 @@ public class CompoundMoveTest {
                 .setPolicyInfo(PolicyInfo.newBuilder()
                     .setName("policy")))
                 .build());
-        when(policyMole.getAllPolicies(Mockito.any())).thenReturn(policyResponses);
+        when(policyMole.getPolicies(Mockito.any())).thenReturn(policyResponses);
         grpcServer = GrpcTestServer.newServer(policyMole);
         grpcServer.start();
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());

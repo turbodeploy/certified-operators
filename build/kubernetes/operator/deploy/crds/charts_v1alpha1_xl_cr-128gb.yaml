@@ -87,6 +87,8 @@ spec:
     enabled: true
   mssql:
     enabled: true
+  mysql:
+    enabled: false
   newrelic:
     enabled: true
   udt:
@@ -222,6 +224,10 @@ spec:
       limits:
         memory: 1Gi
   mediation-mssql:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-mysql:
     resources:
       limits:
         memory: 1Gi

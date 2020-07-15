@@ -277,7 +277,7 @@ public class V1_32__DeprecatedEntityTypeMigration extends BaseJdbcMigration {
     private Multimap<EntityType, Long> getDeprecatedDynamicGroups(@Nonnull Connection connection) throws SQLException, IOException {
         final Set<Integer> deprecatedTypeNumbers = deprecatedTypes.stream().map(EntityType::getNumber).collect(Collectors.toSet());
         final Multimap<EntityType, Long> multimap = ArrayListMultimap.create();
-        final String query = "SELECT id, entity_filters FROM grouping WHERE entity_filters IS NOT NULL";
+        final String query = "SELECT id, entity_filters FROM grouping WHERE entity_filters IS NOT NULL AND group_type=0";
         try (ResultSet result = connection.createStatement().executeQuery(query)) {
             while (result.next()) {
                 final EntityFilters entityFilters = readEntityFilter(result.getBlob("entity_filters"));
@@ -364,7 +364,8 @@ public class V1_32__DeprecatedEntityTypeMigration extends BaseJdbcMigration {
                         + "    SELECT group_id "
                         + "    FROM group_expected_members_entities "
                         + "    WHERE entity_type=%d"
-                        + ") temp_table )", newType, deprecatedType);
+                        + ") temp_table ) "
+                        + "AND group_id IN (%s)", newType, deprecatedType, ids);
                 updMembers.addBatch(updateSql);
             }
             updMembers.executeBatch();

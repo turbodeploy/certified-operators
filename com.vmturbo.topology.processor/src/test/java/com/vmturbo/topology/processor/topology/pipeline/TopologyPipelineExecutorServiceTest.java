@@ -534,7 +534,7 @@ public class TopologyPipelineExecutorServiceTest {
     @Test
     public void testPipelineFailSendSummary() throws Exception {
         final TopologyPipelineException exception =
-            new TopologyPipelineException("Bad Pipe!", new Exception());
+            new TopologyPipelineException("Bad Pipe!", new Exception("exception"));
 
         final TopologyPipelineRequest request = new TopologyPipelineRequest(() -> {
                 throw exception;
@@ -556,7 +556,7 @@ public class TopologyPipelineExecutorServiceTest {
             TopologySummary broadcastSummary = summaryCapture.getValue();
             assertThat(broadcastSummary.getTopologyInfo(), is(topologyInfo));
             assertThat(broadcastSummary.getFailure().getErrorDescription(),
-                containsString(exception.getMessage()));
+                containsString(exception.getCause().getMessage()));
         }
     }
 
@@ -568,7 +568,7 @@ public class TopologyPipelineExecutorServiceTest {
      */
     @Test
     public void testPipelineWorkerInterruptedSendSummary() throws Exception {
-        final InterruptedException exception = new InterruptedException();
+        final InterruptedException exception = new InterruptedException("exception");
 
         final TopologyPipelineRequest request = new TopologyPipelineRequest(() -> {
             throw exception;
@@ -592,7 +592,7 @@ public class TopologyPipelineExecutorServiceTest {
                 TopologySummary broadcastSummary = summaryCapture.getValue();
                 assertThat(broadcastSummary.getTopologyInfo(), is(topologyInfo));
                 assertThat(broadcastSummary.getFailure().getErrorDescription(),
-                    containsString("interrupt"));
+                    containsString(exception.getMessage()));
             } else {
                 throw e;
             }

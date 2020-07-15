@@ -27,7 +27,7 @@ public enum SearchGroupMetadata {
     /**
      * Mappings for different group types.
      */
-    REGULAR(GroupType.REGULAR, getRegularMetadata()),
+    GROUP(GroupType.GROUP, getRegularMetadata()),
     COMPUTE_HOST_CLUSTER(GroupType.COMPUTE_HOST_CLUSTER, getComputeHostClusterMetadata()),
     STORAGE_CLUSTER(GroupType.STORAGE_CLUSTER, GROUP_COMMON_FIELDS),
     COMPUTE_VIRTUAL_MACHINE_CLUSTER(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, GROUP_COMMON_FIELDS),

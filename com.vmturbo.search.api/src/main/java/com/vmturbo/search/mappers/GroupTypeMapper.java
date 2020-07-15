@@ -22,7 +22,7 @@ public class GroupTypeMapper {
      */
     private static final BiMap<EntityType, GroupType> GROUP_TYPE_MAPPINGS =
         new ImmutableBiMap.Builder()
-            .put( EntityType.REGULAR, GroupType.REGULAR)
+            .put( EntityType.REGULAR, GroupType.GROUP)
             .put( EntityType.BILLING_FAMILY, GroupType.BILLING_FAMILY)
             .put( EntityType.COMPUTE_HOST_CLUSTER, GroupType.COMPUTE_HOST_CLUSTER)
             .put( EntityType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)

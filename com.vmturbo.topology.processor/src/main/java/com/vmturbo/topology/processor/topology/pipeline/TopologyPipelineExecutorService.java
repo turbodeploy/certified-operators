@@ -595,24 +595,24 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             } catch (TopologyPipelineException e) {
                 // If the pipeline fails with an internal error, we send a notification
                 // over Kafka.
-                sendFailureNotification(pipelineRequest.getTopologyInfo(), e.getMessage());
+                sendFailureNotification(pipelineRequest.getTopologyInfo(), e.getCause());
                 pipelineRequest.future.completeExceptionally(e);
             } catch (InterruptedException e) {
-                sendFailureNotification(pipelineRequest.getTopologyInfo(), "Topology pipeline interrupted");
+                sendFailureNotification(pipelineRequest.getTopologyInfo(), e);
                 pipelineRequest.future.completeExceptionally(e);
                 throw e;
             }
         }
 
         private void sendFailureNotification(@Nonnull final TopologyInfo topologyInfo,
-                                             String errorDescription) {
+                                             Throwable throwable) {
             logger.error("Failed to complete topology pipeline "
-                    + "(context: {}, topology: {}) due to error: {}",
-                topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), errorDescription);
+                    + "(context: {}, topology: {}) due to error: ",
+                topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), throwable);
             notificationSender.broadcastTopologySummary(TopologySummary.newBuilder()
                 .setTopologyInfo(topologyInfo)
                 .setFailure(TopologyBroadcastFailure.newBuilder()
-                    .setErrorDescription(errorDescription))
+                    .setErrorDescription(throwable.getMessage() == null ? "" : throwable.getMessage()))
                 .build());
         }
 

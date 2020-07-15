@@ -133,6 +133,11 @@ resource "helm_release" "xl" {
   }
 
   set {
+    name  = "mysql.enabled"
+    value = "${var.mysql ? true : false}"
+  }
+
+  set {
     name  = "netapp.enabled"
     value = "${var.netapp ? true : false}"
   }

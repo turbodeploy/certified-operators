@@ -25,7 +25,7 @@
         <ux.mt.branch.version>7.22.100-MPC-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.13-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.15-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -399,6 +399,7 @@
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.custom.data.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
+                <module>../com.vmturbo.mediation.database.mysql.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
@@ -709,6 +710,13 @@
             <id>mediation-mssql</id>
             <modules>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-mysql</id>
+            <modules>
+                <module>../com.vmturbo.mediation.database.mysql.component</module>
             </modules>
         </profile>
 
@@ -1172,6 +1180,7 @@
                 <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
+                <module>../com.vmturbo.mediation.database.mysql.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
                 <module>../com.vmturbo.mediation.gcp.component</module>

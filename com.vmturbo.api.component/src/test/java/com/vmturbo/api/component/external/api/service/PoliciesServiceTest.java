@@ -82,7 +82,7 @@ public class PoliciesServiceTest {
     @Test
     public void testGetPolicyByNonexistingUuid() throws Exception {
         Long testUuid = 1234L;
-        final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.newBuilder()
+        final PolicyDTO.SinglePolicyRequest request = PolicyDTO.SinglePolicyRequest.newBuilder()
                 .setPolicyId(testUuid)
                 .build();
         // Return empty response, which will trigger the exception
@@ -101,7 +101,7 @@ public class PoliciesServiceTest {
     @Test
     public void testGetPolicyByUuid() throws Exception {
         Long testUuidLong = 123456789L;
-        final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.newBuilder()
+        final PolicyDTO.SinglePolicyRequest request = PolicyDTO.SinglePolicyRequest.newBuilder()
                 .setPolicyId(testUuidLong)
                 .build();
         final PolicyApiDTO mapperResponse = new PolicyApiDTO();

@@ -581,7 +581,7 @@ public class MarketsService implements IMarketsService {
     public List<PolicyApiDTO> getPoliciesByMarketUuid(String uuid) throws Exception {
         try {
             final Iterator<PolicyDTO.PolicyResponse> allPolicyResps = policyRpcService
-                    .getAllPolicies(PolicyDTO.PolicyRequest.getDefaultInstance());
+                    .getPolicies(PolicyDTO.PolicyRequest.getDefaultInstance());
             final List<Policy> policies = Streams.stream(allPolicyResps)
                     .filter(PolicyResponse::hasPolicy)
                     .map(PolicyResponse::getPolicy)
@@ -1360,7 +1360,7 @@ public class MarketsService implements IMarketsService {
             // Fetch the current group members in the merge policy.
             // It should only has 1 hidden group that contains all the selected entities.
             final PolicyDTO.Policy policy = policyService.getPolicy(
-                    PolicyDTO.PolicyRequest.newBuilder()
+                    PolicyDTO.SinglePolicyRequest.newBuilder()
                             .setPolicyId(Long.parseLong(policyUuid))
                             .build()).getPolicy();
             final Set<Long> oldPolicyGroupIds = GroupProtoUtil.getPolicyGroupIds(policy);

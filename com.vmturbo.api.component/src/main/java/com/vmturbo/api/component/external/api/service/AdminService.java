@@ -119,6 +119,8 @@ public class AdminService implements IAdminService {
             .setDescription("Failed to export diagnostics data").build())
         .build();
 
+    private static final HttpProxyDTO EMPTY_PROXY_DTO = new HttpProxyDTO();
+
     // use single thread to ensure only one export diagnostics at a time.
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
@@ -421,10 +423,25 @@ public class AdminService implements IAdminService {
     @Override
     public HttpProxyDTO setProxyConfig(final HttpProxyDTO httpProxyDTO) throws InvalidOperationException {
         final boolean isProxyEnabled = httpProxyDTO.getIsProxyEnabled();
-        final boolean isSecureProxy = StringUtils.isNotBlank(httpProxyDTO.getUserName());
-        validateProxyInputs(httpProxyDTO, isProxyEnabled, isSecureProxy);
-        storeProxyConfig(httpProxyDTO, isProxyEnabled, isSecureProxy);
-        return httpProxyDTO;
+        // disable case, clean up all the configuration.
+        if (!isProxyEnabled) {
+            cleanUpProxyConfig();
+            return EMPTY_PROXY_DTO;
+        } else {
+            final boolean isSecureProxy = StringUtils.isNotBlank(httpProxyDTO.getUserName());
+            validateProxyInputs(httpProxyDTO, isProxyEnabled, isSecureProxy);
+            storeProxyConfig(httpProxyDTO, isProxyEnabled, isSecureProxy);
+            return httpProxyDTO;
+        }
+    }
+
+    // Clean up proxy configuration.
+    private void cleanUpProxyConfig() {
+        keyValueStore.removeKey(PROXY_ENABLED);
+        keyValueStore.removeKey(PROXY_HOST);
+        keyValueStore.removeKey(PROXY_PORT_NUMBER);
+        keyValueStore.removeKey(PROXY_USER_NAME);
+        keyValueStore.removeKey(PROXY_USER_PASSWORD);
     }
 
     @VisibleForTesting
