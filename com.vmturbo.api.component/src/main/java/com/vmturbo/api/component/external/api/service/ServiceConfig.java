@@ -64,6 +64,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
 import com.vmturbo.components.common.utils.BuildProperties;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -178,6 +179,12 @@ public class ServiceConfig {
      */
     @Value("${hideExternalApprovalOrAuditSettings:true}")
     private boolean hideExternalApprovalOrAuditSettings;
+
+    /**
+     * Allow target management in integration mode? False by default.
+     */
+    @Value("${allowTargetManagementInIntegrationMode:false}")
+    private boolean allowTargetManagementInIntegrationMode;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -654,7 +661,21 @@ public class ServiceConfig {
                 communicationConfig.actionsRpcService(),
                 actionSearchUtil(),
                 communicationConfig.getRealtimeTopologyContextId(),
-                websocketConfig.websocketHandler());
+                websocketConfig.websocketHandler(),
+                allowTargetManagement());
+    }
+
+    // Target management is always allowed from REST API, unless in integration mode.
+    // In integration mode, targets are managed from other sources, and thus REST API is NOT allowed.
+    private boolean allowTargetManagement() {
+        /*
+         Integration mode requires Header authentication.
+        */
+        if (EnvironmentUtils.parseBooleanFromEnv(HeaderAuthenticationCondition.ENABLED)
+                && !allowTargetManagementInIntegrationMode) {
+            return false;
+        }
+        return true;
     }
 
     @Bean
