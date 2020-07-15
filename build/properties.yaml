@@ -47,7 +47,7 @@ defaultProperties:
         # string, with individual settings separated by "&". No initial "&" or "?" should appear
         mariadbDriverProperties: useServerPrepStmts=true
         mysqlDriverProperties:
-        enableSearchApi: true
+        enableSearchApi: false
     extractor:
         dbHost: timescaledb
         dbPort: 5432
@@ -95,18 +95,6 @@ defaultProperties:
         externalApiFileSystemBase: file:/swagger/
         cpuInfoCacheLifetimeHours: 8
         sessionTimeoutSeconds: 1800
-        dbHost: 10.10.170.248
-        dbPort: 5432
-        dbDatabaseName: extractor
-        dbSchemaName: extractor
-        dbUserName: extractor
-        dbPassword: vmturbo
-        enableSearchApi: true
-        postgresHost: timescaledb
-        postgresPort: 5432
-        postgresUserName: extractor
-        dbMigrationLocation: " " #Prevents migration problem on startup with identical
-        #migration versions from extractor-schema and history
     auth:
         dbSchemaName: auth
         identityGeneratorPrefix: 7

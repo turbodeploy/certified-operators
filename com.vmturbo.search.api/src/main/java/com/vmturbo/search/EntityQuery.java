@@ -44,10 +44,15 @@ public class EntityQuery extends AbstractSearchQuery {
      *
      * @param entityQueryApiDTO the API input payload
      * @param readOnlyDSLContext a context for creating database connections
+     * @param apiPaginationDefaultLimit default limit of results to return
+     * @param apiPaginationMaxLimit max number of results to return
      */
     public EntityQuery(@NonNull final EntityQueryApiDTO entityQueryApiDTO,
-            @NonNull final DSLContext readOnlyDSLContext) {
-        super(entityQueryApiDTO.getSelect().getEntityType().name(), readOnlyDSLContext);
+            @NonNull final DSLContext readOnlyDSLContext, final int apiPaginationDefaultLimit,
+            final int apiPaginationMaxLimit
+    ) {
+        super(entityQueryApiDTO.getSelect().getEntityType().name(), readOnlyDSLContext,
+                apiPaginationDefaultLimit, apiPaginationMaxLimit);
         this.request = entityQueryApiDTO;
     }
 

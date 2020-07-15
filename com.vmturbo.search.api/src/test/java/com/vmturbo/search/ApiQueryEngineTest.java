@@ -46,7 +46,7 @@ public class ApiQueryEngineTest {
         this.mockReadonlyDbEndpoint = mock(DbEndpoint.class);
         this.dSLContextSpy = spy(DSL.using(SQLDialect.POSTGRES));
         doReturn(this.dSLContextSpy).when(this.mockReadonlyDbEndpoint).dslContext();
-        this.apiQueryEngineSpy = spy(new ApiQueryEngine(mockReadonlyDbEndpoint, true));
+        this.apiQueryEngineSpy = spy(new ApiQueryEngine(mockReadonlyDbEndpoint, true, 100, 100));
     }
 
     /**
@@ -55,7 +55,7 @@ public class ApiQueryEngineTest {
     @Test
     public void testFeatureFlagDisabled() throws Exception {
         //GIVEN
-        ApiQueryEngine apiQueryEngine = new ApiQueryEngine(mockReadonlyDbEndpoint, false);
+        ApiQueryEngine apiQueryEngine = new ApiQueryEngine(mockReadonlyDbEndpoint, false, 100, 100);
         EntityQueryApiDTO request = EntityQueryTest.basicRequestForEntityType(EntityType.VIRTUAL_MACHINE);
 
         //WHEN
@@ -72,7 +72,6 @@ public class ApiQueryEngineTest {
     @Test
     public void testFeatureFlagEnabled() throws Exception {
         //GIVEN
-        ApiQueryEngine apiQueryEngine = new ApiQueryEngine(mockReadonlyDbEndpoint, true);
         EntityQueryApiDTO request = EntityQueryTest.basicRequestForEntityType(EntityType.VIRTUAL_MACHINE);
 
         // Mock the database response
@@ -81,7 +80,9 @@ public class ApiQueryEngineTest {
         result.add(dSLContextSpy.newRecord(oidField).values(188350008821L));
 
         doReturn(result).when(dSLContextSpy).fetch(any(Select.class));
+        doReturn(12).when(dSLContextSpy).fetchCount(any(Select.class));
 
+        ApiQueryEngine apiQueryEngine = new ApiQueryEngine(mockReadonlyDbEndpoint, true, 100, 100);
         //WHEN
         final SearchQueryPaginationResponse response = apiQueryEngine.processEntityQuery(request);
 

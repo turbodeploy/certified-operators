@@ -44,10 +44,14 @@ public class GroupQuery extends AbstractSearchQuery {
      *
      * @param groupQueryApiDTO the API input payload
      * @param readOnlyDSLContext a context for creating database connections
+     * @param apiPaginationDefaultLimit default limit of results to return
+     * @param apiPaginationMaxLimit max number of results to return
      */
     public GroupQuery(@NonNull GroupQueryApiDTO groupQueryApiDTO,
-            @NonNull final DSLContext readOnlyDSLContext) {
-        super(groupQueryApiDTO.getSelect().getGroupType().name(), readOnlyDSLContext);
+            @NonNull final DSLContext readOnlyDSLContext,
+            @NonNull final int apiPaginationDefaultLimit,
+            @NonNull final int apiPaginationMaxLimit) {
+        super(groupQueryApiDTO.getSelect().getGroupType().name(), readOnlyDSLContext, apiPaginationDefaultLimit, apiPaginationMaxLimit);
         this.request = groupQueryApiDTO;
     }
 

@@ -50,6 +50,9 @@ import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
  * Tests for GroupQuery.
+ *
+ * <p>Majority of unit tests are located in {@link EntityQueryTest} as
+ * the 2 classes extend same {@link AbstractSearchQuery}.</p>
  */
 public class GroupQueryTest {
 
@@ -99,7 +102,7 @@ public class GroupQueryTest {
     }
 
     private GroupQuery groupQuery(final GroupQueryApiDTO groupQueryDto) {
-        return new GroupQuery(groupQueryDto, dSLContextSpy);
+        return new GroupQuery(groupQueryDto, dSLContextSpy, 100, 101);
     }
 
     /**
@@ -107,10 +110,10 @@ public class GroupQueryTest {
      *
      * <p>This is an end to end test of the class.  The query results are mocked and
      * test focus on expected {@link SearchQueryRecordApiDTO}</p>
-     * @throws Exception problems processing request
+     * @throws SearchQueryFailedException problems processing request
      */
     @Test
-    public void processGroupQuery() throws Exception {
+    public void processGroupQuery() throws SearchQueryFailedException {
         //GIVEN
         final GroupType type = GroupType.COMPUTE_HOST_CLUSTER;
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
@@ -145,6 +148,7 @@ public class GroupQueryTest {
                 .values(oidValue, primitiveTextValue, aggregatedCommodityNumericValue, memberFieldApiDTOValue));
 
         doReturn(result).when(dSLContextSpy).fetch(any(Select.class));
+        doReturn(4).when(dSLContextSpy).fetchCount(any(Select.class));
 
         //WHEN
         SearchQueryPaginationResponse<SearchQueryRecordApiDTO> paginationResponse = query.readQueryAndExecute();

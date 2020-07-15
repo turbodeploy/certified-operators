@@ -28,12 +28,26 @@ public class QueryFactory {
     private final DSLContext readOnlyDSLContext;
 
     /**
+     * Default limit of results to return in search queries when not specified.
+     */
+    private final int apiPaginationDefaultLimit;
+
+    /**
+     * Max number of results allowed to be returned in search queries.
+     */
+    private final int apiPaginationMaxLimit;
+
+    /**
      * Create a QueryFactor for constructing search queries.
      *
      * @param readOnlyDSLContext a context for making read-only database queries.
+     * @param apiPaginationDefaultLimit default limit of results to return
+     * @param apiPaginationMaxLimit max number of results to return
      */
-    public QueryFactory(final DSLContext readOnlyDSLContext) {
+    public QueryFactory(final DSLContext readOnlyDSLContext, final int apiPaginationDefaultLimit, final int apiPaginationMaxLimit) {
         this.readOnlyDSLContext = Objects.requireNonNull(readOnlyDSLContext);
+        this.apiPaginationDefaultLimit = apiPaginationDefaultLimit;
+        this.apiPaginationMaxLimit = apiPaginationMaxLimit;
     }
 
     /**
@@ -41,10 +55,11 @@ public class QueryFactory {
      *
      * @param entityQueryApiDTO the API search input
      * @return paginated search results
+     * @throws SearchQueryFailedException problems processing request
      */
     public SearchQueryPaginationResponse<SearchQueryRecordApiDTO> performEntityQuery(
-        final EntityQueryApiDTO entityQueryApiDTO) {
-        EntityQuery query = new EntityQuery(entityQueryApiDTO, readOnlyDSLContext);
+        final EntityQueryApiDTO entityQueryApiDTO) throws SearchQueryFailedException {
+        EntityQuery query = new EntityQuery(entityQueryApiDTO, readOnlyDSLContext, apiPaginationDefaultLimit, apiPaginationMaxLimit);
         logger.info("SearchQueryPaginationResponse processEntityQuery");
         return query.readQueryAndExecute();
     }
@@ -54,10 +69,11 @@ public class QueryFactory {
      *
      * @param groupQueryApiDTO the API search input
      * @return paginated search results
+     * @throws SearchQueryFailedException problems processing request
      */
     public SearchQueryPaginationResponse<SearchQueryRecordApiDTO> performGroupQuery(
-        final GroupQueryApiDTO groupQueryApiDTO) {
-        GroupQuery query = new GroupQuery(groupQueryApiDTO, readOnlyDSLContext);
+        final GroupQueryApiDTO groupQueryApiDTO) throws SearchQueryFailedException {
+        GroupQuery query = new GroupQuery(groupQueryApiDTO, readOnlyDSLContext, apiPaginationDefaultLimit, apiPaginationMaxLimit);
         logger.info("Processing GroupQuery");
         return query.readQueryAndExecute();
     }

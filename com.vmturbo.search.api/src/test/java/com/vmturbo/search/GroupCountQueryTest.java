@@ -82,6 +82,7 @@ public class GroupCountQueryTest {
             .values(groupTypeValue, groupOriginValue, countValue));
 
         doReturn(response).when(dSLContextSpy).fetch(any(Select.class));
+        doReturn(12).when(dSLContextSpy).fetchCount(any(Select.class));
 
         //WHEN
         List<SearchCountRecordApiDTO> results = countQuery.count();
