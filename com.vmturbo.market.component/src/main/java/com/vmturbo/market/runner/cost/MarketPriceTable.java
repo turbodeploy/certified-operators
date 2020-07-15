@@ -332,16 +332,25 @@ public class MarketPriceTable {
             return priceBuilder.build();
         }
 
-        // For storage, the storage tier sells access (IOPS) and amount (GB) commodities.
+        // For storage, the storage tier sells access (IOPS), amount (GB), throughput (MBPS) commodities.
         // We first find the commodity types and collect them so we can provide prices for them.
         final Set<TopologyDTO.CommodityType> soldAccessTypes = Sets.newHashSet();
         final Set<TopologyDTO.CommodityType> soldAmountTypes = Sets.newHashSet();
+        final Set<TopologyDTO.CommodityType> soldThroughputTypes = Sets.newHashSet();
         final TopologyEntityDTO storageTier = storageTierOpt.get();
         for (final CommoditySoldDTO commSold : storageTier.getCommoditySoldListList()) {
-            if (commSold.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
-                soldAccessTypes.add(commSold.getCommodityType());
-            } else if (commSold.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {
-                soldAmountTypes.add(commSold.getCommodityType());
+            switch (commSold.getCommodityType().getType()) {
+                case CommodityType.STORAGE_ACCESS_VALUE:
+                    soldAccessTypes.add(commSold.getCommodityType());
+                    break;
+                case CommodityType.STORAGE_AMOUNT_VALUE:
+                    soldAmountTypes.add(commSold.getCommodityType());
+                    break;
+                case CommodityType.IO_THROUGHPUT_VALUE:
+                    soldThroughputTypes.add(commSold.getCommodityType());
+                    break;
+                default:
+                    break;
             }
         }
 
@@ -352,6 +361,10 @@ public class MarketPriceTable {
         if (soldAmountTypes.isEmpty()) {
             logger.warn("Storage tier {} (id: {}) not selling any storage amount commodities. " +
                     "Not able to provide GB price bundles.", storageTier.getDisplayName(), tierId);
+        }
+        if (soldThroughputTypes.isEmpty()) {
+            logger.warn("Storage tier {} (id: {}) not selling any IO Throughput commodities. " +
+                    "Not able to provide MBPS price bundles.", storageTier.getDisplayName(), tierId);
         }
 
         final OnDemandPriceTable regionPriceTable = accountPricingData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
@@ -372,7 +385,7 @@ public class MarketPriceTable {
         DiscountApplicator<TopologyEntityDTO> discountApplicator = accountPricingData.getDiscountApplicator();
         tierPriceList.getCloudStoragePriceList().forEach(storagePrice -> {
             // Group the prices by unit. The unit will determine whether a price is for the
-            // "access" (IOPS) or "amount" (GB) commodities sold by the storage tier.
+            // "access" (IOPS), "amount" (GB) or "throughput" (MBPS) commodities sold by the storage tier.
             final Map<Price.Unit, List<Price>> pricesByUnit =
                 storagePrice.getPricesList().stream()
                     .collect(Collectors.groupingBy(Price::getUnit));
@@ -387,13 +400,14 @@ public class MarketPriceTable {
 
                 // A price is considered a "unit" price if the amount of units consumed
                 // affects the price.
-                final boolean isUnitPrice = unit == Unit.GB_MONTH || unit == Unit.MILLION_IOPS;
+                final boolean isUnitPrice = unit == Unit.GB_MONTH || unit == Unit.MILLION_IOPS || unit == Unit.MBPS_MONTH;
 
                 // Based on the unit, determine the commodity types the prices are for.
                 // The same prices apply to all commodities of the same type - the price table
                 // does not make any distinction based on commodity key.
                 final Set<TopologyDTO.CommodityType> soldCommTypes =
-                        unit == Unit.MILLION_IOPS ? soldAccessTypes : soldAmountTypes;
+                        unit == Unit.MILLION_IOPS ? soldAccessTypes
+                                : (unit == Unit.MBPS_MONTH ? soldThroughputTypes : soldAmountTypes);
                 priceList.forEach(price -> {
                     final double discountPercentage = discountApplicator.getDiscountPercentage(tierId).getValue();
 
