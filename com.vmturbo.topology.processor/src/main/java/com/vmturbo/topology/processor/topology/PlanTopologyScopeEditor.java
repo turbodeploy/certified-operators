@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -348,7 +349,17 @@ public class PlanTopologyScopeEditor {
             if (buyer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
                 associatedEntities = Stream.concat(potentialSellers, buyer.getOutboundAssociatedEntities().stream());
             } else if (buyer.getEntityType() == EntityType.STORAGE_VALUE) {
-                associatedEntities = Stream.concat(potentialSellers, buyer.getInboundAssociatedEntities().stream());
+                // In case of an empty storage cluster, Storages will not have VMs as customers.
+                // And we rely on VMs to pull in the PMs. But we still need to pull in PMs even if
+                // there are no VMs. Hence, PMs are pulled in using accesses relation.
+                Stream<TopologyEntity> intermediateAssociatedEntities = Stream.concat(
+                    potentialSellers, buyer.getInboundAssociatedEntities().stream());
+                associatedEntities = Stream.concat(intermediateAssociatedEntities, getAccesses(buyer, topology));
+            } else if (buyer.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+                // In case of an empty cluster, PMs will not have VMs as customers. And we rely on
+                // VMs to pull in the Storages. But we still need to pull in Storages even if
+                // there are no VMs. Hence, Storages are pulled in using accesses relation.
+                associatedEntities = Stream.concat(potentialSellers, getAccesses(buyer, topology));
             } else {
                 associatedEntities = potentialSellers;
             }
@@ -392,6 +403,22 @@ public class PlanTopologyScopeEditor {
 
         logger.info("Completed scoping stage for on-prem topology. {} scoped entities", retGraph.size());
         return retGraph;
+    }
+
+    /**
+     * Get all the accesses relations of an entity
+     * @param entity TopologyEntity to get the accesses relations of
+     * @param topology the topology graph
+     * @return all the accesses relations of the entity
+     */
+    private Stream<TopologyEntity> getAccesses(TopologyEntity entity, TopologyGraph<TopologyEntity> topology) {
+        return entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+            .stream()
+            .filter(CommoditySoldDTO.Builder::hasAccesses)
+            .map(CommoditySoldDTO.Builder::getAccesses)
+            .map(accesses -> topology.getEntity(accesses))
+            .filter(Optional::isPresent)
+            .map(Optional::get);
     }
 
     /**
