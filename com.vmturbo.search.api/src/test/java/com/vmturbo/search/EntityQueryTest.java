@@ -636,7 +636,7 @@ public class EntityQueryTest {
                 SelectEntityApiDTO.selectEntity(EntityType.PHYSICAL_MACHINE).build();
 
         FieldApiDTO integerFieldApiDTO = RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE);
-        FieldApiDTO doubleFieldApiDTO = CommodityFieldApiDTO.utilization(CommodityType.MEM);
+        FieldApiDTO doubleFieldApiDTO = CommodityFieldApiDTO.weightedHistoricalUtilization(CommodityType.MEM);
         OrderByApiDTO orderByIntegerField = OrderByApiDTO.asc(integerFieldApiDTO);
         OrderByApiDTO orderByDoubleField = OrderByApiDTO.desc(doubleFieldApiDTO);
 
@@ -651,7 +651,7 @@ public class EntityQueryTest {
         //THEN
         assertTrue(sortFields.size() == 3);
         final String integerSort = "cast(attrs->>'num_vms' as bigint) asc";
-        final String doubleSort = "cast(attrs->>'mem_utilization' as double) desc";
+        final String doubleSort = "cast(attrs->>'mem_hist_utilization' as double) desc";
         final String defaultOidField = "\"extractor\".\"search_entity\".\"oid\" asc";
         assertTrue(containsSort(sortFields, integerSort));
         assertTrue(containsSort(sortFields, doubleSort));
@@ -668,7 +668,7 @@ public class EntityQueryTest {
                 SelectEntityApiDTO.selectEntity(EntityType.PHYSICAL_MACHINE).build();
 
         FieldApiDTO integerFieldApiDTO = RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE);
-        FieldApiDTO doubleFieldApiDTO = CommodityFieldApiDTO.utilization(CommodityType.MEM);
+        FieldApiDTO doubleFieldApiDTO = CommodityFieldApiDTO.weightedHistoricalUtilization(CommodityType.MEM);
         OrderByApiDTO orderByIntegerField = OrderByApiDTO.asc(integerFieldApiDTO);
         OrderByApiDTO orderByDoubleField = OrderByApiDTO.desc(doubleFieldApiDTO);
 
@@ -683,12 +683,12 @@ public class EntityQueryTest {
         //THEN
         assertNotNull(fields);
         assertTrue(fields.contains("cast(attrs->>'num_vms' as bigint) asc"));
-        assertTrue(fields.contains("cast(attrs->>'mem_utilization' as double) desc"));
+        assertTrue(fields.contains("cast(attrs->>'mem_hist_utilization' as double) desc"));
         assertTrue(fields.contains("\"extractor\".\"search_entity\".\"oid\" asc"));
 
         Set<String> sortTrackers = query.sortedOnColumns.stream().map(SortedOnColumn::getField).map(Field::toString).collect(Collectors.toSet());
         assertTrue(sortTrackers.contains("cast(attrs->>'num_vms' as bigint)"));
-        assertTrue(sortTrackers.contains("cast(attrs->>'mem_utilization' as double)"));
+        assertTrue(sortTrackers.contains("cast(attrs->>'mem_hist_utilization' as double)"));
         assertTrue(sortTrackers.contains("\"extractor\".\"search_entity\".\"oid\""));
     }
 

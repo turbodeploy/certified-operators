@@ -67,11 +67,11 @@ public class SearchMetadataUtils {
 
     static {
         final Table<GroupType, FieldType, List<SearchMetadataMapping>> table = HashBasedTable.create();
-        for (SearchGroupMetadata searchEntityMetadata : SearchGroupMetadata.values()) {
+        for (SearchGroupMetadata searchGroupMetadata : SearchGroupMetadata.values()) {
             GroupType groupType = EnumUtils.groupTypeFromApiToProto(
-                    searchEntityMetadata.getGroupType());
+                searchGroupMetadata.getGroupType());
 
-            searchEntityMetadata.getMetadataMappingMap().forEach((fieldApiDTO, metadata) -> {
+            searchGroupMetadata.getMetadataMappingMap().forEach((fieldApiDTO, metadata) -> {
                 List<SearchMetadataMapping> metadataList =
                         table.get(groupType, fieldApiDTO.getFieldType());
                 if (metadataList == null) {

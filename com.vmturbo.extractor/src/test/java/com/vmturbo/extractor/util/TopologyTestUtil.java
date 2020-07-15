@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.DiskTypeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.GeoDataInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
@@ -477,6 +478,46 @@ public class TopologyTestUtil {
                 .setUsed(used)
                 .setCapacity(capacity)
                 .build();
+    }
+
+    /**
+     * Construct a sold commodity, including percentile historical utilization.
+     *
+     * @param commodityType the type of commodity to construct
+     * @param used the amount used
+     * @param capacity the capacity
+     * @param percentileUtilization the percentile historical utilization, as a percentage
+     * @return the constructed commodity sold
+     */
+    public static CommoditySoldDTO soldCommodityWithPercentile(CommodityDTO.CommodityType commodityType,
+                                                 double used, double capacity, double percentileUtilization) {
+        return CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(commodityType.getNumber()))
+            .setUsed(used)
+            .setCapacity(capacity)
+            .setHistoricalUsed(HistoricalValues.newBuilder()
+                .setPercentile(percentileUtilization))
+            .build();
+    }
+
+    /**
+     * Construct a sold commodity, including weighted historical utilization.
+     *
+     * @param commodityType the type of commodity to construct
+     * @param used the amount used
+     * @param capacity the capacity
+     * @param historicalUtilization the historical utilization, as a percentage
+     * @return the constructed commodity sold
+     */
+    public static CommoditySoldDTO soldCommodityWithHistoricalUtilization(CommodityDTO.CommodityType commodityType,
+                                                 double used, double capacity, double historicalUtilization) {
+        return CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(commodityType.getNumber()))
+            .setUsed(used)
+            .setCapacity(capacity)
+            .setHistoricalUsed(HistoricalValues.newBuilder()
+                .setHistUtilization(historicalUtilization))
+            .build();
     }
 
     /**

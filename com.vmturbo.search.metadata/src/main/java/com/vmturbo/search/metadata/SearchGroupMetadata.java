@@ -1,5 +1,6 @@
 package com.vmturbo.search.metadata;
 
+import static com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.currentUtilization;
 import static com.vmturbo.search.metadata.SearchGroupMetadata.Constants.GROUP_COMMON_FIELDS;
 
 import java.util.Map;
@@ -9,7 +10,6 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.dto.searchquery.AggregateCommodityFieldApiDTO;
-import com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.MemberFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
@@ -91,10 +91,11 @@ public enum SearchGroupMetadata {
                 .put(RelatedEntityFieldApiDTO.entityCount(EntityType.STORAGE),
                         SearchMetadataMapping.RELATED_MEMBER_COUNT_ST)
                 // aggregated commodities
-                .put(AggregateCommodityFieldApiDTO.total(CommodityFieldApiDTO.utilization(CommodityType.CPU)),
-                        SearchMetadataMapping.GROUP_COMMODITY_CPU_UTILIZATION_TOTAL)
-                .put(AggregateCommodityFieldApiDTO.total(CommodityFieldApiDTO.utilization(CommodityType.MEM)),
-                        SearchMetadataMapping.GROUP_COMMODITY_MEM_UTILIZATION_TOTAL)
+                // TODO: (OM-60754) Change this to be average over last 24 hours, when that data is available
+                .put(AggregateCommodityFieldApiDTO.total(currentUtilization(CommodityType.CPU)),
+                        SearchMetadataMapping.GROUP_COMMODITY_CPU_HISTORICAL_UTILIZATION_TOTAL)
+                .put(AggregateCommodityFieldApiDTO.total(currentUtilization(CommodityType.MEM)),
+                        SearchMetadataMapping.GROUP_COMMODITY_MEM_HISTORICAL_UTILIZATION_TOTAL)
                 .build();
     }
 
