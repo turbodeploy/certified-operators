@@ -17,6 +17,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 
+import org.apache.commons.lang.StringUtils;
+
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -235,9 +237,14 @@ public class ReservedInstancesService implements IReservedInstancesService {
                         GetReservedInstanceBoughtForScopeRequest.newBuilder()
                                 .addAllScopeSeedOids(scope.getScopeOids())
                                 .build()).getReservedInstanceBoughtList();
-            } else {
+            } else if (!StringUtils.isNumeric(scopeUuid)) {
                 throw new IllegalArgumentException(String.format("%s is illegal argument. "
                         + "Should be a valid numeric id.", scope.oid()));
+            } else {
+                throw new IllegalArgumentException(String.format("%s is illegal argument. "
+                        + "Should be a valid scope id. A valid scope is an id for a"
+                                + "zone/region/Account or scope =\"Market\" for Market.",
+                        scope.oid()));
             }
         }
     }
