@@ -74,7 +74,7 @@ import com.vmturbo.search.metadata.SearchMetadataMapping;
  */
 public class EntityQueryTest {
 
-    private static final SearchMetadataMapping oidPrimitive = SearchMetadataMapping.PRIMITIVE_OID;
+    private static final FieldApiDTO oidPrimitive = PrimitiveFieldApiDTO.oid();
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 

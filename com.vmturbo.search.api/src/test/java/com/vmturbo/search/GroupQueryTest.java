@@ -56,7 +56,7 @@ import com.vmturbo.search.metadata.SearchMetadataMapping;
  */
 public class GroupQueryTest {
 
-    private static final SearchMetadataMapping oidPrimitive = SearchMetadataMapping.PRIMITIVE_OID;
+    private static final FieldApiDTO oidPrimitive = PrimitiveFieldApiDTO.oid();
 
     /**
      * A fake database context.

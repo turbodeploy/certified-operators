@@ -34,6 +34,7 @@ public class EnumUtils {
                     .put(com.vmturbo.api.enums.EntityType.CHASSIS, EntityDTO.EntityType.CHASSIS)
                     .put(com.vmturbo.api.enums.EntityType.CONTAINER, EntityDTO.EntityType.CONTAINER)
                     .put(com.vmturbo.api.enums.EntityType.CONTAINER_POD, EntityDTO.EntityType.CONTAINER_POD)
+                    .put(com.vmturbo.api.enums.EntityType.CONTAINER_SPEC, EntityDTO.EntityType.CONTAINER_SPEC)
                     .put(com.vmturbo.api.enums.EntityType.DATABASE, EntityDTO.EntityType.DATABASE)
                     .put(com.vmturbo.api.enums.EntityType.DATABASE_SERVER, EntityDTO.EntityType.DATABASE_SERVER)
                     .put(com.vmturbo.api.enums.EntityType.DATACENTER, EntityDTO.EntityType.DATACENTER)
@@ -49,9 +50,11 @@ public class EnumUtils {
                     .put(com.vmturbo.api.enums.EntityType.STORAGECONTROLLER, EntityDTO.EntityType.STORAGE_CONTROLLER)
                     .put(com.vmturbo.api.enums.EntityType.STORAGE_TIER, EntityDTO.EntityType.STORAGE_TIER)
                     .put(com.vmturbo.api.enums.EntityType.SWITCH, EntityDTO.EntityType.SWITCH)
-                    .put(com.vmturbo.api.enums.EntityType.VIRTUAL_MACHINE, EntityDTO.EntityType.VIRTUAL_MACHINE)
                     .put(com.vmturbo.api.enums.EntityType.VIEW_POD, EntityDTO.EntityType.VIEW_POD)
+                    .put(com.vmturbo.api.enums.EntityType.VIRTUAL_DATACENTER, EntityDTO.EntityType.VIRTUAL_DATACENTER)
+                    .put(com.vmturbo.api.enums.EntityType.VIRTUAL_MACHINE, EntityDTO.EntityType.VIRTUAL_MACHINE)
                     .put(com.vmturbo.api.enums.EntityType.VIRTUAL_VOLUME, EntityDTO.EntityType.VIRTUAL_VOLUME)
+                    .put(com.vmturbo.api.enums.EntityType.WORKLOAD_CONTROLLER, EntityDTO.EntityType.WORKLOAD_CONTROLLER)
                     .build();
 
     /**

@@ -128,12 +128,14 @@ public enum SearchEntityMetadata {
     CHASSIS(EntityType.CHASSIS, getChassisMetadata()),
     CONTAINER(EntityType.CONTAINER, getContainerMetadata()),
     CONTAINER_POD(EntityType.CONTAINER_POD, getContainerPodMetadata()),
+    CONTAINER_SPEC(EntityType.CONTAINER_SPEC, getContainerPodMetadata()),
     DATABASE(EntityType.DATABASE, getDBMetaData()),
     DATABASE_SERVER(EntityType.DATABASE_SERVER, getDBServerMetaData()),
     DATACENTER(EntityType.DATACENTER, getDataCenterMetadata()),
     DESKTOP_POOL(EntityType.DESKTOP_POOL, getDesktopPoolMetaData()),
     DISKARRAY(EntityType.DISKARRAY, getDiskArrayMetadata()),
     IOMODULE(EntityType.IOMODULE, getIOModuleMetadata()),
+    NAMESPACE(EntityType.NAMESPACE, getNamespaceMetadata()),
     NETWORK(EntityType.NETWORK, getNetworkMetadata()),
     PHYSICAL_MACHINE(EntityType.PHYSICAL_MACHINE, getPhysicalMachineMetadata()),
     REGION(EntityType.REGION, getRegionMetadata()),
@@ -143,7 +145,9 @@ public enum SearchEntityMetadata {
     SWITCH(EntityType.SWITCH, getSwitchMetadata()),
     VIEW_POD(EntityType.VIEW_POD, getViewPodMetadata()),
     VIRTUAL_MACHINE(EntityType.VIRTUAL_MACHINE, getVirtualMachineMetadata()),
-    VIRTUAL_VOLUME(EntityType.VIRTUAL_VOLUME, getVirtualVolumeMetadata());
+    VIRTUAL_VOLUME(EntityType.VIRTUAL_VOLUME, getVirtualVolumeMetadata()),
+    VIRTUAL_DATACENTER(EntityType.VIRTUAL_DATACENTER, getVirtualVolumeMetadata()),
+    WORKLOAD_CONTROLLER(EntityType.WORKLOAD_CONTROLLER, getWorkloadControllerMetadata());
 
     private final EntityType entityType;
 
@@ -297,6 +301,30 @@ public enum SearchEntityMetadata {
     }
 
     /**
+     * Returns all relevant column mappings for Virtual Datacenter.
+     *
+     * @return Virtual Datacenter column mappings
+     */
+    private static Map<FieldApiDTO, SearchMetadataMapping> getVirtualDataCenterMetadata() {
+        return ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
+                // common fields
+                .putAll(Constants.ENTITY_COMMON_FIELDS)
+                .build();
+    }
+
+    /**
+     * Returns all relevant column mappings for Workload Controller.
+     *
+     * @return Workload Controller column mappings
+     */
+    private static Map<FieldApiDTO, SearchMetadataMapping> getWorkloadControllerMetadata() {
+        return ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
+                // common fields
+                .putAll(Constants.ENTITY_COMMON_FIELDS)
+                .build();
+    }
+
+    /**
      * Returns all relevant column mappings for Storage.
      *
      * @return Storage column mappings
@@ -394,6 +422,18 @@ public enum SearchEntityMetadata {
             .put(weightedHistoricalUtilization(CommodityType.NET_THROUGHPUT), COMMODITY_NET_THROUGHPUT_HISTORICAL_UTILIZATION)
             .put(weightedHistoricalUtilization(CommodityType.PORT_CHANNEL), COMMODITY_PORT_CHANNEL_HISTORICAL_UTILIZATION)
             .build();
+    }
+
+    /**
+     * Returns all relevant column mappings for Namespace.
+     *
+     * @return Namespace column mappings
+     */
+    private static Map<FieldApiDTO, SearchMetadataMapping> getNamespaceMetadata() {
+        return ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
+                // common fields
+                .putAll(Constants.ENTITY_COMMON_FIELDS)
+                .build();
     }
 
     /**
@@ -512,6 +552,18 @@ public enum SearchEntityMetadata {
             .put(entityNames(EntityType.NAMESPACE), RELATED_NAMESPACE)
             .putAll(Constants.BASIC_APPLICATION_FIELDS)
             .build();
+    }
+
+    /**
+     * Returns all relevant column mappings for Container Spec.
+     *
+     * @return Container Spec column mappings
+     */
+    private static Map<FieldApiDTO, SearchMetadataMapping> getContainerSpecMetadata() {
+        return ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
+                // common fields
+                .putAll(Constants.ENTITY_COMMON_FIELDS)
+                .build();
     }
 
     /**

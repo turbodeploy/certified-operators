@@ -27,12 +27,14 @@ public enum SearchGroupMetadata {
     /**
      * Mappings for different group types.
      */
-    GROUP(GroupType.GROUP, getRegularMetadata()),
+    BILLING_FAMILY(GroupType.BILLING_FAMILY, GROUP_COMMON_FIELDS),
     COMPUTE_HOST_CLUSTER(GroupType.COMPUTE_HOST_CLUSTER, getComputeHostClusterMetadata()),
-    STORAGE_CLUSTER(GroupType.STORAGE_CLUSTER, GROUP_COMMON_FIELDS),
     COMPUTE_VIRTUAL_MACHINE_CLUSTER(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, GROUP_COMMON_FIELDS),
+    GROUP(GroupType.GROUP, getRegularMetadata()),
     RESOURCE(GroupType.RESOURCE, GROUP_COMMON_FIELDS),
-    BILLING_FAMILY(GroupType.BILLING_FAMILY, GROUP_COMMON_FIELDS);
+    STORAGE_CLUSTER(GroupType.STORAGE_CLUSTER, GROUP_COMMON_FIELDS);
+
+
 
     private final GroupType groupType;
 
