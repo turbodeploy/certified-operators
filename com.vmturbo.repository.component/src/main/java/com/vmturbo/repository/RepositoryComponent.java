@@ -4,6 +4,7 @@ import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.SortedMap;
 import java.util.zip.ZipOutputStream;
 
@@ -25,6 +26,7 @@ import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
@@ -151,8 +153,23 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${repositoryMaxEntitiesPerChunk:5}")
     private int maxEntitiesPerChunk;
 
+    @Value("${arangodbHealthCheckIntervalSeconds:60}")
+    private int arangoHealthCheckIntervalSeconds;
+
+    // Disable it by default to support Lemur edition.
+    @Value("${enableArangodbHealthCheck:false}")
+    private boolean enableArangodbHealthCheck;
+
     @PostConstruct
     private void setup() {
+
+        if (enableArangodbHealthCheck) {
+            logger.info("Adding ArangoDB health check to the component health monitor.");
+            // add a health monitor for Arango
+            getHealthMonitor().addHealthCheck(new ArangoHealthMonitor(arangoHealthCheckIntervalSeconds,
+                    repositoryComponentConfig.arangoDatabaseFactory()::getArangoDriver,
+                    Optional.ofNullable(repositoryComponentConfig.getArangoDatabaseName())));
+        }
         getHealthMonitor().addHealthCheck(apiConfig.messageProducerHealthMonitor());
         // Temporarily force all Repository migrations to retry, in order to address some
         // observed issues with V_01_00_00__PURGE_ALL_LEGACY_PLANS not running successfully in
