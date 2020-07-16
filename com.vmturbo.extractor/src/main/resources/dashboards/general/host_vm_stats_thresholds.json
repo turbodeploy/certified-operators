@@ -12,11 +12,11 @@
       }
     ]
   },
-  "description": "This report shows daily average utilization measurements for the past 30 days. Averages are grouped into two sections. One rolled up for physical machines and another rolled up for virtual machines. Note that all physical and virtual machines are included. This information is useful as a top-level assessment of the overall average loading of your entire environment over time.",
+  "description": "This report shows daily average utilization measurements for the selected time range.. Averages are grouped into two sections. One rolled up for physical machines and another rolled up for virtual machines. Note that all physical and virtual machines are included. This information is useful as a top-level assessment of the overall average loading of your entire environment over time.",
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1593542705221,
+  "iteration": 1594823076534,
   "links": [],
   "panels": [
     {
@@ -972,6 +972,6 @@
     ]
   },
   "timezone": "",
-  "title": "Daily Infrastructure Average Stats vs. Thresholds for 30 Days",
+  "title": "Daily Infrastructure Average Stats vs. Thresholds",
   "uid": "host_vm_stats_thresholds"
 }
