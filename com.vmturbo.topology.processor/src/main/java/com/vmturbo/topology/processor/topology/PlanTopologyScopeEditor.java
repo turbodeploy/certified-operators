@@ -246,7 +246,19 @@ public class PlanTopologyScopeEditor {
         final List<TopologyEntity> cloudProviders = new ArrayList<>(regions);
         cloudProviders.addAll(tiers);
         cloudProviders.addAll(services);
-
+        if (cloudSourceEntities.isEmpty()) {
+            // For cloud migration, if we are migration to a region with no workloads, then
+            // add accounts associated to destination region, as accounts are needed for costs.
+            final Set<TopologyEntity> accounts = regions
+                    .stream()
+                    .map(TopologyEntity::getOwner)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .flatMap(e -> e.getAggregatedEntities().stream())
+                    .filter(e -> e.getEntityType() == BUSINESS_ACCOUNT_VALUE)
+                    .collect(Collectors.toSet());
+            cloudProviders.addAll(accounts);
+        }
         // union consumers and producers and filter by target
         resultEntityMap.putAll(Stream.concat(cloudConsumers.stream(), cloudProviders.stream())
                     .distinct()
