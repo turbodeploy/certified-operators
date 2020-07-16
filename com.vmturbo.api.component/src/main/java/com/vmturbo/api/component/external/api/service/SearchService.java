@@ -103,6 +103,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchQuery;
+import com.vmturbo.common.protobuf.search.UIBooleanFilter;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -242,6 +243,7 @@ public class SearchService implements ISearchService {
                 .put(EntityFilterMapper.CONTAINER_WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
                 .put(EntityFilterMapper.CONTAINER_POD_WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
                 .put(EntityFilterMapper.CONTAINER_SPEC_WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
+                .put(EntityFilterMapper.USER_DEFINED_ENTITY, (a, b, c) -> getBooleanFilterOptions())
                 .build();
     }
 
@@ -912,6 +914,24 @@ public class SearchService implements ISearchService {
         final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
         // options should be all possible states
         Arrays.stream(UIEntityState.values())
+                .forEach(option -> {
+                    final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
+                    optionApiDTO.setValue(option.apiStr());
+                    optionApiDTOs.add(optionApiDTO);
+                });
+        return optionApiDTOs;
+    }
+
+    /**
+     * Get "boolean" filter dropdown-menu options.
+     *
+     * @return List of {@CriteriaOptionApiDTO} to be presented in the UI.
+     */
+    @Nonnull
+    private  List<CriteriaOptionApiDTO> getBooleanFilterOptions() {
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+
+        Arrays.stream(UIBooleanFilter.values())
                 .forEach(option -> {
                     final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
                     optionApiDTO.setValue(option.apiStr());
