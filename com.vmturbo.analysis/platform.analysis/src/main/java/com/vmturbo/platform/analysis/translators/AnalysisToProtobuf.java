@@ -292,7 +292,13 @@ public final class AnalysisToProtobuf {
             .setUnplacedExplanation(trader.getUnplacedExplanation());
 
         if (trader.isClone()) {
-            builder.setCloneOf(((Economy)economy).getCloneOfTrader(trader).getOid());
+            final Trader cloneOfTrader = ((Economy)economy).getCloneOfTrader(trader);
+            if (cloneOfTrader != null) {
+                builder.setCloneOf(cloneOfTrader.getOid());
+            } else {
+                logger.error("Trader {} is a clone but the cloneOfTrader is null",
+                    trader.getDebugInfoNeverUseInCode());
+            }
         }
 
         for (int i = 0 ; i < trader.getBasketSold().size() ; ++i) {
@@ -366,7 +372,7 @@ public final class AnalysisToProtobuf {
                 }
             }
             // the provision by demand action may not have been handled
-            if (newSupplier.getOid() < 0) {
+            if (!newSupplier.isOidSet()) {
                 topology.addProvisionedTrader(newSupplier);
                 logger.info("NPE newSupplier=" + newSupplier.getDebugInfoNeverUseInCode() +
                             " buyer=" + move.getActionTarget().getDebugInfoNeverUseInCode());
