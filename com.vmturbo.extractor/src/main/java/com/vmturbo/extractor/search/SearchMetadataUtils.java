@@ -138,18 +138,6 @@ public class SearchMetadataUtils {
     }
 
     /**
-     * Check if there is metadata defined for the given entity type.
-     *
-     * @param entityType type of the entity
-     * @return true if metadata is defined for the entity, otherwise false
-     */
-    public static boolean hasMetadata(int entityType) {
-        Map<FieldType, List<SearchMetadataMapping>> metadata =
-                METADATA_BY_ENTITY_TYPE_AND_FIELD_TYPE.row(entityType);
-        return metadata != null && !metadata.isEmpty();
-    }
-
-    /**
      * Get list of defined metadata for the given group type and field type.
      *
      * @param groupType type of the group
@@ -161,6 +149,18 @@ public class SearchMetadataUtils {
         List<SearchMetadataMapping> metadataMappingList =
                 METADATA_BY_GROUP_TYPE_AND_FIELD_TYPE.get(groupType, fieldType);
         return metadataMappingList != null ? metadataMappingList : Collections.emptyList();
+    }
+
+    /**
+     * Check if there is metadata defined for the given entity type.
+     *
+     * @param entityType type of the entity
+     * @return true if metadata is defined for the entity, otherwise false
+     */
+    public static boolean hasMetadata(int entityType) {
+        Map<FieldType, List<SearchMetadataMapping>> metadata =
+                METADATA_BY_ENTITY_TYPE_AND_FIELD_TYPE.row(entityType);
+        return metadata != null && !metadata.isEmpty();
     }
 
     /**

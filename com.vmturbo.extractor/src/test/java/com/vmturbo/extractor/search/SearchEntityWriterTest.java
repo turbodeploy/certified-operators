@@ -10,7 +10,7 @@ import static com.vmturbo.extractor.models.ModelDefinitions.NUM_ACTIONS;
 import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkEntity;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkGroup;
-import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodity;
+
 import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodityWithHistoricalUtilization;
 import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodityWithPercentile;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATACENTER;
@@ -39,6 +39,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import org.javatuples.Quartet;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Test;

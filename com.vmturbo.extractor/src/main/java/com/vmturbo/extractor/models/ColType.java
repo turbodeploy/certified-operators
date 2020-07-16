@@ -11,9 +11,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.commons.codec.binary.Hex;
-
 import net.jpountz.xxhash.StreamingXXHash64;
+
+import org.apache.commons.codec.binary.Hex;
 
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.schema.enums.EntitySeverity;
