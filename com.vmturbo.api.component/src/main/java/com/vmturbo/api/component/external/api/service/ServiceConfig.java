@@ -171,13 +171,13 @@ public class ServiceConfig {
     /**
      * Feature flag. If it is true then ExecutionSchedule settings are not displayed in UI.
      */
-    @Value("${hideExecutionScheduleSetting:true}")
+    @Value("${hideExecutionScheduleSetting:false}")
     private boolean hideExecutionScheduleSetting;
 
     /**
      * Feature flag. If it is true then ExternalApproval settings are not displayed in UI.
      */
-    @Value("${hideExternalApprovalOrAuditSettings:true}")
+    @Value("${hideExternalApprovalOrAuditSettings:false}")
     private boolean hideExternalApprovalOrAuditSettings;
 
     /**
