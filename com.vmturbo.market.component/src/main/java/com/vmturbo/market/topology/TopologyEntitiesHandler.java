@@ -228,7 +228,6 @@ public class TopologyEntitiesHandler {
         final DataMetricTimer runTimer = ANALYSIS_RUNTIME
             .labels(scopeType)
             .startTimer();
-        final List<Action> actions;
         AnalysisResults results;
 
         // Generate actions
@@ -250,7 +249,7 @@ public class TopologyEntitiesHandler {
 
         // TODO: Remove this once shopTogether for Cloud Migration plans is implemented (OM-58943)
         // This is temporary code that merges associated move actions into CompoundMoves
-        actions = isCloudMigrationPlan
+        final List<Action> actions = isCloudMigrationPlan
                 ? getProcessedMarketActions(marketActions, economy)
                 : marketActions;
 
@@ -409,7 +408,6 @@ public class TopologyEntitiesHandler {
         actions.addAll(isMoveToActions.get(false));
         return actions;
     }
-
 
     /**
      * Create TraderTOs from provisioned traders from second round

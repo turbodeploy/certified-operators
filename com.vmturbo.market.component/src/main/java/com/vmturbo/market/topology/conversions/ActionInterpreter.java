@@ -67,6 +67,7 @@ import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.conversions.CloudEntityResizeTracker.CommodityUsageType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO.ActionTypeCase;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
@@ -140,94 +141,175 @@ public class ActionInterpreter {
      * @return The {@link Action} describing the recommendation in a topology-specific way.
      */
     @Nonnull
-    Optional<Action> interpretAction(@Nonnull final ActionTO actionTO,
-                                     @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-                                     @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                     @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                     @Nonnull TopologyCostCalculator topologyCostCalculator) {
+    List<Action> interpretAction(@Nonnull final ActionTO actionTO,
+                                 @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+                                 @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                 @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+                                 @Nonnull TopologyCostCalculator topologyCostCalculator) {
+        List<Action> actionList = new ArrayList<>();
         try {
-            final CalculatedSavings savings;
             final Action.Builder action;
+            switch (actionTO.getActionTypeCase()) {
+                case MOVE:
+                    action = createAction(actionTO, projectedTopology,
+                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    Optional<ActionDTO.Move> move = interpretMoveAction(
+                            actionTO.getMove(), projectedTopology, originalCloudTopology);
+                    if (move.isPresent()) {
+                        action.getInfoBuilder().setMove(move.get());
+                        actionList.add(action.build());
+                    }
+                    break;
+                case COMPOUND_MOVE:
+                    if (isSplitCompoundMove(actionTO)) {
+                        actionList.addAll(splitCompoundMove(actionTO, projectedTopology,
+                                originalCloudTopology, projectedCosts, topologyCostCalculator));
+                    } else {
+                        action = createAction(actionTO, projectedTopology,
+                                originalCloudTopology, projectedCosts, topologyCostCalculator);
+                        action.getInfoBuilder().setMove(interpretCompoundMoveAction(actionTO.getCompoundMove(),
+                                projectedTopology, originalCloudTopology));
+                        actionList.add(action.build());
+                    }
+                    break;
+                case RECONFIGURE:
+                    action = createAction(actionTO, projectedTopology,
+                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action.getInfoBuilder().setReconfigure(interpretReconfigureAction(
+                            actionTO.getReconfigure(), projectedTopology, originalCloudTopology));
+                    actionList.add(action.build());
+                    break;
+                case PROVISION_BY_SUPPLY:
+                    action = createAction(actionTO, projectedTopology,
+                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action.getInfoBuilder().setProvision(interpretProvisionBySupply(
+                            actionTO.getProvisionBySupply(), projectedTopology));
+                    actionList.add(action.build());
+                    break;
+                case PROVISION_BY_DEMAND:
+                    action = createAction(actionTO, projectedTopology,
+                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action.getInfoBuilder().setProvision(interpretProvisionByDemand(
+                            actionTO.getProvisionByDemand(), projectedTopology));
+                    actionList.add(action.build());
+                    break;
+                case RESIZE:
+                    action = createAction(actionTO, projectedTopology,
+                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    Optional<ActionDTO.Resize> resize = interpretResize(
+                            actionTO.getResize(), projectedTopology);
+                    if (resize.isPresent()) {
+                        action.getInfoBuilder().setResize(resize.get());
+                        actionList.add(action.build());
+                    }
+                    break;
+                case ACTIVATE:
+                    action = createAction(actionTO, projectedTopology,
+                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action.getInfoBuilder().setActivate(interpretActivate(
+                            actionTO.getActivate(), projectedTopology));
+                    actionList.add(action.build());
+                    break;
+                case DEACTIVATE:
+                    action = createAction(actionTO, projectedTopology,
+                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action.getInfoBuilder().setDeactivate(interpretDeactivate(
+                            actionTO.getDeactivate(), projectedTopology));
+                    actionList.add(action.build());
+                    break;
+            }
+        } catch (RuntimeException e) {
+            logger.error("Unable to interpret actionTO " + actionTO + " due to: ", e);
+        }
+        return actionList;
+    }
 
-            try (TraxContext traxContext = Trax.track("SAVINGS", actionTO.getActionTypeCase().name())) {
-                savings = calculateActionSavings(actionTO,
+    /**
+     * Compound move actions generated for MPC will need to be split into individual move actions
+     * for each of the VM and volume.
+     * Only cloud move actions have the move contexts.
+     *
+     * @param actionTO actionTO
+     * @return boolean to indicate if the action need to be split into separate move actions.
+     */
+    private boolean isSplitCompoundMove(@Nonnull final ActionTO actionTO) {
+        return actionTO.getActionTypeCase() == ActionTypeCase.COMPOUND_MOVE
+                && actionTO.getCompoundMove().getMovesList().stream().anyMatch(MoveTO::hasMoveContext);
+    }
+
+    /**
+     * Create action build and apply savings to action.
+     *
+     * @param actionTO An {@link ActionTO} describing an action recommendation
+     *                 generated by the market.
+     * @param projectedTopology The projected topology entities, by id. The entities involved
+     *                       in the action are expected to be in this map.
+     * @param originalCloudTopology The original {@link CloudTopology}
+     * @param projectedCosts The original {@link CloudTopology}
+     * @param topologyCostCalculator The {@link TopologyCostCalculator} used to calculate costs
+     * @return action builder
+     */
+    Action.Builder createAction(@Nonnull final ActionTO actionTO,
+                                @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+                                @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+                                @Nonnull TopologyCostCalculator topologyCostCalculator) {
+        final CalculatedSavings savings;
+        final Action.Builder action;
+
+        try (TraxContext traxContext = Trax.track("SAVINGS", actionTO.getActionTypeCase().name())) {
+            savings = calculateActionSavings(actionTO,
                     originalCloudTopology, projectedCosts, topologyCostCalculator);
 
-                // The action importance should never be infinite, as setImportance() will fail.
-                action = Action.newBuilder()
-                        // Assign a unique ID to each generated action.
-                        .setId(IdentityGenerator.next())
-                        .setDeprecatedImportance(actionTO.getImportance())
-                        .setExplanation(interpretExplanation(actionTO, savings, projectedTopology))
-                        .setExecutable(!actionTO.getIsNotExecutable());
-                savings.applySavingsToAction(action);
+            // The action importance should never be infinite, as setImportance() will fail.
+            action = Action.newBuilder()
+                    // Assign a unique ID to each generated action.
+                    .setId(IdentityGenerator.next())
+                    .setDeprecatedImportance(actionTO.getImportance())
+                    .setExplanation(interpretExplanation(actionTO, savings, projectedTopology))
+                    .setExecutable(!actionTO.getIsNotExecutable());
+            savings.applySavingsToAction(action);
 
-                if (traxContext.on()) {
-                    logger.info("{} calculation stack for {} action {}:\n{}",
+            if (traxContext.on()) {
+                logger.info("{} calculation stack for {} action {}:\n{}",
                         () -> savings.getClass().getSimpleName(),
                         () -> actionTO.getActionTypeCase().name(),
                         () -> Long.toString(action.getId()),
                         savings.savingsAmount::calculationStack);
 
-                }
             }
-
-            final ActionInfo.Builder infoBuilder = ActionInfo.newBuilder();
-
-            switch (actionTO.getActionTypeCase()) {
-                case MOVE:
-                    Optional<ActionDTO.Move> move = interpretMoveAction(
-                            actionTO.getMove(), projectedTopology, originalCloudTopology);
-                    if (move.isPresent()) {
-                        infoBuilder.setMove(move.get());
-                    } else {
-                        return Optional.empty();
-                    }
-                    break;
-                case COMPOUND_MOVE:
-                    infoBuilder.setMove(interpretCompoundMoveAction(actionTO.getCompoundMove(),
-                            projectedTopology, originalCloudTopology));
-                    break;
-                case RECONFIGURE:
-                    infoBuilder.setReconfigure(interpretReconfigureAction(
-                            actionTO.getReconfigure(), projectedTopology, originalCloudTopology));
-                    break;
-                case PROVISION_BY_SUPPLY:
-                    infoBuilder.setProvision(interpretProvisionBySupply(
-                            actionTO.getProvisionBySupply(), projectedTopology));
-                    break;
-                case PROVISION_BY_DEMAND:
-                    infoBuilder.setProvision(interpretProvisionByDemand(
-                            actionTO.getProvisionByDemand(), projectedTopology));
-                    break;
-                case RESIZE:
-                    Optional<ActionDTO.Resize> resize = interpretResize(
-                            actionTO.getResize(), projectedTopology);
-                    if (resize.isPresent()) {
-                        infoBuilder.setResize(resize.get());
-                    } else {
-                        return Optional.empty();
-                    }
-                    break;
-                case ACTIVATE:
-                    infoBuilder.setActivate(interpretActivate(
-                            actionTO.getActivate(), projectedTopology));
-                    break;
-                case DEACTIVATE:
-                    infoBuilder.setDeactivate(interpretDeactivate(
-                            actionTO.getDeactivate(), projectedTopology));
-                    break;
-                default:
-                    return Optional.empty();
-            }
-
-            action.setInfo(infoBuilder);
-
-            return Optional.of(action.build());
-        } catch (RuntimeException e) {
-            logger.error("Unable to interpret actionTO " + actionTO + " due to: ", e);
-            return Optional.empty();
         }
+
+        final ActionInfo.Builder infoBuilder = ActionInfo.newBuilder();
+        action.setInfo(infoBuilder);
+        return action;
+    }
+
+    private List<Action> splitCompoundMove(@Nonnull final ActionTO actionTO,
+                                           @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+                                           @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                           @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+                                           @Nonnull TopologyCostCalculator topologyCostCalculator) {
+        List<Action> actionList = new ArrayList<>();
+
+        List<MoveTO> moveActions = actionTO.getCompoundMove().getMovesList();
+        for (MoveTO moveTO : moveActions) {
+            // Create ActionTO from MoveTO.
+            ActionTO.Builder actionBuilder = ActionTO.newBuilder();
+            actionBuilder.setIsNotExecutable(actionTO.getIsNotExecutable());
+            actionBuilder.setMove(moveTO);
+            actionBuilder.setImportance(actionTO.getImportance());
+
+            Action.Builder moveActionBuilder = createAction(actionBuilder.build(), projectedTopology,
+                    originalCloudTopology, projectedCosts, topologyCostCalculator);
+            Optional<ActionDTO.Move> moveAction = interpretMoveAction(
+                    actionBuilder.getMove(), projectedTopology, originalCloudTopology);
+            if (moveAction.isPresent()) {
+                moveActionBuilder.getInfoBuilder().setMove(moveAction.get());
+                actionList.add(moveActionBuilder.build());
+            }
+        }
+        return actionList;
     }
 
     /**

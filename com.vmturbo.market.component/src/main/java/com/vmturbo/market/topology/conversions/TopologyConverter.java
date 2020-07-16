@@ -59,7 +59,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.Units;
@@ -802,9 +801,9 @@ public class TopologyConverter {
         tierExcluder.computeReasonSettings(actionTOs, originalCloudTopology);
         List<Action> actions = Lists.newArrayList();
         actionTOs.forEach(actionTO -> {
-            Optional<Action> action = interpretAction(actionTO, projectedTopology,
+            List<Action> interpretedActions = interpretAction(actionTO, projectedTopology,
                 originalCloudTopology, projectedCosts, topologyCostCalculator);
-            action.ifPresent(actions::add);
+            actions.addAll(interpretedActions);
         });
         return actions;
     }
@@ -836,7 +835,7 @@ public class TopologyConverter {
      * @return The {@link Action} describing the recommendation in a topology-specific way.
      */
     @Nonnull
-    Optional<Action> interpretAction(@Nonnull final ActionTO actionTO,
+    List<Action> interpretAction(@Nonnull final ActionTO actionTO,
                                      @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
                                      @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
                                      @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,

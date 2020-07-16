@@ -573,9 +573,10 @@ public class TopologyConverterFromMarketTest {
                         .setModelBuyer(-DS_OID).setModelSeller(DA_OID)
                         .setProvisionedSeller(DA_OID + 100L).build())
                 .build();
-        Optional<Action> provByDemandOptional =
+        List<Action> provByDemandList =
                 converter.interpretAction(provByDemandTO, projectedTopo, null, null, null);
-        assertNotNull(provByDemandOptional.get());
+        assertTrue(!provByDemandList.isEmpty());
+        assertNotNull(provByDemandList.get(0));
 
         //assert for wasted file actions
         Optional<CommoditySoldDTO> daStorageAmtCommSold = projectedTopo.get(traderDS.getOid()).getEntity().getCommoditySoldListList().stream()

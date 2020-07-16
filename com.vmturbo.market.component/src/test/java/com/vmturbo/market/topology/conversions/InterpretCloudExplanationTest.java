@@ -10,6 +10,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -151,9 +152,10 @@ public class InterpretCloudExplanationTest {
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
         projectedRiCoverage.put(VM1_OID, projectedCoverage);
 
-        Optional<Action> action = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
 
-        assertTrue(!action.get().getExplanation().getMove().getChangeProviderExplanation(0)
+        assertTrue(!actions.isEmpty());
+        assertTrue(!actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0)
             .getCongestion().getCongestedCommoditiesList().isEmpty());
     }
 
@@ -178,9 +180,10 @@ public class InterpretCloudExplanationTest {
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
         when(riCoverageCalculator.getProjectedRICoverageForEntity(VM1_OID)).thenReturn(projectedCoverage);
 
-        Optional<Action> action = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
 
-        Efficiency efficiency = action.get().getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
+        assertTrue(!actions.isEmpty());
+        Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
         assertTrue(efficiency.getIsRiCoverageIncreased());
         assertTrue(efficiency.getUnderUtilizedCommoditiesList().isEmpty());
     }
@@ -205,9 +208,10 @@ public class InterpretCloudExplanationTest {
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.empty());
         projectedRiCoverage.put(VM1_OID, null);
 
-        Optional<Action> action = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
 
-        Efficiency efficiency = action.get().getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
+        assertTrue(!actions.isEmpty());
+        Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
         assertTrue(!efficiency.getUnderUtilizedCommoditiesList().isEmpty());
         assertFalse(efficiency.getIsRiCoverageIncreased());
         assertFalse(efficiency.getIsWastedCost());
@@ -233,9 +237,10 @@ public class InterpretCloudExplanationTest {
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
         projectedRiCoverage.put(VM1_OID, initialCoverage.get());
 
-        Optional<Action> action = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
 
-        Efficiency efficiency = action.get().getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
+        assertTrue(!actions.isEmpty());
+        Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
         assertTrue(efficiency.getUnderUtilizedCommoditiesList().isEmpty());
         assertFalse(efficiency.getIsRiCoverageIncreased());
         assertTrue(efficiency.getIsWastedCost());
@@ -263,9 +268,10 @@ public class InterpretCloudExplanationTest {
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
         projectedRiCoverage.put(VM1_OID, initialCoverage.get());
 
-        Optional<Action> action = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
 
-        Efficiency efficiency = action.get().getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
+        assertTrue(!actions.isEmpty());
+        Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
         assertTrue(efficiency.getUnderUtilizedCommoditiesList().isEmpty());
         assertFalse(efficiency.getIsRiCoverageIncreased());
         assertFalse(efficiency.getIsWastedCost());
