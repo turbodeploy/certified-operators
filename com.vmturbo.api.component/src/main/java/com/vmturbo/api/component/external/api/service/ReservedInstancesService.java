@@ -106,14 +106,18 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     @Override
     public List<ReservedInstanceApiDTO> getReservedInstances(
-            @Nullable String scopeUuid, @Nullable Boolean includeAllUsable) throws Exception {
+            @Nullable String scopeUuid,
+            @Nullable Boolean includeAllUsable,
+            @Nullable com.vmturbo.api.enums.AccountFilterType filterType) throws Exception {
         // default to the real time market as the scope
         scopeUuid = Optional.ofNullable(scopeUuid)
             .orElse(UuidMapper.UI_REAL_TIME_MARKET_STR);
 
         final ApiId scope = uuidMapper.fromUuid(scopeUuid);
+        final AccountFilterType accountFilterType = filterType == null ? AccountFilterType.PURCHASED_BY
+                : ReservedInstanceMapper.mapApiAccountFilterTypeToXl(filterType.name());
         final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(
-                scope, Objects.isNull(includeAllUsable) ? false : includeAllUsable);
+                scope, Objects.isNull(includeAllUsable) ? false : includeAllUsable, accountFilterType);
         if (reservedInstancesBought.isEmpty()) {
             return Collections.emptyList();
         }
@@ -186,11 +190,14 @@ public class ReservedInstancesService implements IReservedInstancesService {
      *
      * @param scope The scope could be global market, a group, a region, a availability zone or a account.
      * @param includeAllUsable Whether to include all potentially usable RIs given {@param scope}
+     * @param accountFilterType relevant to account scopes, indicates if RIs to be retrieved are used
+     *                          by or purchased by the passed account ids.
      * @return a list of {@link ReservedInstanceBought}.
      * @throws UnknownObjectException if the input scope type is not supported.
      */
     private Collection<ReservedInstanceBought> getReservedInstancesBought(
-            @Nonnull ApiId scope, @Nonnull Boolean includeAllUsable)
+            @Nonnull ApiId scope, @Nonnull Boolean includeAllUsable,
+            final AccountFilterType accountFilterType)
             throws UnknownObjectException {
         String scopeUuid = String.valueOf(scope.oid());
         final Optional<Grouping> groupOptional = groupExpander.getGroup(scopeUuid);
@@ -240,7 +247,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                             requestBuilder.setAccountFilter(
                                     AccountFilter.newBuilder()
                                             .addAllAccountId(entityOids)
-                                            .setAccountFilterType(AccountFilterType.PURCHASED_BY)
+                                            .setAccountFilterType(accountFilterType)
                                             .build());
                             break;
                         default:

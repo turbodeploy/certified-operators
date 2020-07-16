@@ -26,6 +26,8 @@ import com.vmturbo.api.enums.ReservedInstanceType;
 import com.vmturbo.api.enums.Tenancy;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -380,6 +382,28 @@ public class ReservedInstanceMapper {
     public static class NotFoundCloudTypeException extends Exception {
         NotFoundCloudTypeException(String message) {
             super(message);
+        }
+    }
+
+    /**
+     * Map an API account filter type string to an equivalent XL account filter type.
+     *
+     * @param accountFilterType The string representing the account filter type in UI.
+     * @return An optional containing a {@link AccountFilter.AccountFilterType}, or an empty optional if
+     *         no equivalent filter type exists in XL.
+     */
+    @Nonnull
+    public static AccountFilter.AccountFilterType mapApiAccountFilterTypeToXl(
+            @Nonnull final String accountFilterType) {
+        switch (accountFilterType) {
+            case "USED_BY":
+                return AccountFilterType.USED_BY;
+            case "USED_AND_PURCHASED_BY":
+                return AccountFilterType.USED_AND_PURCHASED_BY;
+            case "PURCHASED_BY":
+                return AccountFilterType.PURCHASED_BY;
+            default:
+                return AccountFilterType.PURCHASED_BY;
         }
     }
 }
