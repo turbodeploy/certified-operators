@@ -135,7 +135,8 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                         });
                     } else {
                         // If the action update was successful.
-                        if (actionsUpdated.getActionPlanInfo().hasBuyRi()) {
+                        if (actionsUpdated.getActionPlanInfo().hasBuyRi() &&
+                            !planInstance.get().getScenario().getScenarioInfo().getType().equals(StringConstants.CLOUD_MIGRATION_PLAN)) {
                             final long actionPlanId = actionsUpdated.getActionPlanId();
                             if (PlanRpcServiceUtil.isScalingEnabled(planInstance.get().getScenario().getScenarioInfo())) {
                                 // buy ri and optimize workload will have VM resize enabled

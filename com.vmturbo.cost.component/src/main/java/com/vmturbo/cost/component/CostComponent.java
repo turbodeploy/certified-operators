@@ -31,15 +31,12 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.flyway.CostFlywayCallback;
-import com.vmturbo.cost.component.history.HistoricalStatsService;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
-import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy;
-import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.MigratedWorkloadCloudCommitmentAlgorithmStrategy;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.MigratedWorkloadCloudCommitmentConfig;
 import com.vmturbo.cost.component.rpc.CostDebugConfig;
-import com.vmturbo.cost.component.rpc.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.cost.component.stats.CostStatsConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.trax.TraxConfiguration;
@@ -65,7 +62,7 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CostPlanListenerConfig.class,
     ReservedInstanceSpecConfig.class,
     CostDiagnosticsConfig.class,
-    HistoryServiceConfig.class})
+    MigratedWorkloadCloudCommitmentConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.
@@ -114,27 +111,8 @@ public class CostComponent extends BaseVmtComponent {
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
-    /**
-     * gRPC service endpoint that handles migrated workload cloud commitment (Buy RI) analysis.
-     * @return  The Spring Bean that implements this functionality.
-     */
-    @Bean
-    public MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService() {
-        return new MigratedWorkloadCloudCommitmentAnalysisService();
-    }
-
-    /**
-     * The migrated workload cloud commitment (Buy RI) algorithm implementation. This bean will be autowired into the
-     * MigratedWorkloadCloudCommitmentAnalysisService and used to analyze a plan topology for recommended cloud
-     * commitment purchases.
-     *
-     * @param historicalStatsService Historical Statistics Service.
-     * @return The algorithm implementation for this strategy.
-     */
-    @Bean
-    public MigratedWorkloadCloudCommitmentAlgorithmStrategy migratedWorkloadCloudCommitmentAlgorithmStrategy(HistoricalStatsService historicalStatsService) {
-        return new ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(historicalStatsService);
-    }
+    @Autowired
+    private MigratedWorkloadCloudCommitmentConfig migratedWorkloadCloudCommitmentConfig;
 
     /**
      * Starts the component.
@@ -193,7 +171,7 @@ public class CostComponent extends BaseVmtComponent {
             buyRIAnalysisConfig.buyReservedInstanceRpcService(),
             buyRIAnalysisConfig.riBuyContextFetchRpcService(),
             costDebugConfig.traxConfigurationRpcService(),
-            migratedWorkloadCloudCommitmentAnalysisService());
+            migratedWorkloadCloudCommitmentConfig.migratedWorkloadCloudCommitmentAnalysisService());
     }
 
     @Nonnull

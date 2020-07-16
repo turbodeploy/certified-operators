@@ -1189,6 +1189,9 @@ message MigratedWorkloadCloudCommitmentAnalysisRequest {
     // A list of the placed virtual machines
     repeated MigratedWorkloadPlacement virtual_machines = 3;
 
+    // The master business account under which to buy RIs
+    optional int64 business_account = 4;
+
     // The placement definition of a virtual machine: the VM, the compute tier to which it is being placed,
     // and the region that hosts that compute tier
     message MigratedWorkloadPlacement {
@@ -1200,6 +1203,9 @@ message MigratedWorkloadCloudCommitmentAnalysisRequest {
 
         // The region hosting the compute tier
         optional .topology.TopologyEntityDTO region = 3;
+
+        // The cloud service provider hosting this region
+        optional .topology.TopologyEntityDTO provider = 4;
     }
 
     // The profile for the RIs to buy. TODO: need to flesh this out better

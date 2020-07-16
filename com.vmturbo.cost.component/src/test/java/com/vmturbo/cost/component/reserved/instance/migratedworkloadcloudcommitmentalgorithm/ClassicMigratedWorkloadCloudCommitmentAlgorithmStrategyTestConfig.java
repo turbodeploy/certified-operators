@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 
 import com.vmturbo.cost.component.history.HistoricalStatsService;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 
 /**
  * Spring configuration class used by the ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTest test class.
@@ -26,6 +27,17 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTestConfig {
     }
 
     /**
+     * Creates a mock implementation of the PriceTableStore.
+     * @return  A mock implementation of the PriceTableStore
+     */
+    @Bean
+    @Primary
+    public PriceTableStore priceTableStore() {
+        return Mockito.mock(PriceTableStore.class);
+    }
+
+
+    /**
      * Creates a ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy with the historicalStatsService wired into it,
      * in the form of a MigratedWorkloadCloudCommitmentAlgorithmStrategy.
      *
@@ -35,6 +47,11 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTestConfig {
     @Bean
     @Primary
     public MigratedWorkloadCloudCommitmentAlgorithmStrategy migratedWorkloadCloudCommitmentAlgorithmStrategy(HistoricalStatsService historicalStatsService) {
-        return new ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(historicalStatsService);
+        return new ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(historicalStatsService,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 }
