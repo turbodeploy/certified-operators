@@ -117,8 +117,8 @@ public class ActionApprovalManager {
         final AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
                 userNameAndUuid);
         if (!action.isReady()) {
-            store.getEntitySeverityCache()
-                    .refresh(action.getTranslationResultOrOriginal(), store);
+            store.getEntitySeverityCache().ifPresent(severityCache ->
+                severityCache.refresh(action.getTranslationResultOrOriginal(), store));
         }
         AuditLog.newEntry(AuditAction.EXECUTE_ACTION, action.getDescription(), true)
                 .targetName(String.valueOf(action.getId()))

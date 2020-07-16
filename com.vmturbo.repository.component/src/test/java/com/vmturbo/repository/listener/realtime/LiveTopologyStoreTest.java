@@ -82,7 +82,7 @@ public class LiveTopologyStoreTest {
         TopologyInfo tInfo = TopologyInfo.newBuilder()
             .setTopologyId(7)
             .build();
-        final SourceRealtimeTopologyBuilder bldr = liveTopologyStore.newRealtimeTopology(tInfo);
+        final SourceRealtimeTopologyBuilder bldr = liveTopologyStore.newRealtimeSourceTopology(tInfo);
         bldr.addEntities(Collections.singleton(storage));
         bldr.addEntities(Arrays.asList(host1, host2));
         bldr.finish();
@@ -91,96 +91,5 @@ public class LiveTopologyStoreTest {
             .map(RepoGraphEntity::getTopologyEntity)
             .collect(Collectors.toList());
         assertThat(entities, containsInAnyOrder(storage, host1, host2));
-    }
-
-    /**
-     * Tests updating a entity state in the realtime topology.
-     */
-    @Test
-    public void testUpdateEntityWithNewState() {
-        TopologyInfo tInfo = TopologyInfo.newBuilder()
-            .setTopologyId(7)
-            .setCreationTime(0)
-            .build();
-        final SourceRealtimeTopologyBuilder bldr = liveTopologyStore.newRealtimeTopology(tInfo);
-        bldr.addEntities(Arrays.asList(storage, host1, host2));
-        bldr.finish();
-        TopologyEntityDTO updatedHost = TopologyEntityDTO.newBuilder()
-            .setOid(host1.getOid()).setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .setEntityState(EntityState.MAINTENANCE).build();
-        liveTopologyStore.updateEntityWithNewState(updatedHost);
-        final SourceRealtimeTopology topo = liveTopologyStore.getSourceTopology().get();
-        Assert.assertEquals(EntityState.MAINTENANCE,
-            topo.entityGraph().getEntity(host1.getOid()).get().getEntityState());
-        Assert.assertEquals(EntityState.MAINTENANCE,
-            topo.entityGraph().getEntity(host1.getOid()).get().getTopologyEntity().getEntityState());
-    }
-
-    /**
-     * Tests that entity states cached in entitiesWithUpdatedState get applied correctly to
-     * incoming topologies, and don't get applied to topologies that are more recent than the
-     * state change.
-     */
-    @Test
-    public void testUpdateEntityWithNewStateCache() {
-        final TopologyEntityDTO host1PoweredOn = createHostWithState(2, EntityState.POWERED_ON);
-
-        final TopologyEntityDTO host1InMaintenance = createHostWithState(2,
-            EntityState.MAINTENANCE);
-
-        EntitiesWithNewState poweredOnStateChange = EntitiesWithNewState
-            .newBuilder().addTopologyEntity(host1PoweredOn)
-            .setStateChangeId(0)
-            .build();
-
-        EntitiesWithNewState maintenanceStateChange = EntitiesWithNewState
-            .newBuilder().addTopologyEntity(host1InMaintenance)
-            .setStateChangeId(1)
-            .build();
-
-        liveTopologyStore.setEntityWithUpdatedState(poweredOnStateChange);
-        liveTopologyStore.setEntityWithUpdatedState(maintenanceStateChange);
-
-        TopologyInfo tInfo = TopologyInfo.newBuilder()
-            .setTopologyId(0)
-            .setCreationTime(0)
-            .build();
-        final SourceRealtimeTopologyBuilder bldr = liveTopologyStore.newRealtimeTopology(tInfo);
-        bldr.addEntities(Arrays.asList(storage, host1, host2));
-        bldr.finish();
-        final SourceRealtimeTopology topo = liveTopologyStore.getSourceTopology().get();
-
-        // Check the topology is updated with the host state in the entityWithNewState cache
-        Assert.assertEquals(EntityState.MAINTENANCE,
-            topo.entityGraph().getEntity(host1.getOid()).get().getEntityState());
-        Assert.assertEquals(EntityState.MAINTENANCE,
-            topo.entityGraph().getEntity(host1.getOid()).get().getTopologyEntity().getEntityState());
-
-        // New topology, with a more updated time stamp then the host state change, should not
-        // get affected by the entityWithNewStateCache
-        final SourceRealtimeTopologyBuilder updatedBldr = liveTopologyStore
-            .newRealtimeTopology(tInfo.toBuilder().setTopologyId(2).build());
-        updatedBldr.addEntities(Arrays.asList(storage, host1, host2));
-        updatedBldr.finish();
-        final SourceRealtimeTopology updatedTopo = liveTopologyStore.getSourceTopology().get();
-        Assert.assertEquals(EntityState.POWERED_ON,
-            updatedTopo.entityGraph().getEntity(host1.getOid()).get().getEntityState());
-        Assert.assertEquals(EntityState.POWERED_ON,
-            updatedTopo.entityGraph().getEntity(host1.getOid()).get().getTopologyEntity().getEntityState());
-    }
-
-    private TopologyEntityDTO createHostWithState(long id, EntityState entityState) {
-        return TopologyEntityDTO.newBuilder()
-            .setOid(id)
-            .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
-            .setEntityState(entityState)
-            .setDisplayName("pm")
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderEntityType(ApiEntityType.STORAGE.typeNumber())
-                .setProviderId(storage.getOid())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(CommodityType.newBuilder()
-                        .setType(UICommodityType.STORAGE_AMOUNT.typeNumber()))))
-            .build();
     }
 }

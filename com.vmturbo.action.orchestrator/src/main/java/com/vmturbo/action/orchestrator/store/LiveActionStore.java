@@ -46,6 +46,7 @@ import com.vmturbo.action.orchestrator.store.AtomicActionFactory.AtomicActionRes
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -57,7 +58,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -139,6 +139,7 @@ public class LiveActionStore implements ActionStore {
      * @param actionFactory the action factory
      * @param actionIdentityService identity service to fetch OIDs for actions
      * @param topologyContextId the topology context id
+     * @param actionTopologyStore Store for the live topology.
      * @param actionTargetSelector selects which target/probe to execute each action against
      * @param probeCapabilityCache gets the target-specific action capabilities
      * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot
@@ -157,7 +158,7 @@ public class LiveActionStore implements ActionStore {
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
-                           @Nonnull final RepositoryServiceBlockingStub repositoryService,
+                           @Nonnull final ActionTopologyStore actionTopologyStore,
                            @Nonnull final ActionTargetSelector actionTargetSelector,
                            @Nonnull final ProbeCapabilityCache probeCapabilityCache,
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
@@ -177,8 +178,7 @@ public class LiveActionStore implements ActionStore {
     ) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
-        this.severityCache =
-                new EntitySeverityCache(Objects.requireNonNull(repositoryService), riskPropagationEnabled);
+        this.severityCache = new EntitySeverityCache(Objects.requireNonNull(actionTopologyStore), riskPropagationEnabled);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
@@ -733,8 +733,8 @@ public class LiveActionStore implements ActionStore {
 
     @Override
     @Nonnull
-    public EntitySeverityCache getEntitySeverityCache() {
-        return severityCache;
+    public Optional<EntitySeverityCache> getEntitySeverityCache() {
+        return Optional.of(severityCache);
     }
 
     @Override

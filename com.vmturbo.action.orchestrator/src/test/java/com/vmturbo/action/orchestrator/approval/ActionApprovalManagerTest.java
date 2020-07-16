@@ -87,7 +87,7 @@ public class ActionApprovalManagerTest {
 
         when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(actionTargetInfo);
 
-        when(actionStore.getEntitySeverityCache()).thenReturn(entitySeverityCache);
+        when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(entitySeverityCache));
 
         when(actionTranslator.translateToSpec(any())).thenReturn(ActionSpec.newBuilder()
             .buildPartial());

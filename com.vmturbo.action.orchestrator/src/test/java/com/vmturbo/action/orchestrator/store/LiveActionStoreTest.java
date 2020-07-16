@@ -68,6 +68,7 @@ import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityDataStore;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.store.identity.InMemoryIdentityStore;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -86,7 +87,6 @@ import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.ResizeMergeSpec;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.ResizeMergeSpec.CommodityMergeData;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -202,6 +202,8 @@ public class LiveActionStoreTest {
     private final AcceptedActionsDAO acceptedActionsStore = mock(AcceptedActionsDAO.class);
     private final RejectedActionsDAO rejectedActionsStore = mock(RejectedActionsDAO.class);
 
+    private ActionTopologyStore actionTopologyStore = new ActionTopologyStore();
+
     final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
     final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
     private ActionEntity aggregateEntity1;
@@ -218,7 +220,8 @@ public class LiveActionStoreTest {
                 new IdentityServiceImpl(idDataStore, new ActionInfoModelCreator(),
                         Clock.systemUTC(), 1000);
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID,
-                RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()), targetSelector,
+                actionTopologyStore,
+                targetSelector,
                 probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
                 actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
@@ -398,7 +401,7 @@ public class LiveActionStoreTest {
         // methods in the original action, not in the spy.
         final ActionStore actionStore =
                 new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
-                        RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                        actionTopologyStore,
                         targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                         actionsStatistician, actionTranslator, atomicActionFactory, clock,
                         userSessionContext, licenseCheckClient, acceptedActionsStore,

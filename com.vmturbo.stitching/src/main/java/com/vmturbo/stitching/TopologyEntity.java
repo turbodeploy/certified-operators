@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -194,15 +193,9 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
         return entityBuilder.getTypeSpecificInfo();
     }
 
-    @Nullable
-    @Override
-    public <T extends SearchableProps> T getSearchableProps(@Nonnull Class<T> clazz) {
-        final SearchableProps props = ThickSearchableProps.newProps(entityBuilder);
-        if (clazz.isInstance(props)) {
-            return (T)props;
-        } else {
-            return null;
-        }
+    @Nonnull
+    public SearchableProps getSearchableProps() {
+        return ThickSearchableProps.newProps(entityBuilder);
     }
 
     @Nonnull

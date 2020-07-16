@@ -151,7 +151,7 @@ public interface ActionStore {
 
     /**
      * Retrieve the cache that maintains entity severities for entities associated with actions
-     * in this {@link ActionStore}. There is one severity cache per-store.
+     * in this {@link ActionStore}. There is at most one severity cache per-store.
      *
      * Note that the store does not manage refreshing and updating the severity cache. It is up to clients
      * to do so because State changes to actions that happen external to updates to the {@link ActionStore}
@@ -160,7 +160,7 @@ public interface ActionStore {
      * @return The {@link EntitySeverityCache} associated with this {@link ActionStore}.
      */
     @Nonnull
-    EntitySeverityCache getEntitySeverityCache();
+    Optional<EntitySeverityCache> getEntitySeverityCache();
 
     /**
      * Get the visibility predicate for use in testing the visibility of actions in this store.

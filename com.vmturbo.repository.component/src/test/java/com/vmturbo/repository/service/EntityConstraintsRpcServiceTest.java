@@ -110,7 +110,7 @@ public class EntityConstraintsRpcServiceTest {
     @Before
     public void setUp() throws IOException {
         final SourceRealtimeTopologyBuilder topologyBuilder =
-            liveTopologyStore.newRealtimeTopology(TopologyInfo.getDefaultInstance());
+            liveTopologyStore.newRealtimeSourceTopology(TopologyInfo.getDefaultInstance());
         topologyBuilder.addEntities(ImmutableList.of(
             createConsumer(EntityType.VIRTUAL_MACHINE_VALUE, VM1,
                 ImmutableMap.of(

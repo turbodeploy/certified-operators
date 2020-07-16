@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -50,7 +51,7 @@ public class MarketActionListenerTest {
         this.actionStorehouse = new ActionStorehouse(actionStoreFactory,
                 executor, actionStoreLoader, approvalSender);
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStore);
-        when(actionStore.getEntitySeverityCache()).thenReturn(severityCache);
+        when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(severityCache));
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStore.getStoreTypeName()).thenReturn("test");
     }
