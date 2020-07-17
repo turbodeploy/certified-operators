@@ -230,8 +230,9 @@ public class UtilizationCountArray {
             counts[i++] += recordUtilization.next();
         }
 
-        endTimestamp = record.getEndTimestamp();
-        startTimestamp = record.getStartTimestamp();
+        // Update existing startTimestamp and endTimestamp based on given serialized record
+        startTimestamp = startTimestamp == 0 ? record.getStartTimestamp() : Math.min(startTimestamp, record.getStartTimestamp());
+        endTimestamp = Math.max(endTimestamp, record.getEndTimestamp());
     }
 
     /**
