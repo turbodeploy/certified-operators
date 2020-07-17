@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,6 +34,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -56,9 +58,22 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.util.NestedServletException;
 
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowsRequest;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowsResponse;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTOMoles.WorkflowServiceMole;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
@@ -108,6 +123,12 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
 // Need clean context with no probes/targets registered.
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 public class TargetControllerTest {
+
+    private static final SettingPolicyServiceMole settingPolicyServiceMole =
+            Mockito.spy(new SettingPolicyServiceMole());
+
+    private static final WorkflowServiceMole workflowServiceMole =
+            Mockito.spy(new WorkflowServiceMole());
 
     /**
      * Nested configuration for Spring context.
@@ -191,9 +212,32 @@ public class TargetControllerTest {
         }
 
         @Bean
+        public GrpcTestServer grpcTestServer() {
+            try {
+                final GrpcTestServer testServer =
+                        GrpcTestServer.newServer(settingPolicyServiceMole, workflowServiceMole);
+                testServer.start();
+                return testServer;
+            } catch (IOException e) {
+                throw new BeanCreationException("Failed to create test grpc server", e);
+            }
+        }
+
+        @Bean
+        public SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub() {
+            return SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        }
+
+        @Bean
+        public WorkflowServiceBlockingStub workflowServiceBlockingStub() {
+            return WorkflowServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        }
+
+        @Bean
         public TargetController targetController() {
             return new TargetController(schedulerMock(), targetStore(), probeStore(),
-                            operationManager(), topologyHandler());
+                    operationManager(), topologyHandler(), settingPolicyServiceBlockingStub(),
+                    workflowServiceBlockingStub());
         }
     }
 
@@ -757,6 +801,46 @@ public class TargetControllerTest {
         final TargetInfo targetDeleted = decodeResult(mvcResult, TargetInfo.class);
         Assert.assertEquals(Collections.singletonList(target2), targetStore.getAll());
         Assert.assertEquals(target1.getId(), targetDeleted.getId());
+    }
+
+    /**
+     * Test case for preventing deleting orchestration target (ServiceNow).
+     * Prevent deleting target if there is at least one policy with external approval settings.
+     * Searching policies by workflow id, because workflow discovered by target is used as
+     * setting value.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testPreventTargetRemoving() throws Exception {
+        final long probeWithApprovalFeatureId = createProbeWithOneField(probeInfo);
+        final Target target1 = createTarget(probeWithApprovalFeatureId, "1");
+
+        final long workflowId = 11L;
+        final String blockedPolicyName = "Blocked Policy";
+        final long blockedPolicyId = 12L;
+        Mockito.when(workflowServiceMole.fetchWorkflows(
+                FetchWorkflowsRequest.newBuilder().addTargetId(target1.getId()).build()))
+                .thenReturn(FetchWorkflowsResponse.newBuilder()
+                        .addWorkflows(Workflow.newBuilder().setId(workflowId).build())
+                        .build());
+        Mockito.when(settingPolicyServiceMole.listSettingPolicies(
+                ListSettingPoliciesRequest.newBuilder().addWorkflowId(workflowId).build()))
+                .thenReturn(Collections.singletonList(SettingPolicy.newBuilder()
+                        .setInfo(SettingPolicyInfo.newBuilder().setName(blockedPolicyName).build())
+                        .setId(blockedPolicyId)
+                        .build()));
+
+        Assert.assertEquals(1, targetStore.getAll().size());
+        final MvcResult mvcResult =
+                requestRemoveTarget(target1.getId()).andExpect(status().isForbidden()).andReturn();
+        final TargetInfo notDeletedTarget = decodeResult(mvcResult, TargetInfo.class);
+        Assert.assertEquals(Collections.singletonList(target1), targetStore.getAll());
+        Assert.assertThat(notDeletedTarget.getErrors().iterator().next(), CoreMatchers.allOf(
+                CoreMatchers.containsString(
+                        "Cannot remove target " + target1.getDisplayName()),
+                CoreMatchers.containsString(blockedPolicyName),
+                CoreMatchers.containsString(String.valueOf(blockedPolicyId))));
     }
 
     /**

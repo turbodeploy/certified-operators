@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,9 +27,15 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTOMoles.WorkflowServiceMole;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -230,7 +237,9 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public TargetController targetController() {
-        return new TargetController(scheduler(), targetStore(), probeStore(), operationManager(), topologyHandler());
+        return new TargetController(scheduler(), targetStore(), probeStore(), operationManager(),
+                topologyHandler(), settingPolicyServiceBlockingStub(),
+                workflowServiceBlockingStub());
     }
 
     @Bean
@@ -355,20 +364,89 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
         return Mockito.mock(BinaryDiscoveryDumper.class);
     }
 
+    /**
+     * Bean of test grpc server.
+     *
+     * @return the instance of started grpc server.
+     */
     @Bean
-    public SearchServiceBlockingStub searchServiceBlockingStub() {
-        // Since SearchServiceBlockingStub is a final class, it cannot be mocked or spied. Therefore,
-        // create a mocked Search Service, and then use that channel to create a SearchServiceBlockingStub
-        final SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
-        GrpcTestServer grpcServer = GrpcTestServer.newServer(searchServiceSpy);
+    public GrpcTestServer grpcTestServer() {
         try {
-            grpcServer.start();
+            final GrpcTestServer testServer =
+                    GrpcTestServer.newServer(searchService(), settingPolicyService(),
+                            workflowService());
+            testServer.start();
+            return testServer;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new BeanCreationException("Failed to create test grpc server", e);
         }
-        return SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 
+    /**
+     * Search service.
+     *
+     * @return the instance of search service.
+     */
+    @Bean
+    public SearchServiceMole searchService() {
+        return Mockito.spy(new SearchServiceMole());
+    }
+
+    /**
+     * SettingPolicy service.
+     *
+     * @return the instance of settingPolicy service.
+     */
+    @Bean
+    public SettingPolicyServiceMole settingPolicyService() {
+        return Mockito.spy(new SettingPolicyServiceMole());
+    }
+
+    /**
+     * Workflow service.
+     *
+     * @return the instance of workflow service.
+     */
+    @Bean
+    public WorkflowServiceMole workflowService() {
+        return Mockito.spy(new WorkflowServiceMole());
+    }
+
+    /**
+     * Bean which can be used to interact with search rpc service in repository.
+     *
+     * @return a new SearchServiceBlockingStub
+     */
+    @Bean
+    public SearchServiceBlockingStub searchServiceBlockingStub() {
+        return SearchServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+    }
+
+    /**
+     * Bean which can be used to interact with setting policy rpc service in group-component.
+     *
+     * @return a new SettingPolicyServiceBlockingStub
+     */
+    @Bean
+    public SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub() {
+        return SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+    }
+
+    /**
+     * Bean which can be used to interact with workflow rpc service in AO.
+     *
+     * @return a new WorkflowServiceBlockingStub
+     */
+    @Bean
+    public WorkflowServiceBlockingStub workflowServiceBlockingStub() {
+        return WorkflowServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+    }
+
+    /**
+     * Return instance of action data manager.
+     *
+     * @return instance of {@link ActionDataManager}
+     */
     @Bean
     public ActionDataManager actionDataManager() {
         return new ActionDataManager(searchServiceBlockingStub(), topologyToSdkEntityConverter());
