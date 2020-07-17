@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -87,7 +88,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
     /**
      * The OID to DTO map.
      */
-    private final Map<Long, EntityInMemoryProxyDescriptor> oid2Dto_ = new HashMap<>();
+    private final Map<Long, EntityInMemoryProxyDescriptor> oid2Dto_ = new ConcurrentHashMap<>();
 
     private final IdentityDatabaseStore identityDatabaseStore;
 
