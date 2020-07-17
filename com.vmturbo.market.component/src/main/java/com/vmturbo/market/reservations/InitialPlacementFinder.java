@@ -241,13 +241,15 @@ public class InitialPlacementFinder {
         List<TraderTO> traderTOs = new ArrayList<>();
         for (InitialPlacementBuyer buyer : buyers) {
             TraderTO.Builder traderTO = TraderTO.newBuilder();
+            boolean validConstraint = true;
             for (InitialPlacementCommoditiesBoughtFromProvider sl : buyer.getInitialPlacementCommoditiesBoughtFromProviderList()) {
                 List<CommodityBoughtTO> commBoughtTOs = constructCommBoughtTO(sl
                         .getCommoditiesBoughtFromProvider().getCommodityBoughtList(), commTypeToSpecMap);
                 if (commBoughtTOs.isEmpty()) {
                     logger.warn("Empty commodity bought created in this trader {} sl {}, skipping"
                             + " reservation for it", buyer.getBuyerId(), sl.getCommoditiesBoughtFromProviderId());
-                    continue;
+                    validConstraint = false;
+                    break;
                 }
                 // NOTE: InitialPlacementShoppingList has a provider type attribute, but sl doesnt
                 // have a counterpart representing it.
@@ -257,13 +259,15 @@ public class InitialPlacementFinder {
                         .addAllCommoditiesBought(commBoughtTOs).build();
                 traderTO.addShoppingLists(slTO);
             }
-            traderTO.setOid(buyer.getBuyerId())
-                    .setDebugInfoNeverUseInCode(buyer.getBuyerId() + PLACEMENT_CLONE_SUFFIX)
-                    .setSettings(TraderSettingsTO.newBuilder()
-                    .setIsShopTogether(true)
-                    .setQuoteFunction(QuoteFunctionDTO.newBuilder().setSumOfCommodity(SumOfCommodity
-                            .newBuilder().build())));
-            traderTOs.add(traderTO.build());
+            if (validConstraint) {
+                traderTO.setOid(buyer.getBuyerId())
+                        .setDebugInfoNeverUseInCode(buyer.getBuyerId() + PLACEMENT_CLONE_SUFFIX)
+                        .setSettings(TraderSettingsTO.newBuilder()
+                                .setIsShopTogether(true)
+                                .setQuoteFunction(QuoteFunctionDTO.newBuilder().setSumOfCommodity(SumOfCommodity
+                                        .newBuilder().build())));
+                traderTOs.add(traderTO.build());
+            }
         }
         return traderTOs;
     }
@@ -284,7 +288,7 @@ public class InitialPlacementFinder {
                 logger.warn("The reservation is given a commodity type {} key {} which may be just"
                         + " created in system, please wait one round of analysis and try this reservation again",
                         commBought.getCommodityType().getType(), commBought.getCommodityType().getKey());
-                return commBoughtTOs;
+                return new ArrayList<>();
             }
             CommodityBoughtTO commBoughtTO = CommodityBoughtTO.newBuilder()
                     .setSpecification(CommoditySpecificationTO.newBuilder()
