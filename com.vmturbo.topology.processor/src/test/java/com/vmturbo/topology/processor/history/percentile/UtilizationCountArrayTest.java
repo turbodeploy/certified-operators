@@ -262,6 +262,34 @@ public class UtilizationCountArrayTest {
     }
 
     /**
+     * Test isMinHistoryDataAvailable.
+     *
+     * @throws HistoryCalculationException when failed
+     */
+    @Test
+    public void testIsMinHistoryDataAvailable() throws HistoryCalculationException {
+        // UThu Jul 16 2020 04:00:00
+        long startTime = 1594872000000L;
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
+        counts.addPoint(10, 10, "", true, startTime);
+
+        // UTC Wed Jul 17 2020 00:00:00
+        long newStartTime = 1594944000000L;
+        PercentileRecord.Builder builder1 = PercentileRecord.newBuilder().setEntityOid(12)
+            .setCommodityType(53).setCapacity(10).setPeriod(30).setStartTimestamp(newStartTime);
+        addCount(builder1, 5, 10);
+        counts.deserialize(builder1.build(), "");
+
+        // UTC Fri Jul 17 2020 15:00:00
+        long currentTimestamp1 = 1594998000000L;
+        Assert.assertTrue(counts.isMinHistoryDataAvailable(currentTimestamp1, "", 1));
+
+        // UTC Fri Jul 17 2020 03:00:00
+        long currentTimestamp2 = 1594954800000L;
+        Assert.assertFalse(counts.isMinHistoryDataAvailable(currentTimestamp2, "", 1));
+    }
+
+    /**
      * Checks that {@link UtilizationCountArray#toString()} and {@link
      * UtilizationCountArray#toDebugString()} methods are creating expected strings in predefined
      * states:
