@@ -155,6 +155,7 @@ message GetAllReservationsRequest {
 message GetReservationByIdRequest {
     // Id of the request reservation.
     optional int64 reservation_id = 1;
+    optional bool apiCallBlock = 2;
 }
 
 // Reqeust for create a new reservation.

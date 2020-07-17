@@ -65,6 +65,7 @@ public class ReservationRpcServiceTest {
     private Reservation testReservation = Reservation.newBuilder()
             .setId(123)
             .setName("test-reservation")
+            .setStatus(ReservationStatus.UNFULFILLED)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
@@ -115,9 +116,10 @@ public class ReservationRpcServiceTest {
     public void testGetReservationById() {
         final GetReservationByIdRequest request = GetReservationByIdRequest.newBuilder()
                 .setReservationId(123)
+                .setApiCallBlock(false)
                 .build();
         Optional<Reservation> reservationOptional = Optional.of(testReservation);
-        Mockito.when(reservationDao.getReservationById(123)).thenReturn(reservationOptional);
+        Mockito.when(reservationDao.getReservationById(123, false)).thenReturn(reservationOptional);
         Reservation reservation = reservationServiceBlockingStub.getReservationById(request);
         assertEquals(reservation, reservationOptional.get());
     }

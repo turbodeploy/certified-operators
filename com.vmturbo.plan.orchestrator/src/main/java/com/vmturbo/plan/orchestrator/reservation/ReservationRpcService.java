@@ -105,8 +105,8 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             return;
         }
         try {
-            final Optional<Reservation> reservationOptional =
-                    reservationDao.getReservationById(request.getReservationId());
+            Optional<Reservation> reservationOptional = reservationDao
+                    .getReservationById(request.getReservationId(), request.getApiCallBlock());
             if (reservationOptional.isPresent()) {
                 responseObserver.onNext(reservationOptional.get());
                 responseObserver.onCompleted();

@@ -176,6 +176,25 @@ public class ReservationDaoImplTest {
         assertThat(reservation.get(), Matchers.is(createdReservation));
     }
 
+    /**
+     * Test the blocking call of reservation.
+     * @throws DuplicateTemplateException if template is duplicate.
+     */
+    @Test
+    public void testGetReservationByIdBlocking() throws DuplicateTemplateException {
+        Reservation reservationWithTemplate = createReservationWithTemplate(testFirstReservation);
+        Reservation createdReservation = reservationDao.createReservation(reservationWithTemplate);
+        createdReservation = createdReservation.toBuilder().setStatus(ReservationStatus.RESERVED).build();
+        try {
+            reservationDao.updateReservation(createdReservation.getId(), createdReservation);
+        } catch (NoSuchObjectException e) {
+            e.printStackTrace();
+        }
+        Optional<Reservation> reservation = reservationDao.getReservationById(createdReservation.getId(), true);
+        assertTrue(reservation.isPresent());
+        assertThat(reservation.get(), Matchers.is(createdReservation));
+    }
+
     @Test
     public void testGetAllReservation() throws DuplicateTemplateException {
         Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
