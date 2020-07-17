@@ -34,12 +34,14 @@ public class PropagatePowerStatePostStitchingOperationTest {
     private static final long appOid1 = 21L;
     private static final long appOid2 = 22L;
     private static final long appOid3 = 23L;
+    private static final long svcOid = 24L;
 
     private static TopologyEntity vmEntity1;
     private static TopologyEntity vmEntity2;
     private static TopologyEntity appEntity1;
     private static TopologyEntity appEntity2;
     private static TopologyEntity appEntity3;
+    private static TopologyEntity svcEntity1;
 
     @Before
     public void setup() {
@@ -70,6 +72,13 @@ public class PropagatePowerStatePostStitchingOperationTest {
                     GuestLoadAppPostStitchingOperation.APPLICATION_TYPE_PATH,
                     SupplyChainConstants.GUEST_LOAD));
 
+        final TopologyEntity.Builder svc = TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOid(svcOid)
+                        .setDisplayName("Service[vm1]")
+                        .setEntityType(EntityType.SERVICE_VALUE)
+                        .setEntityState(EntityState.POWERED_ON));
+
         final TopologyEntity.Builder vm1 = TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
                 .setOid(vmOid1)
@@ -82,11 +91,13 @@ public class PropagatePowerStatePostStitchingOperationTest {
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setEntityState(EntityState.POWERED_ON));
 
-        // vm1 is powered off, which hosts two apps:
+        // vm1 is powered off, which hosts two apps and one service:
         // 1. app1 (powered on): real app discovered from acm target
         // 2. app2 (powered off): guestload app discovered from vc target, with same state as vm
+        // 3. svc (powered on)
         vm1.addConsumer(app1);
         vm1.addConsumer(app2);
+        vm1.addConsumer(svc);
         // vm2 is powered on, which hosts one app:
         // 1. app2 (powered on): guestload app discovered from vc target
         vm2.addConsumer(app3);
@@ -94,6 +105,7 @@ public class PropagatePowerStatePostStitchingOperationTest {
         appEntity1 = app1.build();
         appEntity2 = app2.build();
         appEntity3 = app3.build();
+        svcEntity1 = svc.build();
         vmEntity1 = vm1.build();
         vmEntity2 = vm2.build();
     }
@@ -104,6 +116,7 @@ public class PropagatePowerStatePostStitchingOperationTest {
         assertEquals(EntityState.POWERED_ON, appEntity1.getEntityState());
         assertEquals(EntityState.POWERED_OFF, appEntity2.getEntityState());
         assertEquals(EntityState.POWERED_ON, appEntity3.getEntityState());
+        assertEquals(EntityState.POWERED_ON, svcEntity1.getEntityState());
         assertEquals(EntityState.POWERED_OFF, vmEntity1.getEntityState());
         assertEquals(EntityState.POWERED_ON, vmEntity2.getEntityState());
 
@@ -119,8 +132,9 @@ public class PropagatePowerStatePostStitchingOperationTest {
         // verify that app1 is set to unknown, app2 is still powered off, since it's GuestLoad
         // and app3 is not changed, also vm1 and vm2 are not changed
         assertEquals(EntityState.UNKNOWN, appEntity1.getEntityState());
-        assertEquals(EntityState.POWERED_OFF, appEntity2.getEntityState());
+        assertEquals(EntityState.UNKNOWN, appEntity2.getEntityState());
         assertEquals(EntityState.POWERED_ON, appEntity3.getEntityState());
+        assertEquals(EntityState.POWERED_ON, svcEntity1.getEntityState());
         assertEquals(EntityState.POWERED_OFF, vmEntity1.getEntityState());
         assertEquals(EntityState.POWERED_ON, vmEntity2.getEntityState());
     }
