@@ -1,6 +1,7 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -50,7 +51,6 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.ReservationProtoUtil;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
-import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -97,11 +97,14 @@ public class ReservationManager implements ReservationDeletedListener {
 
     /**
      * Add the constraint id and reservationConstraintInfo send from TP to the map for future lookup.
-     * @param id Constraint ID
-     * @param reservationConstraintInfo the associated constraint info.
+     * @param constraintIDToCommodityTypeMap the map from id to reservationConstraintInfo.
      */
-    public void addToConstraintIDToCommodityTypeMap(Long id, ReservationConstraintInfo reservationConstraintInfo) {
-        constraintIDToCommodityTypeMap.put(id, reservationConstraintInfo);
+    public void addToConstraintIDToCommodityTypeMap(Map<Long, ReservationConstraintInfo>
+                                                            constraintIDToCommodityTypeMap) {
+        synchronized (reservationSetLock) {
+            this.constraintIDToCommodityTypeMap.clear();
+            this.constraintIDToCommodityTypeMap.putAll(constraintIDToCommodityTypeMap);
+        }
     }
 
     /**
@@ -148,14 +151,20 @@ public class ReservationManager implements ReservationDeletedListener {
             }
         }
         if (!currentReservations.isEmpty()) {
-            // TODO We should have a timeout on this.
-            FindInitialPlacementRequest initialPlacementRequest =
-                    buildIntialPlacementRequest(currentReservations);
-            FindInitialPlacementResponse response = initialPlacementServiceBlockingStub
-                    .findInitialPlacement(initialPlacementRequest);
-            Set<Reservation> updatedReservations = updateProviderInfoForReservations(response,
-                    currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
-            updateReservationResult(updatedReservations);
+            Set<Reservation> updatedReservations = currentReservations;
+            try {
+                // TODO We should have a timeout on this.
+                FindInitialPlacementRequest initialPlacementRequest =
+                        buildIntialPlacementRequest(currentReservations);
+                FindInitialPlacementResponse response = initialPlacementServiceBlockingStub
+                        .findInitialPlacement(initialPlacementRequest);
+                updatedReservations = updateProviderInfoForReservations(response,
+                        currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
+            } catch (Exception e) {
+                logger.warn("findInitialPlacement was not completed successfully");
+            } finally {
+                updateReservationResult(updatedReservations);
+            }
         }
 
     }
@@ -296,16 +305,17 @@ public class ReservationManager implements ReservationDeletedListener {
      *
      * @param reservation the reservation of interest.
      * @return reservation with the reservation instance updated.
+     * @throws Exception if the templateID is not valid.
      */
-    public Reservation addEntityToReservation(Reservation reservation) {
+    public Reservation addEntityToReservation(Reservation reservation) throws Exception {
         List<ReservationTemplate> reservationTemplateList = new ArrayList<>();
         int entityNameSuffix = 0;
         for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection()
                 .getReservationTemplateList()) {
-            ReservationTemplate.Builder reservationTemplateBuilder = reservationTemplate.toBuilder();
+            ReservationTemplate.Builder reservationTemplateBuilder = reservationTemplate.toBuilder().clearReservationInstance();
             Optional<Template> templateOptional = templatesDao.getTemplate(reservationTemplateBuilder.getTemplateId());
             if (!templateOptional.isPresent()) {
-                return reservation;
+                throw new Exception("Template not found for ID: " + reservationTemplateBuilder.getTemplateId());
             }
             final Template template = templateOptional.get();
             reservationTemplateBuilder.setTemplate(template);
@@ -437,14 +447,20 @@ public class ReservationManager implements ReservationDeletedListener {
      */
     public Reservation intializeReservationStatus(Reservation reservation) {
         synchronized (reservationSetLock) {
-            Reservation reservationWithConstraintInfo = addConstraintInfoDetails(reservation);
-            ReservationDTO.Reservation reservationWithEntity =
-                    addEntityToReservation(reservationWithConstraintInfo);
-            Reservation updatedReservation = reservationWithEntity.toBuilder()
-                    .setStatus(isReservationActiveNow(reservationWithEntity)
-                            ? ReservationStatus.UNFULFILLED
-                            : ReservationStatus.FUTURE)
-                    .build();
+            Reservation updatedReservation;
+            try {
+                Reservation reservationWithConstraintInfo = addConstraintInfoDetails(reservation);
+                ReservationDTO.Reservation reservationWithEntity =
+                        addEntityToReservation(reservationWithConstraintInfo);
+                updatedReservation = reservationWithEntity.toBuilder()
+                        .setStatus(isReservationActiveNow(reservationWithEntity)
+                                ? ReservationStatus.UNFULFILLED
+                                : ReservationStatus.FUTURE)
+                        .build();
+            } catch (Exception e) {
+                logger.error(e.getMessage());
+                updatedReservation = ReservationProtoUtil.invalidateReservation(reservation);
+            }
             try {
                 reservationDao.updateReservation(reservation.getId(), updatedReservation);
             } catch (NoSuchObjectException e) {
@@ -459,8 +475,9 @@ public class ReservationManager implements ReservationDeletedListener {
      *
      * @param reservation the reservation of interest.
      * @return reservation with the constraintInfo updated.
+     * @throws Exception if the constraint ID is not valid.
      */
-    public Reservation addConstraintInfoDetails(Reservation reservation) {
+    public Reservation addConstraintInfoDetails(Reservation reservation) throws Exception {
         ConstraintInfoCollection.Builder constraintInfoCollection = ConstraintInfoCollection.newBuilder();
         for (ReservationConstraintInfo reservationConstraintInfo
                 : reservation.getConstraintInfoCollection().getReservationConstraintInfoList()) {
@@ -468,6 +485,9 @@ public class ReservationManager implements ReservationDeletedListener {
                     constraintIDToCommodityTypeMap.get(reservationConstraintInfo.getConstraintId());
             if (updatedReservationConstraintInfo != null) {
                 constraintInfoCollection.addReservationConstraintInfo(updatedReservationConstraintInfo);
+            }
+            else {
+                throw new Exception("Constraint not found for ID: " + reservationConstraintInfo.getConstraintId());
             }
         }
         return reservation.toBuilder().setConstraintInfoCollection(constraintInfoCollection).build();
@@ -509,18 +529,25 @@ public class ReservationManager implements ReservationDeletedListener {
             Set<ReservationDTO.Reservation> updatedReservations = new HashSet<>();
             Set<ReservationDTO.Reservation> statusUpdatedReservation = new HashSet<>();
             for (ReservationDTO.Reservation reservation : reservationSet) {
-                boolean isSuccessful = isReservationSuccessful(reservation);
+                ReservationStatus reservationStatus = isReservationSuccessful(reservation);
                 ReservationDTO.Reservation updatedReservation;
                 // We should call the updateReservationBatch for all reservations including the ones
                 // whose status didn't change..Because the provider could have changed.
-                if (isSuccessful) {
+                if (reservationStatus == ReservationStatus.RESERVED) {
+                    // clear failure info.
                     updatedReservation = ReservationProtoUtil.clearReservationInstance(
                             reservation,
                             false, true).toBuilder()
                             .setStatus(ReservationStatus.RESERVED).build();
-                } else {
-                    updatedReservation = reservation.toBuilder()
+                } else if (reservationStatus == ReservationStatus.PLACEMENT_FAILED) {
+                    // clear provider info
+                    updatedReservation = ReservationProtoUtil.clearReservationInstance(
+                            reservation,
+                            true, false).toBuilder()
                             .setStatus(ReservationStatus.PLACEMENT_FAILED).build();
+                } else {
+                    // clear both failure and provider info
+                    updatedReservation = ReservationProtoUtil.invalidateReservation(reservation);
                 }
                 updatedReservations.add(updatedReservation);
                 // we should not broadcast the reservation change to the UI if the status does not change.
@@ -584,29 +611,39 @@ public class ReservationManager implements ReservationDeletedListener {
 
     /**
      * The method determines if the reservation was successfully placed. The reservation is
-     * successful only if all the buyers have a provider
+     * successful only if all the buyers have a provider. If failure info and provider info
+     * is absent for all buyers then the reservation is invalid.
      * @param reservation the reservation of interest
-     * @return true if all buyers have a provider. false otherwise.
+     * @return the status of the reservation.
      */
-    private boolean isReservationSuccessful(@Nonnull final ReservationDTO.Reservation reservation) {
+    private ReservationStatus isReservationSuccessful(@Nonnull final ReservationDTO.Reservation reservation) {
+        boolean isReservationValid = false;
         List<ReservationTemplate> reservationTemplates =
                 reservation.getReservationTemplateCollection().getReservationTemplateList();
         for (ReservationTemplate reservationTemplate : reservationTemplates) {
             List<ReservationInstance> reservationInstances =
                     reservationTemplate.getReservationInstanceList();
             for (ReservationInstance reservationInstance : reservationInstances) {
-                if (reservationInstance.getPlacementInfoList().size() == 0) {
-                    return false;
-                } else {
-                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
-                        if (!placementInfo.hasProviderId()) {
-                            return false;
-                        }
-                    }
+                // if atleast one reservation instance has failure info then the
+                // reservation is PLACEMENT_FAILED.
+                if (reservationInstance.getFailureInfoList() != null
+                        && reservationInstance.getFailureInfoList().size() != 0) {
+                    return ReservationStatus.PLACEMENT_FAILED;
+                }
+                // if at least one reservation instance has placement info then the reservation is valid.
+                if (reservationInstance.getPlacementInfoList() != null
+                        && reservationInstance.getPlacementInfoList().size() != 0
+                        && reservationInstance.getPlacementInfoList().stream()
+                        .filter(a -> a.hasProviderId()).findAny().isPresent()) {
+                    isReservationValid = true;
                 }
             }
         }
-        return true;
+        if (!isReservationValid) {
+            return ReservationStatus.INVALID;
+        } else {
+            return ReservationStatus.RESERVED;
+        }
     }
 
     private CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, double used) {
@@ -623,19 +660,29 @@ public class ReservationManager implements ReservationDeletedListener {
                 .build();
     }
 
-    @Override
-    public void onReservationDeleted(@Nonnull final Reservation reservation) {
+    /**
+     * Delete the reservation from the market Cache.
+     * @param reservations the reservations to be deleted.
+     */
+    public void deleteReservationFromMarketCache(@Nonnull final Set<Reservation> reservations) {
         DeleteInitialPlacementBuyerRequest.Builder deleteInitialPlacementBuyerRequest =
                 DeleteInitialPlacementBuyerRequest.newBuilder();
-        reservation.getReservationTemplateCollection().getReservationTemplateList()
-                .stream().forEach(template -> template.getReservationInstanceList()
-                .stream().forEach(buyer -> deleteInitialPlacementBuyerRequest
-                        .addBuyerId(buyer.getEntityId())));
+        for (Reservation reservation : reservations) {
+            reservation.getReservationTemplateCollection().getReservationTemplateList()
+                    .stream().forEach(template -> template.getReservationInstanceList()
+                    .stream().forEach(buyer -> deleteInitialPlacementBuyerRequest
+                            .addBuyerId(buyer.getEntityId())));
+        }
         DeleteInitialPlacementBuyerResponse response = initialPlacementServiceBlockingStub
                 .deleteInitialPlacementBuyer(deleteInitialPlacementBuyerRequest.build());
         if (!response.getResult()) {
             logger.error("Deletion of Initial Placement Buyer failed");
         }
+    }
+
+    @Override
+    public void onReservationDeleted(@Nonnull final Reservation reservation) {
+        deleteReservationFromMarketCache(Collections.singleton(reservation));
         checkAndStartReservationPlan();
     }
 }

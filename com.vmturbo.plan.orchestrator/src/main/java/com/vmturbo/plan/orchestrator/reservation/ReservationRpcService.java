@@ -1,6 +1,8 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -134,12 +136,15 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                                     StreamObserver<UpdateConstraintMapResponse> responseObserver) {
 
         int count = 0;
+        Map<Long, ReservationConstraintInfo> constraintIDToCommodityTypeMap = new HashMap<>();
         for (ReservationConstraintInfo reservationConstraintInfo
                 : request.getReservationContraintInfoList()) {
-            reservationManager.addToConstraintIDToCommodityTypeMap(
+            constraintIDToCommodityTypeMap.put(
                     reservationConstraintInfo.getConstraintId(), reservationConstraintInfo);
             count++;
         }
+        reservationManager.addToConstraintIDToCommodityTypeMap(
+                constraintIDToCommodityTypeMap);
         UpdateConstraintMapResponse updateConstraintMapResponse =
                 UpdateConstraintMapResponse.newBuilder().setCount(count).build();
         responseObserver.onNext(updateConstraintMapResponse);
@@ -221,19 +226,24 @@ public class ReservationRpcService extends ReservationServiceImplBase {
         try {
             final Set<Reservation> reservationsToStart = new HashSet<>();
             final Set<Reservation> reservationsToRemove = new HashSet<>();
+            final Set<Reservation> reservationsToUpdateMarket = new HashSet<>();
             reservationDao.getAllReservations().forEach(reservation -> {
                 // Check for expiration first.
                 if (reservationManager.hasReservationExpired(reservation)) {
                     reservationsToRemove.add(reservation);
-                } else if (reservation.getStatus() == ReservationStatus.FUTURE && reservationManager.isReservationActiveNow(reservation)) {
+                } else if (reservation.getStatus() == ReservationStatus.FUTURE
+                        && reservationManager.isReservationActiveNow(reservation)) {
                     reservationsToStart.add(reservation);
-                } else if (reservation.getStatus() == ReservationStatus.INVALID) {
+                } else if (reservation.getStatus() == ReservationStatus.INVALID
+                        || reservation.getStatus() == ReservationStatus.PLACEMENT_FAILED) {
                     // Reservations that are invalid may have become valid (e.g. if the entity
                     // they are constrained by was temporarily absent from the Topology).
+                    // Also retry the failed reservations now.
+                    reservationsToUpdateMarket.add(reservation);
                     reservationsToStart.add(reservation);
                 }
             });
-
+            reservationManager.deleteReservationFromMarketCache(reservationsToUpdateMarket);
             for (Reservation reservation : reservationsToRemove) {
                 reservationDao.deleteReservationById(reservation.getId());
                 logger.info("Deleted Expired Reservation: " + reservation.getName());
