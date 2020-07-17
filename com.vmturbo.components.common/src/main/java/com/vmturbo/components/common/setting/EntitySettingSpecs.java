@@ -17,8 +17,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -1386,6 +1384,24 @@ public enum EntitySettingSpecs {
     @Nonnull
     public SettingSpec getSettingSpec() {
         return settingSpec;
+    }
+
+    /**
+     * A shortcut to get the numeric default value.
+     *
+     * @return numeric default value
+     */
+    public double getNumericDefault() {
+        return settingSpec.getNumericSettingValueType().getDefault();
+    }
+
+    /**
+     * A shortcut to get the boolean default value.
+     *
+     * @return boolean default value
+     */
+    public boolean getBooleanDefault() {
+        return settingSpec.getBooleanSettingValueType().getDefault();
     }
 
     /**

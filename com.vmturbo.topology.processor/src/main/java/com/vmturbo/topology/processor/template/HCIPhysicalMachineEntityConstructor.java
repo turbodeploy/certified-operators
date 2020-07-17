@@ -128,6 +128,8 @@ public class HCIPhysicalMachineEntityConstructor {
             }
 
             // Create commodities from the template
+            // HCI Hosts sell storage commodities. They are providing storage to
+            // the vSAN datastore
             TopologyEntityConstructor.addStorageCommoditiesSold(newHost, templateValues, true);
             TopologyEntityConstructor.addStorageCommoditiesBought(newStorage, newHost.getOid(),
                     templateValues);
@@ -358,7 +360,7 @@ public class HCIPhysicalMachineEntityConstructor {
 
         if (!response.hasNext()) {
             throw new TopologyEntityConstructorException(
-                    "Error retrueving the entity setting for the vSAN storage " + vsanStorageOid);
+                    "Error retrieving the entity setting for the vSAN storage " + vsanStorageOid);
         }
 
         List<EntitySettingGroup> result = new ArrayList<>();

@@ -23,8 +23,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
 import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -217,6 +217,7 @@ public class EntitySettingsApplicator {
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
                         CommodityType.TOTAL_SESSIONS),
                 new VsanStorageApplicator(graphWithSettings),
+                new PlanOriginEntityApplicator(),
                 new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
                         CommodityType.HEAP),
@@ -228,7 +229,7 @@ public class EntitySettingsApplicator {
     /**
      * The applicator of a single {@link Setting} to a single {@link TopologyEntityDTO.Builder}.
      */
-    public abstract static class SingleSettingApplicator implements SettingApplicator {
+    public abstract static class SingleSettingApplicator extends BaseSettingApplicator {
 
         private final EntitySettingSpecs setting;
 
@@ -256,7 +257,7 @@ public class EntitySettingsApplicator {
     /**
      * The applicator of multiple {@link Setting}s to a single {@link TopologyEntityDTO.Builder}.
      */
-    private abstract static class MultipleSettingsApplicator implements SettingApplicator {
+    private abstract static class MultipleSettingsApplicator extends BaseSettingApplicator {
 
         private final List<EntitySettingSpecs> settings;
 
@@ -415,7 +416,7 @@ public class EntitySettingsApplicator {
      * Otherwise, set the shop together to false because user has to explicitly change the settings
      * to turn on bundled moves on compute and storage resources.
      */
-    private static class VMShopTogetherApplicator implements SettingApplicator {
+    private static class VMShopTogetherApplicator extends BaseSettingApplicator {
 
         TopologyInfo topologyInfo_;
 
@@ -690,8 +691,8 @@ public class EntitySettingsApplicator {
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
             final float settingValue = setting.getNumericSettingValue().getValue();
-            for (CommoditySoldDTO.Builder commodity : SettingApplicator
-                    .getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity,
+                    commodityType)) {
                 commodity.setEffectiveCapacityPercentage(settingValue);
             }
         }
@@ -702,7 +703,7 @@ public class EntitySettingsApplicator {
      * threshold. Both of the commodities are calculated on top of appropriate settings.
      */
     @ThreadSafe
-    private static class HaDependentUtilizationApplicator implements SettingApplicator {
+    private static class HaDependentUtilizationApplicator extends BaseSettingApplicator {
 
         private final TopologyInfo topologyInfo;
 
@@ -743,8 +744,8 @@ public class EntitySettingsApplicator {
             // We only want to do this for cluster headroom calculations.
             Preconditions.checkArgument(topologyInfo.getPlanInfo().getPlanProjectType() ==
                     PlanProjectType.CLUSTER_HEADROOM);
-            for (CommoditySoldDTO.Builder commodity : SettingApplicator
-                    .getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity,
+                    commodityType)) {
                 // We want to factor the max desired utilization into the effective capacity
                 // of the sold commodity. For cluster headroom calculations, the desired state has
                 // no effect because provisions/moves are disabled in the market analysis. However,
@@ -765,8 +766,8 @@ public class EntitySettingsApplicator {
         private void applyUtilizationChanges(@Nonnull TopologyEntityDTO.Builder entity,
                                              @Nonnull CommodityType commodityType,
                                              @Nullable Setting setting) {
-            for (CommoditySoldDTO.Builder commodity : SettingApplicator
-                    .getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity,
+                    commodityType)) {
                 if (setting != null) {
                     commodity.setEffectiveCapacityPercentage(
                             setting.getNumericSettingValue().getValue());
@@ -1168,8 +1169,8 @@ public class EntitySettingsApplicator {
             if (settingValue == null) {
                 return;
             }
-            for (CommoditySoldDTO.Builder commodity : SettingApplicator
-                    .getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity,
+                    commodityType)) {
                 commodity.setCapacity(settingValue);
             }
         }
@@ -1203,14 +1204,13 @@ public class EntitySettingsApplicator {
                 // If resize scaling then leave isResizeable the way it was set by the probe,
                 // otherwise set to false (no resize).
                 if (!resizeScaling) {
-                    entity.getCommoditySoldListBuilderList().forEach(c -> {
-                        c.setIsResizeable(false);
-                    });
+                    entity.getCommoditySoldListBuilderList().forEach(c ->
+                        c.setIsResizeable(false)
+                    );
                 }
                 logger.trace("Set scaling policy {} for entity {}",
                         settingValue, entity.getDisplayName());
             }
         }
     }
-
 }

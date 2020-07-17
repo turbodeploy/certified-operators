@@ -649,13 +649,11 @@ public class TopologyEntityConstructor {
         CommoditySoldDTO storageAccessCommodity = createCommoditySoldDTO(
                 CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, diskIops, isResizable);
 
-        // Since storage templates don't have a latency value, but VMs do buy a latency commodity,
-        // a sold commodity is added. Capacity is left unset - StorageLatencyPostStitchingOperation
-        // will set it to the default value from EntitySettingSpecs.LatencyCapacity.
-        // TODO OM-59504 Set latency capacity. Capacity cannot be null
-        // anymore, see RB:39285
+        // Since storage templates don't have a latency value, but VMs do buy a
+        // latency commodity, a sold commodity is added. Capacity is left unset.
+        // {@link PlanOriginEntityApplicator} will set it to the settings value.
         CommoditySoldDTO storageLatencyCommodity = createCommoditySoldDTO(
-                CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE, 100.0, isResizable);
+                CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE, null, isResizable);
 
         // Because we don't have access to settings at this time, we can't calculate capacities for
         // provisioned commodities. By leaving capacities unset, they will be set later in the
@@ -664,11 +662,10 @@ public class TopologyEntityConstructor {
         CommoditySoldDTO storageProvisionedCommodity = createCommoditySoldDTO(
                 CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE, null, isResizable);
 
-        topologyEntityBuilder
-            .addCommoditySoldList(storageAccessCommodity)
-            .addCommoditySoldList(storageAmoutCommodity)
+        topologyEntityBuilder.addCommoditySoldList(storageAccessCommodity)
+                .addCommoditySoldList(storageAmoutCommodity)
                 .addCommoditySoldList(storageLatencyCommodity)
-            .addCommoditySoldList(storageProvisionedCommodity);
+                .addCommoditySoldList(storageProvisionedCommodity);
     }
 
     /**
@@ -693,15 +690,8 @@ public class TopologyEntityConstructor {
         CommodityBoughtDTO storageAccessCommodity = createCommodityBoughtDTO(
                 CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, diskIops);
 
-        // Since storage templates don't have a latency value, but VMs do buy a latency commodity,
-        // a sold commodity is added. Capacity is left unset - StorageLatencyPostStitchingOperation
-        // will set it to the default value from EntitySettingSpecs.LatencyCapacity.
         CommodityBoughtDTO storageLatencyCommodity =
-                createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE, 0.1);
-        // Because we don't have access to settings at this time, we can't calculate capacities for
-        // provisioned commodities. By leaving capacities unset, they will be set later in the
-        // topology pipeline when settings are available by the
-        // OverprovisionCapacityPostStitchingOperation.
+                createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE, 0);
         CommodityBoughtDTO storageProvisionedCommodity =
                 createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE,
                         diskSize);
