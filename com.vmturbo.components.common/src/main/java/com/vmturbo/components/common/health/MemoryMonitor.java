@@ -4,6 +4,7 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 import javax.management.Notification;
@@ -20,6 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.StringUtil;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.config.IConfigSource;
 
 /**
@@ -135,7 +137,9 @@ public class MemoryMonitor extends SimpleHealthStatusProvider {
         long totalFreeMem = maxMem - usedMem; // total free memory available to JVM
         double usageRatio = 1.0 * usedMem / maxMem;
         double usedPercentage = Math.round(10000.0 * usageRatio) / 100.0; // round to 2 decimals for display
-        String description = null; // we'll create this lazily and only want to do so once.
+        SetOnce<String> description = new SetOnce<>(); // we'll create this lazily and only want to do so once.
+        Supplier<String> descriptionSupplier = () -> description.ensureSet(
+                () -> createHeapUsageChangeDescription(gcInfo, usedPercentage, usedMem, maxMem, totalFreeMem));
 
         // Now let's determine if this update represents an "interesting" change that we should log.
         // Reminder: HotSpot G1GC only does Full GC as a last resort, so a major GC
@@ -147,17 +151,13 @@ public class MemoryMonitor extends SimpleHealthStatusProvider {
         Level logMessageLevel = isInterestingChange ? Level.INFO : Level.DEBUG;
         if (log.getLevel().isLessSpecificThan(logMessageLevel)) {
             // this message should appear in the log.
-            description = createHeapUsageChangeDescription(gcInfo, usedPercentage, usedMem, maxMem, totalFreeMem);
-            log.log(logMessageLevel, "MemoryMonitor: {}", description);
+            log.log(logMessageLevel, "MemoryMonitor: {}", descriptionSupplier.get());
             lastLoggedHeapUsedRatio = usageRatio;
         }
 
         // report an unhealthy status if we are over the allocation threshold
         if (usageRatio >= maxHealthyHeapUsedRatio) {
-            if (description == null) {
-                description = createHeapUsageChangeDescription(gcInfo, usedPercentage, usedMem, maxMem, totalFreeMem);
-            }
-            reportUnhealthy(description);
+            reportUnhealthy(descriptionSupplier.get());
         }
         else {
             reportHealthy(String.format("After %s, Heap %.2f%% used.", gcInfo.getGcAction(), usedPercentage));
