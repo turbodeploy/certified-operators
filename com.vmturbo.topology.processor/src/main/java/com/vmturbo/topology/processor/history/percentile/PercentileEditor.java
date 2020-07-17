@@ -21,7 +21,6 @@ import java.util.function.BiFunction;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Predicates;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -60,6 +59,7 @@ import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.InvalidHistoryDataException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.Builder;
@@ -121,6 +121,10 @@ public class PercentileEditor extends
      * in percentile observation window than it is setting to false.
      */
     private boolean enforceMaintenance;
+    /**
+     * Pre-calculated in non-plan context during initialization to reuse in multiple stages.
+     */
+    private Map<Long, Integer> entity2period;
 
     /**
      * Construct the instance of percentile editor.
@@ -183,13 +187,19 @@ public class PercentileEditor extends
                     throws HistoryCalculationException, InterruptedException {
         super.initContext(context, eligibleComms);
 
-        loadPersistedData(context, checkpoint -> {
+        // will be required for initial loading, maintenance, observation period change check
+        if (!context.isPlan() || !historyInitialized) {
+            entity2period = getEntityToPeriod(context);
+        }
+
+        loadPersistedData(context, eligibleComms, checkpoint -> {
             // read the latest and full window blobs if haven't yet, set into cache
             final PercentilePersistenceTask task = createTask(checkpoint);
             return Pair.create(task.getLastCheckpointMs(),
                             task.load(Collections.emptyList(), getConfig()));
         }, maintenance -> Pair.create(maintenance,
                         createTask(maintenance).load(Collections.emptyList(), getConfig())));
+
         if (!context.isPlan()) {
             checkObservationPeriodsChanged(context);
         }
@@ -264,59 +274,75 @@ public class PercentileEditor extends
         return createLoadingTask(Pair.create(startTimestamp, null));
     }
 
-    private void loadPersistedData(@Nonnull HistoryAggregationContext context,
+    private synchronized void loadPersistedData(@Nonnull HistoryAggregationContext context,
+                    @Nonnull List<EntityCommodityReference> eligibleComms,
                     @Nonnull ThrowingFunction<Long, Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>>, HistoryCalculationException> latestLoader,
                     @Nonnull ThrowingFunction<Long, Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>>, HistoryCalculationException> fullLoader)
                     throws HistoryCalculationException, InterruptedException {
         if (!historyInitialized) {
             Stopwatch sw = Stopwatch.createStarted();
-
-            final Map<EntityCommodityFieldReference, PercentileRecord> fullPage =
-                            fullLoader.apply(PercentilePersistenceTask.TOTAL_TIMESTAMP).getSecond();
-            for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> fullEntry : fullPage
-                            .entrySet()) {
-                final EntityCommodityFieldReference field = fullEntry.getKey();
-                final PercentileRecord record = fullEntry.getValue();
-                final PercentileCommodityData data =
-                                getCache().computeIfAbsent(field, ref -> historyDataCreator.get());
-                data.init(field, null, getConfig(), context);
-                data.getUtilizationCountStore().addFullCountsRecord(record, true);
-                data.getUtilizationCountStore().setPeriodDays(record.getPeriod());
+            // read the latest and full window blobs if haven't yet, set into cache
+            try {
+                final Map<EntityCommodityFieldReference, PercentileRecord> fullPage =
+                                fullLoader.apply(PercentilePersistenceTask.TOTAL_TIMESTAMP).getSecond();
+                for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> fullEntry : fullPage.entrySet()) {
+                    EntityCommodityFieldReference field = fullEntry.getKey();
+                    PercentileRecord record = fullEntry.getValue();
+                    PercentileCommodityData data =
+                                    getCache().computeIfAbsent(field, ref -> historyDataCreator.get());
+                    if (data.getUtilizationCountStore() == null) {
+                        data.init(field, null, getConfig(), context);
+                    }
+                    data.getUtilizationCountStore().addFullCountsRecord(record);
+                    data.getUtilizationCountStore().setPeriodDays(record.getPeriod());
+                }
+                logger.info("Initialized percentile full window data for {} commodities in {}",
+                             fullPage::size, sw::toString);
+            } catch (InvalidHistoryDataException e) {
+                logger.warn("Failed to read percentile full window data, re-assembling from the daily blobs", e);
+                initializeCacheValues(context, eligibleComms);
+                int maxPeriod = getCache().values().stream()
+                                .map(PercentileCommodityData::getUtilizationCountStore)
+                                .map(UtilizationCountStore::getPeriodDays).max(Long::compare)
+                                .orElse(PercentileHistoricalEditorConfig
+                                                .getDefaultObservationPeriod());
+                reassembleFullPage(getCache(), maxPeriod, false);
             }
-            logger.info("Initialized percentile full window data for {} commodities in {}",
-                            fullPage::size, sw::toString);
 
             sw.reset();
             sw.start();
             long checkpointMs = getCheckpoint();
-            final Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>> loaded =
-                            latestLoader.apply(checkpointMs);
-            final Map<EntityCommodityFieldReference, PercentileRecord> latestPage =
-                            loaded.getSecond();
-            for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> latestEntry : latestPage
-                            .entrySet()) {
-                final PercentileCommodityData data =
-                                getCache().computeIfAbsent(latestEntry.getKey(),
-                                                ref -> historyDataCreator.get());
-                final PercentileRecord record = latestEntry.getValue();
-                if (data.getUtilizationCountStore() == null) {
-                    data.init(latestEntry.getKey(), record, getConfig(), context);
-                } else {
-                    data.getUtilizationCountStore().setLatestCountsRecord(record);
+            try {
+                final Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>> loaded =
+                                latestLoader.apply(checkpointMs);
+                checkpointMs = loaded.getFirst() != 0 ? loaded.getFirst() : checkpointMs;
+                final Map<EntityCommodityFieldReference, PercentileRecord> latestPage =
+                                loaded.getSecond();
+                for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> latestEntry : latestPage.entrySet()) {
+                    PercentileCommodityData data =
+                                    getCache().computeIfAbsent(latestEntry.getKey(),
+                                                           ref -> historyDataCreator.get());
+                    PercentileRecord record = latestEntry.getValue();
+                    if (data.getUtilizationCountStore() == null) {
+                        data.init(latestEntry.getKey(), record, getConfig(),
+                                  context);
+                    } else {
+                        data.getUtilizationCountStore().setLatestCountsRecord(record);
+                    }
                 }
+                logger.info("Initialized percentile latest window data for timestamp {} and {} commodities in {}",
+                             checkpointMs, latestPage.size(), sw);
+            } catch (InvalidHistoryDataException e) {
+                logger.warn("Failed to load percentile latest window data, proceeding with empty", e);
             }
-            logger.info("Initialized percentile latest window data for timestamp {} and {} commodities in {}",
-                            () -> checkpointMs, latestPage::size, sw::toString);
 
             historyInitialized = true;
-            lastCheckpointMs = loaded.getFirst() != 0 ? loaded.getFirst() : checkpointMs;
+            lastCheckpointMs = checkpointMs;
         }
     }
 
     private void checkObservationPeriodsChanged(@Nonnull HistoryAggregationContext context)
             throws HistoryCalculationException, InterruptedException {
-        final Map<Long, Integer> entity2period = getEntityToPeriod(context);
-
         final Map<EntityCommodityFieldReference, PercentileCommodityData> changedPeriodEntries =
                 new HashMap<>();
         int maxOfChangedPeriods = 0;
@@ -328,8 +354,6 @@ public class PercentileEditor extends
                 if (entry.getValue().needsReinitialization(entry.getKey(), context, getConfig())) {
                     changedPeriodEntries.put(entry.getKey(), entry.getValue());
                     // Update percentile data with observation windows values.
-                    // Latest counts is already in memory, copy to full to load 1 window less.
-                    store.copyCountsFromLatestToFull();
                     // The needed pages count to load will be determined by the max observation period.
                     maxOfChangedPeriods = Math.max(maxOfChangedPeriods, observationPeriod);
                 }
@@ -343,9 +367,24 @@ public class PercentileEditor extends
             return;
         }
 
+        reassembleFullPage(changedPeriodEntries, maxOfChangedPeriods, true);
+    }
+
+    private void reassembleFullPage(
+                    Map<EntityCommodityFieldReference, PercentileCommodityData> entriesToUpdate,
+                    int maxOfPeriods,
+                    boolean enforceMaintenance)
+                    throws HistoryCalculationException, InterruptedException {
+        logger.debug("Reassembling full page for {} entries from up to {} pages",
+                        entriesToUpdate.size(), maxOfPeriods);
         try (DataMetricTimer timer = SETTINGS_CHANGE_SUMMARY_METRIC.startTimer();
              CacheBackup backup = createCacheBackup()) {
             final Stopwatch sw = Stopwatch.createStarted();
+
+            for (PercentileCommodityData data : entriesToUpdate.values()) {
+                data.getUtilizationCountStore().clearFullRecord();
+            }
+
             // Read as many page blobs from persistence as constitute the max of new periods
             // and accumulate them into percentile cache, respect per-entity observation window settings
 
@@ -354,18 +393,28 @@ public class PercentileEditor extends
                     TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
             final long checkpoint = getCheckpoint();
             // Calculate timestamp for farthest snapshot.
-            // Latest counts is already in memory, need to load 1 observation window less.
-            long startTimestamp = checkpoint -
-                    (maxOfChangedPeriods * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS) +
-                    windowMillis;
+            long startTimestamp = checkpoint
+                            - (maxOfPeriods * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS)
+                            + windowMillis;
+            logger.debug("Loading daily blobs in range from {} to {}, step {}",
+                            Instant.ofEpochMilli(startTimestamp),
+                            Instant.ofEpochMilli(checkpoint),
+                            windowMillis);
             // Load snapshots by selecting from history with shifting start timestamp by maintenance window.
             while (startTimestamp < checkpoint) {
-                final Map<EntityCommodityFieldReference, PercentileRecord> page =
-                        createTask(startTimestamp).load(
-                                Collections.emptyList(), getConfig());
+                final Map<EntityCommodityFieldReference, PercentileRecord> page;
+                try {
+                    page = createTask(startTimestamp).load(Collections.emptyList(), getConfig());
+                } catch (InvalidHistoryDataException e) {
+                    logger.warn("Failed to read percentile daily blob for {}, skipping it for full page reassembly",
+                                    startTimestamp, e);
+                    startTimestamp += windowMillis;
+                    continue;
+                }
+
                 // For each entry in cache with a changed observation period,
                 // apply loaded percentile commodity entries.
-                for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : changedPeriodEntries
+                for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : entriesToUpdate
                         .entrySet()) {
                     final UtilizationCountStore store = entry.getValue().getUtilizationCountStore();
                     // Calculate bound timestamp for specific entry.
@@ -377,7 +426,7 @@ public class PercentileEditor extends
                     if (timestampBound <= startTimestamp) {
                         final PercentileRecord percentileRecord = page.get(entry.getKey());
                         if (percentileRecord != null) {
-                            store.addFullCountsRecord(percentileRecord, false);
+                            store.addFullCountsRecord(percentileRecord);
                         }
                     }
                 }
@@ -388,11 +437,18 @@ public class PercentileEditor extends
                 }
                 startTimestamp += windowMillis;
             }
-            enforceMaintenance = true;
+
+            // at this point full record is a sum of all previous days up to period
+            // except the latest page -> add latest to full, rescaling as necessary
+            for (PercentileCommodityData entry : entriesToUpdate.values()) {
+                entry.getUtilizationCountStore().setLatestCountsRecord(
+                                entry.getUtilizationCountStore().getLatestCountsRecord().build());
+            }
+
+            this.enforceMaintenance = enforceMaintenance;
             backup.keepCacheOnClose();
-            logger.info(
-                    "Percentile observation windows changed for {} entries, recalculated from {} pages in {}",
-                    changedPeriodEntries.size(), maxOfChangedPeriods, sw);
+            logger.info("Reassembled full page for {} entries from {} pages in {}",
+                    entriesToUpdate.size(), maxOfPeriods, sw);
         }
     }
 
@@ -420,7 +476,6 @@ public class PercentileEditor extends
                 && lastCheckpointMs + getMaintenanceWindowInMs() > checkpointMs) {
                 enforcedMaintenance(context, checkpointMs);
             } else {
-                final Map<Long, Integer> entity2period = getEntityToPeriod(context);
                 final Set<Integer> periods = new HashSet<>(entity2period.values());
 
                 /*
@@ -449,8 +504,14 @@ public class PercentileEditor extends
                                      periodInDays,
                                      outdatedTimestamp);
 
-                        final Map<EntityCommodityFieldReference, PercentileRecord> oldValues =
-                                        loadOutdated.load(Collections.emptyList(), getConfig());
+                        final Map<EntityCommodityFieldReference, PercentileRecord> oldValues;
+                        try {
+                            oldValues = loadOutdated.load(Collections.emptyList(), getConfig());
+                        } catch (InvalidHistoryDataException e) {
+                            logger.warn("Failed to read percentile daily blob for {}, skipping it for maintenance",
+                                            outdatedTimestamp, e);
+                            continue;
+                        }
                         for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> fieldRef2data : getCache()
                                         .entrySet()) {
                             final EntityCommodityFieldReference ref = fieldRef2data.getKey();
@@ -551,7 +612,7 @@ public class PercentileEditor extends
          * We should consider introducing per-entity-type period settings concept.
          * Or preferably even just one global observation window setting.
          */
-        return context.entityToSetting(Predicates.alwaysTrue(),
+        return context.entityToSetting(this::isEntityApplicable,
             entity -> getConfig().getObservationPeriod(context, entity.getOid()));
     }
 
@@ -582,7 +643,8 @@ public class PercentileEditor extends
         try (InputStream source = new ByteArrayInputStream(bytes)) {
             historyInitialized = false;
             getCache().clear();
-            loadPersistedData(context, (timestamp) -> loadCachePart(timestamp, source, "latest"),
+            loadPersistedData(context, Collections.emptyList(),
+                            (timestamp) -> loadCachePart(timestamp, source, "latest"),
                             (timestamp) -> loadCachePart(timestamp, source, "full"));
         } catch (HistoryCalculationException | InterruptedException | IOException e) {
             getCache().clear();

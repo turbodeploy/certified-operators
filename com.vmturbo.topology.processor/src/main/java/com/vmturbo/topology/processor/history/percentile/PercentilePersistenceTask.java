@@ -16,6 +16,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.stub.CallStreamObserver;
 import io.grpc.stub.StreamObserver;
@@ -36,6 +37,7 @@ import com.vmturbo.topology.processor.history.AbstractStatsLoadingTask;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.InvalidHistoryDataException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 
@@ -110,9 +112,12 @@ public class PercentilePersistenceTask extends
             logger.trace("Loaded {} percentile commodity entries for timestamp {}", result.size(),
                             startTimestamp);
             return result;
+        } catch (InvalidProtocolBufferException e) {
+            throw new InvalidHistoryDataException("Failed to deserialize percentile blob for "
+                            + startTimestamp, e);
         } catch (IOException e) {
             throw new HistoryCalculationException(
-                            "Failed to deserialize percentile blob for " + startTimestamp, e);
+                            "Failed to read percentile blob for " + startTimestamp, e);
         }
     }
 
@@ -136,7 +141,7 @@ public class PercentilePersistenceTask extends
         final Map<EntityCommodityFieldReference, PercentileRecord> result = new HashMap<>();
         final PercentileCounts counts = parser.apply(source);
         if (counts == null) {
-            throw new IOException(String.format("Cannot parse '%s' for '%s' timestamp",
+            throw new InvalidProtocolBufferException(String.format("Cannot parse '%s' for '%s' timestamp",
                             PercentileCounts.class.getSimpleName(), startTimestamp));
         }
         for (PercentileRecord record : counts.getPercentileRecordsList()) {
