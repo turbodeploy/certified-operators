@@ -438,7 +438,7 @@ public class TestUtils {
                                         M2Utils.ADD_TWO_ARGS, (a,b,c) -> Math.min(a, b));
         CommodityResizeSpecification vMemQuotaDependency =
                 new CommodityResizeSpecification(TestUtils.VMEMLIMITQUOTA.getType(),
-                        M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
+                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> Math.min(a, b));
         CommodityResizeSpecification DBMemDependency =
                 new CommodityResizeSpecification(TestUtils.VMEM.getType(),
                         M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
