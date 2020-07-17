@@ -1873,6 +1873,7 @@ public class TopologyConverter {
                         final Double projectedPercentile =
                                     boughtDTObyTraderFromProjectedSellerInRealTopology
                                                     .map(CommodityBoughtDTO::getHistoricalUsed)
+                                                    .filter(HistoricalValues::hasPercentile)
                                                     .map(HistoricalValues::getPercentile)
                                                     .orElse(getProjectedPercentileValue(supplierOid,
                                                                                         shoppingListInfo,
@@ -1935,7 +1936,7 @@ public class TopologyConverter {
         }
 
         CommodityBoughtDTO boughtDTO = commodityBoughtDTOs.get(0);
-        if (boughtDTO == null || boughtDTO.getHistoricalUsed() == null) {
+        if (boughtDTO == null || boughtDTO.getHistoricalUsed() == null || !boughtDTO.getHistoricalUsed().hasPercentile()) {
             return null;
         }
 
@@ -1951,10 +1952,11 @@ public class TopologyConverter {
             return originalPercentile * oldCapacity.get() / newCapacity.get();
         }
 
-        logger.warn("Projected percentile approximation can't be calculated. Original percentile = {}, oldCapacity = {}, newCapacity = {}",
+        logger.warn("Projected percentile approximation can't be calculated. Original percentile = {}, oldCapacity = {}, newCapacity = {}, boughtDTO = {}",
                     originalPercentile,
                     oldCapacity,
-                    newCapacity);
+                    newCapacity,
+                    boughtDTO);
         return null;
     }
 
