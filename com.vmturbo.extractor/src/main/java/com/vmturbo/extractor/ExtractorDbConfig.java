@@ -46,7 +46,7 @@ public class ExtractorDbConfig {
      * @return read-only endpoint
      */
     @Bean
-    DbEndpoint queryEndpoint() {
+    public DbEndpoint queryEndpoint() {
         return DbEndpoint.secondaryDbEndpoint(ExtractorDbBaseConfig.QUERY_ENDPOINT_TAG, SQLDialect.POSTGRES)
                 .like(dbBaseConfig.ingesterEndpointBase())
                 .withDbAccess(DbEndpointAccess.READ_ONLY)

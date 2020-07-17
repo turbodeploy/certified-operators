@@ -46,11 +46,11 @@ defaultProperties:
         # string, with individual settings separated by "&". No initial "&" or "?" should appear
         mariadbDriverProperties: useServerPrepStmts=true
         mysqlDriverProperties:
-        enableSearchApi: false
+        enableSearchApi: true
     extractor:
         dbHost: timescaledb
         dbPort: 5432
-        dbRootUserName: postgres
+        enableReporting: true
     action-orchestrator:
         identityGeneratorPrefix: 9
         actionPaginationDefaultLimit: 100

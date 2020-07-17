@@ -481,7 +481,6 @@ public class DbEndpoint {
                     Objects.requireNonNull(environment.getProperty("authRetryDelaySecs")));
             DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, serverHttpPort, authRoute, authRetryDelaySec);
             setResolver(environment::getProperty, dbPasswordUtil, true);
-
         }
 
         void setResolver(UnaryOperator<String> resolver, DBPasswordUtil dbPasswordUtil,
@@ -502,6 +501,11 @@ public class DbEndpoint {
             }
         }
 
+        /**
+         * Only used for tests.
+         *
+         * @param endpoint db endpoint
+         */
         void completePendingEndpoint(DbEndpoint endpoint) {
             if (endpoint.config.dbIsAbstract() || endpoint.future.isDone()) {
                 return;
@@ -627,23 +631,34 @@ public class DbEndpoint {
     public enum DbEndpointAccess {
 
         /** Full access to the configured schema. */
-        ALL(true),
+        ALL(true, true),
         /** Ability to read and write to all objects in the database, but not to create new objects. */
-        READ_WRITE_DATA(true),
+        READ_WRITE_DATA(true, false),
         /**
          * Ability to read all objects in the database, but not to alter any data or create new
          * objects.
          */
-        READ_ONLY(false);
+        READ_ONLY(false, false);
 
         private final boolean writeAccess;
+        private final boolean createNewTable;
 
-        DbEndpointAccess(boolean writeAccess) {
+        DbEndpointAccess(boolean writeAccess, boolean createNewTable) {
             this.writeAccess = writeAccess;
+            this.createNewTable = createNewTable;
         }
 
         public boolean isWriteAccess() {
             return writeAccess;
+        }
+
+        /**
+         * Whether this endpoint can create new tables.
+         *
+         * @return true if it can create new table, otherwise false
+         */
+        public boolean canCreateNewTable() {
+            return createNewTable;
         }
     }
 }
