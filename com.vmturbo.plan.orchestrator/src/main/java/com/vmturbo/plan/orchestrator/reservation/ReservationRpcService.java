@@ -14,6 +14,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
@@ -325,6 +326,11 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             logger.info("Created Reservation: " + request.getReservation().getName());
             responseObserver.onNext(queuedReservation);
             responseObserver.onCompleted();
+        }  catch (DataIntegrityViolationException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Reservation name "
+                            + request.getReservation().getName() + " already exists.")
+                    .asException());
         } catch (Exception e) {
             responseObserver.onError(Status.INTERNAL
                     .withDescription("Failed to create reservation.")
