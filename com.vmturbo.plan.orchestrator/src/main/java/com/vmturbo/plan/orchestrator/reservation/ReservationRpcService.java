@@ -196,6 +196,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             logger.error("Input constraintIds are invalid: " + constraintIds);
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("constraint Ids are "
                     + "invalid").asException());
+            return;
         }
         try {
             final Reservation reservation =
@@ -284,6 +285,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             logger.error("Input constraintIds are invalid: " + constraintIds);
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("constraint Ids are "
                     + "invalid").asException());
+            return;
         }
         try {
             final Set<Reservation> reservations = request.getReservationList().stream()
@@ -312,6 +314,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             logger.error("Input templateIds are invalid: " + templateIds);
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Template Ids are " +
                     "invalid").asException());
+            return;
         }
         final Set<Long> constraintIds = getConstraintIds(request.getReservation());
         // check input constraint ids are valid
@@ -319,6 +322,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             logger.error("Input constraintIds are invalid: " + constraintIds);
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("constraint Ids are "
                     + "invalid").asException());
+            return;
         }
         try {
             final Reservation reservation = reservationDao.createReservation(request.getReservation());
@@ -335,6 +339,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             responseObserver.onError(Status.INTERNAL
                     .withDescription("Failed to create reservation.")
                     .asException());
+            return;
         }
         reservationManager.checkAndStartReservationPlan();
     }

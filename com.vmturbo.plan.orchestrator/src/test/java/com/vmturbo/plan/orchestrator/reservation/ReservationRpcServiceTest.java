@@ -2,6 +2,7 @@ package com.vmturbo.plan.orchestrator.reservation;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -18,6 +19,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
@@ -31,6 +33,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationByIdRequ
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
@@ -62,6 +65,18 @@ public class ReservationRpcServiceTest {
     private Reservation testReservation = Reservation.newBuilder()
             .setId(123)
             .setName("test-reservation")
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(1L)
+                            .setTemplateId(234L)))
+            .build();
+
+    private Reservation testReservationWithConstraint = Reservation.newBuilder()
+            .setId(124)
+            .setName("test-reservation-withConstraint")
+            .setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
+                    .addReservationConstraintInfo(ReservationConstraintInfo
+                            .newBuilder().setConstraintId(123L)))
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
@@ -128,6 +143,30 @@ public class ReservationRpcServiceTest {
                 .thenReturn(1L);
         Reservation reservation = reservationServiceBlockingStub.createReservation(request);
         assertEquals(reservation, createdReservation);
+    }
+
+    /**
+     * Dont create reservation when the constraint id is invalid.
+     */
+    @Test
+    public void testCreateReservationError() {
+        final Date today = new Date();
+        LocalDateTime ldt = today.toInstant()
+                .atOffset(ZoneOffset.UTC).toLocalDateTime();
+        final Date nextMonth = Date.from(ldt.plusMonths(1)
+                .atOffset(ZoneOffset.UTC).toInstant());
+        final CreateReservationRequest request = CreateReservationRequest.newBuilder()
+                .setReservation(testReservationWithConstraint)
+                .build();
+        Mockito.when(reservationManager.isConstraintIdValid(Mockito.any())).thenReturn(false);
+        verify(reservationDao, Mockito.times(0)).createReservation(Mockito.any());
+        Mockito.when(templatesDao.getTemplatesCount(Mockito.anySet()))
+                .thenReturn(1L);
+        try {
+            reservationServiceBlockingStub.createReservation(request);
+        } catch (Exception e) {
+            assertEquals("INVALID_ARGUMENT: constraint Ids are invalid", e.getMessage());
+        }
     }
 
     @Test
