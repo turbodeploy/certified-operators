@@ -190,7 +190,7 @@ public class StatsQueryExecutor {
                                 createStatIdentifier(statApiDTO), statApiDTO);
                             if (prevValue != null) {
                                 logger.warn("Sub-query {} returned stat {}," +
-                                        " which was already returned by another sub-query for the same time.",
+                                        " which was already returned by anothClusterStatsReaderer sub-query for the same time.",
                                     query.getClass().getSimpleName(), statApiDTO.getName());
                             }
                         });
