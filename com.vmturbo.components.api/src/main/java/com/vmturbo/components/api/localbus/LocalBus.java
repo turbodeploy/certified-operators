@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -17,13 +16,17 @@ import javax.annotation.concurrent.ThreadSafe;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.protobuf.AbstractMessage;
 
+import io.opentracing.SpanContext;
+
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.Deserializer;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.IMessageReceiverFactory;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
+import com.vmturbo.components.api.client.TriConsumer;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.server.IMessageSenderFactory;
+import com.vmturbo.components.api.tracing.Tracing;
 
 /**
  * A local message bus, which can be used for integration testing to avoid Kafka (or other
@@ -43,8 +46,8 @@ public class LocalBus implements IMessageSenderFactory, IMessageReceiverFactory 
     private final ExecutorService executorService;
 
     private LocalBus() {
-        this(Executors.newCachedThreadPool(
-            new ThreadFactoryBuilder().setNameFormat("busconsumer-%d").build()));
+        this(Tracing.traceAwareExecutor(Executors.newCachedThreadPool(
+            new ThreadFactoryBuilder().setNameFormat("busconsumer-%d").build())));
     }
 
     LocalBus(@Nonnull final ExecutorService executorService) {
@@ -82,7 +85,8 @@ public class LocalBus implements IMessageSenderFactory, IMessageReceiverFactory 
     @Override
     public <T> IMessageReceiver<T> messageReceiver(@Nonnull final Collection<String> topics, @Nonnull final Deserializer<T> deserializer) {
         return new LocalBusReceiver<>(topics.stream()
-                .map(name -> (LocalBusTopic<T>)topicsMap.computeIfAbsent(name, k -> new LocalBusTopic<>(executorService)))
+                .map(name -> (LocalBusTopic<T>)topicsMap.computeIfAbsent(name,
+                    k -> new LocalBusTopic<>(executorService, name)))
                 .collect(Collectors.toList()));
     }
 
@@ -93,7 +97,8 @@ public class LocalBus implements IMessageSenderFactory, IMessageReceiverFactory 
 
     @Override
     public <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull final String topic) {
-        LocalBusTopic<S> theTopic = (LocalBusTopic<S>)topicsMap.computeIfAbsent(topic, k -> new LocalBusTopic<>(executorService));
+        LocalBusTopic<S> theTopic = (LocalBusTopic<S>)topicsMap.computeIfAbsent(topic,
+            k -> new LocalBusTopic<>(executorService, topic));
         return new LocalBusSender<>(theTopic);
     }
 
@@ -117,7 +122,7 @@ public class LocalBus implements IMessageSenderFactory, IMessageReceiverFactory 
         }
 
         @Override
-        public void addListener(@Nonnull final BiConsumer<T, Runnable> listener) {
+        public void addListener(@Nonnull final TriConsumer<T, Runnable, SpanContext> listener) {
             topics.forEach(t -> t.addListener(listener));
         }
     }

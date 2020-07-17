@@ -3,14 +3,17 @@ package com.vmturbo.components.api.test;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
 
 import com.google.protobuf.AbstractMessage;
 
+import io.opentracing.SpanContext;
+
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.TriConsumer;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.api.tracing.Tracing;
 
 /**
  * A pair of notification sender and receiver, short-cut between. Use for tests, but in
@@ -21,18 +24,18 @@ import com.vmturbo.components.api.server.IMessageSender;
 public class SenderReceiverPair<T extends AbstractMessage> implements IMessageSender<T>,
         IMessageReceiver<T> {
 
-    private final Set<BiConsumer<T, Runnable>> consumers =
+    private final Set<TriConsumer<T, Runnable, SpanContext>> consumers =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     @Override
-    public void addListener(@Nonnull BiConsumer<T, Runnable> listener) {
+    public void addListener(@Nonnull TriConsumer<T, Runnable, SpanContext> listener) {
         consumers.add(listener);
     }
 
     @Override
     public void sendMessage(@Nonnull T serverMsg) {
-        for (BiConsumer<T, Runnable> consumer : consumers) {
-            consumer.accept(serverMsg, () -> {});
+        for (TriConsumer<T, Runnable, SpanContext> consumer : consumers) {
+            consumer.accept(serverMsg, () -> { }, Tracing.trace("send_msg").spanContext());
         }
     }
 

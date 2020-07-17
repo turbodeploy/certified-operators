@@ -9,6 +9,8 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -80,7 +82,8 @@ public class ActionAuditService implements RequiresDataInitialization {
         }
     }
 
-    private void onNewEvent(@Nonnull ActionEvent event, @Nonnull Runnable commit) {
+    private void onNewEvent(@Nonnull ActionEvent event, @Nonnull Runnable commit,
+                            @Nonnull final SpanContext tracingContext) {
         if (!event.getActionRequest().hasTargetId()) {
             logger.error("Action event {} does not have target associated",
                     event.getActionRequest().getActionId());

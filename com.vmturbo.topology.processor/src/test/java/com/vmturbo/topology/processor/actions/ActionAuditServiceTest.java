@@ -5,10 +5,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import io.opentracing.SpanContext;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -30,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.TriConsumer;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
@@ -73,7 +75,7 @@ public class ActionAuditServiceTest {
     @Mock
     private IMessageReceiver<ActionEvent> eventsReceiver;
     @Captor
-    private ArgumentCaptor<BiConsumer<ActionEvent, Runnable>> eventCaptor;
+    private ArgumentCaptor<TriConsumer<ActionEvent, Runnable, SpanContext>> eventCaptor;
     @Captor
     private ArgumentCaptor<List<ActionEventDTO>> sdkEventsCaptor;
     @Captor
@@ -82,6 +84,8 @@ public class ActionAuditServiceTest {
     private TargetStore targetStore;
     @Mock
     private IOperationManager operationManager;
+    @Mock
+    private SpanContext spanContext;
     /**
      * Expected exception rule.
      */
@@ -89,7 +93,7 @@ public class ActionAuditServiceTest {
     public ExpectedException expectedException = ExpectedException.none();
     private ActionExecutionContextFactory contextFactory;
     private MockScheduledService threadPool;
-    private BiConsumer<ActionEvent, Runnable> messageConsumer;
+    private TriConsumer<ActionEvent, Runnable, SpanContext> messageConsumer;
     private AtomicLong counter;
     private IdentityProvider identityProvider;
     private ActionAuditService actionAuditService;
@@ -179,10 +183,10 @@ public class ActionAuditServiceTest {
         final ActionEvent event1 = createAction(ACTION1);
         final ActionEvent event2 = createAction(ACTION2);
         final ActionEvent event3 = createAction(ACTION3);
-        messageConsumer.accept(event1, commit1);
+        messageConsumer.accept(event1, commit1, spanContext);
         Mockito.verifyZeroInteractions(operationManager);
-        messageConsumer.accept(event2, commit2);
-        messageConsumer.accept(event3, commit3);
+        messageConsumer.accept(event2, commit2, spanContext);
+        messageConsumer.accept(event3, commit3, spanContext);
         Mockito.verify(operationManager, Mockito.timeout(TIMEOUT_SEC * 1000)).sendActionAuditEvents(
                 Mockito.eq(AUDIT_TARGET), sdkEventsCaptor.capture(), operationCaptor.capture());
         Assert.assertEquals(Arrays.asList(ACTION1, ACTION2), sdkEventsCaptor.getValue()
@@ -229,9 +233,9 @@ public class ActionAuditServiceTest {
         final ActionEvent event1 = createAction(ACTION1);
         final ActionEvent event2 = createAction(ACTION2);
         final ActionEvent event3 = createAction(ACTION3);
-        messageConsumer.accept(event1, commit1);
-        messageConsumer.accept(event2, commit2);
-        messageConsumer.accept(event3, commit3);
+        messageConsumer.accept(event1, commit1, spanContext);
+        messageConsumer.accept(event2, commit2, spanContext);
+        messageConsumer.accept(event3, commit3, spanContext);
         threadPool.executeScheduledTasks();
         Mockito.verifyZeroInteractions(operationManager);
         actionAuditService.initialize();
@@ -257,7 +261,7 @@ public class ActionAuditServiceTest {
                 .sendActionAuditEvents(Mockito.anyLong(), Mockito.any(), Mockito.any());
         final Runnable commit = Mockito.mock(Runnable.class);
         final ActionEvent event = createAction(ACTION1);
-        messageConsumer.accept(event, commit);
+        messageConsumer.accept(event, commit, spanContext);
         threadPool.executeScheduledTasks();
         threadPool.executeScheduledTasks();
         threadPool.executeScheduledTasks();
@@ -300,7 +304,7 @@ public class ActionAuditServiceTest {
         actionAuditService.initialize();
         final Runnable commit = Mockito.mock(Runnable.class);
         final ActionEvent event = createAction(ACTION1);
-        messageConsumer.accept(event, commit);
+        messageConsumer.accept(event, commit, spanContext);
         threadPool.executeScheduledTasks();
         Mockito.verify(operationManager).sendActionAuditEvents(Mockito.eq(AUDIT_TARGET),
                 sdkEventsCaptor.capture(), operationCaptor.capture());

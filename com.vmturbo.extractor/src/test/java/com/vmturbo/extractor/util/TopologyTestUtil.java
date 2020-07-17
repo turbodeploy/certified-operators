@@ -16,9 +16,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.commons.lang3.ObjectUtils;
 import org.javatuples.Quartet;
 import org.javatuples.Triplet;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -179,7 +182,7 @@ public class TopologyTestUtil {
                     throw new NoSuchElementException();
                 }
             }
-        });
+        }, Mockito.mock(SpanContext.class));
     }
 
     /**

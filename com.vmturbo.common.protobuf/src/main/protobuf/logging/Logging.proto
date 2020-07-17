@@ -49,9 +49,23 @@ message TracingConfiguration {
     // deployment the agent is an unnecessary middleman.
     optional string jaeger_endpoint = 1;
 
-    // The sampling rate. Should be a number between 0 and 1, indicating the likelihood than
-    // an eligible span will be sampled and sent to jaeger.
-    optional double sampling_rate = 2;
+    // If no strategy is specified, no samples will be generate (ie tracing will be
+    // turned off).
+    oneof sampling_strategy {
+        // The sampling rate. Should be a number between 0 and 1, indicating the likelihood than
+        // an eligible span will be sampled and sent to jaeger.
+        double probabilistic_sampling_rate = 2 [default = 0];
+
+        // Sampler uses a leaky bucket rate limiter to ensure that traces are sampled with a
+        // certain constant rate. For example, when rate_limited_samples_per_second=2.0 it will
+        // sample requests with the rate of 2 traces per second.
+        double rate_limited_samples_per_second = 3 [default = 0];
+    }
+
+    // Whether or not to print span reporting information in the log4j logs. When there is
+    // a very high sampling rate, these logs can become a bit too verbose and you may
+    // wish to disable them.
+    optional bool log_spans = 10 [default = true];
 }
 
 message GetTracingConfigRequest {

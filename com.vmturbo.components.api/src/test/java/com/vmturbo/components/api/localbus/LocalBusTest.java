@@ -46,14 +46,14 @@ public class LocalBusTest {
 
             Semaphore fooSemaphore = new Semaphore(0);
             Semaphore barSemaphore = new Semaphore(0);
-            fooReceiver.addListener((msg, commitCmd) -> {
+            fooReceiver.addListener((msg, commitCmd, tracingContext) -> {
                 fooSemaphore.release();
             });
             // Add a failing listener too.
-            fooReceiver.addListener((msg, commitCmd) -> {
+            fooReceiver.addListener((msg, commitCmd, tracingContext) -> {
                 throw new RuntimeException("BOO!");
             });
-            barReceiver.addListener((msg, commitCmd) -> {
+            barReceiver.addListener((msg, commitCmd, tracingContext) -> {
                 barSemaphore.release();
             });
 

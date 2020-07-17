@@ -15,9 +15,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.Sets;
+
+import io.opentracing.SpanContext;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -100,7 +103,7 @@ public class TopologyEntitiesListenerExceptionTest {
 
         when(topologyManager.newSourceTopologyCreator(eq(tid), eq(tInfo))).thenReturn(topologyCreator);
 
-        topologyEntitiesListener.onTopologyNotification(tInfo, entityIterator);
+        topologyEntitiesListener.onTopologyNotification(tInfo, entityIterator, Mockito.mock(SpanContext.class));
 
         verify(topologyCreator).initialize();
         verify(topologyCreator, never()).complete();

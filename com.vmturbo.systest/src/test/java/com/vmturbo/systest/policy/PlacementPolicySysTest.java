@@ -36,6 +36,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import io.grpc.stub.StreamObserver;
+import io.opentracing.SpanContext;
 import io.swagger.annotations.ApiOperation;
 
 import org.apache.logging.log4j.LogManager;
@@ -925,7 +926,8 @@ public class PlacementPolicySysTest {
 
         @Override
         public void onTopologyNotification(TopologyInfo topologyInfo,
-                                           @Nonnull RemoteIterator<Topology.DataSegment> topologyDTOs) {
+                                           @Nonnull RemoteIterator<Topology.DataSegment> topologyDTOs,
+                                           @Nonnull SpanContext tracingContext) {
             while (topologyDTOs.hasNext()) {
                 try {
                     for (Topology.DataSegment entityDTO : topologyDTOs.nextChunk()) {
@@ -1042,7 +1044,8 @@ public class PlacementPolicySysTest {
         }
 
         @Override
-        public void onActionsReceived(@Nonnull final ActionPlan actionPlan) {
+        public void onActionsReceived(@Nonnull final ActionPlan actionPlan,
+                                      @Nonnull final SpanContext tracingContext) {
             this.actionPlan = Objects.requireNonNull(actionPlan);
 
             if (isComplete()) {
@@ -1054,7 +1057,8 @@ public class PlacementPolicySysTest {
         @Override
         public void onProjectedTopologyReceived(final long projectedTopologyId,
                                                 @Nonnull final TopologyInfo sourceTopologyInfo,
-                                                @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopology) {
+                                                @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopology,
+                                                @Nonnull final SpanContext tracingContext) {
             this.projectedTopology = new HashMap<>();
             this.projectedEntities = new ArrayList<>();
 

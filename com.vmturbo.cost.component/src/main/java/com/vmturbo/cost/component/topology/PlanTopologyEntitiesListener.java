@@ -5,6 +5,8 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -12,6 +14,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
@@ -59,32 +63,35 @@ public class PlanTopologyEntitiesListener implements EntitiesListener {
     @Override
     public void onTopologyNotification(
                 @Nonnull final TopologyInfo topologyInfo,
-                @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator) {
+                @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
+                @Nonnull final SpanContext tracingContext) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
-        if (topologyContextId == realtimeTopologyContextId) {
-            logger.error("Received plan topology with wrong topologyContextId."
-                         + "Expected:{}, Received:{}", topologyContextId, realtimeTopologyContextId);
-            return;
-        }
-        logger.info("Received plan topology with topologyId: {}", topologyInfo.getTopologyId());
-        final CloudTopology<TopologyEntityDTO> cloudTopology =
-                        cloudTopologyFactory.newCloudTopology(topologyContextId, entityIterator);
-
-        // if no Cloud entity, skip further processing
-        if (cloudTopology.size() > 0) {
-            final TopologyCostCalculator topologyCostCalculator =
-                        topologyCostCalculatorFactory.newCalculator(topologyInfo, cloudTopology);
-            final Map<Long, CostJournal<TopologyEntityDTO>> costs =
-                            topologyCostCalculator.calculateCosts(cloudTopology);
-            try {
-                // Persist plan cost data
-                planEntityCostStore.persistEntityCost(costs, cloudTopology, topologyContextId, true);
-            } catch (DbException e) {
-                logger.error("Failed to persist entity costs.", e);
+        try (TracingScope tracingScope = Tracing.trace("cost_plan_topology", tracingContext)) {
+            if (topologyContextId == realtimeTopologyContextId) {
+                logger.error("Received plan topology with wrong topologyContextId."
+                    + "Expected:{}, Received:{}", topologyContextId, realtimeTopologyContextId);
+                return;
             }
-        } else {
-            logger.debug("Plan topology with topologyId: {}  doesn't have Cloud entity, skip processing",
-                        topologyInfo.getTopologyId());
+            logger.info("Received plan topology with topologyId: {}", topologyInfo.getTopologyId());
+            final CloudTopology<TopologyEntityDTO> cloudTopology =
+                cloudTopologyFactory.newCloudTopology(topologyContextId, entityIterator);
+
+            // if no Cloud entity, skip further processing
+            if (cloudTopology.size() > 0) {
+                final TopologyCostCalculator topologyCostCalculator =
+                    topologyCostCalculatorFactory.newCalculator(topologyInfo, cloudTopology);
+                final Map<Long, CostJournal<TopologyEntityDTO>> costs =
+                    topologyCostCalculator.calculateCosts(cloudTopology);
+                try {
+                    // Persist plan cost data
+                    planEntityCostStore.persistEntityCost(costs, cloudTopology, topologyContextId, true);
+                } catch (DbException e) {
+                    logger.error("Failed to persist entity costs.", e);
+                }
+            } else {
+                logger.debug("Plan topology with topologyId: {}  doesn't have Cloud entity, skip processing",
+                    topologyInfo.getTopologyId());
+            }
         }
     }
 }

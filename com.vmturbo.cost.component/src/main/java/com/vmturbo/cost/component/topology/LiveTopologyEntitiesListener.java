@@ -7,6 +7,8 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,6 +20,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.RemoteIteratorDrain;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
@@ -85,27 +89,30 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     @Override
     public void onTopologyNotification(@Nonnull final TopologyInfo topologyInfo,
-                                       @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator) {
+                                       @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
+                                       @Nonnull final SpanContext tracingContext) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
 
-        if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
-            logger.info("Queuing topology for processing (Context ID={}, Topology ID={})",
+        try (TracingScope tracingScope = Tracing.trace("cost_live_topology", tracingContext)) {
+            if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
+                logger.info("Queuing topology for processing (Context ID={}, Topology ID={})",
                     topologyContextId, topologyId);
 
-            // Block on processing the topology so that we only keep one cloud topology in memory
-            // concurrently.
-            synchronized (topologyProcessorLock) {
-                processLiveTopologyUpdate(topologyInfo, entityIterator);
-            }
-        } else {
-            logger.debug("Skipping plan topology broadcast (Topology Context Id={}, Topology ID={}, Creation Time={})",
+                // Block on processing the topology so that we only keep one cloud topology in memory
+                // concurrently.
+                synchronized (topologyProcessorLock) {
+                    processLiveTopologyUpdate(topologyInfo, entityIterator);
+                }
+            } else {
+                logger.debug("Skipping plan topology broadcast (Topology Context Id={}, Topology ID={}, Creation Time={})",
                     topologyContextId, topologyId, Instant.ofEpochMilli(topologyInfo.getCreationTime()));
 
-            RemoteIteratorDrain.drainIterator(
+                RemoteIteratorDrain.drainIterator(
                     entityIterator,
                     TopologyDTOUtil.getSourceTopologyLabel(topologyInfo),
                     false);
+            }
         }
     }
 

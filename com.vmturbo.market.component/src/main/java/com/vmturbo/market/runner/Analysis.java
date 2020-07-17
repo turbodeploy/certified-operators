@@ -62,6 +62,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -323,7 +325,7 @@ public class Analysis {
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME
                     && !originalCloudTopology.getEntities().isEmpty()) {
                 final long waitStartTime = System.currentTimeMillis();
-                try {
+                try (TracingScope tracingScope = Tracing.trace("receive_cost_notification")) {
                     final CostNotification notification =
                             listener.receiveCostNotification(this).get();
                     final StatusUpdate statusUpdate = notification.getStatusUpdate();
@@ -363,25 +365,27 @@ public class Analysis {
             logger.info("{} Started", logPrefix);
             try {
                 final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
-
-                // construct fake entities which can be used to form markets based on cluster/storage cluster
-                if (enableThrottling) {
-                    fakeEntityDTOs = createFakeTopologyEntityDTOsForSuspensionThrottling();
-                    fakeEntityDTOs.forEach(topologyDTOs::put);
-                } else {
-                    fakeEntityDTOs = Collections.emptyMap();
-                }
-
                 Set<TraderTO> traderTOs = new HashSet<>();
-                if (!stopAnalysis) {
-                    traderTOs.addAll(converter.convertToMarket(topologyDTOs));
-                }
-                // cache the traderTOs converted from fake TopologyEntityDTOs
-                Set<TraderTO> fakeTraderTOs = new HashSet<>();
-                if (enableThrottling) {
-                    for (TraderTO dto : traderTOs) {
-                        if (fakeEntityDTOs.containsKey(dto.getOid())) {
-                            fakeTraderTOs.add(dto);
+                final Set<TraderTO> fakeTraderTOs = new HashSet<>();
+                try (TracingScope scope = Tracing.trace("convert_to_market")) {
+
+                    // construct fake entities which can be used to form markets based on cluster/storage cluster
+                    if (enableThrottling) {
+                        fakeEntityDTOs = createFakeTopologyEntityDTOsForSuspensionThrottling();
+                        fakeEntityDTOs.forEach(topologyDTOs::put);
+                    } else {
+                        fakeEntityDTOs = Collections.emptyMap();
+                    }
+
+                    if (!stopAnalysis) {
+                        traderTOs.addAll(converter.convertToMarket(topologyDTOs));
+                    }
+                    // cache the traderTOs converted from fake TopologyEntityDTOs
+                    if (enableThrottling) {
+                        for (TraderTO dto : traderTOs) {
+                            if (fakeEntityDTOs.containsKey(dto.getOid())) {
+                                fakeTraderTOs.add(dto);
+                            }
                         }
                     }
                 }
@@ -516,116 +520,120 @@ public class Analysis {
                     actionsList.addAll(results.getActionsList());
                 }
                 try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
-                    if (isM2AnalysisEnabled) { // Includes the case of both Market and BuyRiImpactAnalysis running in real-time
-                        if (enableThrottling) {
-                            // remove the fake entities used in suspension throttling
-                            // we need to remove it both from the projected topology and the source topology
+                    try (TracingScope tracingScope = Tracing.trace("convert_from_traders")) {
+                        if (isM2AnalysisEnabled) { // Includes the case of both Market and BuyRiImpactAnalysis running in real-time
+                            if (enableThrottling) {
+                                // remove the fake entities used in suspension throttling
+                                // we need to remove it both from the projected topology and the source topology
 
-                            // source, non scoped topology
-                            for (long fakeEntityOid : fakeEntityDTOs.keySet()) {
-                                topologyDTOs.remove(fakeEntityOid);
-                            }
-
-                            // projected topology
-                            for (TraderTO projectedDTO : results.getProjectedTopoEntityTOList()) {
-                                if (!fakeEntityDTOs.containsKey(projectedDTO.getOid())) {
-                                    projectedTraderDTO.add(projectedDTO);
+                                // source, non scoped topology
+                                for (long fakeEntityOid : fakeEntityDTOs.keySet()) {
+                                    topologyDTOs.remove(fakeEntityOid);
                                 }
-                            }
-                        } else {
-                            projectedTraderDTO = results.getProjectedTopoEntityTOList();
-                        }
-                        if (config.isSMAOnly()) {
-                            // update projectedTraderTO and generate actions.
-                            smaConverter.updateWithSMAOutput(projectedTraderDTO);
-                            projectedTraderDTO = smaConverter.getProjectedTraderDTOsWithSMA();
-                        }
 
-                        // Clear the Traders and Economy to reduce memory usage in the market component before
-                        // creating the Projected TopologyEntityDTOs.
-                        economy.getValue().ifPresent(e -> {
-                            e.getTraders().forEach(Trader::clearShoppingAndMarketData);
-                            final Topology topology = e.getTopology();
-                            if (topology != null) {
-                                topology.clear();
+                                // projected topology
+                                for (TraderTO projectedDTO : results.getProjectedTopoEntityTOList()) {
+                                    if (!fakeEntityDTOs.containsKey(projectedDTO.getOid())) {
+                                        projectedTraderDTO.add(projectedDTO);
+                                    }
+                                }
+                            } else {
+                                projectedTraderDTO = results.getProjectedTopoEntityTOList();
                             }
-                        });
+                            if (config.isSMAOnly()) {
+                                // update projectedTraderTO and generate actions.
+                                smaConverter.updateWithSMAOutput(projectedTraderDTO);
+                                projectedTraderDTO = smaConverter.getProjectedTraderDTOsWithSMA();
+                            }
 
-                        // results can be null if M2Analysis is not run
-                        final PriceIndexMessage priceIndexMessage = results != null ?
+                            // Clear the Traders and Economy to reduce memory usage in the market component before
+                            // creating the Projected TopologyEntityDTOs.
+                            economy.getValue().ifPresent(e -> {
+                                e.getTraders().forEach(Trader::clearShoppingAndMarketData);
+                                final Topology topology = e.getTopology();
+                                if (topology != null) {
+                                    topology.clear();
+                                }
+                            });
+
+                            // results can be null if M2Analysis is not run
+                            final PriceIndexMessage priceIndexMessage = results != null ?
                                 results.getPriceIndexMsg() : PriceIndexMessage.getDefaultInstance();
-                        projectedEntities = converter.convertFromMarket(
+                            projectedEntities = converter.convertFromMarket(
                                 projectedTraderDTO,
                                 topologyDTOs,
                                 priceIndexMessage,
                                 reservedCapacityAnalysis,
                                 wastedFilesAnalysis);
-                        final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
+                            final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
                                 .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
                                 .map(ActionEntity::getId).collect(Collectors.toSet());
 
-                        copySkippedEntitiesToProjectedTopology(wastedStorageActionsVolumeIds, oidsToRemove);
+                            copySkippedEntitiesToProjectedTopology(wastedStorageActionsVolumeIds, oidsToRemove);
 
-                        // Calculate the projected entity costs.
-                        projectedCloudTopology =
+                            // Calculate the projected entity costs.
+                            projectedCloudTopology =
                                 cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
-                                        .filter(ProjectedTopologyEntity::hasEntity)
-                                        .map(ProjectedTopologyEntity::getEntity));
-                    } else if (isBuyRIImpactAnalysis) { // OCP Plan Option 3 only
-                        final CloudCostData cloudCostData = topologyCostCalculator.getCloudCostData();
-                        projectedEntities = converter.createProjectedEntitiesAsCopyOfOriginalEntities(topologyDTOs);
+                                    .filter(ProjectedTopologyEntity::hasEntity)
+                                    .map(ProjectedTopologyEntity::getEntity));
+                        } else if (isBuyRIImpactAnalysis) { // OCP Plan Option 3 only
+                            final CloudCostData cloudCostData = topologyCostCalculator.getCloudCostData();
+                            projectedEntities = converter.createProjectedEntitiesAsCopyOfOriginalEntities(topologyDTOs);
 
-                        // Calculate the projected entity costs.
-                        projectedCloudTopology =
+                            // Calculate the projected entity costs.
+                            projectedCloudTopology =
                                 cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
-                                        .filter(ProjectedTopologyEntity::hasEntity)
-                                        .map(ProjectedTopologyEntity::getEntity));
-                        converter.getProjectedRICoverageCalculator()
-                            .addRICoverageToProjectedRICoverage(cloudCostData.getCurrentRiCoverage());
-                    }
+                                    .filter(ProjectedTopologyEntity::hasEntity)
+                                    .map(ProjectedTopologyEntity::getEntity));
+                            converter.getProjectedRICoverageCalculator()
+                                .addRICoverageToProjectedRICoverage(cloudCostData.getCurrentRiCoverage());
+                        }
 
-                    // Invoke buy RI impact analysis after projected entity creation, but prior to
-                    // projected cost calculations
-                    // PS:  OCP Plan Option#2 (Market Only) will not be processed within runBuyRIImpactAnalysis.
-                    runBuyRIImpactAnalysis(projectedCloudTopology, topologyCostCalculator.getCloudCostData());
+                        // Invoke buy RI impact analysis after projected entity creation, but prior to
+                        // projected cost calculations
+                        // PS:  OCP Plan Option#2 (Market Only) will not be processed within runBuyRIImpactAnalysis.
+                        runBuyRIImpactAnalysis(projectedCloudTopology, topologyCostCalculator.getCloudCostData());
 
-                    // Projected RI coverage has been calculated by convertFromMarket
-                    // Get it from TopologyConverter and pass it along to use for calculation of
-                    // savings
-                    projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
+                        // Projected RI coverage has been calculated by convertFromMarket
+                        // Get it from TopologyConverter and pass it along to use for calculation of
+                        // savings
+                        projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
                             converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
+                    }
                 }
 
                 // Create the action plan
                 logger.info(logPrefix + "Creating action plan");
-                final ActionPlan.Builder actionPlanBuilder = ActionPlan.newBuilder()
+                try (TracingScope tracingScope = Tracing.trace("create_action_plan")) {
+                    final ActionPlan.Builder actionPlanBuilder = ActionPlan.newBuilder()
                         .setId(IdentityGenerator.next())
                         .setInfo(ActionPlanInfo.newBuilder()
-                                .setMarket(MarketActionPlanInfo.newBuilder()
-                                        .setSourceTopologyInfo(topologyInfo)))
+                            .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(topologyInfo)))
                         .setAnalysisStartTimestamp(startTime.toEpochMilli());
-                List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
-                     originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
-                actions.forEach(actionPlanBuilder::addAction);
-                if (config.isSMAOnly()) {
-                    actions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
+                    List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
                         originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
+                    actions.forEach(actionPlanBuilder::addAction);
+                    if (config.isSMAOnly()) {
+                        actions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
+                            originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
                         actions.forEach(actionPlanBuilder::addAction);
-                }
-                writeActionsToLog(actions, config, originalCloudTopology, projectedCloudTopology,
-                    converter, topologyCostCalculator.getCloudCostData());
-                // clear the state only after interpretAllActions is called for both M2 and SMA.
-                converter.clearStateNeededForActionInterpretation();
-                // TODO move wasted files action out of main analysis once we have a framework
-                // to support multiple analyses for the same topology ID
-                actionPlanBuilder.addAllAction(wastedFileActions);
-                actionPlanBuilder.addAllAction(reservedCapacityAnalysis.getActions());
-                logger.info(logPrefix + "Completed successfully");
-                processResultTime.observe();
-                state = AnalysisState.SUCCEEDED;
-                completionTime = clock.instant();
-                actionPlan = actionPlanBuilder.setAnalysisCompleteTimestamp(completionTime.toEpochMilli())
+                    }
+                    writeActionsToLog(actions, config, originalCloudTopology, projectedCloudTopology,
+                        converter, topologyCostCalculator.getCloudCostData());
+                    // clear the state only after interpretAllActions is called for both M2 and SMA.
+                    converter.clearStateNeededForActionInterpretation();
+                    // TODO move wasted files action out of main analysis once we have a framework
+                    // to support multiple analyses for the same topology ID
+                    actionPlanBuilder.addAllAction(wastedFileActions);
+                    actionPlanBuilder.addAllAction(reservedCapacityAnalysis.getActions());
+                    logger.info(logPrefix + "Completed successfully");
+                    processResultTime.observe();
+                    state = AnalysisState.SUCCEEDED;
+                    completionTime = clock.instant();
+                    actionPlan = actionPlanBuilder.setAnalysisCompleteTimestamp(completionTime.toEpochMilli())
                         .build();
+                }
             } else {
                 logger.info(logPrefix + " Analysis Stopped");
                 processResultTime.observe();

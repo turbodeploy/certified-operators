@@ -8,6 +8,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -57,7 +59,7 @@ public class ExternalActionApprovalManager {
     }
 
     private void externalActionStates(@Nonnull GetActionStateResponse externalStates,
-            @Nonnull Runnable commit) {
+            @Nonnull Runnable commit, @Nonnull SpanContext tracingContext) {
         logger.debug("Received the following states from external action approval: {}",
                 externalStates.getActionStateMap()
                         .entrySet()

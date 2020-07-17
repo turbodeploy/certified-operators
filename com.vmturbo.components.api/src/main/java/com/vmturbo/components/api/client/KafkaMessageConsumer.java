@@ -31,6 +31,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import io.opentracing.SpanContext;
+import io.opentracing.contrib.kafka.TracingKafkaConsumer;
+import io.opentracing.contrib.kafka.TracingKafkaUtils;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Histogram;
 
@@ -46,6 +49,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
+import com.vmturbo.components.api.tracing.Tracing;
 
 /**
  * Kafka message consumer is a class to receive all the messages from Kafka. Received messages
@@ -101,7 +105,7 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
      * Kafka consumer instance.
      */
     @GuardedBy("consumerLock")
-    private final KafkaConsumer<String, byte[]> consumer;
+    private final TracingKafkaConsumer<String, byte[]> consumer;
     @GuardedBy("consumerLock")
     private final Map<String, KafkaMessageReceiver<?>> consumers = new HashMap<>();
     private final Object consumerLock = new Object();
@@ -160,10 +164,10 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
         props.put("max.poll.interval.ms", 90000);
         props.put("fetch.max.bytes", 67108864);
         props.put("auto.offset.reset", "earliest");
-        consumer = new KafkaConsumer<>(props);
+        consumer = new TracingKafkaConsumer<>(new KafkaConsumer<>(props), Tracing.tracer());
         final ThreadFactory threadFactory =
                 new ThreadFactoryBuilder().setNameFormat("kconsumer-%d").build();
-        threadPool = Executors.newCachedThreadPool(threadFactory);
+        threadPool = Tracing.traceAwareExecutor(Executors.newCachedThreadPool(threadFactory));
     }
 
     public void start() {
@@ -305,7 +309,8 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
                     record.offset(), partition);
             return;
         }
-        receiver.pushNextMessage(payload, partition, record.offset());
+        SpanContext spanContext = TracingKafkaUtils.extractSpanContext(record.headers(), Tracing.tracer());
+        receiver.pushNextMessage(payload, partition, record.offset(), spanContext);
     }
 
     private void resumePartition(@Nonnull TopicPartition topic) {
@@ -353,7 +358,7 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
         /**
          * Called when partitions are assigned to our consumer.
          *
-         * @param collection
+         * @param collection Collection of {@link TopicPartition}s.
          */
         @Override
         public void onPartitionsAssigned(final Collection<TopicPartition> collection) {
@@ -414,7 +419,7 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
      */
     private class KafkaMessageReceiver<T> implements IMessageReceiver<T> {
 
-        private final Set<BiConsumer<T, Runnable>> consumers = new HashSet<>();
+        private final Set<TriConsumer<T, Runnable, SpanContext>> consumers = new HashSet<>();
         private final Deserializer<T> deserializer;
         /**
          * Queue of the messages for this topic.
@@ -426,7 +431,7 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
          * topic. The value is the last message's offset, that has been received by the receiver.
          * Thus should be an concurrent map, as it is accessible from 2 different threads
          * (reading from {@link #runQueue()} and writing from
-         * {@link #pushNextMessage(byte[], TopicPartition, long)}).
+         * {@link #pushNextMessage(byte[], TopicPartition, long, SpanContext)}).
          *
          */
         private final ConcurrentMap<TopicPartition, Long> lastPartitionsOffset =
@@ -454,9 +459,11 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
          * @param buffer bytes buffer, containing message's bytes
          * @param partition topic message retrieved from
          * @param offset offset of this specific message
+         * @param tracingContext Context object for propagating distributed tracing spans from
+         *                       kafka producers to consumers.
          */
         private void pushNextMessage(@Nonnull byte[] buffer, @Nonnull TopicPartition partition,
-                long offset) {
+                long offset, @Nonnull final SpanContext tracingContext) {
             try {
                 // set the Protobuf message size limit to its max
                 final CodedInputStream inputStream = CodedInputStream.newInstance(buffer);
@@ -465,7 +472,7 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
                 logger.debug("Received message: {} [{} bytes]",
                         receivedMessage.getClass().getSimpleName(), buffer.length);
                 final ReceivedMessage<T> message =
-                        new ReceivedMessage<>(receivedMessage, partition, offset);
+                        new ReceivedMessage<>(receivedMessage, partition, offset, tracingContext);
                 lastPartitionsOffset.put(partition, offset);
                 final AtomicLong messagesInQueue =
                         messagesInProcessing.computeIfAbsent(partition, (v) -> new AtomicLong());
@@ -484,7 +491,7 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
         }
 
         @Override
-        public void addListener(@Nonnull BiConsumer<T, Runnable> listener) {
+        public void addListener(@Nonnull TriConsumer<T, Runnable, SpanContext> listener) {
             Objects.requireNonNull(listener);
             synchronized(consumerLock) {
                 if (started) {
@@ -507,9 +514,9 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
                     long enqueuedTime = processingStartTime - message.getEnqueueTime();
                     MESSAGES_RECEIVED_ENQUEUED_MS.labels(message.partition.topic()).observe((double) enqueuedTime);
                     try {
-                        for (BiConsumer<T, Runnable> listener : consumers) {
+                        for (TriConsumer<T, Runnable, SpanContext> listener : consumers) {
                             try {
-                                listener.accept(message.getMessage(), message::commit);
+                                listener.accept(message.getMessage(), message::commit, message.getTracingContext());
                             } catch (Throwable t) {
                                 logger.error("Error processing message of type " +
                                         message.getMessage().getClass().getName() +
@@ -581,10 +588,17 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
          */
         private final long enqueueTime;
 
-        public ReceivedMessage(@Nonnull T message, @Nonnull TopicPartition partition, long offset) {
+        /**
+         * Context object for propagating distributed tracing spans from kafka producers to consumers.
+         */
+        private final SpanContext tracingContext;
+
+        public ReceivedMessage(@Nonnull T message, @Nonnull TopicPartition partition,
+                               long offset, @Nonnull final SpanContext tracingContext) {
             this.message = Objects.requireNonNull(message);
             this.partition = Objects.requireNonNull(partition);
             this.offset = offset;
+            this.tracingContext = Objects.requireNonNull(tracingContext);
             this.enqueueTime = System.currentTimeMillis();
         }
 
@@ -601,6 +615,16 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
         }
 
         public long getEnqueueTime() { return enqueueTime; }
+
+        /**
+         * Get the distributed tracing {@link SpanContext} for this message. This context can be used
+         * to extend a distributed trace from a message producer to a consumer.
+         *
+         * @return the distributed tracing {@link SpanContext} for this message.
+         */
+        public SpanContext getTracingContext() {
+            return tracingContext;
+        }
     }
 
     /**

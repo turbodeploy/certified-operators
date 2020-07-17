@@ -14,7 +14,10 @@ import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -44,7 +47,8 @@ public class PlanProjectedTopologyListenerTest {
         final TestProjectedTopologyProcessor processor = spy(TestProjectedTopologyProcessor.class);
         listener.addProjectedTopologyProcessor(processor);
 
-        listener.onProjectedTopologyReceived(PROJECTED_TOPO_ID, TOPOLOGY_INFO, iterator);
+        listener.onProjectedTopologyReceived(PROJECTED_TOPO_ID, TOPOLOGY_INFO,
+            iterator, Mockito.mock(SpanContext.class));
 
         // Verify that we called the "handle" method of the processor.
         verify(processor).handleProjectedTopology(PROJECTED_TOPO_ID, TOPOLOGY_INFO, iterator);
@@ -64,7 +68,8 @@ public class PlanProjectedTopologyListenerTest {
         listener.addProjectedTopologyProcessor(processor1);
         listener.addProjectedTopologyProcessor(processor2);
 
-        listener.onProjectedTopologyReceived(PROJECTED_TOPO_ID, TOPOLOGY_INFO, iterator);
+        listener.onProjectedTopologyReceived(PROJECTED_TOPO_ID, TOPOLOGY_INFO,
+            iterator, Mockito.mock(SpanContext.class));
 
         // Only one of the processors should have been called. The order doesn't matter.
         assertThat(processor1.numHandled + processor2.numHandled, is(1));
@@ -91,7 +96,8 @@ public class PlanProjectedTopologyListenerTest {
     public void testNoProcessorFound() {
         final TestIterator iterator = new TestIterator();
         final PlanProjectedTopologyListener listener = new PlanProjectedTopologyListener();
-        listener.onProjectedTopologyReceived(PROJECTED_TOPO_ID, TOPOLOGY_INFO, iterator);
+        listener.onProjectedTopologyReceived(PROJECTED_TOPO_ID, TOPOLOGY_INFO,
+            iterator, Mockito.mock(SpanContext.class));
         // Make sure we still drain the iterator.
         assertTrue(iterator.isDrained());
     }
@@ -103,7 +109,8 @@ public class PlanProjectedTopologyListenerTest {
         TestProjectedTopologyProcessor processor = spy(TestProjectedTopologyProcessor.class);
         listener.addProjectedTopologyProcessor(processor);
         doThrow(exception).when(processor).handleProjectedTopology(PROJECTED_TOPO_ID, TOPOLOGY_INFO, iterator);
-        listener.onProjectedTopologyReceived(PROJECTED_TOPO_ID, TOPOLOGY_INFO, iterator);
+        listener.onProjectedTopologyReceived(PROJECTED_TOPO_ID, TOPOLOGY_INFO,
+            iterator, Mockito.mock(SpanContext.class));
 
         verify(processor).handleProjectedTopology(PROJECTED_TOPO_ID, TOPOLOGY_INFO, iterator);
         assertTrue(iterator.isDrained());

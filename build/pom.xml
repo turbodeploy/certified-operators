@@ -58,6 +58,7 @@
         <jaeger.version>1.2.0</jaeger.version>
         <opentracing.concurrent.version>0.4.0</opentracing.concurrent.version>
         <opentracing.grpc.version>0.2.1</opentracing.grpc.version>
+        <opentracing.kafka.version>0.1.13</opentracing.kafka.version>
         <!-- END Versions for the various opentracing libraries -->
 
         <slf4j.version>1.7.25</slf4j.version>
@@ -2794,6 +2795,11 @@
                 <groupId>io.opentracing.contrib</groupId>
                 <artifactId>opentracing-grpc</artifactId>
                 <version>${opentracing.grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opentracing.contrib</groupId>
+                <artifactId>opentracing-kafka-client</artifactId>
+                <version>${opentracing.kafka.version}</version>
             </dependency>
 
             <dependency>

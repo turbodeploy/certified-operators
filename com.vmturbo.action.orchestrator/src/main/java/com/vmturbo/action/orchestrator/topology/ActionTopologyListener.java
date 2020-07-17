@@ -6,6 +6,8 @@ import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,6 +21,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.RemoteIteratorDrain;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 import com.vmturbo.topology.processor.api.EntitiesWithNewStateListener;
 
@@ -64,7 +68,8 @@ public class ActionTopologyListener implements EntitiesWithNewStateListener, Ent
 
     @Override
     public void onTopologyNotification(@Nonnull TopologyInfo topologyInfo,
-                @Nonnull RemoteIterator<DataSegment> topologyDTOs) {
+                @Nonnull RemoteIterator<DataSegment> topologyDTOs,
+                @Nonnull SpanContext tracingContext) {
         if (topologyInfo.getTopologyContextId() != realTimeTopologyContextId) {
             RemoteIteratorDrain.drainIterator(topologyDTOs,
                     TopologyDTOUtil.getSourceTopologyLabel(topologyInfo), false);
@@ -72,7 +77,7 @@ public class ActionTopologyListener implements EntitiesWithNewStateListener, Ent
         }
 
         ActionRealtimeTopologyBuilder bldr = actionTopologyStore.newRealtimeSourceTopology(topologyInfo);
-        try {
+        try (TracingScope scope = Tracing.trace("AO on_topology_notification", tracingContext)) {
             while (topologyDTOs.hasNext()) {
                 Collection<DataSegment> segment = topologyDTOs.nextChunk();
                 segment.forEach(e -> bldr.addEntity(e.getEntity()));

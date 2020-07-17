@@ -12,11 +12,14 @@ import java.util.Collections;
 
 import com.google.common.collect.Sets;
 
+import io.opentracing.SpanContext;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -119,7 +122,7 @@ public class TopologyEntitiesListenerTest {
             .setCreationTime(creationTime)
             .build();
 
-        topologyEntitiesListener.onTopologyNotification(info, entityIterator);
+        topologyEntitiesListener.onTopologyNotification(info, entityIterator, Mockito.mock(SpanContext.class));
 
         verify(topologyManager).newSourceTopologyCreator(tid, info);
         verify(topologyCreator).complete();
@@ -149,7 +152,7 @@ public class TopologyEntitiesListenerTest {
             .setTopologyId(topologyId)
             .build();
 
-        topologyEntitiesListener.onTopologyNotification(info, entityIterator);
+        topologyEntitiesListener.onTopologyNotification(info, entityIterator, Mockito.mock(SpanContext.class));
 
         verify(topologyManager, never()).newSourceTopologyCreator(tid, info);
         verify(topologyCreator, never()).complete();

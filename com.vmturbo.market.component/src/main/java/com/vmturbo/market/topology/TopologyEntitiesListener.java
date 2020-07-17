@@ -15,6 +15,8 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -86,7 +88,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
      */
     @Override
     public void onTopologyNotification(TopologyInfo topologyInfo,
-                                       @Nonnull final RemoteIterator<DataSegment> entityIterator) {
+                                       @Nonnull final RemoteIterator<DataSegment> entityIterator,
+                                       @Nonnull final SpanContext tracingContext) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
         // Do not cache {@link TopologyEntityDTO}'s if analysis is already running on a RT topology
@@ -127,7 +130,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
             logger.info("Thread interrupted receiving topology " + topologyId + " for " +
                     "context " + topologyContextId, e);
         }
-        marketRunner.scheduleAnalysis(topologyInfo, entities, false, maxPlacementsOverride,
+        marketRunner.scheduleAnalysis(topologyInfo, entities, tracingContext, false, maxPlacementsOverride,
                     useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
                     rightsizeUpperWatermark, discountedComputeCostFactor);
     }

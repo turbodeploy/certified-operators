@@ -7,8 +7,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.opentracing.SpanContext;
+
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
@@ -118,7 +121,7 @@ public class ActionsListenerTest {
         when(connectionFactory.createActionMetricsWriter(eq(whitelist)))
                 .thenReturn(metricsWriter);
 
-        listener.onActionsReceived(actionPlan);
+        listener.onActionsReceived(actionPlan, Mockito.mock(SpanContext.class));
         verify(metricsWriter).writeMetrics(eq(actionPlan),
                 anyMap(),
                 eq(recommended));
@@ -129,7 +132,7 @@ public class ActionsListenerTest {
         when(connectionFactory.createActionMetricsWriter(eq(whitelist)))
             .thenReturn(metricsWriter);
 
-        listener.onActionsReceived(actionPlan);
+        listener.onActionsReceived(actionPlan, Mockito.mock(SpanContext.class));
         verify(metricsWriter).flush();
     }
 
@@ -140,12 +143,12 @@ public class ActionsListenerTest {
         doThrow(InfluxUnavailableException.class)
             .when(connectionFactory)
             .createActionMetricsWriter(eq(whitelist));
-        listener.onActionsReceived(actionPlan);
+        listener.onActionsReceived(actionPlan, Mockito.mock(SpanContext.class));
 
         // Then influx is available.
         when(connectionFactory.createActionMetricsWriter(eq(whitelist)))
             .thenReturn(metricsWriter);
-        listener.onActionsReceived(actionPlan);
+        listener.onActionsReceived(actionPlan, Mockito.mock(SpanContext.class));
         verify(metricsWriter).writeMetrics(eq(actionPlan), anyMap(), eq(recommended));
     }
 }

@@ -7,6 +7,8 @@ import javax.annotation.concurrent.GuardedBy;
 
 import com.arangodb.ArangoDBException;
 
+import io.opentracing.SpanContext;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +21,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary.ResultCa
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.SharedMetrics;
@@ -114,9 +118,10 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
 
     @Override
     public void onTopologyNotification(@Nonnull TopologyInfo topologyInfo,
-                                       @Nonnull RemoteIterator<DataSegment> entityIterator) {
+                                       @Nonnull RemoteIterator<DataSegment> entityIterator,
+                                       @Nonnull final SpanContext tracingContext) {
         try {
-            onTopologyNotificationInternal(topologyInfo, entityIterator);
+            onTopologyNotificationInternal(topologyInfo, entityIterator, tracingContext);
         } catch (CommunicationException | InterruptedException | ArangoDBException e) {
             logger.error("Error processing realtime topology."
                 + " Topology Id: " + topologyInfo.getTopologyId()
@@ -125,7 +130,8 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
     }
 
     private void onTopologyNotificationInternal(TopologyInfo topologyInfo,
-                                                final RemoteIterator<DataSegment> entityIterator)
+                                                final RemoteIterator<DataSegment> entityIterator,
+                                                @Nonnull final SpanContext tracingContext)
         throws CommunicationException, InterruptedException {
         final long topologyId = topologyInfo.getTopologyId();
         final long topologyContextId = topologyInfo.getTopologyContextId();
@@ -145,7 +151,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
             .startTimer();
         final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
         TopologyCreator<TopologyEntityDTO> topologyCreator = null;
-        try {
+        try (TracingScope tracingScope = Tracing.trace("repository_handle_topology", tracingContext)) {
             topologyCreator = topologyManager.newSourceTopologyCreator(tid, topologyInfo);
             TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,
                 tid, topologyCreator, notificationSender);

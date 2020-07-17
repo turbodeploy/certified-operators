@@ -3,7 +3,8 @@ package com.vmturbo.action.orchestrator.approval;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Optional;
-import java.util.function.BiConsumer;
+
+import io.opentracing.SpanContext;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -22,6 +23,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.TriConsumer;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 
@@ -39,13 +41,13 @@ public class ExternalActionApprovalManagerTest {
 
 
     @Captor
-    private ArgumentCaptor<BiConsumer<GetActionStateResponse, Runnable>> msgCaptor;
+    private ArgumentCaptor<TriConsumer<GetActionStateResponse, Runnable, SpanContext>> msgCaptor;
     @Mock
     private IMessageReceiver<GetActionStateResponse> msgReceiver;
     private ActionStorehouse storehouse;
     private ActionApprovalManager mgr;
     private RejectedActionsDAO rejectedActionsStore;
-    private BiConsumer<GetActionStateResponse, Runnable> consumer;
+    private TriConsumer<GetActionStateResponse, Runnable, SpanContext> consumer;
     private ActionStore actionStore;
 
     /**
@@ -100,7 +102,7 @@ public class ExternalActionApprovalManagerTest {
                 .putActionState(ACTION1, ActionResponseState.PENDING_ACCEPT)
                 .putActionState(ACTION2, ActionResponseState.ACCEPTED)
                 .putActionState(ACTION3, ActionResponseState.REJECTED)
-                .build(), commit);
+                .build(), commit, Mockito.mock(SpanContext.class));
 
         Mockito.verify(mgr)
                 .attemptAndExecute(Mockito.eq(actionStore),
@@ -127,7 +129,7 @@ public class ExternalActionApprovalManagerTest {
         consumer.accept(GetActionStateResponse.newBuilder()
                 .putActionState(ACTION1, ActionResponseState.PENDING_ACCEPT)
                 .putActionState(ACTION2, ActionResponseState.ACCEPTED)
-                .build(), commit);
+                .build(), commit, Mockito.mock(SpanContext.class));
         Mockito.verifyZeroInteractions(mgr);
         Mockito.verify(commit, Mockito.never()).run();
     }
@@ -139,7 +141,7 @@ public class ExternalActionApprovalManagerTest {
     public void testNoActionsInResponse() {
         final Runnable commit = Mockito.mock(Runnable.class);
         Mockito.when(storehouse.getStore(Mockito.anyLong())).thenReturn(Optional.empty());
-        consumer.accept(GetActionStateResponse.newBuilder().build(), commit);
+        consumer.accept(GetActionStateResponse.newBuilder().build(), commit, Mockito.mock(SpanContext.class));
         Mockito.verifyZeroInteractions(mgr);
         Mockito.verify(commit).run();
     }
