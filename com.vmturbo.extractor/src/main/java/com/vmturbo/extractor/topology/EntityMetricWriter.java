@@ -68,10 +68,15 @@ import com.vmturbo.extractor.models.DslUpsertRecordSink;
 import com.vmturbo.extractor.models.ModelDefinitions;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
+import com.vmturbo.extractor.schema.enums.EntityState;
+import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.search.EnumUtils;
 import com.vmturbo.extractor.topology.EntityHashManager.SnapshotManager;
 import com.vmturbo.extractor.topology.mapper.GroupMappers;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -144,17 +149,22 @@ public class EntityMetricWriter extends TopologyWriterBase {
     @Override
     protected void writeEntity(final TopologyEntityDTO e) {
         final long oid = e.getOid();
-        if (EntityType.forNumber(e.getEntityType()) == null) {
-            logger.error("Invalid entity type for entity oid {}: {}; skipping entity",
-                    e.getOid(), e.getEntityType());
+        EntityType entityType = EnumUtils.entityTypeFromProtoIntToDb(e.getEntityType(), null);
+        if (entityType == null) {
+            logger.error("Cannot map entity type {} for db storage for entity oid {}; skipping",
+                    e.getEntityType(), e.getOid());
             return;
         }
         Record entitiesRecord = new Record(ENTITY_TABLE);
         entitiesRecord.set(ENTITY_OID_AS_OID, oid);
-        entitiesRecord.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, EntityType.forNumber(e.getEntityType()).name());
+        entitiesRecord.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, entityType.name());
         entitiesRecord.set(ModelDefinitions.ENTITY_NAME, e.getDisplayName());
-        entitiesRecord.setIf(e.hasEnvironmentType(), ModelDefinitions.ENVIRONMENT_TYPE, () -> e.getEnvironmentType().name());
-        entitiesRecord.setIf(e.hasEntityState(), ModelDefinitions.ENTITY_STATE, () -> e.getEntityState().name());
+        entitiesRecord.setIf(e.hasEnvironmentType(), ModelDefinitions.ENVIRONMENT_TYPE,
+                () -> EnumUtils.environmentTypeFromProtoToDb(e.getEnvironmentType(),
+                        EnvironmentType.UNKNOWN_ENV).name());
+        entitiesRecord.setIf(e.hasEntityState(), ModelDefinitions.ENTITY_STATE,
+                () -> EnumUtils.entityStateFromProtoToDb(e.getEntityState(),
+                        EntityState.UNKNOWN).name());
         try {
             entitiesRecord.set(ModelDefinitions.ATTRS, getTypeSpecificInfoJson(e));
         } catch (InvalidProtocolBufferException invalidProtocolBufferException) {
@@ -201,13 +211,14 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 .filter(cs -> config.reportingCommodityWhitelist().contains(cs.getCommodityType().getType()))
                 .collect(Collectors.groupingBy(cs -> cs.getCommodityType().getType(),  LinkedHashMap::new, Collectors.toList()));
         csByType.forEach((typeNo, css) -> {
+            MetricType type = EnumUtils.commodityTypeFromProtoIntToDb(typeNo, null);
             if (CommodityType.forNumber(typeNo) == null) {
                 logger.error("Skipping invalid sold commodity type {} for entity {}",
                         typeNo, e.getOid());
             } else if (isAggregateByKeys(typeNo, e.getEntityType())) {
-                recordAggregatedSoldCommodity(oid, typeNo, css, metricRecords);
+                recordAggregatedSoldCommodity(oid, type, css, metricRecords);
             } else {
-                recordUnaggregatedSoldCommodity(oid, typeNo, css, metricRecords);
+                recordUnaggregatedSoldCommodity(oid, type, css, metricRecords);
             }
         });
     }
@@ -225,7 +236,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
      */
     private boolean isAggregateByKeys(int commodityTypeNo, int entityTypeNo) {
         final CommodityType commodityType = CommodityType.forNumber(commodityTypeNo);
-        final EntityType entityType = EntityType.forNumber(entityTypeNo);
+        final EntityDTO.EntityType entityType = EntityDTO.EntityType.forNumber(entityTypeNo);
         return !config.unaggregatedCommodities().containsEntry(commodityType, entityType);
     }
 
@@ -311,37 +322,33 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * commodity type, with different commodity keys.
      *
      * <p>We aggregate the used and capacity metrics across all the sold commodity structures.</p>
-     *
-     * @param oid             selling entity oid
-     * @param typeNo          commodity type
+     *  @param oid             selling entity oid
+     * @param type          commodity type
      * @param soldCommodities sold commodity structures
      * @param metricRecords   where to save new record
      */
-    private void recordAggregatedSoldCommodity(final long oid, final Integer typeNo,
+    private void recordAggregatedSoldCommodity(final long oid, final MetricType type,
             final List<CommoditySoldDTO> soldCommodities, final List<Record> metricRecords) {
         // sum across commodity keys in case same commodity type appears with multiple keys
-        final String type = CommodityType.forNumber(typeNo).name();
         final double sumUsed = soldCommodities.stream().mapToDouble(CommoditySoldDTO::getUsed).sum();
         final double sumCap = soldCommodities.stream().mapToDouble(CommoditySoldDTO::getCapacity).sum();
 
-        metricRecords.add(getSoldCommodityRecord(oid, type, null, sumUsed, sumCap));
+        metricRecords.add(getSoldCommodityRecord(oid, type.name(), null, sumUsed, sumCap));
     }
 
     /**
      * Record a metric record for each of the given sold commodity structures, all of which are for
      * the same commodity type, with different commodity keys.
-     *
-     * @param oid             selling entity oid
-     * @param typeNo          commodity type
+     *  @param oid             selling entity oid
+     * @param type          commodity type
      * @param soldCommodities sold commodity structures
      * @param metricRecords   where to save new records
      */
-    private void recordUnaggregatedSoldCommodity(final long oid, final Integer typeNo,
+    private void recordUnaggregatedSoldCommodity(final long oid, final MetricType type,
             final List<CommoditySoldDTO> soldCommodities, final List<Record> metricRecords) {
         // sum across commodity keys in case same commodity type appears with multiple keys
-        final String type = CommodityType.forNumber(typeNo).name();
         soldCommodities.stream()
-                .map(cs -> getSoldCommodityRecord(oid, type, cs.getCommodityType().getKey(),
+                .map(cs -> getSoldCommodityRecord(oid, type.name(), cs.getCommodityType().getKey(),
                         cs.getUsed(), cs.getCapacity()))
                 .forEach(metricRecords::add);
     }
@@ -376,7 +383,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
      */
     private void createWastedFileRecords(@Nonnull TopologyEntityDTO entity) {
         // not volume entity or no volume info
-        if (entity.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE
+        if (entity.getEntityType() != EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE
                 || !entity.getTypeSpecificInfo().hasVirtualVolume()) {
             return;
         }
@@ -559,7 +566,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private JsonString getGroupJson(Grouping group) throws JsonProcessingException {
         final List<String> expectedTypes = group.getExpectedTypesList().stream()
                 .map(MemberType::getEntity)
-                .map(EntityType::forNumber)
+                .map(EntityDTO.EntityType::forNumber)
                 .map(Enum::name)
                 .collect(Collectors.toList());
 

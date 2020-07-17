@@ -163,10 +163,10 @@ public class GroupQueryTest {
                     assertTrue(((TextFieldValueApiDTO)resultValue).getValue().equals(primitiveTextValue));
                     break;
                 case AGGREGATE_COMMODITY:
-                    assertTrue(((NumberFieldValueApiDTO)resultValue).getValue() == (Double.valueOf(aggregatedCommodityNumericValue)));
+                    assertTrue(((NumberFieldValueApiDTO)resultValue).getValue() == Double.parseDouble(aggregatedCommodityNumericValue));
                     break;
                 case MEMBER:
-                    assertTrue(((IntegerFieldValueApiDTO)resultValue).getValue() == Long.valueOf(memberFieldApiDTOValue));
+                    assertTrue(((IntegerFieldValueApiDTO)resultValue).getValue() == Long.parseLong(memberFieldApiDTOValue));
                     break;
                 default:
                     Assert.fail("Unexpected Value");
@@ -176,7 +176,7 @@ public class GroupQueryTest {
 
 
     /**
-     * Expect correct mapping of {@link EntityType} to {@link GroupType}
+     * Expect correct mapping of {@link EntityType} to {@link GroupType}.
      */
     @Test
     public void mapRecordToValueReturnsGroupTypeApiEnum() {
@@ -185,12 +185,12 @@ public class GroupQueryTest {
         GroupQueryApiDTO request = GroupQueryApiDTO.queryGroup(selectGroup);
         GroupQuery query = groupQuery(request);
 
-        EntityType recordValue = EntityType.COMPUTE_HOST_CLUSTER;
+        EntityType recordValue = EntityType.COMPUTE_CLUSTER;
         Record record = dSLContextSpy.newRecord(SearchEntity.SEARCH_ENTITY.TYPE).values(recordValue);
         PrimitiveFieldApiDTO groupTypeFieldDto = PrimitiveFieldApiDTO.groupType();
         //WHEN
         EnumFieldValueApiDTO
-                value = (EnumFieldValueApiDTO) query.mapRecordToValue(record, SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE, groupTypeFieldDto).get();
+                value = (EnumFieldValueApiDTO)query.mapRecordToValue(record, SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE, groupTypeFieldDto).get();
 
         //THEN
         assertTrue(value.getValue().equals(GroupTypeMapper.fromSearchSchemaToApi(recordValue).toString()));

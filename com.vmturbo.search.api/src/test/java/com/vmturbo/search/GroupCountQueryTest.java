@@ -73,7 +73,7 @@ public class GroupCountQueryTest {
         final Field groupOriginField = countQuery.buildFieldForApiField(PrimitiveFieldApiDTO.origin(), true);
         final Field countField = DSL.count();
         //Values for jooq results
-        final EntityType groupTypeValue = EntityType.COMPUTE_HOST_CLUSTER;
+        final EntityType groupTypeValue = EntityType.COMPUTE_CLUSTER;
         final String groupOriginValue = "DISCOVERED";
         final int countValue = 14;
 

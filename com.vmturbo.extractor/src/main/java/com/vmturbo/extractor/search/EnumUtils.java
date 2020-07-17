@@ -4,14 +4,17 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 
 import com.vmturbo.api.enums.CommodityType;
+import com.vmturbo.api.enums.GroupType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.topology.mapper.GroupMappers;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 
 /**
  * Enum mapping between sdk type, api type and db type.
@@ -61,14 +64,14 @@ public class EnumUtils {
      * Mapping between {@link com.vmturbo.api.enums.GroupType} and
      * {@link GroupType}.
      */
-    private static final BiMap<com.vmturbo.api.enums.GroupType, GroupType> GROUP_TYPE_MAPPING =
-            new ImmutableBiMap.Builder<com.vmturbo.api.enums.GroupType, GroupType>()
-                    .put(com.vmturbo.api.enums.GroupType.GROUP, GroupType.REGULAR)
-                    .put(com.vmturbo.api.enums.GroupType.RESOURCE, GroupType.RESOURCE)
-                    .put(com.vmturbo.api.enums.GroupType.COMPUTE_HOST_CLUSTER, GroupType.COMPUTE_HOST_CLUSTER)
-                    .put(com.vmturbo.api.enums.GroupType.STORAGE_CLUSTER, GroupType.STORAGE_CLUSTER)
-                    .put(com.vmturbo.api.enums.GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
-                    .put(com.vmturbo.api.enums.GroupType.BILLING_FAMILY, GroupType.BILLING_FAMILY)
+    private static final BiMap<GroupType, GroupDTO.GroupType> GROUP_TYPE_MAPPING =
+            new ImmutableBiMap.Builder<GroupType, GroupDTO.GroupType>()
+                    .put(GroupType.GROUP, GroupDTO.GroupType.REGULAR)
+                    .put(GroupType.RESOURCE, GroupDTO.GroupType.RESOURCE)
+                    .put(GroupType.COMPUTE_HOST_CLUSTER, GroupDTO.GroupType.COMPUTE_HOST_CLUSTER)
+                    .put(GroupType.STORAGE_CLUSTER, GroupDTO.GroupType.STORAGE_CLUSTER)
+                    .put(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, GroupDTO.GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
+                    .put(GroupType.BILLING_FAMILY, GroupDTO.GroupType.BILLING_FAMILY)
                     .build();
 
     /**
@@ -82,23 +85,44 @@ public class EnumUtils {
      * @param groupType {@link GroupType}
      * @return db {@link EntityType}
      */
-    public static EntityType groupTypeFromProtoToDb(GroupType groupType) {
-        return EntityType.valueOf(groupType.name());
+    public static EntityType groupTypeFromProtoToDb(GroupDTO.GroupType groupType) {
+        return EntityType.valueOf(GroupMappers.mapGroupTypeToName(groupType));
     }
 
     /**
-     * Convert from proto {@link com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType}
-     * to db {@link EntityType}.
+     * Convert from proto {@link EntityDTO.EntityType} to db {@link EntityType}.
      *
-     * @param protoIntEntityType integer value of proto {@link com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType}
+     * @param protoIntEntityType integer value of proto {@link EntityDTO.EntityType}
      * @return db {@link EntityType}
+     * @throws IllegalArgumentException if the conversion fails
      */
-    public static EntityType entityTypeFromProtoIntToDb(int protoIntEntityType) {
-        EntityDTO.EntityType entityType = EntityDTO.EntityType.forNumber(protoIntEntityType);
+    public static EntityType entityTypeFromProtoIntToDb(int protoIntEntityType) throws IllegalArgumentException {
+        EntityType entityType = entityTypeFromProtoIntToDb(protoIntEntityType, null);
         if (entityType == null) {
             throw new IllegalArgumentException("Can not find matching db EntityType for " + protoIntEntityType);
         }
-        return EntityType.valueOf(entityType.name());
+        return entityType;
+    }
+
+    /**
+     * Convert from proto {@link EntityDTO.EntityType} numeric value to db {@link EntityType}, with
+     * a default value to return if the conversion fails.
+     *
+     * @param protoIntEntityType the int value underlying an protobuf entity type
+     * @param dflt               default value to return if conversion fails
+     * @return db entity type, supplied default
+     */
+    public static EntityType entityTypeFromProtoIntToDb(int protoIntEntityType, EntityType dflt) {
+        try {
+            EntityDTO.EntityType entityProtoType = EntityDTO.EntityType.forNumber(protoIntEntityType);
+            if (entityProtoType != null) {
+                return EntityType.valueOf(entityProtoType.name());
+            }
+        } catch (IllegalArgumentException ignored) {
+        }
+        // either the provided int did not correspond to a proto entity type, or that entity type
+        // was not present in the db enum
+        return dflt;
     }
 
     /**
@@ -106,24 +130,62 @@ public class EnumUtils {
      *
      * @param entityState proto {@link TopologyDTO.EntityState}
      * @return db {@link EntityState}
+     * @throws IllegalArgumentException if the conversion fails
      */
-    public static EntityState entityStateFromProtoToDb(TopologyDTO.EntityState entityState) {
+    public static EntityState entityStateFromProtoToDb(TopologyDTO.EntityState entityState)
+            throws IllegalArgumentException {
         return EntityState.valueOf(entityState.name());
     }
 
     /**
-     * Convert from proto {@link EnvironmentTypeEnum.EnvironmentType} to db {@link EnvironmentType}.
+     * Convert from proto {@link TopologyDTO.EntityState} to db {@link EntityState}, with a default
+     * value for when conversion fails.
+     *
+     * @param entityState proto {@link TopologyDTO.EntityState}
+     * @param dflt        value to return if conversion fails
+     * @return db {@link EntityState}
+     */
+    public static EntityState entityStateFromProtoToDb(TopologyDTO.EntityState entityState, EntityState dflt) {
+        try {
+            return entityStateFromProtoToDb(entityState);
+        } catch (IllegalArgumentException e) {
+            return dflt;
+        }
+    }
+
+    /**
+     * Convert from proto {@link EnvironmentTypeEnum.EnvironmentType} to db {@link
+     * EnvironmentType}.
      *
      * @param environmentType proto {@link EnvironmentTypeEnum.EnvironmentType}
      * @return db {@link EnvironmentType}
+     * @throws IllegalArgumentException if the conversion fails
      */
-    public static EnvironmentType environmentTypeFromProtoToDb(
-            EnvironmentTypeEnum.EnvironmentType environmentType) {
+    public static EnvironmentType environmentTypeFromProtoToDb(EnvironmentTypeEnum.EnvironmentType environmentType)
+            throws IllegalArgumentException {
         return EnvironmentType.valueOf(environmentType.name());
     }
 
     /**
-     * Convert from api {@link CommodityType} to proto {@link CommodityDTO.CommodityType} integer value.
+     * Convert from proto {@link EnvironmentTypeEnum.EnvironmentType} to db {@link EnvironmentType},
+     * or a supplied default if conversion fails.
+     *
+     * @param environmentType proto {@link EnvironmentTypeEnum.EnvironmentType}
+     * @param dflt            value to provide if conversion fails
+     * @return db {@link EnvironmentType}
+     */
+    public static EnvironmentType environmentTypeFromProtoToDb(
+            EnvironmentTypeEnum.EnvironmentType environmentType, EnvironmentType dflt) {
+        try {
+            return environmentTypeFromProtoToDb(environmentType);
+        } catch (IllegalArgumentException e) {
+            return dflt;
+        }
+    }
+
+    /**
+     * Convert from api {@link CommodityType} to proto {@link CommodityDTO.CommodityType} integer
+     * value.
      *
      * @param apiCommodityType api {@link CommodityType}
      * @return proto {@link CommodityDTO.CommodityType} integer value
@@ -139,13 +201,35 @@ public class EnumUtils {
     }
 
     /**
-     * Convert from api {@link com.vmturbo.api.enums.GroupType} to proto {@link GroupType}.
+     * Convert a {@link CommodityDTO.CommodityType} numeric value to a db {@link MetricType} enum,
+     * with a default value for when conversion fails.
      *
-     * @param apiGroupType api {@link com.vmturbo.api.enums.GroupType}
-     * @return proto {@link GroupType}
+     * @param protoIntCommType int value of a {@link CommodityDTO.CommodityType} to be converted
+     * @param dflt             default value if conversion fails
+     * @return converted value
      */
-    public static GroupType groupTypeFromApiToProto(com.vmturbo.api.enums.GroupType apiGroupType) {
-        return GROUP_TYPE_MAPPING.get(apiGroupType);
+    public static MetricType commodityTypeFromProtoIntToDb(int protoIntCommType, MetricType dflt) {
+        try {
+            CommodityDTO.CommodityType protoCommType =
+                    CommodityDTO.CommodityType.forNumber(protoIntCommType);
+            if (protoCommType != null) {
+                return MetricType.valueOf(protoCommType.name());
+            }
+        } catch (IllegalArgumentException ignored) {
+        }
+        // here if either the number didn't correspond to a commodity type, or we had not
+        // metric type for the commodity type
+        return dflt;
+    }
+
+    /**
+     * Convert from api {@link GroupType} to proto {@link GroupDTO.GroupType}.
+     *
+     * @param apiGroupType api {@link GroupType}
+     * @return proto {@link GroupDTO.GroupType}
+     */
+    public static GroupDTO.GroupType groupTypeFromApiToProto(GroupType apiGroupType) {
+        return GroupMappers.mapNameToGroupType(apiGroupType.name());
     }
 
     /**

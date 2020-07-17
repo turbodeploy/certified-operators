@@ -71,9 +71,9 @@ public class DslRecordSinkWriterTest {
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
 
     private final Map<String, Object> metricData1 = createMetricRecordMap(
-            OffsetDateTime.now(), 1L, 100L, "VM", null, null, null, 1.0, 1.0, 2L);
+            OffsetDateTime.now(), 1L, 100L, "CPU", null, null, null, 1.0, 1.0, 2L);
     private final Map<String, Object> metricData2 = createMetricRecordMap(
-            OffsetDateTime.now(), 2L, 200L, "PM", null, 1.0, 1.0, null, null, null);
+            OffsetDateTime.now(), 2L, 200L, "MEM", null, 1.0, 1.0, null, null, null);
 
 
     /**
