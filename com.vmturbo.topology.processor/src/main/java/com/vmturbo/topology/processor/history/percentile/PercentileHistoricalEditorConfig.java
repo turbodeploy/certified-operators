@@ -164,7 +164,7 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         .getNumericSettingValueType().getDefault();
     }
 
-    private static int getDefaultObservationPeriod() {
+    public static int getDefaultObservationPeriod() {
         return (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingSpec()
                         .getNumericSettingValueType().getDefault();
     }

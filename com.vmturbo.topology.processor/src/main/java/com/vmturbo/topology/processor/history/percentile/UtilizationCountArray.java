@@ -195,18 +195,6 @@ public class UtilizationCountArray {
      * @throws HistoryCalculationException when passed data are not valid
      */
     public void deserialize(PercentileRecord record, String key) throws HistoryCalculationException {
-        deserialize(record, key, true);
-    }
-
-    /**
-     * Add up the counts from a serialized record.
-     *
-     * @param record persisted percentile entry record
-     * @param key array identifier
-     * @param overwrite if the capacity should be written over.
-     * @throws HistoryCalculationException when passed data are not valid
-     */
-    public void deserialize(PercentileRecord record, String key, boolean overwrite) throws HistoryCalculationException {
         if (record.getUtilizationCount() != buckets.size()) {
             throw new HistoryCalculationException("Length " + record.getUtilizationCount()
                                                   + " of serialized percentile counts array is not valid for "
@@ -218,21 +206,16 @@ public class UtilizationCountArray {
         if (record.getCapacity() <= 0F) {
             // we may sometimes have 0 capacity uninitialized records in the db
             // but they should also have no counts, consequently there's nothing to add up
-            logger.trace("Skipping deserialization of a record {} with non-positive capacity {}",
-                            () -> key, () -> capacity);
+            logger.trace("Skipping deserialization of a record {} with non-positive capacity {}, current {}",
+                            () -> key, record::getCapacity, () -> capacity);
             return;
         }
 
         final Iterator<Integer> recordUtilization;
+        rescaleCountsIfNecessary(record.getCapacity(), key);
+        capacity = record.getCapacity();
 
-        if (overwrite) {
-            rescaleCountsIfNecessary(record.getCapacity(), key);
-        }
-        if (overwrite || capacity <= 0F) {
-            capacity = record.getCapacity();
-        }
-
-        if (overwrite || !shouldRescale(record.getCapacity(), capacity)) {
+        if (!shouldRescale(record.getCapacity(), capacity)) {
             recordUtilization = record.getUtilizationList().iterator();
         } else {
             final int[] recordUtilizationArray =
@@ -290,21 +273,6 @@ public class UtilizationCountArray {
         capacity = 0F;
         startTimestamp = 0;
         endTimestamp = 0;
-    }
-
-    /**
-     * Copy counts array from the <code>other</code>.
-     *
-     * @param other the {@link UtilizationCountArray}
-     * @throws HistoryCalculationException when the lengths of the counts arrays do not match
-     */
-    public void copyCountsFrom(UtilizationCountArray other) throws HistoryCalculationException {
-        if (this.counts.length != other.counts.length) {
-            throw new HistoryCalculationException(String.format(
-                    "The internal %d and external %d the lengths of the counts arrays do not match",
-                    this.counts.length, other.counts.length));
-        }
-        System.arraycopy(other.counts, 0, this.counts, 0, other.counts.length);
     }
 
     @Override
