@@ -65,7 +65,7 @@ public class IntersightLicenseSyncConfig {
 
     // the default query filter to use when retrieving the licenses for syncing. We will target the
     // "IWO-*" license types.
-    @Value("${intersightLicenseQueryFilter:startswith(LicenseType,'IWO-')}")
+    @Value("${intersightLicenseQueryFilter:startswith(LicenseType,'IWO-Essential')}")
     private String intersightLicenseQueryFilter;
 
     @Bean
