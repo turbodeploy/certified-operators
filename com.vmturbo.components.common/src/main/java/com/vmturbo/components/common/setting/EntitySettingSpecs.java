@@ -204,7 +204,7 @@ public enum EntitySettingSpecs {
      * Suspend action automation mode.
      */
     Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
+        EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
             EntityType.CONTAINER_POD, EntityType.CONTAINER,
             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
             EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
@@ -213,7 +213,7 @@ public enum EntitySettingSpecs {
      * For some types of entities Suspend actions are disabled by default.
      */
     DisabledSuspend("suspendIsDisabled", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.IO_MODULE, EntityType.STORAGE), actionExecutionModeSetToDisabled(), true),
+            EnumSet.of(EntityType.IO_MODULE), actionExecutionModeSetToDisabled(), true),
 
     /**
      * Delete action automation mode.
