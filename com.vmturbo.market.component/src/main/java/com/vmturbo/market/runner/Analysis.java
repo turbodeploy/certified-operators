@@ -97,6 +97,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -453,7 +454,10 @@ public class Analysis {
                         Map<Long, Set<Long>> cloudVmOidToTraderTOs =
                                 TopologyEntitiesHandler
                                         .getProviderLists(converter.getCloudVmComputeShoppingListIDs(),
-                                                topology);
+                                                topology, getCommSpecForCommodity(TopologyDTO
+                                                        .CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .COUPON_VALUE).build()).getBaseType());
                         for (Entry<Long, Set<Long>> entry : cloudVmOidToTraderTOs.entrySet()) {
                             Set<Long> providerOIDList = new HashSet<>();
                             for (Long traderTO : entry.getValue()) {

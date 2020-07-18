@@ -120,12 +120,13 @@ public class TopologyEntitiesHandler {
      * list of providers that has enough capacity for all commodities.
      * @param computeCloudShoppingListIds compute shopping list ids of all cloud vms
      * @param topology the current topology
+     * @param couponCommodityBaseType base type of coupon commodity so that it is not included in quote.
      * @return a map from the oid of the vm associated with the shoppingList to a set of
      * oids of the providers that can fit the vm.
      */
 
     public static Map<Long, Set<Long>> getProviderLists(Set<Long> computeCloudShoppingListIds,
-                                                        Topology topology) {
+                                                        Topology topology, int couponCommodityBaseType) {
         final Ede ede = new Ede();
         final Economy economy = (Economy)topology.getEconomy();
         Set<ShoppingList> cloudVmComputeShoppingList = new HashSet<>();
@@ -140,7 +141,8 @@ public class TopologyEntitiesHandler {
                 cloudVmComputeShoppingList.add(shopList);
             }
         }
-        return ede.getProviderLists(cloudVmComputeShoppingList, economy);
+        return ede.getProviderLists(cloudVmComputeShoppingList, economy,
+                couponCommodityBaseType);
     }
 
     /**
