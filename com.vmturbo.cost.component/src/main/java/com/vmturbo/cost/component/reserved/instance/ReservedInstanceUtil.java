@@ -54,10 +54,7 @@ public class ReservedInstanceUtil {
     public static final String USED_COUPONS_MIN_VALUE = "used_coupons_min";
 
     public static final String REGION_ID = "region_id";
-    /**
-     * for floating point comparison of coupons.
-     */
-    public static final float COUPON_EPSILON = 0.001f;
+
     /**
      * Set of the Linux variations which is currently used to determine if an
      * RI is instance size flexible.

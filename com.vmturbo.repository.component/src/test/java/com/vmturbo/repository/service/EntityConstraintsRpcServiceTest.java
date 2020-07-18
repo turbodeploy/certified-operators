@@ -37,7 +37,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResp
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsRequest;
@@ -311,7 +310,6 @@ public class EntityConstraintsRpcServiceTest {
             .setOid(oid)
             .addAllCommoditiesBoughtFromProviders(legs)
             .setDisplayName(displayName)
-            .setEnvironmentType(EnvironmentType.ON_PREM)
             .build();
     }
 

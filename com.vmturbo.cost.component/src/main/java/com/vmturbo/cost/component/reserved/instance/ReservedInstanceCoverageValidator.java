@@ -226,7 +226,7 @@ public class ReservedInstanceCoverageValidator {
                                 .mapToDouble(Coverage::getCoveredCoupons)
                                 .sum();
 
-                        if (totalCoveredCoupons - couponCapacity <= ReservedInstanceUtil.COUPON_EPSILON) {
+                        if (totalCoveredCoupons <= couponCapacity) {
                             entityRiCoverageBuilder.addAllCoverage(validCoverages);
                         } else {
                             logger.warn("RI coverage exceeds capacity. Dropping coverage" +

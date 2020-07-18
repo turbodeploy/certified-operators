@@ -21,7 +21,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil.PaginatedResults;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.CurrentPlacement;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
@@ -99,14 +98,8 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
                 .asException());
             return;
         }
-        RepoGraphEntity repoEntity = entity.get();
-        if (!repoEntity.getEnvironmentType().equals(EnvironmentType.ON_PREM)) {
-            // We only calculate constraints for on-prem entities
-            responseObserver.onNext(EntityConstraintsResponse.getDefaultInstance());
-            responseObserver.onCompleted();
-            return;
-        }
         final DataMetricTimer timer = CALCULATE_CONSTRAINTS_DURATION_SUMMARY.startTimer();
+        RepoGraphEntity repoEntity = entity.get();
         Map<Integer, List<ConstraintGrouping>> constraintGroupingsByProviderEntityType =
             constraintsCalculator.calculateConstraints(repoEntity, entityGraph);
 
