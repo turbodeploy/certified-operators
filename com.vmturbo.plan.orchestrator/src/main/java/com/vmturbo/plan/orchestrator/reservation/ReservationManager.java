@@ -64,6 +64,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ReservationManager implements ReservationDeletedListener {
     private final Logger logger = LogManager.getLogger();
 
+    private final String logPrefix = "FindInitialPlacement: ";
+
     private final ReservationDao reservationDao;
 
     private final TemplatesDao templatesDao;
@@ -146,11 +148,21 @@ public class ReservationManager implements ReservationDeletedListener {
                 try {
                     reservationDao.updateReservationBatch(currentReservations);
                 } catch (NoSuchObjectException e) {
-                    logger.error("Reservation update failed" + e);
+                    logger.error(logPrefix + "Reservation update failed" + e);
+                }
+            } else {
+                for (Reservation unfulfilled : unfulfilledSet) {
+                    logger.info(logPrefix + "Reservation: " + unfulfilled.getId()
+                            + " waiting for current reservations to finish. Currently running reservations: "
+                            + inProgressSet.size());
                 }
             }
         }
         if (!currentReservations.isEmpty()) {
+            for (Reservation reservation : currentReservations) {
+                logger.info(logPrefix + "sending reservation: " + reservation.getId()
+                        + " for intial placement. Current Status: " + reservation.getStatus());
+            }
             Set<Reservation> updatedReservations = currentReservations;
             try {
                 // TODO We should have a timeout on this.
@@ -161,7 +173,7 @@ public class ReservationManager implements ReservationDeletedListener {
                 updatedReservations = updateProviderInfoForReservations(response,
                         currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
             } catch (Exception e) {
-                logger.warn("findInitialPlacement was not completed successfully");
+                logger.warn(logPrefix + "findInitialPlacement was not completed successfully");
             } finally {
                 updateReservationResult(updatedReservations);
             }
@@ -195,7 +207,7 @@ public class ReservationManager implements ReservationDeletedListener {
         for (InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo : response.getInitialPlacementBuyerPlacementInfoList()) {
             Reservation currentReservation = buyerIdToReservation.get(initialPlacementBuyerPlacementInfo.getBuyerId());
             if (currentReservation == null) {
-                logger.error("The buyer id {} does not "
+                logger.error(logPrefix + "The buyer id {} does not "
                                 + "correspond to any reservation in the request",
                         initialPlacementBuyerPlacementInfo.getBuyerId());
                 continue;
@@ -251,11 +263,17 @@ public class ReservationManager implements ReservationDeletedListener {
                         .setProviderId(
                                 initialPlacementBuyerPlacementInfo.getInitialPlacementSuccess()
                                         .getProviderOid());
+                logger.info(logPrefix + "provider: " + initialPlacementBuyerPlacementInfo
+                        .getInitialPlacementSuccess().getProviderOid()
+                        + " found for entity: " + reservationInstance.getEntityId()
+                        + " of reservation: " + updatedReservation.getId());
             } else {
                 reservationInstance
                         .addAllFailureInfo(
                                 initialPlacementBuyerPlacementInfo.getInitialPlacementFailure()
                                         .getFailureInfoList());
+                logger.info(logPrefix + "entity: " + reservationInstance.getEntityId()
+                        + " of reservation: " + updatedReservation.getId() + " failed to get placed.");
             }
             reservationInstance.setPlacementInfo(placementInfoIndex, placementInfo);
             reservationTemplate.setReservationInstance(instanceIndex, reservationInstance);
@@ -426,6 +444,8 @@ public class ReservationManager implements ReservationDeletedListener {
                 });
                 reservationTemplateBuilder.addReservationInstance(ReservationInstance
                         .newBuilder(reservationInstanceBuilder.build()));
+                logger.info(logPrefix + "Added entity: " + reservationInstanceBuilder.getEntityId()
+                        + " to reservation: " + reservation.getId());
             }
 
             reservationTemplateList.add(reservationTemplateBuilder.build());
@@ -458,13 +478,16 @@ public class ReservationManager implements ReservationDeletedListener {
                                 : ReservationStatus.FUTURE)
                         .build();
             } catch (Exception e) {
-                logger.error(e.getMessage());
+                logger.error(logPrefix + e.getMessage());
                 updatedReservation = ReservationProtoUtil.invalidateReservation(reservation);
             }
             try {
                 reservationDao.updateReservation(reservation.getId(), updatedReservation);
+                logger.info(logPrefix + "Initialized Reservation: " + updatedReservation.getName()
+                        + " Current Status: " + updatedReservation.getStatus()
+                + " id: " + updatedReservation.getId());
             } catch (NoSuchObjectException e) {
-                logger.error("Reservation: {} failed to update." + e, reservation.getName());
+                logger.error(logPrefix + "Reservation: {} failed to update." + e, reservation.getName());
             }
             return updatedReservation;
         }
@@ -485,6 +508,8 @@ public class ReservationManager implements ReservationDeletedListener {
                     constraintIDToCommodityTypeMap.get(reservationConstraintInfo.getConstraintId());
             if (updatedReservationConstraintInfo != null) {
                 constraintInfoCollection.addReservationConstraintInfo(updatedReservationConstraintInfo);
+                logger.info(logPrefix + "Added constraint: " + updatedReservationConstraintInfo.getConstraintId()
+                        + " to reservation: " + reservation.getId());
             }
             else {
                 throw new Exception("Constraint not found for ID: " + reservationConstraintInfo.getConstraintId());
@@ -554,7 +579,9 @@ public class ReservationManager implements ReservationDeletedListener {
                 // The provider change happens only during the main market and that need not be updated
                 // in the UI. A refresh of screen will get the user the new providers.
                 if (updatedReservation.getStatus() != reservation.getStatus()) {
-                    logger.info("Finished Reservation: " + reservation.getName());
+                    logger.info(logPrefix + "Finished Reservation: " + updatedReservation.getName()
+                            + " Current Status: " + updatedReservation.getStatus()
+                            + " id: " + updatedReservation.getId());
                     statusUpdatedReservation.add(updatedReservation);
                 }
             }
@@ -566,7 +593,7 @@ public class ReservationManager implements ReservationDeletedListener {
                     broadcastReservationChange(statusUpdatedReservation);
                 }
             } catch (NoSuchObjectException e) {
-                logger.error("Reservation update failed" + e);
+                logger.error(logPrefix + "Reservation update failed" + e);
             }
         }
         checkAndStartReservationPlan();
@@ -593,7 +620,7 @@ public class ReservationManager implements ReservationDeletedListener {
         try {
             reservationNotificationSender.sendNotification(resChangesBuilder.build());
         } catch (CommunicationException e) {
-            logger.error("Error sending reservation update notification for reservation changes.", e);
+            logger.error(logPrefix + "Error sending reservation update notification for reservation changes.", e);
         }
     }
 
@@ -676,12 +703,14 @@ public class ReservationManager implements ReservationDeletedListener {
         DeleteInitialPlacementBuyerResponse response = initialPlacementServiceBlockingStub
                 .deleteInitialPlacementBuyer(deleteInitialPlacementBuyerRequest.build());
         if (!response.getResult()) {
-            logger.error("Deletion of Initial Placement Buyer failed");
+            logger.error(logPrefix + "Deletion of Initial Placement Buyer failed");
         }
     }
 
     @Override
     public void onReservationDeleted(@Nonnull final Reservation reservation) {
+        logger.info(logPrefix + " Deleted reservation: " + reservation.getName()
+                + " id: " + reservation.getId());
         deleteReservationFromMarketCache(Collections.singleton(reservation));
         checkAndStartReservationPlan();
     }
