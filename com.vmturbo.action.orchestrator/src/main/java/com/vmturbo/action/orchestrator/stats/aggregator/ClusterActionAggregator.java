@@ -16,7 +16,6 @@ import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.action.orchestrator.stats.ActionStat;
-import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician.PreviousBroadcastActions;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.ActionAggregator;
@@ -150,7 +149,7 @@ public class ClusterActionAggregator extends ActionAggregator {
      */
     @Override
     public void processAction(@Nonnull final StatsActionView actionSnapshot,
-                              @Nonnull final PreviousBroadcastActions previousBroadcastActions) {
+                              @Nonnull final Set<Long> newActionIds) {
         // Collect the entities involved in the action by cluster, and entity type.
         //
         // Because we "expand" the scope to the VMs related to the clusters, entities will
@@ -183,7 +182,7 @@ public class ClusterActionAggregator extends ActionAggregator {
                     .build();
                 final ActionStat stat = getStat(muKey, actionSnapshot.actionGroupKey());
                 stat.recordAction(actionSnapshot.recommendation(), entities,
-                    actionIsNew(actionSnapshot, previousBroadcastActions));
+                    actionIsNew(actionSnapshot, newActionIds));
             });
 
             // Add the "global" action stats record - all entities in this cluster that are
@@ -201,7 +200,7 @@ public class ClusterActionAggregator extends ActionAggregator {
             // Not using all entities involved in the snapshot, because some of them may be out
             // of the cluster.
             stat.recordAction(actionSnapshot.recommendation(), entitiesByType.values(),
-                actionIsNew(actionSnapshot, previousBroadcastActions));
+                actionIsNew(actionSnapshot, newActionIds));
         });
     }
 

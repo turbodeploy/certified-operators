@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.stats.aggregator;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -8,7 +9,6 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 
 import com.vmturbo.action.orchestrator.stats.ActionStat;
-import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician.PreviousBroadcastActions;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.ActionAggregator;
@@ -38,8 +38,7 @@ public class GlobalActionAggregator extends ActionAggregator {
      * {@inheritDoc}
      */
     @Override
-    public void processAction(@Nonnull final StatsActionView action,
-                              @Nonnull final PreviousBroadcastActions previousBroadcastActions) {
+    public void processAction(@Nonnull final StatsActionView action, final Set<Long> newActionIds) {
         final ActionEnvironmentType actionEnvType;
         try {
             actionEnvType = ActionEnvironmentType.forAction(action.recommendation());
@@ -79,8 +78,7 @@ public class GlobalActionAggregator extends ActionAggregator {
                 .entityType(entityType)
                 .build();
             final ActionStat stat = getStat(unitKey, action.actionGroupKey());
-            stat.recordAction(action.recommendation(), entities,
-                actionIsNew(action, previousBroadcastActions));
+            stat.recordAction(action.recommendation(), entities, actionIsNew(action, newActionIds));
         });
 
         // Update the global records.
@@ -93,7 +91,7 @@ public class GlobalActionAggregator extends ActionAggregator {
                 .build();
         final ActionStat stat = getStat(unitKey, action.actionGroupKey());
         stat.recordAction(action.recommendation(), involvedEntitiesByType.values(),
-            actionIsNew(action, previousBroadcastActions));
+            actionIsNew(action, newActionIds));
     }
 
     /**

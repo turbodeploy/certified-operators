@@ -868,9 +868,7 @@ public class EntitiesService implements IEntitiesService {
             .map(targetId -> thinTargetCache.getTargetInfo(targetId))
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .filter(thinTargetInfo -> !thinTargetInfo.isHidden())
             .map(thinTargetInfo -> thinTargetInfo.probeInfo().type())
-            .distinct()
             .collect(Collectors.joining(", "));
 
         final List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>(response.getEntityConstraintCount());

@@ -8,13 +8,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.action.orchestrator.stats.ActionStat;
-import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician.PreviousBroadcastActions;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.ActionAggregator;
@@ -66,7 +66,7 @@ public class BusinessAccountActionAggregator extends ActionAggregator {
 
     @Override
     public void processAction(@Nonnull final StatsActionView action,
-                              @Nonnull final PreviousBroadcastActions previousBroadcastActions) {
+                              @Nonnull final Set<Long> newActionIds) {
         // Initialize to empty map to avoid unnecessary object allocation for on-prem actions.
         Map<Long, List<ActionEntity>> entitiesByOwnerAccount = Collections.emptyMap();
         for (ActionEntity involvedEntity : action.involvedEntities()) {
@@ -103,7 +103,7 @@ public class BusinessAccountActionAggregator extends ActionAggregator {
             final ActionStat stat = getStat(globalSubgroupKey, action.actionGroupKey());
             // Not using all entities involved in the snapshot, because some of them may be out
             // of the business account scope.
-            stat.recordAction(action.recommendation(), entitiesForAccount, actionIsNew(action, previousBroadcastActions));
+            stat.recordAction(action.recommendation(), entitiesForAccount, actionIsNew(action, newActionIds));
         });
 
     }

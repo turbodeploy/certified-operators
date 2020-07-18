@@ -363,12 +363,11 @@ public class StatsServiceTest {
      *        <li>the user is not restricted</li>
      *        <li>we ask for 2 records and give an offset of 3</li>
      *        <li>we get 2 records back and a new cursor 4</li>
-     *        <li>one of the two records contains 2 snapshots</li>
      *    </ul>
      *    We test correctness of all intermediate results and the fact that
      *    the stats mapper service and the history service are called with
      *    appropriate parameters and that the group service is <i>not</i>
-     *    called at all. Furthermore, we make sure that all snapshots are returned.
+     *    called at all.
      * </p>
      *
      * @throws Exception should not happen.
@@ -434,13 +433,10 @@ public class StatsServiceTest {
                                     .setOid(clusterId1)
                                     .addStatSnapshots(STAT_SNAPSHOT).build())).build());
 
-        clusterStatsResponse.add(ClusterStatsResponse.newBuilder()
-                                    .setSnapshotsChunk(EntityStatsChunk.newBuilder()
-                                                        .addSnapshots(EntityStats.newBuilder()
-                                                                        .setOid(clusterId2)
-                                                                        .addStatSnapshots(STAT_SNAPSHOT)
-                                                                        .addStatSnapshots(STAT_SNAPSHOT)))
-                                    .build());
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setSnapshotsChunk(EntityStatsChunk.newBuilder()
+            .addSnapshots(EntityStats.newBuilder()
+                                    .setOid(clusterId2)
+                                    .addStatSnapshots(STAT_SNAPSHOT)).build()).build());
 
         clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setPaginationResponse(PaginationResponse.newBuilder()
                                                 .setTotalRecordCount(2)
@@ -458,7 +454,7 @@ public class StatsServiceTest {
         verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
 
         // mapping from internal output to external output happened
-        verify(statsMapper, atLeast(3)).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+        verify(statsMapper, atLeast(2)).toStatSnapshotApiDTO(STAT_SNAPSHOT);
 
         // verify values of the result
         assertThat(response.getRawResults().size(), is(2));
@@ -469,9 +465,9 @@ public class StatsServiceTest {
         final EntityStatsApiDTO clusterStats2 = response.getRawResults().get(1);
         assertEquals(Long.toString(clusterId2), clusterStats2.getUuid());
         assertEquals(StringConstants.CLUSTER, clusterStats2.getClassName());
-        assertEquals(ImmutableList.of(statSnapshotApiDTO, statSnapshotApiDTO), clusterStats2.getStats());
+        assertEquals(Collections.singletonList(statSnapshotApiDTO), clusterStats2.getStats());
         assertEquals(Collections.singletonList(nextCursor),
-                     response.getRestResponse().getHeaders().get("X-Next-Cursor"));
+                response.getRestResponse().getHeaders().get("X-Next-Cursor"));
     }
 
     /**

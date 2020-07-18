@@ -329,7 +329,6 @@ public class LiveActionStore implements ActionStore {
             // Apply addition and removal to the internal store atomically.
             final List<ActionView> completedSinceLastPopulate = new ArrayList<>();
             final List<Action> actionsToRemove = new ArrayList<>();
-            final Set<Long> newActionIds = Sets.newHashSet();
 
             actions.doForEachMarketAction(action -> {
                 // Only retain IN-PROGRESS, QUEUED, ACCEPTED, REJECTED and READY actions which are
@@ -349,7 +348,6 @@ public class LiveActionStore implements ActionStore {
                     case FAILED:
                         completedSinceLastPopulate.add(action);
                         actionsToRemove.add(action);
-                        newActionIds.add(action.getId());
                         break;
                     default:
                         actionsToRemove.add(action);
@@ -366,7 +364,7 @@ public class LiveActionStore implements ActionStore {
 
             final long planId = actionPlan.getId();
             final MutableInt newActionCounts = new MutableInt(0);
-
+            final Set<Long> newActionIds = Sets.newHashSet();
             // TODO (marco, July 16 2019): We can do the translation before we do the support
             // level resolution. In this way we wouldn't need to go to the repository for entities
             // that fail translation.
@@ -466,7 +464,7 @@ public class LiveActionStore implements ActionStore {
                 Stream.concat(completedSinceLastPopulate.stream(),
                     // Need to make a copy because it's not safe to iterate otherwise.
                     actions.copy().values().stream())
-                    .filter(VISIBILITY_PREDICATE));
+                    .filter(VISIBILITY_PREDICATE), newActionIds);
             final int deletedActions =
                 entitiesWithNewStateCache.clearActionsAndUpdateCache(sourceTopologyInfo.getTopologyId());
             final List<ActionView> newActions = newActionIds.stream().map(actions::get)
