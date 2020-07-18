@@ -339,7 +339,7 @@ public class InitialPlacementFinder {
             Trader buyer = traderByOid.get(removeOid);
             // remove deleted reservation entities from economy and topology
             economy.removeTrader(buyer);
-            economy.getTopology().getModifiableTraderOids().remove(buyer);
+            economy.getTopology().getModifiableTraderOids().remove(removeOid);
         }
 
         if (!removeBuyers.isEmpty()) {
