@@ -5,7 +5,6 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.RECORDED_ON;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
-import static com.vmturbo.history.stats.StatsHistoryRpcService.HEADROOM_STATS;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -496,7 +495,7 @@ public class TimeRange {
 
             private boolean requestsHeadroomStats(StatsFilter statsFilter) {
                 return statsFilter.getCommodityRequestsList().stream()
-                        .anyMatch(req -> HEADROOM_STATS.contains(req.getCommodityName()));
+                        .anyMatch(req -> ClusterStatsReader.STATS_STORED_DAILY.contains(req.getCommodityName()));
             }
         }
     }
