@@ -373,7 +373,7 @@ defaultProperties:
     #
     # Even if this parameter is turned to false the journal can be manually collected
     # using the /topology-processor/stitchingJournal REST endpoint.
-    stitchingJournalEnabled: true
+    stitchingJournalEnabled: false
     # Control parameters for tuning how frequently and how many entities we trace
     # through the stitching journal. Tracking more changes in the journal introduces
     # a greater performance hit but also provides greater debugging information.
