@@ -12,7 +12,6 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
@@ -114,16 +113,7 @@ public class SMAConverter {
                 Long destinationRIDiscountedMarketTierOid = destinationOnDemandMarketTierOid;
                 // If SMAMatch uses an RI, then create a corresponding
                 // RiDiscountedMarketTier and use it instead of the OnDemandMarketTier.
-                if (smaMatch.getDiscountedCoupons() > 0) {
-                    TopologyEntityDTO region = converter.getCloudTc()
-                            .getRegionOfCloudConsumer(
-                                    converter.getUnmodifiableEntityOidToDtoMap().get(vmOid));
-                    if (converter.getUnmodifiableEntityOidToDtoMap().get(vmOid) == null ||
-                            region == null) {
-                        logger.error("Region for topology entity: {} not found in scope.",
-                                outputContext.getContext().getRegionId());
-                        continue;
-                    }
+                if (smaMatch.getProjectedRICoverage() > SMAUtils.EPSILON) {
                     final ReservedInstanceData riData = converter.getCloudTc().getRiDataById(
                             smaMatch.getReservedInstance().getOid());
                     if (riData == null) {
@@ -156,7 +146,7 @@ public class SMAConverter {
                         ShoppingListTO.newBuilder(sl)
                                 .setSupplier(destinationOnDemandMarketTierOid)
                                 .clearCouponId();
-                if (smaMatch.getDiscountedCoupons() > 0) {
+                if (smaMatch.getProjectedRICoverage() > SMAUtils.EPSILON) {
                     // add the coupon commodity to the compute shopping list.
                     Optional<CommodityBoughtTO> coupon =
                             converter.createCouponCommodityBoughtForCloudEntity(
@@ -165,7 +155,7 @@ public class SMAConverter {
                     if (coupon.isPresent()) {
                         CommodityBoughtTO.Builder couponCommodity =
                                 CommodityBoughtTO.newBuilder(coupon.get());
-                        couponCommodity.setQuantity(smaMatch.getDiscountedCoupons());
+                        couponCommodity.setQuantity(smaMatch.getProjectedRICoverage());
                         slWithSMA.addCommoditiesBought(couponCommodity);
                         slWithSMA.setCouponId(destinationRIDiscountedMarketTierOid);
                     }
@@ -255,38 +245,43 @@ public class SMAConverter {
                             .setImportance(0)
                             .setIsNotExecutable(false).build();
                     smaActions.add(actionTO);
-                } else {
-                    MoveExplanation.Builder moveExplanation = MoveExplanation.newBuilder();
-                    if (missingCommodities.isEmpty()) {
-                        moveExplanation.setCongestion(Congestion.getDefaultInstance());
-                    } else {
-                        // if there is a missing commodity then it is compliance action.
-                        moveExplanation.setCompliance(Compliance.newBuilder()
-                                .addAllMissingCommodities(missingCommodities));
-                    }
-                    MoveTO.Builder moveTO = MoveTO.newBuilder()
-                            .setDestination(destinationOnDemandMarketTierOid)
-                            .setSource(sourceOnDemandMarketTierOid)
-                            .setShoppingListToMove(sl.getOid())
-                            .setMoveExplanation(moveExplanation)
-                            .setMoveContext(Context.newBuilder()
-                                    .setRegionId(outputContext.getContext().getRegionId())
-                                    .setZoneId(smaMatch.getVirtualMachine().getZoneId()));
-                    if (smaMatch.getDiscountedCoupons() > 0) {
-                        // This is just a dummy piece of code because this is used in
-                        // one place to figure out if the vm is moving to a RI.
-                        // ActionInterpreter.createChangeProviders while computing isAccountingAction.
-                        moveTO.setCouponId(destinationOnDemandMarketTierOid)
-                                .setCouponDiscount(1.0);
-                    }
-                    if (!smaMatch.getVirtualMachine().getGroupName().equals(SMAUtils.NO_GROUP_ID)) {
-                        moveTO.setScalingGroupId(smaMatch.getVirtualMachine().getGroupName());
-                    }
-                    ActionTO actionTO = ActionTO.newBuilder().setMove(moveTO)
-                            .setImportance(0)
-                            .setIsNotExecutable(false).build();
-                    smaActions.add(actionTO);
                 }
+                if (smaMatch.getVirtualMachine()
+                        .getCurrentTemplate().getOid() == smaMatch.getTemplate().getOid()
+                        && Math.abs(smaMatch.getVirtualMachine().getCurrentRICoverage() - smaMatch.getProjectedRICoverage()) < 0.01) {
+                    continue;
+                }
+                MoveExplanation.Builder moveExplanation = MoveExplanation.newBuilder();
+                if (missingCommodities.isEmpty()) {
+                    moveExplanation.setCongestion(Congestion.getDefaultInstance());
+                } else {
+                    // if there is a missing commodity then it is compliance action.
+                    moveExplanation.setCompliance(Compliance.newBuilder()
+                            .addAllMissingCommodities(missingCommodities));
+                }
+                MoveTO.Builder moveTO = MoveTO.newBuilder()
+                        .setDestination(destinationOnDemandMarketTierOid)
+                        .setSource(sourceOnDemandMarketTierOid)
+                        .setShoppingListToMove(sl.getOid())
+                        .setMoveExplanation(moveExplanation)
+                        .setMoveContext(Context.newBuilder()
+                                .setRegionId(outputContext.getContext().getRegionId())
+                                .setZoneId(smaMatch.getVirtualMachine().getZoneId()));
+                if (smaMatch.getProjectedRICoverage() > SMAUtils.EPSILON) {
+                    // This is just a dummy piece of code because this is used in
+                    // one place to figure out if the vm is moving to a RI.
+                    // ActionInterpreter.createChangeProviders while computing isAccountingAction.
+                    moveTO.setCouponId(destinationOnDemandMarketTierOid)
+                            .setCouponDiscount(1.0);
+                }
+                if (!smaMatch.getVirtualMachine().getGroupName().equals(SMAUtils.NO_GROUP_ID)) {
+                    moveTO.setScalingGroupId(smaMatch.getVirtualMachine().getGroupName());
+                }
+                ActionTO actionTO = ActionTO.newBuilder().setMove(moveTO)
+                        .setImportance(0)
+                        .setIsNotExecutable(false).build();
+                smaActions.add(actionTO);
+
             }
         }
     }
