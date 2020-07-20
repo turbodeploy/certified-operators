@@ -263,7 +263,6 @@ public class SMAUtilsTest {
                                 SMAUtils.BOGUS_RI :
                                 outputContext.getMatches().get(i).getReservedInstance(),
                         oldVM.getOsType());
-                smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
             List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
@@ -442,7 +441,6 @@ public class SMAUtilsTest {
                     SMATestConstants.ZONE_BASE,
                     SMAUtils.BOGUS_RI,
                     os);
-            smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             virtualMachines.add(smaVirtualMachine);
         }
         List<SMAReservedInstance> reservedInstances = new ArrayList<>();
@@ -519,7 +517,6 @@ public class SMAUtilsTest {
                                 SMAUtils.BOGUS_RI :
                                 outputContext.getMatches().get(i).getReservedInstance(),
                         oldVM.getOsType());
-                smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
             SMAContext context = inputContext.getContext();
@@ -661,7 +658,6 @@ public class SMAUtilsTest {
                     SMATestConstants.ZONE_BASE + rand.nextInt(nzones),
                     SMAUtils.BOGUS_RI,
                     os);
-            smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(smaVirtualMachine);
         }
 
@@ -801,7 +797,6 @@ public class SMAUtilsTest {
                                 SMAUtils.BOGUS_RI :
                                 outputContext.getMatches().get(i).getReservedInstance(),
                         os);
-                smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
             }
             SMAContext context = inputContext.getContext();
@@ -909,7 +904,6 @@ public class SMAUtilsTest {
                         currentRICoverage,
                         vmZone, SMAUtils.BOGUS_RI,
                         os);
-                smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(smaVirtualMachine);
             }
             for (int j = 0; j < rsize; j++) {

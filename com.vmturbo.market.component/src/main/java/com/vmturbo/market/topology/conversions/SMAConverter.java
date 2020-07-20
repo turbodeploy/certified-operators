@@ -230,7 +230,8 @@ public class SMAConverter {
                         missingCommodities.add(commBought.getSpecification().getType());
                     }
                 }
-                if (smaMatch.getVirtualMachine().getGroupProviders().size() == 0) {
+                if (!missingCommodities.isEmpty()
+                        && smaMatch.getVirtualMachine().isEmptyProviderList()) {
                     // Reconfigure action. There is no provider that can provides all the
                     // commodities the VM is shopping.
                     ReconfigureTO.Builder reconfigureTO = ReconfigureTO.newBuilder();

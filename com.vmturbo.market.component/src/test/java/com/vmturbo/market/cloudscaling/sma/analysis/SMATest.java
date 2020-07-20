@@ -91,6 +91,16 @@ public class SMATest {
      */
     @Test
     public void testAwsSMA() {
+
+        /*
+         * 2 vms. both belong to ASG. no common provider. THey should keep using the RI. Increase in
+         * coverage is allowed.
+         */
+        testExactResult("2vm2riasgnocommonprovider.json");
+        /*
+         * 2 vms partially covered. the coupons will be redistributed. Post processing will solve it.
+         */
+        testExactResult("2vm1rireconfigure.json");
         /*
          * VM and RI are the same except zone, then no match.
          */

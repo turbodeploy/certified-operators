@@ -561,10 +561,38 @@ public class StableMarriagePerContext {
         }
         for (Map.Entry<String, List<SMAVirtualMachine>> entry : groupNameToVirtualMachineList.entrySet()) {
             String groupName = entry.getKey();
-            SMAVirtualMachineGroup smaVirtualMachineGroup = new SMAVirtualMachineGroup(groupName, entry.getValue());
-            virtualMachineGroupMap.put(groupName, smaVirtualMachineGroup);
+            List<SMATemplate> groupProviderList = findProviderIntersection(entry.getValue());
+            if (!groupProviderList.isEmpty()) {
+                SMAVirtualMachineGroup smaVirtualMachineGroup = new SMAVirtualMachineGroup(groupName,
+                        entry.getValue(), groupProviderList);
+                virtualMachineGroupMap.put(groupName, smaVirtualMachineGroup);
+            }
         }
         return virtualMachineGroupMap;
+    }
+
+    /**
+     * Find intersection of providers of all vms in the group.
+     * @param virtualMachines list of member virtual machines.
+     *
+     * @return the intersection of providers of all vms in the group.
+     */
+    private static List<SMATemplate>  findProviderIntersection(List<SMAVirtualMachine> virtualMachines) {
+        if (virtualMachines.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<SMATemplate> groupProviderList = virtualMachines.get(0).getGroupProviders();
+        for (SMAVirtualMachine virtualMachine : virtualMachines) {
+            if (virtualMachine != virtualMachines.get(0)) {
+                Set<SMATemplate> memberGroupProviders = new HashSet<>(virtualMachine
+                        .getGroupProviders());
+                // update the groupLeader provider with the intersection of all member providers.
+                groupProviderList = groupProviderList.stream()
+                        .filter(memberGroupProviders::contains)
+                        .collect(Collectors.toList());
+            }
+        }
+        return groupProviderList;
     }
 
 

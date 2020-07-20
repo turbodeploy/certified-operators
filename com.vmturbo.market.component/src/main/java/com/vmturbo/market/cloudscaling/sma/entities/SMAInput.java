@@ -437,8 +437,9 @@ public class SMAInput {
             Set<Long> providerOids = providersList.get(oid);
             final List<SMATemplate> providers = new ArrayList<>();
             if (providerOids == null) {
+                logger.debug("updateVMs: no providers for VM ID={} name={}", oid, name);
+            } else if (providerOids.isEmpty()) {
                 logger.warn("updateVMs: no providers for VM ID={} name={}", oid, name);
-                providers.add(vm.getCurrentTemplate());
             } else {
                 for (long providerId : providerOids) {
                     SMATemplate template = computeTierOidToContextToTemplate.get(providerId, context);
@@ -451,12 +452,11 @@ public class SMAInput {
                 }
             }
             vm.setProviders(providers);
-            vm.updateNaturalTemplateAndMinCostProviderPerFamily();
 
             Pair<SMAReservedInstance, Float> currentRICoverage = computeVmCoverage(oid, cloudCostData, riBoughtOidToRI);
-            logger.debug("updateVMs: ID={} name={} RI={} currentRICoverage={}", () -> oid,
-                () -> name, () -> currentRICoverage.getFirst(), () -> currentRICoverage.getSecond());
             if (currentRICoverage != null) {
+                logger.debug("updateVMs: ID={} name={} RI={} currentRICoverage={}", () -> oid,
+                        () -> name, () -> currentRICoverage.getFirst(), () -> currentRICoverage.getSecond());
                 vm.setCurrentRI(currentRICoverage.getFirst());
                 vm.setCurrentRICoverage(currentRICoverage.getSecond());
             }
@@ -1036,7 +1036,6 @@ public class SMAInput {
         /**
      * Compute the current RI Coverage and the SMA specific RI Key ID.
      * @param riCoverage RI coverage information: RI ID -> # coupons covered
-     * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
      * @return ReservedInstanceCoverage
      */
     @Nullable
