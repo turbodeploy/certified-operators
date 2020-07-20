@@ -440,14 +440,9 @@ public class ShoppingList implements Serializable {
      * @return the total allocated coupons for the seller's family, or zero if not available
      */
     public double getTotalAllocatedCoupons(UnmodifiableEconomy economy, Trader seller) {
-        Optional<com.vmturbo.platform.analysis.economy.Context> optionalContext = this.getBuyer()
-                .getSettings().getContext();
-        if (!optionalContext.isPresent() || economy.getTopology() == null) {
-            return 0.0;
-        }
-        return optionalContext.get()
-            .getTotalAllocatedCoupons(economy.getTopology().getTraderOids().get(seller))
-            .orElse(0.0);
+            return this.getBuyer().getSettings().getContext()
+                .getTotalAllocatedCoupons(seller.getOid())
+                .orElse(0.0);
     }
 
     /**
@@ -457,13 +452,8 @@ public class ShoppingList implements Serializable {
      * @return the total allocated coupons for the seller's family, or zero if not available
      */
     public double getTotalRequestedCoupons(UnmodifiableEconomy economy, Trader seller) {
-        Optional<com.vmturbo.platform.analysis.economy.Context> optionalContext = this.getBuyer()
-                .getSettings().getContext();
-        if (!optionalContext.isPresent() || economy.getTopology() == null) {
-            return 0.0;
-        }
-        return optionalContext.get()
-            .getTotalRequestedCoupons(economy.getTopology().getTraderOids().get(seller))
+        return this.getBuyer().getSettings().getContext()
+            .getTotalRequestedCoupons(seller.getOid())
             .orElse(0.0);
     }
 } // end ShoppingList class

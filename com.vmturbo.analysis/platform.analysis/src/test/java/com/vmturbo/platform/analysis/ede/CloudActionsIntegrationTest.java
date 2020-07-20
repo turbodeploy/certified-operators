@@ -5,6 +5,8 @@ import static com.vmturbo.platform.analysis.testUtilities.TestUtils.VM_TYPE;
 import static org.junit.Assert.assertEquals;
 
 import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -56,7 +58,7 @@ public class CloudActionsIntegrationTest {
     private static final long BA = 1, REGION = 2, ZONE = 3, PRICE_ID = 4;
     private static final double VERY_LOW_PRICE = 2, LOW_PRICE = 5, HIGH_PRICE = 10;
 
-    private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
+    private Map<Long, Trader> traderOids = new HashMap<>();
 
     // sets up 2 VMs.
     private Trader[] setupConsumers(Economy economy, boolean isTemplateExcluded) {
@@ -75,10 +77,14 @@ public class CloudActionsIntegrationTest {
         vm2.setDebugInfoNeverUseInCode("VirtualMachine|2");
         vm3.setDebugInfoNeverUseInCode("VirtualMachine|3");
 
+        vm1.setOid(1L);
+        vm2.setOid(2L);
+        vm3.setOid(3L);
+
         traderOids.clear();
-        traderOids.put(vm1, 1L);
-        traderOids.put(vm2, 2L);
-        traderOids.put(vm3, 3L);
+        traderOids.put(1L, vm1);
+        traderOids.put(2L, vm2);
+        traderOids.put(3L, vm3);
 
         vm1.getSettings().setQuoteFactor(1).setMoveCostFactor(0).setContext(context);
         vm2.getSettings().setQuoteFactor(1).setMoveCostFactor(0).setContext(context);
@@ -110,10 +116,15 @@ public class CloudActionsIntegrationTest {
         cbtp1.setDebugInfoNeverUseInCode("DiscountedMarketTier|1");
         cbtp2.setDebugInfoNeverUseInCode("DiscountedMarketTier|2");
 
-        traderOids.put(tp1, startIndex + 4L);
-        traderOids.put(tp2, startIndex + 5L);
-        traderOids.put(cbtp1, startIndex + 6L);
-        traderOids.put(cbtp2, startIndex + 7L);
+        tp1.setOid(startIndex + 4L);
+        tp2.setOid(startIndex + 5L);
+        cbtp1.setOid(startIndex + 6L);
+        cbtp2.setOid(startIndex + 7L);
+
+        traderOids.put(tp1.getOid(), tp1);
+        traderOids.put(tp2.getOid(), tp2);
+        traderOids.put(cbtp1.getOid(), cbtp1);
+        traderOids.put(cbtp2.getOid(), cbtp2);
 
         // create costDTOs
         CostDTOs.CostDTO costDtoTp1 = CostDTOs.CostDTO.newBuilder()
@@ -243,7 +254,8 @@ public class CloudActionsIntegrationTest {
             trader.getSettings().setContext(new Context(REGION, ZONE,
                     new Context.BalanceAccount(0, 10000, BA, PRICE_ID, 0L)));
             traders[traderIndex++] = trader;
-            traderOids.put(trader, (long)(i + startIndex));
+            trader.setOid((long)(i + startIndex));
+            traderOids.put(trader.getOid(), trader);
         }
 
         return traders;
@@ -279,7 +291,8 @@ public class CloudActionsIntegrationTest {
             trader.getSettings().setContext(new Context(REGION, ZONE,
                     new Context.BalanceAccount(0, 10000, BA, PRICE_ID, 0L)));
             traders[traderIndex++] = trader;
-            traderOids.put(trader, (long) (i + startIndex));
+            trader.setOid((long)(i + startIndex));
+            traderOids.put(trader.getOid(), trader);
         }
         return traders;
     }
@@ -360,7 +373,7 @@ public class CloudActionsIntegrationTest {
         e.getCommodityBought(slVM1, COUPON).setQuantity(8);
         e.getCommodityBought(slVM1, CPU).setQuantity(60);
         e.getCommodityBought(slVM2, CPU).setQuantity(60);
-        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 16));
+        vms[0].getSettings().setContext(makeContext(sellers[2].getOid(), 8, 16));
 
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
@@ -373,10 +386,10 @@ public class CloudActionsIntegrationTest {
         assertEquals(8, slVM2.getQuantity(1), 0);
 
         // VM2's context got updated after move
-        assertEquals(16, vms[1].getSettings().getContext().get().getTotalRequestedCoupons(
-                t.getTraderOid(sellers[2])).get(), 0);
-        assertEquals(8, vms[1].getSettings().getContext().get().getTotalAllocatedCoupons(
-            t.getTraderOid(sellers[2])).get(), 0);
+        assertEquals(16, vms[1].getSettings().getContext().getTotalRequestedCoupons(
+                sellers[2].getOid()).get(), 0);
+        assertEquals(8, vms[1].getSettings().getContext().getTotalAllocatedCoupons(
+            sellers[2].getOid()).get(), 0);
         // now say we trigger an actual placement instead of forcing the move
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
         // new VM requests 16 coupons and gets all from CBTP2 and returns 8 back to CBTP1
@@ -413,7 +426,7 @@ public class CloudActionsIntegrationTest {
         // VM scales on the CBTP alone without any co-customers
         e.getCommodityBought(slVM1, COUPON).setQuantity(8);
         e.getCommodityBought(slVM1, CPU).setQuantity(60);
-        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
+        vms[0].getSettings().setContext(makeContext(sellers[2].getOid(), 8, 8));
 
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
@@ -442,7 +455,7 @@ public class CloudActionsIntegrationTest {
         e.getCommodityBought(slVM1, COUPON).setQuantity(16);
         e.getCommodityBought(slVM1, CPU).setQuantity(10);
         slVM1.move(sellers[2]);
-        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 16, 16));
+        vms[0].getSettings().setContext(makeContext(sellers[2].getOid(), 16, 16));
 
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
@@ -480,7 +493,7 @@ public class CloudActionsIntegrationTest {
         e.getCommodityBought(slVM2, CPU).setQuantity(60);
         slVM1.move(sellers[2]);
         slVM2.move(sellers[2]);
-        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
+        vms[0].getSettings().setContext(makeContext(sellers[2].getOid(), 8, 8));
 
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
@@ -545,11 +558,11 @@ public class CloudActionsIntegrationTest {
         slVM1.move(sellers[0]);
         // VM2 is on CBTP1 consuming 2 coupons
         slVM2.setQuantity(1, 4);
-        vms[1].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 4, 8));
+        vms[1].getSettings().setContext(makeContext(sellers[2].getOid(), 4, 8));
         slVM2.move(sellers[2]);
         // VM3 on CBTP2 consuming 4 coupons
         slVM3.setQuantity(1, 4);
-        vms[2].getSettings().setContext(makeContext(t.getTraderOid(sellers[3]), 4, 8));
+        vms[2].getSettings().setContext(makeContext(sellers[3].getOid(), 4, 8));
         slVM3.move(sellers[3]);
 
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
@@ -597,7 +610,7 @@ public class CloudActionsIntegrationTest {
         ShoppingList slVM3 = getSl(e, vms[2]);
         // VM3 on CBTP2 with full coverage
         // same setup as 8. Except that VM1 is on CBTP2 consuming 4 coupons with the right context
-        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[3]), 4, 8));
+        vms[0].getSettings().setContext(makeContext(sellers[3].getOid(), 4, 8));
         slVM1.setQuantity(1, 4);
         slVM1.move(sellers[3]);
         slVM2.move(sellers[1]);
@@ -650,9 +663,9 @@ public class CloudActionsIntegrationTest {
         ShoppingList slVM2 = getSl(e, vms[1]);
         ShoppingList slVM3 = getSl(e, vms[2]);
         // all 3 VMs on CBTP2 with partial allocation of 4 with a request of 8
-        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[3]), 4, 8));
-        vms[1].getSettings().setContext(makeContext(t.getTraderOid(sellers[3]), 4, 8));
-        vms[2].getSettings().setContext(makeContext(t.getTraderOid(sellers[3]), 4, 8));
+        vms[0].getSettings().setContext(makeContext(sellers[3].getOid(), 4, 8));
+        vms[1].getSettings().setContext(makeContext(sellers[3].getOid(), 4, 8));
+        vms[2].getSettings().setContext(makeContext(sellers[3].getOid(), 4, 8));
         slVM1.setQuantity(1, 4);
         slVM2.setQuantity(1, 4);
         slVM3.setQuantity(1, 4);
@@ -706,7 +719,7 @@ public class CloudActionsIntegrationTest {
         ShoppingList slVM3 = getSl(e, vms[2]);
         // VM3 on CBTP2 with full coverage
         // same setup as 8. Except that VM1 is on CBTP2 consuming 4 coupons with the right context
-        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[3]), 8, 8));
+        vms[0].getSettings().setContext(makeContext(sellers[3].getOid(), 8, 8));
         slVM1.setQuantity(1, 8);
         slVM1.move(sellers[2]);
         slVM2.move(sellers[1]);
@@ -759,7 +772,7 @@ public class CloudActionsIntegrationTest {
 
         // VM2 is on CBTP1 with full coverage
         // VM1 which is the groupLeader is on TP1
-        vms[1].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
+        vms[1].getSettings().setContext(makeContext(sellers[2].getOid(), 8, 8));
         slVM2.setQuantity(1, 8);
 
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
@@ -796,7 +809,7 @@ public class CloudActionsIntegrationTest {
 
         // VM1 which is the groupLeader is on CBTP1 with full coverage
         // VM2 is on TP1
-        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
+        vms[0].getSettings().setContext(makeContext(sellers[2].getOid(), 8, 8));
         slVM1.setQuantity(1, 8);
 
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
@@ -839,10 +852,10 @@ public class CloudActionsIntegrationTest {
         // VM3 on CBTP2 with partial coverage
         // Except that VM1 is on TP1 and VM2 on CBTP1 with full coverage
         slVM1.move(sellers[0]);
-        vms[1].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
+        vms[1].getSettings().setContext(makeContext(sellers[2].getOid(), 8, 8));
         slVM2.setQuantity(1, 8);
         slVM2.move(sellers[2]);
-        vms[2].getSettings().setContext(makeContext(t.getTraderOid(sellers[3]), 4, 8));
+        vms[2].getSettings().setContext(makeContext(sellers[3].getOid(), 4, 8));
         slVM3.setQuantity(1, 4);
         slVM3.move(sellers[3]);
 
@@ -892,7 +905,7 @@ public class CloudActionsIntegrationTest {
         sellers[2].getCommoditySold(COUPON).setCapacity(16).setQuantity(8);
 
         ShoppingList slVM1 = getSl(e, vms[0]);
-        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
+        vms[0].getSettings().setContext(makeContext(sellers[2].getOid(), 8, 8));
         slVM1.setQuantity(1, 8);
         // Set the supplier of VM1 as the cbtp.
         slVM1.move(sellers[2]);
@@ -1035,9 +1048,9 @@ public class CloudActionsIntegrationTest {
         slVM2.move(sellers[2]).setMovable(false);
         slVM3.move(sellers[2]).setMovable(false);
 
-        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 16, 16));
-        vms[1].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 16, 16));
-        vms[2].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 16, 16));
+        vms[0].getSettings().setContext(makeContext(sellers[2].getOid(), 16, 16));
+        vms[1].getSettings().setContext(makeContext(sellers[2].getOid(), 16, 16));
+        vms[2].getSettings().setContext(makeContext(sellers[2].getOid(), 16, 16));
 
         // Populate markets
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
@@ -1046,8 +1059,8 @@ public class CloudActionsIntegrationTest {
         PlacementResults result = Placement.runPlacementsTillConverge(e, new Ledger(e), "PlacementFromUnitTest");
         Assert.assertEquals(3, result.getActions().size());
         // Make sure the buyer context has 24 requested and allocated coupons
-        Assert.assertEquals(24, vms[0].getSettings().getContext().get().getTotalRequestedCoupons(traderOids.get(sellers[2])).get(), 0.1);
-        Assert.assertEquals(24, vms[0].getSettings().getContext().get().getTotalAllocatedCoupons(traderOids.get(sellers[2])).get(), 0.1);
+        Assert.assertEquals(24, vms[0].getSettings().getContext().getTotalRequestedCoupons(sellers[2].getOid()).get(), 0.1);
+        Assert.assertEquals(24, vms[0].getSettings().getContext().getTotalAllocatedCoupons(sellers[2].getOid()).get(), 0.1);
         // Make sure the CBTP1's coupon comm sold has quantity 24
         Assert.assertEquals(24, sellers[2].getCommoditySold(COUPON).getQuantity(), 0.1);
     }
@@ -1110,7 +1123,7 @@ public class CloudActionsIntegrationTest {
         if (cpuUsed1 != 0) {
             e.getCommodityBought(slVM1, CPU).setQuantity(cpuUsed1);
             e.getCommodityBought(slVM1, COUPON).setQuantity(couponAlloc1);
-            vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), couponAlloc1, couponReq1));
+            vms[0].getSettings().setContext(makeContext(sellers[2].getOid(), couponAlloc1, couponReq1));
             slVM1.move(sellers[0]);
         }
         e.getCommodityBought(slVM2, CPU).setQuantity(cpuUsed2);

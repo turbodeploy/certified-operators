@@ -4,6 +4,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -88,9 +89,11 @@ public class DeployTest {
      * @param traders
      */
     private void addTradersToTopology(Topology topology, List<Trader> traders) {
-        BiMap<Trader, Long> traderOidMap = topology.getModifiableTraderOids();
+        Map<Long, Trader> traderOidMap = topology.getModifiableTraderOids();
         for (int i = 0; i < traders.size(); i++) {
-            traderOidMap.put(traders.get(i), (long)i);
+            final Trader trader = traders.get(i);
+            trader.setOid(i);
+            traderOidMap.put(trader.getOid(), trader);
         }
     }
 

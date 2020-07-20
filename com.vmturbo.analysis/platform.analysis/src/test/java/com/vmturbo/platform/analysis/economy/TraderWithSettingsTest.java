@@ -1,27 +1,29 @@
 package com.vmturbo.platform.analysis.economy;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.util.HashSet;
 import java.util.Set;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utility.CollectionTests;
 import com.vmturbo.platform.analysis.utility.ListTests;
 import com.vmturbo.platform.analysis.utility.MapTests;
-import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utility.SetTests;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 /**
  * A test case for the combined TraderWithSettings class.
@@ -297,6 +299,33 @@ public final class TraderWithSettingsTest {
     }
 
     @Test
+    public void testClearShoppingAndMarketData() {
+        Basket b = new Basket();
+        TraderWithSettings t1 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl1 = new ShoppingList(t1, b);
+        TraderWithSettings t2 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl2 = new ShoppingList(t2, b);
+        TraderWithSettings t3 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl3 = new ShoppingList(t3, b);
+        // Sl1 and Sl2 are buyers in Market
+        Market m = new Market(new Basket());
+        m.addBuyer(t1, sl1);
+        m.addBuyer(t2, sl2);
+
+        t1.getMarketsAsBuyer().put(sl1, m);
+        t3.getMarketsAsSeller().add(m);
+
+        assertEquals(1, t1.getMarketsAsBuyer().size());
+        assertEquals(1, t3.getMarketsAsSeller().size());
+
+        t1.clearShoppingAndMarketData();
+        t3.clearShoppingAndMarketData();
+
+        assertEquals(0, t1.getMarketsAsBuyer().size());
+        assertEquals(0, t3.getMarketsAsSeller().size());
+    }
+
+    @Test
     @Parameters
     @TestCaseName("Test #{index}: (set|get)EconomyIndex({0})")
     public final void testGetSetEconomyIndex_NormalInput(int index) {
@@ -403,5 +432,13 @@ public final class TraderWithSettingsTest {
     public final void testGetSetMinDesiredUtil_InvalidInput(double minDesiredUtilization, double maxDesiredUtilization) {
         fixture_.setMaxDesiredUtil(maxDesiredUtilization);
         fixture_.setMinDesiredUtil(minDesiredUtilization);
+    }
+
+    @Test
+    public void testTraderOidSet() {
+        final TraderWithSettings trader = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket());
+        assertFalse(trader.isOidSet());
+        trader.setOid(123L);
+        assertTrue(trader.isOidSet());
     }
 } // end class TraderWithSettingsTest

@@ -56,6 +56,8 @@ public class FunctionalOperatorUtil {
                 return createAverageCommUpdatingFunction(costDTO, updateFunctionTO);
             case IGNORE_CONSUMPTION:
                 return createIgnoreConsumptionUpdatingFunction(costDTO, updateFunctionTO);
+            case UPDATE_EXPENSES:
+                return createExpenseUpdatingFunction(costDTO, updateFunctionTO);
             case EXTERNAL_UPDATE:
                 return createExternalUpdatingFunction(costDTO, updateFunctionTO);
             case UPDATE_COUPON:
@@ -92,8 +94,13 @@ public class FunctionalOperatorUtil {
     }
 
     public static FunctionalOperator createSubtractCommUpdatingFunction(CostDTO costDTO,
-            UpdatingFunctionTO updateFunctionTO) {
+                                                                        UpdatingFunctionTO updateFunctionTO) {
         return SUB_COMM;
+    }
+
+    public static FunctionalOperator createExpenseUpdatingFunction(CostDTO costDTO,
+                                                                   UpdatingFunctionTO updateFunctionTO) {
+        return UPDATE_EXPENSES;
     }
 
     public static FunctionalOperator createIgnoreConsumptionUpdatingFunction(CostDTO costDTO,
@@ -110,8 +117,8 @@ public class FunctionalOperatorUtil {
                                                                     UpdatingFunctionTO updateFunctionTO) {
         FunctionalOperator UPDATE_COUPON_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead)
                         -> {
-            Optional<Context> optionalContext = buyer.getBuyer().getSettings().getContext();
-            long oid = economy.getTopology().getTraderOid(seller);
+            Context c = buyer.getBuyer().getSettings().getContext();
+            long oid = seller.getOid();
             int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
 
             // Find the template matched with the buyer
@@ -175,7 +182,7 @@ public class FunctionalOperatorUtil {
                     int couponBoughtIndex = peer.getBasket().indexOfBaseType(couponCommBaseType);
                     // When moving out of a supplier, the buyer's supplier will be null. So we use
                     // peer shopping list's supplier here.
-                    Long supplierOid =  economy.getTopology().getTraderOid(peer.getSupplier());
+                    Long supplierOid = peer.getSupplier() == null ? null : peer.getSupplier().getOid();
                     Double couponsToRelinquish = totalCouponsToRelinquish.getOrDefault(supplierOid, new Double(0));
                     couponsBought = peer.getQuantity(couponBoughtIndex);
                     // the peers relinquish the excess
@@ -190,11 +197,9 @@ public class FunctionalOperatorUtil {
                 buyer.setQuantity(boughtIndex, Math.min(requestedCoupons, couponsBought));
                 // unplacing the buyer completely. Clearing up the context that contains complete
                 // coverage information for the scalingGroup/individualVM
-                if (optionalContext.isPresent()) {
-                    for (Map.Entry<Long, Double> entry : totalCouponsToRelinquish.entrySet()) {
-                        optionalContext.get().setTotalAllocatedCoupons(entry.getKey(),
-                                optionalContext.get().getTotalAllocatedCoupons(entry.getKey()).orElse(0.0) - entry.getValue());
-                    }
+                for (Map.Entry<Long, Double> entry: totalCouponsToRelinquish.entrySet()) {
+                    c.setTotalAllocatedCoupons(entry.getKey(),c.getTotalAllocatedCoupons(entry.getKey())
+                            .orElse(0.0) - entry.getValue());
                 }
                 // actual relinquishing of coupons to the seller
                 double updatedUsage = commSold.getQuantity() - relinquishedCouponsOnSeller;
@@ -211,8 +216,7 @@ public class FunctionalOperatorUtil {
                 double boughtQnty = buyer.getQuantity(boughtIndex);
                 buyer.setQuantity(boughtIndex, 0);
                 // relinquish coupons to the coverageTracked
-                optionalContext.ifPresent(context -> context.setTotalAllocatedCoupons(oid,
-                        context.getTotalAllocatedCoupons(oid).orElse(0.0) - boughtQnty));
+                c.setTotalAllocatedCoupons(oid, c.getTotalAllocatedCoupons(oid).orElse(0.0) - boughtQnty);
                 // for a consumer moving out of a CBTP, we have already updated the usage we just return the updated usage here
                 return new double[] {Math.max(0.0, commSold.getQuantity() - boughtQnty), 0.0};
             } else {
@@ -232,10 +236,9 @@ public class FunctionalOperatorUtil {
                 double discountedCost = 0;
                 double discountCoefficient = 0;
                 double totalAllocatedCoupons = 0;
-                if (buyer.getGroupFactor() > 0 && optionalContext.isPresent()) {
+                if (buyer.getGroupFactor() > 0) {
                     // group leader updates the coupon requested for the group
-                    optionalContext.get().setTotalRequestedCoupons(oid,
-                            requestedCoupons * buyer.getGroupFactor());
+                    c.setTotalRequestedCoupons(oid, requestedCoupons * buyer.getGroupFactor());
                 }
                 if (availableCoupons > 0) {
                     totalAllocatedCoupons = Math.min(requestedCoupons, availableCoupons);
@@ -243,11 +246,7 @@ public class FunctionalOperatorUtil {
                     // normalize total allocated coupons for a single buyer
                     buyer.setQuantity(boughtIndex, totalAllocatedCoupons);
                     // tier information is updated here indirectly through TotalRequestedCoupons update
-                    if (optionalContext.isPresent()) {
-                        optionalContext.get().setTotalAllocatedCoupons(oid,
-                                optionalContext.get().getTotalAllocatedCoupons(oid)
-                                        .orElse(0.0) + totalAllocatedCoupons);
-                    }
+                    c.setTotalAllocatedCoupons(oid, c.getTotalAllocatedCoupons(oid).orElse(0.0) + totalAllocatedCoupons);
                     discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
                             * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
                 }
@@ -290,6 +289,25 @@ public class FunctionalOperatorUtil {
     public static FunctionalOperator SUB_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead)
                     -> new double[]{Math.max(0, commSold.getQuantity() - buyer.getQuantities()[boughtIndex]),
                                     Math.max(0, commSold.getPeakQuantity() - buyer.getPeakQuantities()[boughtIndex])};
+
+    // Return commS overhead (template-cost) when taking the action and
+    // (spent - oldTemplateCost + newTemplateCost) when not taking the action
+    public static FunctionalOperator UPDATE_EXPENSES = (buyer, boughtIndex, commSold, seller,
+                        economy, take, overhead)
+                    -> {
+                        BalanceAccount ba = seller.getSettings().getContext().getBalanceAccount();
+                        if (take) {
+                            // updating the action spent when taking it
+                            CommoditySold commSoldByCurrSeller = buyer.getSupplier() != null ? buyer.getSupplier()
+                                            .getCommoditySold(buyer.getBasket().get(boughtIndex)) : null;
+                            double currCost = commSoldByCurrSeller == null ? 0 : commSoldByCurrSeller.getQuantity();
+                            ba.setSpent((float)(ba.getSpent() - currCost + commSold.getQuantity()));
+                            // do not update the usedValues of the soldCommodities when the action is being taken
+                            return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
+                        } else {
+                            return new double[]{ba.getSpent() - buyer.getQuantities()[boughtIndex] +
+                                                commSold.getQuantity(), 0};
+                    }};
 
     // when taking the action, Return commSoldUsed
     // when not taking the action, return 0 if the buyer fits or INFINITY otherwise
@@ -374,8 +392,8 @@ public class FunctionalOperatorUtil {
                                             TheMatrix.instance(topology.getTopologyId());
                             // Check if the matrix interface is present for this topology
                             if (interfaceOptional.isPresent()) {
-                                Long buyerOid = topology.getTraderOids().get(buyer.getBuyer());
-                                Long sellerOid = topology.getTraderOids().get(seller);
+                                long buyerOid = buyer.getBuyer().getOid();
+                                long sellerOid = seller.getOid();
                                 // Call Place method on interface to update matrix after placement
                                 interfaceOptional.get().place(buyerOid, sellerOid);
                             }
