@@ -539,7 +539,7 @@ public class EntitySettingsApplicator {
     private static class ScalingApplicator extends SingleSettingApplicator {
 
         private ScalingApplicator() {
-            super(EntitySettingSpecs.Move);
+            super(EntitySettingSpecs.CloudComputeScale);
         }
         @Override
         protected void apply(@Nonnull final Builder entity, @Nonnull final Setting setting) {

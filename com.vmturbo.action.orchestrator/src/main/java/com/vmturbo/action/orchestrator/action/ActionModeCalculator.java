@@ -814,8 +814,7 @@ public class ActionModeCalculator {
                                                         EntitySettingSpecs.Move))
                         .distinct();
             case SCALE:
-                // For now we use Move policy for SCALE actions
-                return Stream.of(EntitySettingSpecs.Move);
+                return Stream.of(EntitySettingSpecs.CloudComputeScale);
             case ALLOCATE:
                 // Allocate actions are not executable and are not configurable by the user
                 return Stream.empty();

@@ -38,10 +38,16 @@ public enum EntitySettingSpecs {
     /**
      * Move action automation mode.
      */
-    Move("move", "Move / Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    Move("move", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_VOLUME,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER, EntityType.DISK_ARRAY,
                     EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Cloud compute scale action automation mode.
+     */
+    CloudComputeScale("cloudComputeScale", "Cloud Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
 
     /**
      * Move action automation mode for business user.
@@ -52,7 +58,7 @@ public enum EntitySettingSpecs {
     /**
      * Storage Move action automation mode.
      */
-    StorageMove("storageMove", "Storage Move / Storage Scale", Collections.emptyList(),
+    StorageMove("storageMove", "Storage Move", Collections.emptyList(),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             actionExecutionModeSetToRecommend(), true),
 
@@ -1248,6 +1254,7 @@ public enum EntitySettingSpecs {
                     EntitySettingSpecs.Move.name,
                     EntitySettingSpecs.BusinessUserMove.name,
                     EntitySettingSpecs.StorageMove.name,
+                    EntitySettingSpecs.CloudComputeScale.name,
                     EntitySettingSpecs.Provision.name,
                     EntitySettingSpecs.DisabledProvision.name,
                     EntitySettingSpecs.Reconfigure.name,

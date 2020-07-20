@@ -256,7 +256,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        final String settingName = EntitySettingSpecs.Move.getSettingName();
+        final String settingName = EntitySettingSpecs.CloudComputeScale.getSettingName();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(settingName,
                         Setting.newBuilder()

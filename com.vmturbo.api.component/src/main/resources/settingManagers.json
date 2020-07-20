@@ -25,6 +25,7 @@
         "move",
         "businessUserMove",
         "storageMove",
+        "cloudComputeScale",
         "suspend",
         "suspendIsDisabled",
         "delete",
