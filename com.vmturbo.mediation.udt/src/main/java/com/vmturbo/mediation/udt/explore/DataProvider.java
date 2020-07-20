@@ -17,6 +17,8 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 import com.google.common.collect.Sets;
 
+import io.grpc.StatusRuntimeException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -133,11 +135,15 @@ public class DataProvider {
     @Nonnull
     public Set<Long> getGroupMembersIds(@Nonnull GroupID id) {
         final GetMembersRequest request = requests.getGroupMembersRequest(id.getId());
-        final Iterator<GetMembersResponse> membersResponseIterator = requestExecutor
-                .getGroupMembers(request);
-        return Sets.newHashSet(membersResponseIterator).stream()
+        try {
+            final Iterator<GetMembersResponse> membersResponseIterator =
+                    requestExecutor.getGroupMembers(request);
+            return Sets.newHashSet(membersResponseIterator).stream()
                 .flatMap(response -> response.getMemberIdList().stream())
                 .collect(Collectors.toSet());
+        } catch (StatusRuntimeException e) {
+            LOGGER.error("Error getting members of group {} : {}", id, e.getMessage());
+            return Sets.newHashSet();
+        }
     }
-
 }

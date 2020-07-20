@@ -407,7 +407,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             final Set<Long> existingRealGroups = groupStore.getExistingGroupIds(realGroupIds);
             if (!realGroupIds.equals(existingRealGroups)) {
                 realGroupIds.removeAll(existingRealGroups);
-                final String errMsg = "Cannot find a groups with ids " + realGroupIds;
+                final String errMsg = "Cannot find groups with ids " + realGroupIds;
                 logger.error(errMsg);
                 responseObserver.onError(
                         Status.NOT_FOUND.withDescription(errMsg).asRuntimeException());
