@@ -260,7 +260,7 @@ public class AbstractCachingHistoricalEditorTest {
         }
 
         @Override
-        public void restoreDiags(@Nonnull byte[] bytes) throws DiagnosticsException {
+        protected void restoreState(@Nonnull byte[] bytes) throws DiagnosticsException {
         }
     }
 

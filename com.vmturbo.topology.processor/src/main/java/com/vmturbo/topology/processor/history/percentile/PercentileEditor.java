@@ -628,7 +628,7 @@ public class PercentileEditor extends
     }
 
     @Override
-    public void restoreDiags(@Nonnull final byte[] bytes) throws DiagnosticsException {
+    protected void restoreState(@Nonnull final byte[] bytes) throws DiagnosticsException {
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                         .setTopologyId(getConfig().getRealtimeTopologyContextId()).build();
         final Map<Integer, Collection<TopologyEntity>> typeToIndex = new HashMap<>();

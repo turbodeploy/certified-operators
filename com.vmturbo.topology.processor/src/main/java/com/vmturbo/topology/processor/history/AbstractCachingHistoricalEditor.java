@@ -168,6 +168,24 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
         exportState(appender);
     }
 
+    @Override
+    public void restoreDiags(@Nonnull byte[] bytes) throws DiagnosticsException {
+        if (bytes.length <= 0) {
+            logger.debug("Cannot import cache for '{}' from empty file.",
+                            getClass().getSimpleName());
+            return;
+        }
+        restoreState(bytes);
+    }
+
+    /**
+     * Imports state from provided bytes.
+     *
+     * @param bytes that are going to be used to restore state.
+     * @throws DiagnosticsException when an exception occurs during state restoration.
+     */
+    protected abstract void restoreState(@Nonnull byte[] bytes) throws DiagnosticsException;
+
     /**
      * Creates diagnosticsFilename where to store diagnostic from specified type instance.
      *
