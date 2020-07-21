@@ -8,19 +8,15 @@ import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -386,9 +382,9 @@ public class CloudActionsIntegrationTest {
         assertEquals(8, slVM2.getQuantity(1), 0);
 
         // VM2's context got updated after move
-        assertEquals(16, vms[1].getSettings().getContext().getTotalRequestedCoupons(
+        assertEquals(16, vms[1].getSettings().getContext().get().getTotalRequestedCoupons(
                 sellers[2].getOid()).get(), 0);
-        assertEquals(8, vms[1].getSettings().getContext().getTotalAllocatedCoupons(
+        assertEquals(8, vms[1].getSettings().getContext().get().getTotalAllocatedCoupons(
             sellers[2].getOid()).get(), 0);
         // now say we trigger an actual placement instead of forcing the move
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
@@ -1059,8 +1055,8 @@ public class CloudActionsIntegrationTest {
         PlacementResults result = Placement.runPlacementsTillConverge(e, new Ledger(e), "PlacementFromUnitTest");
         Assert.assertEquals(3, result.getActions().size());
         // Make sure the buyer context has 24 requested and allocated coupons
-        Assert.assertEquals(24, vms[0].getSettings().getContext().getTotalRequestedCoupons(sellers[2].getOid()).get(), 0.1);
-        Assert.assertEquals(24, vms[0].getSettings().getContext().getTotalAllocatedCoupons(sellers[2].getOid()).get(), 0.1);
+        Assert.assertEquals(24, vms[0].getSettings().getContext().get().getTotalRequestedCoupons(sellers[2].getOid()).get(), 0.1);
+        Assert.assertEquals(24, vms[0].getSettings().getContext().get().getTotalAllocatedCoupons(sellers[2].getOid()).get(), 0.1);
         // Make sure the CBTP1's coupon comm sold has quantity 24
         Assert.assertEquals(24, sellers[2].getCommoditySold(COUPON).getQuantity(), 0.1);
     }
