@@ -186,6 +186,54 @@ public class TopologyConverter {
     private final ProjectedRICoverageCalculator projectedRICoverageCalculator;
 
     /**
+     * A non-shop-together TopologyConverter.
+     *
+     * @param topologyInfo information about topology
+     * @param marketPriceTable market price table
+     * @param cloudCostData cloud cost data
+     * @param commodityIndexFactory commodity index factory
+     * @param tierExcluderFactory tier excluder factory
+     * @param consistentScalingHelperFactory CSM helper factory
+     */
+    @VisibleForTesting
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+                             @Nonnull final MarketPriceTable marketPriceTable,
+                             @Nonnull final CloudCostData cloudCostData,
+                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
+                             @Nonnull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final ConsistentScalingHelperFactory
+                                     consistentScalingHelperFactory) {
+        this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.cloudTopology = null;
+        this.consistentScalingHelper = consistentScalingHelperFactory
+                .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
+        this.commodityConverter = new CommodityConverter( new NumericIDAllocator(),
+                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
+                conversionErrorCounts, consistentScalingHelper);
+        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
+                getShoppingListOidToInfos());
+        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
+                marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
+        // Lazy initialize commodityIndex through Suppliers#memoize. This ensures that all calls to
+        // commmodityIndex#get after the first just return the lazy-initialized commodityIndex.
+        this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
+
+        this.marketMode = MarketMode.M2Only;
+        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
+                oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
+        // Lazy initialize actionInterpreter. It needs to be lazy-initialized because it refers
+        // to the lazy-initialized commodity index.
+        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
+                shoppingListOidToInfos,
+                cloudTc,
+                unmodifiableEntityOidToDtoMap,
+                oidToProjectedTraderTOMap,
+                cert,
+                projectedRICoverageCalculator, tierExcluder, commodityIndex));
+    }
+
+    /**
      * Entities that are providers of containers.
      * Populated only for plans. For realtime market, this set will be empty.
      */
@@ -259,7 +307,7 @@ public class TopologyConverter {
 
     private final CommodityConverter commodityConverter;
 
-    private final ActionInterpreter actionInterpreter;
+    private final Supplier<ActionInterpreter> actionInterpreter;
 
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
@@ -271,8 +319,11 @@ public class TopologyConverter {
     /**
      * Index that keeps scaling factors applied during conversion TO market entities, to allow
      * quick lookups to reverse scaling when converting FROM market entities.
+     * <p/>
+     * Lazily initialized to reduce memory usage in the component until we actually need to
+     * use the CommodityIndex when we convert back from market.
      */
-    private final CommodityIndex commodityIndex;
+    private Supplier<CommodityIndex> commodityIndex;
 
     private final TierExcluder tierExcluder;
 
@@ -327,8 +378,8 @@ public class TopologyConverter {
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         this.consistentScalingHelper = consistentScalingHelperFactory
                 .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
-        this.commodityConverter = incomingCommodityConverter != null
-                ? incomingCommodityConverter : new CommodityConverter(new NumericIDAllocator(),
+        this.commodityConverter = incomingCommodityConverter != null ?
+                incomingCommodityConverter : new CommodityConverter(new NumericIDAllocator(),
                 includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
                 conversionErrorCounts, consistentScalingHelper);
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
@@ -348,49 +399,6 @@ public class TopologyConverter {
             projectedRICoverageCalculator, tierExcluder, commodityIndex));
         this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
         this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
-    }
-
-    /**
-     * A non-shop-together TopologyConverter.
-     *
-     * @param topologyInfo information about topology
-     * @param marketPriceTable market price table
-     * @param cloudCostData cloud cost data
-     * @param commodityIndexFactory commodity index factory
-     * @param tierExcluderFactory tier excluder factory
-     * @param consistentScalingHelperFactory CSM helper factory
-     */
-    @VisibleForTesting
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final MarketPriceTable marketPriceTable,
-                             @Nonnull final CloudCostData cloudCostData,
-                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @Nonnull final TierExcluderFactory tierExcluderFactory,
-                             @Nonnull final ConsistentScalingHelperFactory
-                                     consistentScalingHelperFactory) {
-        this.topologyInfo = Objects.requireNonNull(topologyInfo);
-        this.cloudTopology = null;
-        this.consistentScalingHelper = consistentScalingHelperFactory
-                .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
-        this.commodityConverter = new CommodityConverter( new NumericIDAllocator(),
-                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
-                conversionErrorCounts, consistentScalingHelper);
-        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
-                getShoppingListOidToInfos());
-        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
-                marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
-        this.commodityIndex = commodityIndexFactory.newIndex();
-        this.marketMode = MarketMode.M2Only;
-        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
-                oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.actionInterpreter = new ActionInterpreter(commodityConverter,
-                shoppingListOidToInfos,
-                cloudTc,
-                unmodifiableEntityOidToDtoMap,
-                oidToProjectedTraderTOMap,
-                cert,
-                projectedRICoverageCalculator, tierExcluder, commodityIndex);
     }
 
     @VisibleForTesting
@@ -811,9 +819,9 @@ public class TopologyConverter {
         tierExcluder.computeReasonSettings(actionTOs, originalCloudTopology);
         List<Action> actions = Lists.newArrayList();
         actionTOs.forEach(actionTO -> {
-            List<Action> interpretedActions = interpretAction(actionTO, projectedTopology,
+            List<Action> currentActions = interpretAction(actionTO, projectedTopology,
                 originalCloudTopology, projectedCosts, topologyCostCalculator);
-            actions.addAll(interpretedActions);
+            actions.addAll(currentActions);
         });
         return actions;
     }
@@ -845,7 +853,7 @@ public class TopologyConverter {
      * @return The {@link Action} describing the recommendation in a topology-specific way.
      */
     @NonNull
-    Optional<Action> interpretAction(@NonNull final ActionTO actionTO,
+    List<Action> interpretAction(@Nonnull final ActionTO actionTO,
                                      @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
                                      @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
                                      @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
@@ -1017,7 +1025,7 @@ public class TopologyConverter {
                                 sl.getOid(), traderTO.getDebugInfoNeverUseInCode(),
                                 supplier != null ? supplier.getDebugInfoNeverUseInCode() : null);
                 ShoppingListInfo slInfo = new ShoppingListInfo(sl.getOid(), traderTO.getOid(),
-                                sl.getSupplier(), null,
+                                sl.getSupplier(), null, null,
                                 supplier != null ? supplier.getType() : null, commList);
                 shoppingListOidToInfos.put(sl.getOid(), slInfo);
             }
@@ -1985,10 +1993,10 @@ public class TopologyConverter {
         }
 
         logger.warn("Projected percentile approximation can't be calculated. Original percentile = {}, oldCapacity = {}, newCapacity = {}, boughtDTO = {}",
-                    originalPercentile,
-                    oldCapacity,
-                    newCapacity,
-                    boughtDTO);
+                originalPercentile,
+                oldCapacity,
+                newCapacity,
+                boughtDTO);
         return null;
     }
 

@@ -255,7 +255,7 @@ public class TopologyEntitiesHandler {
                 ? getProcessedMarketActions(marketActions, economy)
                 : marketActions;
 
-        results = AnalysisToProtobuf.analysisResults(actions, topology.getTraderOids(),
+        results = AnalysisToProtobuf.analysisResults(actions,
             topology.getShoppingListOids(), stop - start,
             topology, startPriceStatement);
         if (isRealtime) {

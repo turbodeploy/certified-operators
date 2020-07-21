@@ -333,7 +333,7 @@ public class PlanTopologyScopeEditorTest {
 
 
     private final TopologyGraph<TopologyEntity> cloudMigrationGraph = TopologyEntityUtils
-            .topologyGraphOf(bapp1, app1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
+            .topologyGraphOf(bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
                     pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
                     as2, az1London, az2London, azOhio,
                     az1HongKong, az2HongKong, regionLondon, regionOhio,
