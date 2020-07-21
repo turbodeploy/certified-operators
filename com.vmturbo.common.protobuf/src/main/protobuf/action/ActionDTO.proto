@@ -416,6 +416,7 @@ message Resize {
     optional string scaling_group_id = 8;
 
     // The supplier who triggers the resize
+    // This field is not used now. Should be removed if the tests show that diags for 7.22.3-7.22.5 are loaded correctly.
     optional ActionEntity resize_trigger_trader = 9;
 }
 
