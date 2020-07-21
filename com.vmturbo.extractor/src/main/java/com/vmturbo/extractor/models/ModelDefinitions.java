@@ -8,10 +8,13 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimap;
 
 import com.vmturbo.extractor.models.Column.JsonString;
-import com.vmturbo.extractor.schema.enums.EntitySeverity;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.schema.enums.Severity;
+import com.vmturbo.extractor.schema.tables.Entity;
+import com.vmturbo.extractor.schema.tables.Metric;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
@@ -36,11 +39,11 @@ public class ModelDefinitions {
     /** ENTITY_NAME column. */
     public static final Column<String> ENTITY_NAME = Column.stringColumn("name");
     /** ENTITY_TYPE column, named just "type". */
-    public static final Column<String> ENTITY_TYPE_AS_TYPE = Column.stringColumn("type");
+    public static final Column<EntityType> ENTITY_TYPE_AS_TYPE = Column.entityTypeColumn(Entity.ENTITY.TYPE.getName());
     /** ENTITY_STATE column. */
-    public static final Column<String> ENTITY_STATE = Column.stringColumn("state");
+    public static final Column<EntityState> ENTITY_STATE = Column.entityStateColumn(Entity.ENTITY.STATE.getName());
     /** ENVIRONMENT_TYPE column. */
-    public static final Column<String> ENVIRONMENT_TYPE = Column.stringColumn("environment");
+    public static final Column<EnvironmentType> ENVIRONMENT_TYPE = Column.environmentTypeColumn(Entity.ENTITY.ENVIRONMENT.getName());
     /** ATTRS column. */
     public static final Column<JsonString> ATTRS = Column.jsonColumn("attrs");
     /** SCOPED_OIDS column. */
@@ -50,7 +53,7 @@ public class ModelDefinitions {
     /** LAST_SEEN column. */
     public static final Column<Timestamp> LAST_SEEN = Column.timestampColumn("last_seen");
     /** COMMODITY_TYPE column. */
-    public static final Column<String> COMMODITY_TYPE = Column.stringColumn("type");
+    public static final Column<MetricType> COMMODITY_TYPE = new Column<>(Metric.METRIC.TYPE, ColType.METRIC_TYPE);
     /** COMMODITY_KEY column. */
     public static final Column<String> COMMODITY_KEY = Column.stringColumn("key");
     /** COMMODITY_CURRENT column. */
@@ -189,18 +192,19 @@ public class ModelDefinitions {
     /** ENTITY TYPE enum column. */
     public static final Column<EntityType> ENTITY_TYPE_ENUM = Column.entityTypeColumn("type");
     /** ENTITY SEVERITY enum column. */
-    public static final Column<EntitySeverity> ENTITY_SEVERITY_ENUM = Column.entitySeverityColumn("severity");
+    public static final Column<Severity> SEVERITY_ENUM = Column.severityColumn("severity");
     /** ACTIONS COUNT enum column. */
     public static final Column<Integer> NUM_ACTIONS = Column.intColumn("num_actions");
 
     /** SEARCH_ENTITY_TABLE. */
     public static final Table SEARCH_ENTITY_TABLE = Table.named("search_entity")
             .withColumns(ENTITY_OID_AS_OID, ENTITY_TYPE_ENUM, ENTITY_NAME, ENVIRONMENT_TYPE_ENUM,
-                    ENTITY_STATE_ENUM, ENTITY_SEVERITY_ENUM, NUM_ACTIONS, ATTRS)
+                    ENTITY_STATE_ENUM, SEVERITY_ENUM, NUM_ACTIONS, ATTRS)
             .build();
 
     /** SEARCH_MODEL. */
     public static final Model SEARCH_MODEL = Model.named("search")
             .withTables(SEARCH_ENTITY_TABLE)
             .build();
+
 }
