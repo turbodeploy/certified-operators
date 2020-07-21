@@ -20,7 +20,7 @@ public class GroupTypeMapper {
     /**
      * Mappings between {@link EntityType} and {@link GroupType}.
      */
-    private static final BiMap<EntityType, GroupType> GROUP_TYPE_MAPPINGS =
+    protected static final BiMap<EntityType, GroupType> GROUP_TYPE_MAPPINGS =
         new ImmutableBiMap.Builder()
             .put( EntityType.GROUP, GroupType.GROUP)
             .put( EntityType.BILLING_FAMILY, GroupType.BILLING_FAMILY)

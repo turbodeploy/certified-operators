@@ -42,12 +42,18 @@ import com.vmturbo.search.mappers.EntityStateMapper;
 import com.vmturbo.search.mappers.EntityTypeMapper;
 import com.vmturbo.search.mappers.EnvironmentTypeMapper;
 import com.vmturbo.search.mappers.GroupTypeMapper;
+import com.vmturbo.search.mappers.TypeMapper;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
  * A representation of a single API query, mapped to a SQL query.
  */
 public abstract class AbstractQuery {
+
+    /**
+     * Const field used by searchAll to handle entity/groupType parsing.
+     */
+    protected static final PrimitiveFieldApiDTO PRIMITIVE_TYPE = PrimitiveFieldApiDTO.primitive("EntityOrGroupType");
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -65,6 +71,7 @@ public abstract class AbstractQuery {
     private static Map<FieldApiDTO, Field> primaryTableColumns =
         new HashMap<FieldApiDTO, Field>() {{
             put(PrimitiveFieldApiDTO.oid(), SearchEntity.SEARCH_ENTITY.OID);
+            put(PRIMITIVE_TYPE, SearchEntity.SEARCH_ENTITY.TYPE);
             put(PrimitiveFieldApiDTO.entityType(), SearchEntity.SEARCH_ENTITY.TYPE);
             put(PrimitiveFieldApiDTO.groupType(), SearchEntity.SEARCH_ENTITY.TYPE);
             put(PrimitiveFieldApiDTO.name(), SearchEntity.SEARCH_ENTITY.NAME);
@@ -80,6 +87,7 @@ public abstract class AbstractQuery {
         put(PrimitiveFieldApiDTO.severity(), EntitySeverityMapper.fromSearchSchemaToApiFunction);
         put(PrimitiveFieldApiDTO.entityState(), EntityStateMapper.fromSearchSchemaToApiFunction);
         put(PrimitiveFieldApiDTO.environmentType(), EnvironmentTypeMapper.fromSearchSchemaToApiFunction);
+        put(PRIMITIVE_TYPE, TypeMapper.fromSearchSchemaToApiFunction); // For Search All
     }};
 
     /**

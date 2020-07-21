@@ -8,6 +8,7 @@ import com.vmturbo.api.dto.searchquery.EntityCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.SearchAllQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
@@ -64,6 +65,23 @@ public class SearchQueryService implements ISearchQueryService {
             @Nonnull GroupQueryApiDTO input) throws Exception {
         return apiQueryEngine.processGroupQuery(input);
     }
+
+    /**
+     * Search groups.  Endpoint: POST /groups/query
+     *
+     * @param input {@link GroupQueryApiDTO} object with specifications for the search
+     * @return list of groups returned
+     * @throws Exception when some error happens
+     */
+    @Override
+    @Nonnull
+    public SearchQueryPaginationResponse<SearchQueryRecordApiDTO> searchAll(
+            @Nonnull SearchAllQueryApiDTO input) throws Exception {
+        return apiQueryEngine.processSearchAllQuery(input);
+    }
+
+
+
 
     /**
      * Count entities.  Endpoint: POST /entities/count

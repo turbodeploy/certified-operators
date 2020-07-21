@@ -10,14 +10,14 @@ import com.google.common.collect.ImmutableBiMap;
 import com.vmturbo.extractor.schema.enums.EntityType;
 
 /**
- * Utility for mapping been ENUMs {@link com.vmturbo.api.enums.EntityType} and {@link EntityType}.
+ * Utility for mapping between ENUMs {@link com.vmturbo.api.enums.EntityType} and {@link EntityType}.
  */
 public class EntityTypeMapper {
 
     /**
      * Mappings between {@link EntityType} and {@link com.vmturbo.api.enums.EntityType}.
      */
-    private static final BiMap<EntityType, com.vmturbo.api.enums.EntityType> ENTITY_TYPE_MAPPINGS =
+    protected static final BiMap<EntityType, com.vmturbo.api.enums.EntityType> ENTITY_TYPE_MAPPINGS =
         new ImmutableBiMap.Builder()
             .put( EntityType.APPLICATION, com.vmturbo.api.enums.EntityType.APPLICATION)
             .put( EntityType.APPLICATION_COMPONENT, com.vmturbo.api.enums.EntityType.APPLICATION_COMPONENT)

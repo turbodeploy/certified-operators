@@ -11,6 +11,7 @@ import com.vmturbo.api.dto.searchquery.EntityCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.SearchAllQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
@@ -75,6 +76,20 @@ public class QueryFactory {
         final GroupQueryApiDTO groupQueryApiDTO) throws SearchQueryFailedException {
         GroupQuery query = new GroupQuery(groupQueryApiDTO, readOnlyDSLContext, apiPaginationDefaultLimit, apiPaginationMaxLimit);
         logger.info("Processing GroupQuery");
+        return query.readQueryAndExecute();
+    }
+
+    /**
+     * Perform a search all query, and return the results.
+     *
+     * @param searchAllQueryApiDTO the API search input
+     * @return paginated search results
+     * @throws SearchQueryFailedException problems processing request
+     */
+    public SearchQueryPaginationResponse<SearchQueryRecordApiDTO> performSearchAllQuery(
+            final SearchAllQueryApiDTO searchAllQueryApiDTO) throws SearchQueryFailedException {
+        SearchAllQuery query = new SearchAllQuery(searchAllQueryApiDTO, readOnlyDSLContext, apiPaginationDefaultLimit, apiPaginationMaxLimit);
+        logger.info("Processing SearchAllQuery");
         return query.readQueryAndExecute();
     }
 

@@ -8,6 +8,7 @@ import com.vmturbo.api.dto.searchquery.EntityCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupCountRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.SearchAllQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
@@ -37,6 +38,16 @@ public interface IApiQueryEngine {
      */
     SearchQueryPaginationResponse<SearchQueryRecordApiDTO> processGroupQuery(
         @Nonnull GroupQueryApiDTO request) throws Exception;
+
+    /**
+     * Processes {@link SearchAllQueryApiDTO} and returns paginated results.
+     *
+     * @param request the search all query
+     * @return a paginated list of records
+     * @throws Exception when the query cannot be processed.
+     */
+    SearchQueryPaginationResponse<SearchQueryRecordApiDTO> processSearchAllQuery(@Nonnull SearchAllQueryApiDTO request)
+            throws Exception;
 
     /**
      * Processes a {@link EntityCountRequestApiDTO} and returns an (unpaginated) list of results.

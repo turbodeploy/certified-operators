@@ -293,10 +293,10 @@ public class EntityQueryTest {
         EntityQuery query = entityQuery(request);
 
         //Jooq Fields for building results
-        final Field oidField = query.buildAndTrackSelectFieldFromEntityType(primitiveOid);
-        final Field primitive = query.buildAndTrackSelectFieldFromEntityType(primitiveTextField);
-        final Field commodity = query.buildAndTrackSelectFieldFromEntityType(commodityNumericField);
-        final Field relateEntity = query.buildAndTrackSelectFieldFromEntityType(relatedEntityMultiTextField);
+        final Field oidField = query.buildFieldForApiField(primitiveOid, true);
+        final Field primitive = query.buildFieldForApiField(primitiveTextField, true);
+        final Field commodity = query.buildFieldForApiField(commodityNumericField, true);
+        final Field relateEntity = query.buildFieldForApiField(relatedEntityMultiTextField, true);
         //Values for jooq results
         final Long oidValue = 123L;
         final String primitiveTextValue = "primitiveTextValue";
