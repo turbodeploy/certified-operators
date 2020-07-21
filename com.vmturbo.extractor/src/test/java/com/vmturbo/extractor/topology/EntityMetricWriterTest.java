@@ -108,7 +108,6 @@ import com.vmturbo.extractor.models.DslUpdateRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
-import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig.Builder;
 import com.vmturbo.extractor.util.ExtractorTestUtil;
 import com.vmturbo.extractor.util.ExtractorTestUtil.EntitiesProcessor;
@@ -359,13 +358,13 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(3));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, vm.getOid(), null, MetricType.CPU, null, null, null, null, 3.0, pm.getOid()),
+                createMetricRecordMap(null, vm.getOid(), null, CPU.name(), null, null, null, null, 3.0, pm.getOid()),
                 TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, vm.getOid(), null, MetricType.MEM, "a", null, null, null, 1.0, pm.getOid()),
+                createMetricRecordMap(null, vm.getOid(), null, MEM.name(), "a", null, null, null, 1.0, pm.getOid()),
                 TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, vm.getOid(), null, MetricType.MEM, "b", null, null, null, 2.0, pm.getOid()),
+                createMetricRecordMap(null, vm.getOid(), null, MEM.name(), "b", null, null, null, 2.0, pm.getOid()),
                 TIME.getName(), ENTITY_HASH.getName()));
     }
 
@@ -397,13 +396,13 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(3));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, pm.getOid(), null, MetricType.CPU, null, 3.0, 30.0, 0.1, null, null),
+                createMetricRecordMap(null, pm.getOid(), null, CPU.name(), null, 3.0, 30.0, 0.1, null, null),
                 TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "a", 1.0, 10.0, 0.1, null, null),
+                createMetricRecordMap(null, pm.getOid(), null, MEM.name(), "a", 1.0, 10.0, 0.1, null, null),
                 TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "b", 2.0, 20.0, 0.1, null, null),
+                createMetricRecordMap(null, pm.getOid(), null, MEM.name(), "b", 2.0, 20.0, 0.1, null, null),
                 TIME.getName(), ENTITY_HASH.getName()));
     }
 
@@ -447,8 +446,8 @@ public class EntityMetricWriterTest {
         records.forEach((oid, record) -> {
             if (oid == pm.getOid()) {
                 // verify that pm's Q64_VCPU is not changed
-                assertThat(record.get(COMMODITY_TYPE), is(MetricType.valueOf(CommodityType.forNumber(
-                        pm.getCommoditySoldList(0).getCommodityType().getType()).name())));
+                assertThat(record.get(COMMODITY_TYPE), is(CommodityType.forNumber(
+                        pm.getCommoditySoldList(0).getCommodityType().getType()).name()));
             } else {
                 final TopologyEntityDTO vm = vmsById.get(oid);
                 final double boughtUsed =

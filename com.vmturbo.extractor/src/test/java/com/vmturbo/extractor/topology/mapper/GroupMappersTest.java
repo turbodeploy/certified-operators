@@ -26,7 +26,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.util.GroupServiceTestUtil;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.GroupType;
 
@@ -70,12 +69,12 @@ public class GroupMappersTest {
         // value. Note that by using string literals here instead of the corresponding constants we
         // protect against those constants being inadvertantly changed, e.g. during other editing
         // in the vicinity.
-        assertThat(getNextMappedTypeName(groups), is(EntityType.GROUP));
-        assertThat(getNextMappedTypeName(groups), is(EntityType.RESOURCE_GROUP));
-        assertThat(getNextMappedTypeName(groups), is(EntityType.BILLING_FAMILY));
-        assertThat(getNextMappedTypeName(groups), is(EntityType.COMPUTE_CLUSTER));
-        assertThat(getNextMappedTypeName(groups), is(EntityType.K8S_CLUSTER));
-        assertThat(getNextMappedTypeName(groups), is(EntityType.STORAGE_CLUSTER));
+        assertThat(getNextMappedTypeName(groups), is("GROUP"));
+        assertThat(getNextMappedTypeName(groups), is("RESOURCE_GROUP"));
+        assertThat(getNextMappedTypeName(groups), is(BILLING_FAMILY.name()));
+        assertThat(getNextMappedTypeName(groups), is("COMPUTE_CLUSTER"));
+        assertThat(getNextMappedTypeName(groups), is("K8S_CLUSTER"));
+        assertThat(getNextMappedTypeName(groups), is(STORAGE_CLUSTER.name()));
         assertThat(groups.hasNext(), is(false));
         // make sure we've got all group types covered (add new groups above if not)
         assertThat(GroupType.values().length, is(getGroupsResponse.size()));
@@ -88,7 +87,7 @@ public class GroupMappersTest {
      * @param groups group iterator
      * @return the group type name, according to our mapper
      */
-    private EntityType getNextMappedTypeName(final Iterator<Grouping> groups) {
+    private String getNextMappedTypeName(final Iterator<Grouping> groups) {
         return GroupMappers.mapGroupTypeToName(groups.next().getDefinition().getType());
     }
 }

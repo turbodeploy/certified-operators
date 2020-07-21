@@ -16,10 +16,10 @@ import java.util.TimeZone;
 import org.junit.Test;
 
 import com.vmturbo.extractor.models.Column.JsonString;
+import com.vmturbo.extractor.schema.enums.EntitySeverity;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
-import com.vmturbo.extractor.schema.enums.Severity;
 
 /**
  * Tests for the {@link ColType} class, covering hash and csv functionality.
@@ -275,10 +275,10 @@ public class ColTypeTest {
      */
     @Test
     public void testEntitySeverityColType() {
-        for (Severity value : Severity.values()) {
-            assertThat(Collections.singletonList(ColType.SEVERITY.fromBytes(
-                    ColType.SEVERITY.toBytes(value))), contains(value));
-            assertThat(ColType.SEVERITY.toCsv(value), is(value.getLiteral()));
+        for (EntitySeverity value : EntitySeverity.values()) {
+            assertThat(Collections.singletonList(ColType.ENTITY_SEVERITY.fromBytes(
+                    ColType.ENTITY_SEVERITY.toBytes(value))), contains(value));
+            assertThat(ColType.ENTITY_SEVERITY.toCsv(value), is(value.getLiteral()));
         }
     }
 
@@ -316,7 +316,7 @@ public class ColTypeTest {
         assertThat(ColType.TIMESTAMP.getPostgresType(), is("timestamptz"));
         assertThat(ColType.ENTITY_TYPE.getPostgresType(), is("entity_type"));
         assertThat(ColType.ENTITY_STATE.getPostgresType(), is("entity_state"));
-        assertThat(ColType.SEVERITY.getPostgresType(), is("severity"));
+        assertThat(ColType.ENTITY_SEVERITY.getPostgresType(), is("entity_severity"));
         assertThat(ColType.ENVIRONMENT_TYPE.getPostgresType(), is("environment_type"));
     }
 }

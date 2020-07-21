@@ -31,7 +31,6 @@ import org.hamcrest.Description;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.Table;
 import com.vmturbo.extractor.models.Table.Record;
-import com.vmturbo.extractor.schema.enums.MetricType;
 
 /**
  * Utility class for use in tests involving {@link Record} class.
@@ -104,7 +103,7 @@ public class RecordTestUtil {
      * @return a map representing the record data
      */
     public static Map<String, Object> createMetricRecordMap(
-            final OffsetDateTime time, final long oid, final Long hash, final MetricType type,
+            final OffsetDateTime time, final long oid, final Long hash, final String type,
             final String commodityKey, final Double current, final Double capacity, final Double utilization,
             final Double consumed, final Long provider) {
         return ImmutableList.<Pair<String, Object>>of(
@@ -157,12 +156,7 @@ public class RecordTestUtil {
 
         @Override
         public boolean matches(final Object item) {
-            boolean matches = item instanceof Map && expected.equals(stripWild(stripNullValues((Map<?, ?>)item)));
-            if (!matches) {
-                return matches;
-            } else {
-                return matches;
-            }
+            return item instanceof Map && expected.equals(stripWild(stripNullValues((Map<?, ?>)item)));
         }
 
         @Override

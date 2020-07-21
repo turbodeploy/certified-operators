@@ -141,16 +141,16 @@ public class TableTest {
         r.set(C1, 1);
         r.set(C2, new Long[]{1L, 2L, 3L});
         r.set(C3, "Hello There!");
-        long hash1 = r.getXxHash(ImmutableSet.of(C1, C2, C3));
+        long hash1 = r.getXxHash(ImmutableSet.of("c1", "c2", "c3"));
         r.set(C1, 3);
-        long hash2 = r.getXxHash(ImmutableSet.of(C1, C2, C3));
+        long hash2 = r.getXxHash(ImmutableSet.of("c1", "c2", "c3"));
         assertThat(hash1, not(hash2));
         r.set(C2, new Long[]{10L, 20L, 30L});
-        long hash3 = r.getXxHash(ImmutableSet.of(C1, C2, C3));
+        long hash3 = r.getXxHash(ImmutableSet.of("c1", "c2", "c3"));
         assertThat(hash1, not(hash3));
         assertThat(hash2, not(hash3));
         r.set(C3, "uh huh");
-        long hash4 = r.getXxHash(ImmutableSet.of(C1, C2, C3));
+        long hash4 = r.getXxHash(ImmutableSet.of("c1", "c2", "c3"));
         assertThat(hash1, not(hash4));
         assertThat(hash2, not(hash4));
         assertThat(hash3, not(hash4));
@@ -158,7 +158,7 @@ public class TableTest {
         r.set(C1, 1);
         r.set(C2, new Long[]{1L, 2L, 3L});
         r.set(C3, "Hello There!");
-        long hash5 = r.getXxHash(ImmutableSet.of(C1, C2, C3));
+        long hash5 = r.getXxHash(ImmutableSet.of("c1", "c2", "c3"));
         assertThat(hash1, is(hash5));
     }
 

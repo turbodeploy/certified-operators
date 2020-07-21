@@ -132,12 +132,9 @@ public class DatasourceInput {
      * @return True if the inputs are equivalent, false otherwise.
      */
     public boolean matchesInput(DatasourceInput input) {
-        // Grafana doesn't allow two datasources with the same display name, so a display name
-        // equality overrides any other equalities.
-        final boolean roughMatch = this.displayName.equals(input.getDisplayName())
-                || (this.database.equals(input.database)
+        final boolean roughMatch = this.database.equals(input.database)
                 && this.url.equals(input.url)
-                && this.user.equals(input.user));
+                && this.user.equals(input.user);
         return roughMatch;
     }
 }

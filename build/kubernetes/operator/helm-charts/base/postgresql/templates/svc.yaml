@@ -25,9 +25,11 @@ spec:
   {{- if and (eq .Values.service.type "ClusterIP") .Values.service.clusterIP }}
   clusterIP: {{ .Values.service.clusterIP }}
   {{- end }}
-  {{- if and (.Values.global) (.Values.global.externalIP) (not .Values.global.externalTimescaleDBIP) }}
+  {{- if .Values.global }}
+  {{- if .Values.global.externalIP }}
   externalIPs:
     - {{ .Values.global.externalIP }}
+  {{- end }}
   {{- end }}
   ports:
   - name: tcp-postgresql

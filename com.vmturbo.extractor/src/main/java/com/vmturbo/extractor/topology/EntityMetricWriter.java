@@ -59,7 +59,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.MultiStageTimer;
-import com.vmturbo.extractor.RecordHashManager.SnapshotManager;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslRecordSink;
@@ -74,6 +73,7 @@ import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.search.EnumUtils;
+import com.vmturbo.extractor.topology.EntityHashManager.SnapshotManager;
 import com.vmturbo.extractor.topology.mapper.GroupMappers;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -90,7 +90,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     /**
      * The name to persist in db for ready queue commodity bought by VM.
      */
-    public static final MetricType VM_QX_VCPU_NAME = MetricType.CPU_READY;
+    public static final String VM_QX_VCPU_NAME = "CPU_READY";
 
     /**
      * Matches ready queue commodity like: Q16_VCPU, QN_VCPU.
@@ -157,14 +157,14 @@ public class EntityMetricWriter extends TopologyWriterBase {
         }
         Record entitiesRecord = new Record(ENTITY_TABLE);
         entitiesRecord.set(ENTITY_OID_AS_OID, oid);
-        entitiesRecord.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, entityType);
+        entitiesRecord.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, entityType.name());
         entitiesRecord.set(ModelDefinitions.ENTITY_NAME, e.getDisplayName());
         entitiesRecord.setIf(e.hasEnvironmentType(), ModelDefinitions.ENVIRONMENT_TYPE,
                 () -> EnumUtils.environmentTypeFromProtoToDb(e.getEnvironmentType(),
-                        EnvironmentType.UNKNOWN_ENV));
+                        EnvironmentType.UNKNOWN_ENV).name());
         entitiesRecord.setIf(e.hasEntityState(), ModelDefinitions.ENTITY_STATE,
                 () -> EnumUtils.entityStateFromProtoToDb(e.getEntityState(),
-                        EntityState.UNKNOWN));
+                        EntityState.UNKNOWN).name());
         try {
             entitiesRecord.set(ModelDefinitions.ATTRS, getTypeSpecificInfoJson(e));
         } catch (InvalidProtocolBufferException invalidProtocolBufferException) {
@@ -309,7 +309,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
             r.set(ModelDefinitions.COMMODITY_CURRENT, used);
             r.set(ModelDefinitions.COMMODITY_UTILIZATION, used / QX_VCPU_BASE_COEFFICIENT);
         } else {
-            r.set(ModelDefinitions.COMMODITY_TYPE, MetricType.valueOf(type));
+            r.set(ModelDefinitions.COMMODITY_TYPE, type);
             r.set(ModelDefinitions.COMMODITY_KEY, key);
             r.set(ModelDefinitions.COMMODITY_CONSUMED, used);
             r.set(ModelDefinitions.COMMODITY_PROVIDER, producer);
@@ -367,7 +367,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
             final double used, final double capacity) {
         Record r = new Record(ModelDefinitions.METRIC_TABLE);
         r.set(ModelDefinitions.ENTITY_OID, oid);
-        r.set(ModelDefinitions.COMMODITY_TYPE, MetricType.valueOf(type));
+        r.set(ModelDefinitions.COMMODITY_TYPE, type);
         r.set(ModelDefinitions.COMMODITY_KEY, key);
         r.set(ModelDefinitions.COMMODITY_CAPACITY, capacity);
         r.set(ModelDefinitions.COMMODITY_CURRENT, used);
@@ -493,11 +493,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
             record.set(ModelDefinitions.SCOPED_OIDS, scope);
 
             // only store entity if hash changes
-            Long newHash = snapshotManager.updateRecordHash(record);
+            Long newHash = snapshotManager.updateEntityHash(record);
             if (newHash != null) {
                 try (Record r = tableWriter.open(record)) {
                     r.set(ModelDefinitions.ENTITY_HASH_AS_HASH, newHash);
-                    snapshotManager.setRecordTimes(r);
+                    snapshotManager.setEntityTimes(r);
                 }
             }
         });

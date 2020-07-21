@@ -62,7 +62,7 @@ import com.vmturbo.api.dto.searchquery.WhereApiDTO;
 import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
-import com.vmturbo.extractor.schema.enums.Severity;
+import com.vmturbo.extractor.schema.enums.EntitySeverity;
 import com.vmturbo.extractor.schema.tables.SearchEntity;
 import com.vmturbo.search.AbstractSearchQuery.SortedOnColumn;
 import com.vmturbo.search.mappers.EntityTypeMapper;
@@ -373,7 +373,7 @@ public class EntityQueryTest {
     public void buildWhereClauseTextConditionEnum() {
         //GIVEN
         TextConditionApiDTO enumCondition =
-                PrimitiveFieldApiDTO.severity().like(Severity.CRITICAL.getLiteral());
+                PrimitiveFieldApiDTO.severity().like(EntitySeverity.CRITICAL.getLiteral());
 
         final EntityType type = EntityType.VIRTUAL_MACHINE;
         final FieldApiDTO relatedEntityField = getAnyEntityKeyField(type, RelatedEntityFieldApiDTO.class, null);

@@ -86,7 +86,7 @@ public class EnumUtils {
      * @return db {@link EntityType}
      */
     public static EntityType groupTypeFromProtoToDb(GroupDTO.GroupType groupType) {
-        return GroupMappers.mapGroupTypeToName(groupType);
+        return EntityType.valueOf(GroupMappers.mapGroupTypeToName(groupType));
     }
 
     /**
@@ -229,22 +229,7 @@ public class EnumUtils {
      * @return proto {@link GroupDTO.GroupType}
      */
     public static GroupDTO.GroupType groupTypeFromApiToProto(GroupType apiGroupType) {
-        switch (apiGroupType) {
-            case GROUP:
-                return GroupDTO.GroupType.REGULAR;
-            case RESOURCE:
-                return GroupDTO.GroupType.RESOURCE;
-            case COMPUTE_HOST_CLUSTER:
-                return GroupDTO.GroupType.COMPUTE_HOST_CLUSTER;
-            case COMPUTE_VIRTUAL_MACHINE_CLUSTER:
-                return GroupDTO.GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER;
-            case STORAGE_CLUSTER:
-                return GroupDTO.GroupType.STORAGE_CLUSTER;
-            case BILLING_FAMILY:
-                return GroupDTO.GroupType.BILLING_FAMILY;
-            default:
-                return GroupDTO.GroupType.REGULAR;
-        }
+        return GroupMappers.mapNameToGroupType(apiGroupType.name());
     }
 
     /**
