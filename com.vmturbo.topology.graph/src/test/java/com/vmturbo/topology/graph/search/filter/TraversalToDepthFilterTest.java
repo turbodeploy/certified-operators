@@ -55,7 +55,7 @@ public class TraversalToDepthFilterTest {
                 .addProviderId(1),
             TestGraphEntity.newBuilder(6L, ApiEntityType.VIRTUAL_MACHINE)
                 .addProviderId(2),
-            TestGraphEntity.newBuilder(7L, ApiEntityType.APPLICATION)
+            TestGraphEntity.newBuilder(7L, ApiEntityType.APPLICATION_COMPONENT)
                 .addProviderId(4)
         );
     }
@@ -242,7 +242,7 @@ public class TraversalToDepthFilterTest {
                                         .setValue(1)
                                         .setComparisonOperator(ComparisonOperator.EQ)
                                         .build())
-                                .setEntityType(EntityType.APPLICATION_VALUE)
+                                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                                 .build());
 
         assertThat(filterOids(filter, topologyGraph, 1L), contains(1L));

@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1593440163780,
+  "iteration": 1594674123718,
   "links": [],
   "panels": [
     {
@@ -59,7 +59,7 @@
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -71,7 +71,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('day', time) as \"time\",\n  avg(metric.consumed) AS \"CPU Usage\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND\n  metric.type = 'CPU' AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  entity.type = 'VIRTUAL_MACHINE' AND \n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT \n    time,\n    sum(cpu) as \"CPU Usage\"\nFROM\n    (SELECT\n      date_trunc('day', time) as \"time\",\n      entity.oid,\n      avg(metric.consumed) AS cpu\n    FROM metric, entity\n    WHERE\n      $__timeFilter(\"time\") AND\n      metric.type = 'CPU' AND\n      metric.entity_oid = entity.oid AND\n      metric.entity_hash = entity.hash AND\n      entity.type = 'VIRTUAL_MACHINE' AND \n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1, 2) as a\nGROUP BY 1\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -115,6 +115,7 @@
       },
       "yaxes": [
         {
+          "$$hashKey": "object:1300",
           "format": "none",
           "label": "MHz",
           "logBase": 1,
@@ -123,6 +124,7 @@
           "show": true
         },
         {
+          "$$hashKey": "object:1301",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -176,7 +178,7 @@
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -188,7 +190,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('day', time) as \"time\",\n  avg(metric.consumed) AS \"Mem Usage\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND\n  metric.type = 'MEM' AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  entity.type = 'VIRTUAL_MACHINE' AND \n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT \n    time,\n    sum(mem)\nFROM\n    (SELECT\n      date_trunc('day', time) as time,\n      entity.oid,\n      avg(metric.consumed) AS mem\n    FROM metric, entity\n    WHERE\n      $__timeFilter(\"time\") AND\n      metric.type = 'MEM' AND\n      metric.entity_oid = entity.oid AND\n      metric.entity_hash = entity.hash AND\n      entity.type = 'VIRTUAL_MACHINE' AND \n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1, 2) as a\nGROUP BY 1\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -232,6 +234,7 @@
       },
       "yaxes": [
         {
+          "$$hashKey": "object:1219",
           "format": "kbytes",
           "label": null,
           "logBase": 1,
@@ -240,6 +243,7 @@
           "show": true
         },
         {
+          "$$hashKey": "object:1220",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -293,7 +297,7 @@
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -305,7 +309,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('day', time) as \"time\",\n  avg(metric.consumed) AS \"Storage Usage\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND\n  metric.type = 'STORAGE_AMOUNT' AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  entity.type = 'VIRTUAL_MACHINE' AND \n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT \n    time,\n    sum(storage_used) as \"Storage Usage\"\nFROM\n    (SELECT\n      date_trunc('day', time) as \"time\",\n      entity.oid,\n      avg(metric.consumed) AS storage_used\n    FROM metric, entity\n    WHERE\n      $__timeFilter(\"time\") AND\n      metric.type = 'STORAGE_AMOUNT' AND\n      metric.entity_oid = entity.oid AND\n      metric.entity_hash = entity.hash AND\n      entity.type = 'VIRTUAL_MACHINE' AND \n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1, 2) as a\nGROUP BY 1\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -349,6 +353,7 @@
       },
       "yaxes": [
         {
+          "$$hashKey": "object:1386",
           "format": "mbytes",
           "label": null,
           "logBase": 1,
@@ -357,6 +362,7 @@
           "show": true
         },
         {
+          "$$hashKey": "object:1387",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -410,7 +416,7 @@
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
       "seriesOverrides": [],
       "spaceLength": 10,
@@ -422,7 +428,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('day', time) as \"time\",\n  avg(metric.consumed) AS \"Storage Access - IOPS\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND\n  metric.type = 'STORAGE_ACCESS' AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  entity.type = 'VIRTUAL_MACHINE' AND \n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Group]] ]::bigint[]) END\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT \n    time,\n    sum(iops) as \"Storage Access - IOPS\"\nFROM\n    (SELECT\n      date_trunc('day', time) as \"time\",\n      entity.oid,\n      avg(metric.consumed) AS iops\n    FROM metric, entity\n    WHERE\n      $__timeFilter(\"time\") AND\n      metric.type = 'STORAGE_ACCESS' AND\n      metric.entity_oid = entity.oid AND\n      metric.entity_hash = entity.hash AND\n      entity.type = 'VIRTUAL_MACHINE' AND \n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n      CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Group]] ]::bigint[]) END\n    GROUP BY 1, 2) as a\nGROUP BY 1\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -466,6 +472,7 @@
       },
       "yaxes": [
         {
+          "$$hashKey": "object:1480",
           "format": "none",
           "label": "IOPS",
           "logBase": 1,
@@ -474,6 +481,7 @@
           "show": true
         },
         {
+          "$$hashKey": "object:1481",
           "format": "short",
           "label": null,
           "logBase": 1,
@@ -629,14 +637,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'REGULAR' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
+        "definition": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "Group",
         "options": [],
-        "query": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'REGULAR' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
+        "query": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

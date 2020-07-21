@@ -19,6 +19,7 @@ import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
 import com.vmturbo.market.cloudscaling.sma.jsonprocessing.JsonToSMAInputTranslator;
@@ -60,6 +61,7 @@ public class SMAConverterTest {
         Pair<SMAInput, SMAOutput> inputOutputPair =
                 jsonToSMAInputTranslator.parseInputWithExpectedOutput(
                         "src/test/java/com/vmturbo/market/topology/conversions/2vm1ri.json");
+        StableMarriageAlgorithm.postProcessing(inputOutputPair.second.getContexts().get(0));
         smaConverter.setSmaOutput(inputOutputPair.second);
         computeTier1 = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)

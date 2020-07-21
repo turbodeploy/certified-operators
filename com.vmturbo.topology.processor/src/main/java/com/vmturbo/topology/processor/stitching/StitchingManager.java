@@ -2,18 +2,21 @@ package com.vmturbo.topology.processor.stitching;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 
 import io.grpc.StatusRuntimeException;
 
@@ -21,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -29,7 +33,6 @@ import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.TopologicalChangelog;
@@ -471,56 +474,122 @@ public class StitchingManager {
         @Nonnull final StitchingOperationScopeFactory scopeFactory,
         final long targetId,
         @Nonnull final EntityType externalEntityType) {
-
+        final Stopwatch swTotal = Stopwatch.createStarted();
         // First create a map of signatures to their corresponding builders for all internal entities.
         // We will use this map later to look up the internal entities by their signature.
-        // Be sure to use an identity hash map because it is important that signatures that are equal
-        // by their equals method map to different keys for lookup purposes here.
-        final IdentityHashMap<INTERNAL_SIGNATURE_TYPE, StitchingEntity> signaturesToEntities =
-            new IdentityHashMap<>();
+        final Map<INTERNAL_SIGNATURE_TYPE, StitchingEntity> signaturesToEntities =
+            new HashMap<>();
         final EntityType internalEntityType = operation.getInternalEntityType();
 
-        scopeFactory.getStitchingContext()
+        final StitchingContext stitchingContext = scopeFactory.getStitchingContext();
+        stitchingContext
                 .internalEntities(internalEntityType, targetId)
                         .forEach(internalEntity -> operation.getInternalSignature(internalEntity)
                                         .forEach(internalSignature -> signaturesToEntities
                                                         .put(internalSignature, internalEntity)));
-
-        // Now construct an index that can quickly calculate which internal signatures that an
-        // external signature matches. Note that the internal implementation of the index are
-        // determined by the operation itself but its contract is to be able to be able to
-        // provide as close to a constant-time lookup as possible for all internal signatures
-        // that match a given external signature.
-        final StitchingIndex<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> stitchingIndex =
-            operation.createIndex(signaturesToEntities.size());
-        signaturesToEntities.keySet().forEach(stitchingIndex::add);
-
-        // Compute a map of all internal entities to their matching external entities using
-        // the index provided by the operation.
-        // Exclude entities that come from the same target as the one being stitched.
-        final Stream<StitchingEntity> externalEntities =
-                operation.getScope(scopeFactory)
-                        .map(f -> f.entities()
-                                        .map(StitchingEntity.class::cast)
-                                        .filter(e -> e.getTargetId() != targetId))
-                        .orElseGet(() -> scopeFactory.getStitchingContext()
-                                .externalEntities(externalEntityType, targetId)
-                                .map(StitchingEntity.class::cast));
+        final int operationId = System.identityHashCode(operation);
+        final String prefix = "Stitching with external entities. ";
+        if (logger.isTraceEnabled()) {
+            logger.trace("{}Signatures to entities populated with '{}' for '{}' operation '{}' on target in '{}' ms",
+                            prefix, signaturesToEntities.size(), operationId, targetId,
+                            swTotal.elapsed(TimeUnit.MILLISECONDS));
+        }
         final MatchMap matchMap = new MatchMap(signaturesToEntities.size());
-        externalEntities.forEach(externalEntity -> operation.getExternalSignature(externalEntity)
-                        .forEach(externalSignature -> {
-                            stitchingIndex.findMatches(externalSignature)
-                                            .forEach(internalSignature -> {
-                                                matchMap.addMatch(signaturesToEntities
-                                                                                .get(internalSignature),
-                                                                externalEntity);
-                                            });
-                        }));
-
+        final Collection<SymmetricPair<Long, Long>> stitchedTargets = new HashSet<>();
         // Process the matches.
+        if (!signaturesToEntities.isEmpty()) {
+            // Compute a map of all internal entities to their matching external entities using
+            // the index provided by the operation.
+            // Exclude entities that come from the same target as the one being stitched.
+            final Stopwatch swExternalEntitiesCollected = Stopwatch.createStarted();
+            final Stream<StitchingEntity> externalEntities = operation.getScope(scopeFactory)
+                            .map(f -> f.entities().map(StitchingEntity.class::cast)
+                                            .filter(e -> e.getTargetId() != targetId)).orElseGet(() -> stitchingContext
+                                            .externalEntities(externalEntityType, targetId).map(StitchingEntity.class::cast));
+            if (logger.isTraceEnabled()) {
+                logger.trace("{}External entities collected for '{}' operation '{}' on target in '{}' ms", prefix,
+                                operationId, targetId,
+                                swExternalEntitiesCollected.stop().elapsed(TimeUnit.MILLISECONDS));
+            }
+
+            final Stopwatch swMmPopulation = Stopwatch.createStarted();
+            externalEntities.forEach(externalEntity -> {
+                operation.getExternalSignature(externalEntity).forEach(externalSignature -> {
+                    final StitchingEntity internalEntity =
+                                    signaturesToEntities.get(externalSignature);
+                    if (internalEntity != null) {
+                        matchMap.addMatch(internalEntity, externalEntity);
+                    }
+                });
+                stitchedTargets.add(new SymmetricPair<>(targetId, externalEntity.getTargetId()));
+            });
+            if (logger.isTraceEnabled()) {
+                logger.trace("{}Matching map '{}' populated for '{}' operation '{}' on target in '{}' ms", prefix,
+                                matchMap, operationId, targetId,
+                                swMmPopulation.stop().elapsed(TimeUnit.MILLISECONDS));
+            }
+        }
+        final Collection<StitchingPoint> stitchingPoints = matchMap.createStitchingPoints();
         final StitchingResultBuilder resultBuilder =
-                new StitchingResultBuilder(scopeFactory.getStitchingContext());
-        return operation.stitch(matchMap.createStitchingPoints(), resultBuilder);
+                        new StitchingResultBuilder(stitchingContext);
+        final TopologicalChangelog<StitchingEntity> result =
+                        operation.stitch(stitchingPoints, resultBuilder);
+        if (logger.isTraceEnabled()) {
+            if (!stitchingPoints.isEmpty()) {
+                logger.trace("{}Change log created from '{}' stitching points for '{}({})' operation in '{}' ms on targets: '{}'",
+                                prefix, stitchingPoints.size(), operationId, operation,
+                                swTotal.stop().elapsed(TimeUnit.MILLISECONDS),
+                                stitchedTargets.stream().map(SymmetricPair::toString)
+                                                .collect(Collectors
+                                                                .joining(System.lineSeparator())));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * {@link SymmetricPair} pair instance which does not distinguish difference in arguments
+     * position, e.g. the following: pair1: oid1, oid2 and pair2: oid2, oid1 will be treated as
+     * equal.
+     *
+     * @param <F> type of the first object in the pair
+     * @param <S> type of the second object in the pair
+     */
+    public static class SymmetricPair<F, S> extends Pair<F, S> {
+
+        /**
+         * Constructs pair of objects.
+         *
+         * @param first The first element
+         * @param second The second element
+         */
+        public SymmetricPair(F first, S second) {
+            super(first, second);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getFirst().hashCode() + getSecond().hashCode());
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof SymmetricPair) {
+                @SuppressWarnings("unchecked")
+                final SymmetricPair<F, S> that = (SymmetricPair<F, S>)obj;
+                return Objects.equals(getFirst(), that.getFirst()) && Objects
+                                .equals(getSecond(), that.getSecond())
+                                || Objects.equals(getFirst(), that.getSecond()) && Objects
+                                .equals(getSecond(), that.getFirst());
+            }
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%s [%s - %s]", getClass().getSimpleName(), getFirst(),
+                            getSecond());
+        }
     }
 
     /**
@@ -560,6 +629,21 @@ public class StitchingManager {
             return matches.entrySet().stream()
                 .map(entry -> new StitchingPoint(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList());
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder matchesBuilder = new StringBuilder();
+            this.matches.forEach(((internalEntity, externalEntities) -> {
+                final String externalEntitiesString = externalEntities.stream()
+                                .map(e -> String.format("%s|%s|%s", e.getOid(), e.getDisplayName(),
+                                                e.getTargetId())).collect(Collectors.joining(";"));
+                matchesBuilder.append(
+                                String.format("%s|%s - %s entities:(%s)", internalEntity.getOid(),
+                                                internalEntity.getDisplayName(),
+                                                externalEntities.size(), externalEntitiesString));
+            }));
+            return String.format("%s [matches=%s]", getClass().getSimpleName(), matchesBuilder);
         }
     }
 }

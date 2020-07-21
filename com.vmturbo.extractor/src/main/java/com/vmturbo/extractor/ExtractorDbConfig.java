@@ -46,7 +46,7 @@ public class ExtractorDbConfig {
      * @return read-only endpoint
      */
     @Bean
-    DbEndpoint queryEndpoint() {
+    public DbEndpoint queryEndpoint() {
         return DbEndpoint.secondaryDbEndpoint(ExtractorDbBaseConfig.QUERY_ENDPOINT_TAG, SQLDialect.POSTGRES)
                 .like(dbBaseConfig.ingesterEndpointBase())
                 .withDbAccess(DbEndpointAccess.READ_ONLY)
@@ -101,6 +101,7 @@ public class ExtractorDbConfig {
                     .withDbPassword(grafanaDataPassword)
                     .withDbDatabaseName(grafanaDataDbName)
                     .withNoDbMigrations()
+                    .withDbShouldProvision(true)
                     .build());
         } else {
             logger.info("Skipping database endpoint creation for Grafana.");

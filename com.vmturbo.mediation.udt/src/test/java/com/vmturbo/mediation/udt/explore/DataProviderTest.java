@@ -4,6 +4,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+
+import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -101,4 +105,19 @@ public class DataProviderTest {
         Mockito.verify(requestExecutor, Mockito.times(1)).getGroupMembers(Mockito.any());
     }
 
+    /**
+     * Tests that 'getGroupMembersIds' returns empty group when an exception is thrown.
+     */
+    @Test
+    public void testGetGroupMembersMissingGroup() {
+        RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
+        DataRequests requests = Mockito.mock(DataRequests.class);
+        DataProvider dataProvider = new DataProvider(requestExecutor, requests);
+        long id = 1200L;
+        GroupDTO.GroupID groupID = GroupDTO.GroupID.newBuilder().setId(id).build();
+        Mockito.when(requestExecutor.getGroupMembers(Mockito.any()))
+                .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
+        Set<Long> members = dataProvider.getGroupMembersIds(groupID);
+        Assert.assertTrue(members.isEmpty());
+    }
 }

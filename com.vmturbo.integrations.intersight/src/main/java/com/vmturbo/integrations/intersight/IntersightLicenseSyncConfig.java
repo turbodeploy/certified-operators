@@ -42,6 +42,11 @@ public class IntersightLicenseSyncConfig {
     @Value("${intersightLicenseSyncIntervalSeconds:60}")
     private int intersightLicenseSyncIntervalSeconds;
 
+    // Once the licenses are known to be "in sync", we may lower the check interval to reduce
+    // load on the APIs
+    @Value("${intersightLicensePostSyncIntervalSeconds:300}")
+    private int intersightLicensePostSyncIntervalSeconds;
+
     @Value("${intersightLicenseSyncRetrySeconds:60}")
     private int intersightLicenseSyncRetrySeconds;
 
@@ -58,13 +63,15 @@ public class IntersightLicenseSyncConfig {
     @Value("${intersightLicenseCountSyncEnabled:false}")
     private boolean intersightLicenseCountSyncEnabled;
 
-    // the default query filter to use when retrieving the licenses for syncing
-    @Value("${intersightLicenseQueryFilter:#{null}}")
+    // the default query filter to use when retrieving the licenses for syncing. We will target the
+    // "IWO-*" license types.
+    @Value("${intersightLicenseQueryFilter:startswith(LicenseType,'IWO-Essential')}")
     private String intersightLicenseQueryFilter;
 
     @Bean
     public IntersightLicenseClient intersightLicenseClient() {
-        return new IntersightLicenseClient(intersightConnectionConfig.getIntersightConnection(), intersightLicenseQueryFilter);
+        return new IntersightLicenseClient(intersightConnectionConfig.getIntersightConnection(),
+                intersightLicenseQueryFilter);
     }
 
     @Bean
@@ -82,7 +89,7 @@ public class IntersightLicenseSyncConfig {
     public IntersightLicenseSyncService intersightLicenseSyncService() {
         return new IntersightLicenseSyncService(intersightLicenseSyncEnabled, intersightLicenseSyncUseFallbackLicense,
                 intersightLicenseClient(), intersightLicenseSyncInitialDelaySeconds, intersightLicenseSyncIntervalSeconds,
-                intersightLicenseSyncRetrySeconds, licenseManagerClient());
+                intersightLicensePostSyncIntervalSeconds, intersightLicenseSyncRetrySeconds, licenseManagerClient());
     }
 
     @Bean
@@ -90,6 +97,6 @@ public class IntersightLicenseSyncConfig {
         return new IntersightLicenseCountUpdater(intersightLicenseCountSyncEnabled,
                 keyValueStoreConfig.keyValueStore(),
                 licenseCheckClientConfig.licenseCheckClient(),
-                intersightLicenseClient(), intersightLicenseSyncIntervalSeconds);
+                intersightLicenseClient(), intersightLicenseSyncIntervalSeconds, intersightLicenseSyncService());
     }
 }

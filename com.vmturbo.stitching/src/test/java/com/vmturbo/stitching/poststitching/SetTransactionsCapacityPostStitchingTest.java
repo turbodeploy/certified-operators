@@ -28,8 +28,8 @@ import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestRe
  * Unit test for {@link SetTransactionsCapacityPostStitchingOperation}.
  */
 public class SetTransactionsCapacityPostStitchingTest {
-    private static final String CAPACITY_SETTING = "transactionsCapacity";
-    private static final String AUTOSET_SETTING = "autoSetTransactionsCapacity";
+    private static final String SLO_SETTING = "transactionSLO";
+    private static final String SLO_ENABLED_SETTING = "transactionSLOEnabled";
 
     private static final EntityType SELLER_TYPE = EntityType.DATABASE_SERVER;
 
@@ -44,11 +44,11 @@ public class SetTransactionsCapacityPostStitchingTest {
     private final EntitySettingsCollection entitySettingsCollection =
             mock(EntitySettingsCollection.class);
 
-    private final Setting autoSetSettingTrue = Setting.newBuilder()
+    private final Setting sloSettingTrue = Setting.newBuilder()
             .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true).build())
             .build();
 
-    private final Setting autoSetSettingFalse = Setting.newBuilder()
+    private final Setting sloSettingFalse = Setting.newBuilder()
             .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
             .build();
 
@@ -57,7 +57,7 @@ public class SetTransactionsCapacityPostStitchingTest {
         com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig config =
             mock(com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig.class);
         stitchOperation = new SetTransactionsCapacityPostStitchingOperation(SELLER_TYPE,
-            ProbeCategory.DATABASE_SERVER, CAPACITY_SETTING, AUTOSET_SETTING, config);
+            ProbeCategory.DATABASE_SERVER, SLO_SETTING, SLO_ENABLED_SETTING, config);
     }
 
     /**
@@ -70,9 +70,9 @@ public class SetTransactionsCapacityPostStitchingTest {
         // to replace capacity value
         TopologyEntity provider = seller(1L, Optional.empty(),
                 Optional.of(initialCapacity));
-        testSetCapacityValue(provider, false, settingCapacityValue, initialCapacity);
-        // autoset is true but no value from db and the used value is 0 so expecting the policy capacity
         testSetCapacityValue(provider, true, settingCapacityValue, initialCapacity);
+        // autoset is true but no value from db and the used value is 0 so expecting the policy capacity
+        testSetCapacityValue(provider, false, settingCapacityValue, initialCapacity);
     }
 
     /**
@@ -86,7 +86,7 @@ public class SetTransactionsCapacityPostStitchingTest {
         // to replace capacity value
         TopologyEntity provider = seller(1L, Optional.of(initialCapacity),
                 Optional.of(settingCapacityValue * 2d));
-        testSetCapacityValue(provider,false, settingCapacityValue * 2d,
+        testSetCapacityValue(provider, true, settingCapacityValue * 2d,
                 settingCapacityValue * 2d);
     }
 
@@ -101,7 +101,7 @@ public class SetTransactionsCapacityPostStitchingTest {
         // to replace capacity value
         TopologyEntity provider = seller(1L, Optional.of(initialCapacity),
                 Optional.of(settingCapacityValue * 2d));
-        testSetCapacityValue(provider,false, settingCapacityValue * 2d,
+        testSetCapacityValue(provider, true, settingCapacityValue * 2d,
                 settingCapacityValue * 2d);
     }
 
@@ -116,7 +116,7 @@ public class SetTransactionsCapacityPostStitchingTest {
         // to replace capacity value
         TopologyEntity provider = seller(1L, Optional.of(settingCapacityValue * 2d),
                 Optional.of(initialCapacity));
-        testSetCapacityValue(provider,false, settingCapacityValue * 2d,
+        testSetCapacityValue(provider, true, settingCapacityValue * 2d,
                 initialCapacity);
     }
 
@@ -126,23 +126,21 @@ public class SetTransactionsCapacityPostStitchingTest {
      *
      * @param provider {@link TopologyEntity} with commodity values set according to the design
      *                                       of the test.
-     * @param autoSetFlag boolean value indicating value of the AutoSet setting.
+     * @param sloEnabledFlag boolean value indicating value of the Enable SLO setting.
      * @param maxValue double giving the maximum value among the commodity used value, capacity,
      *                 and the transaction setting capacity.
      * @param startingCapacity the initial capacity value for the commodities the provider is selling.
      */
-    private void testSetCapacityValue(TopologyEntity provider, boolean autoSetFlag, double maxValue,
+    private void testSetCapacityValue(TopologyEntity provider, boolean sloEnabledFlag, double maxValue,
                                       double startingCapacity) {
-       Setting transactionsCapacitySetting = Setting.newBuilder()
+       Setting transactionSLOSetting = Setting.newBuilder()
                 .setNumericSettingValue(NumericSettingValue
                         .newBuilder().setValue(settingCapacityValue).build()).build();
-        when(entitySettingsCollection.getEntitySetting(provider.getOid(),
-                CAPACITY_SETTING))
-                .thenReturn(Optional.of(transactionsCapacitySetting));
-        when(entitySettingsCollection.getEntitySetting(provider.getOid(),
-                AUTOSET_SETTING))
-                .thenReturn(autoSetFlag ? Optional.of(autoSetSettingTrue)
-                        : Optional.of(autoSetSettingFalse));
+        when(entitySettingsCollection.getEntitySetting(provider.getOid(), SLO_SETTING))
+                .thenReturn(Optional.of(transactionSLOSetting));
+        when(entitySettingsCollection.getEntitySetting(provider.getOid(), SLO_ENABLED_SETTING))
+                .thenReturn(sloEnabledFlag ? Optional.of(sloSettingTrue)
+                        : Optional.of(sloSettingFalse));
 
         UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
         stitchOperation.performOperation(
@@ -150,7 +148,7 @@ public class SetTransactionsCapacityPostStitchingTest {
         resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         // check that transaction commodity had it's capacity set to the value of the setting
-        Assert.assertEquals(autoSetFlag ? maxValue : settingCapacityValue,
+        Assert.assertEquals(sloEnabledFlag ? settingCapacityValue : maxValue,
                 provider.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(),
                 1e-5);
         // check that response time commodity doesn't get its capacity changed
@@ -164,12 +162,10 @@ public class SetTransactionsCapacityPostStitchingTest {
         TopologyEntity provider = seller(1L, Optional.empty(),
                 Optional.of(initialCapacity));
         // make sure operation fails to get a setting for this provider during post stitching
-        when(entitySettingsCollection.getEntitySetting(provider.getOid(),
-                CAPACITY_SETTING))
+        when(entitySettingsCollection.getEntitySetting(provider.getOid(), SLO_SETTING))
                 .thenReturn(Optional.empty());
-        when(entitySettingsCollection.getEntitySetting(provider.getOid(),
-                AUTOSET_SETTING))
-                .thenReturn(Optional.of(autoSetSettingTrue));
+        when(entitySettingsCollection.getEntitySetting(provider.getOid(), SLO_ENABLED_SETTING))
+                .thenReturn(Optional.of(sloSettingFalse));
 
         UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
         stitchOperation.performOperation(

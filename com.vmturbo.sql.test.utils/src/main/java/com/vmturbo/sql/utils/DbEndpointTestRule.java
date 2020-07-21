@@ -143,6 +143,7 @@ public class DbEndpointTestRule implements TestRule {
                 logger.info("Dropping database & user for {}", endpoint);
                 endpoint.getAdapter().dropDatabase();
                 endpoint.getAdapter().dropUser();
+                endpoint.getAdapter().dropReadersGroupUser();
             }
         }
         // don't allow this rule's configurations to leak into other test classes involving

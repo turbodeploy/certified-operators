@@ -166,7 +166,7 @@ public class SettingsService implements ISettingsService {
         // entity types (like: reservedintancemanager settings, emailmanager settings...), or is
         // only associated with one type of entity (like marketsettingsmanager.targetBand).
         // if it's used for entity settings which may apply to multiple entity types, there will
-        // be multiple settings for different entity types (like: transactionsCapacity), in which
+        // be multiple settings for different entity types (like: transactionSLO), in which
         // case the SettingsPolicies api should be used.
         return (SettingApiDTO<T>)getSettingsByUuid(uuid).stream()
                 .filter(setting -> StringUtils.equals(name, setting.getUuid()))

@@ -371,9 +371,9 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
      *
      * <p>Scenario:
      *   Target: Kubernetes:
-     *     APPLICATION: PROVISION -> NOT_EXECUTABLE
+     *     APPLICATION COMPONENT: PROVISION -> NOT_EXECUTABLE
      *   Entities:
-     *     Application (id: 1)
+     *     Application Component (id: 1)
      *
      * <p>Result: Cloneable and suspendable are enabled for Application and Container (When
      *   action capabilities are either not set, or set to NOT_EXECUTABLE for an entity type by the
@@ -382,18 +382,18 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     @Test
     public void testEditNotExecutableForApplicationsAreTreatedAsEnabledForAnalysis() {
         when(target.getProbeInfo())
-                .thenReturn(getProbeInfo(EntityType.APPLICATION,
+                .thenReturn(getProbeInfo(EntityType.APPLICATION_COMPONENT,
                         ActionType.PROVISION, ActionCapability.NOT_EXECUTABLE,
                         ActionType.SUSPEND, ActionCapability.NOT_EXECUTABLE,
                         "Kubernetes"));
         final Map<Long, Builder> topology = new HashMap<>();
         topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.RESPONSE_TIME.getNumber(),
-                EntityType.APPLICATION_VALUE, 2L));
+                EntityType.APPLICATION_COMPONENT_VALUE, 2L));
 
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
-        verifyAnalysisSettingProperty(graph, EntityType.APPLICATION_VALUE,
+        verifyAnalysisSettingProperty(graph, EntityType.APPLICATION_COMPONENT_VALUE,
                 AnalysisSettings::getCloneable, AnalysisSettings::getSuspendable);
         assertEquals(1, editorSummary.getCloneableToTrueCounter());
         assertEquals(1, editorSummary.getSuspendableToTrueCounter());

@@ -5,11 +5,11 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
@@ -24,7 +24,6 @@ import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
  **/
 public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplBase  {
 
-    public static final String WORKFLOW_NOT_FOUND_MSG = "Workflow with id: %d not found.";
     // the store for the workflows that are uploaded
     private final WorkflowStore workflowStore;
 
@@ -60,12 +59,8 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
     public void fetchWorkflows(FetchWorkflowsRequest request,
                                StreamObserver<FetchWorkflowsResponse> responseObserver) {
         try {
-            // filter on the OrchestratorType - currently: UCSD, ACTION_SCRIPT or 'null'
-            WorkflowDTO.OrchestratorType orchestratorTypeFilter = request.hasOrchestratorType() ?
-                    request.getOrchestratorType() :
-                    null;
-            FetchWorkflowsResponse.Builder response = FetchWorkflowsResponse.newBuilder();
-            response.addAllWorkflows(workflowStore.fetchWorkflows(orchestratorTypeFilter));
+            final FetchWorkflowsResponse.Builder response = FetchWorkflowsResponse.newBuilder();
+            response.addAllWorkflows(workflowStore.fetchWorkflows(createWorkflowFilter(request)));
             responseObserver.onNext(response.build());
             responseObserver.onCompleted();
         } catch (WorkflowStoreException e) {
@@ -73,5 +68,14 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
 
+    }
+
+    @Nonnull
+    private WorkflowFilter createWorkflowFilter(@Nonnull FetchWorkflowsRequest request) {
+        if (request.hasOrchestratorType()) {
+            throw new IllegalArgumentException("Orchestrator type filter for searching"
+                    + " workflows is not implemented yet.");
+        }
+        return new WorkflowFilter(request.getTargetIdList());
     }
 }

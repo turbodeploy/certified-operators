@@ -28,6 +28,12 @@ public class SearchDBConfig {
     @Value("${enableSearchApi:false}")
     private boolean enableSearchApi;
 
+    @Value("${apiPaginationDefaultLimit:100}")
+    private int apiPaginationDefaultLimit;
+
+    @Value("${apiPaginationMaxLimit:500}")
+    private int apiPaginationMaxLimit;
+
     @Bean
     DbEndpoint queryEndpoint() {
         return DbEndpoint.secondaryDbEndpoint(QUERY_ENDPOINT_TAG, SQLDialect.POSTGRES)
@@ -40,7 +46,7 @@ public class SearchDBConfig {
 
     @Bean
     public ApiQueryEngine apiQueryEngine() {
-        return new ApiQueryEngine(queryEndpoint(), enableSearchApi);
+        return new ApiQueryEngine(queryEndpoint(), enableSearchApi, apiPaginationDefaultLimit, apiPaginationMaxLimit);
     }
 
 }

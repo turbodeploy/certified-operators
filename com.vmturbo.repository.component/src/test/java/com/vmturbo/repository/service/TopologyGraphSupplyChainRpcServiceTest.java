@@ -87,7 +87,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
     @Before
     public void setUp() {
         final SourceRealtimeTopologyBuilder topologyBuilder =
-                liveTopologyStore.newRealtimeTopology(TopologyInfo.getDefaultInstance());
+                liveTopologyStore.newRealtimeSourceTopology(TopologyInfo.getDefaultInstance());
         topologyBuilder.addEntities(ImmutableList.of(
             TopologyEntityDTO.newBuilder()
                 .setOid(VM_ID)

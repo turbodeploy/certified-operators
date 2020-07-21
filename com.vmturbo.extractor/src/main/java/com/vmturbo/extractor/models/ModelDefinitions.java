@@ -4,6 +4,8 @@ import java.sql.Timestamp;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSetMultimap;
+import com.google.common.collect.Multimap;
 
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.schema.enums.EntitySeverity;
@@ -11,6 +13,7 @@ import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * Definitions of models, tables, and columns used in topology ingestion.
@@ -32,8 +35,6 @@ public class ModelDefinitions {
     public static final Column<Long> ENTITY_HASH_AS_HASH = Column.longColumn("hash");
     /** ENTITY_NAME column. */
     public static final Column<String> ENTITY_NAME = Column.stringColumn("name");
-    /** ENTITY_TYPE column. */
-    static final Column<String> ENTITY_TYPE = Column.stringColumn("entity_type");
     /** ENTITY_TYPE column, named just "type". */
     public static final Column<String> ENTITY_TYPE_AS_TYPE = Column.stringColumn("type");
     /** ENTITY_STATE column. */
@@ -50,6 +51,8 @@ public class ModelDefinitions {
     public static final Column<Timestamp> LAST_SEEN = Column.timestampColumn("last_seen");
     /** COMMODITY_TYPE column. */
     public static final Column<String> COMMODITY_TYPE = Column.stringColumn("type");
+    /** COMMODITY_KEY column. */
+    public static final Column<String> COMMODITY_KEY = Column.stringColumn("key");
     /** COMMODITY_CURRENT column. */
     public static final Column<Double> COMMODITY_CURRENT = Column.doubleColumn("current");
     /** COMMODITY_CAPACITY column. */
@@ -71,7 +74,8 @@ public class ModelDefinitions {
     public static final Table METRIC_TABLE = Table.named("metric")
             .withColumns(TIME, ENTITY_OID, ENTITY_HASH, COMMODITY_TYPE,
                     COMMODITY_CURRENT, COMMODITY_CAPACITY, COMMODITY_UTILIZATION, COMMODITY_CONSUMED,
-                    COMMODITY_PROVIDER)
+                    COMMODITY_PROVIDER,
+                    COMMODITY_KEY)
             .build();
 
     /** Column for file path. */
@@ -161,6 +165,21 @@ public class ModelDefinitions {
                     .add(CommodityType.VMEM_REQUEST_QUOTA)
                     .add(CommodityType.VSTORAGE)
                     .add(CommodityType.TOTAL_SESSIONS)
+                    .build();
+
+    /**
+     * Commodity types for which we write a separate metric record for each provided commodity key,
+     * as opposed to summing metric values across all commodity keys for the same commodity type
+     * sold by a given seller.
+     *
+     * <p>In some cases, the treatment is dependent on the entity type that is  selling the
+     * commodity. This map lists all the entity types for which a given commodity type should not be
+     * aggregated. When a commodity is unaggregated for all selling entity types, use
+     * `EntityType.values()` in the builder row for that commodity type.</p>
+     */
+    public static final Multimap<CommodityType, EntityDTO.EntityType> UNAGGREGATED_KEYED_COMMODITY_TYPES =
+            ImmutableSetMultimap.<CommodityType, EntityDTO.EntityType>builder()
+                    // TODO 59460 fill in with correct values
                     .build();
 
     /** ENTITY STATE enum column. */

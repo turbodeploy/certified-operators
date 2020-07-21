@@ -446,7 +446,7 @@ public class TopologyEntitiesHandlerTest {
                         .collect(Collectors.toList());
         ReplayActions replayActions = analysis.getReplayActions();
         List<Long> replayOids = replayActions.getDeactivateActions().stream()
-                    .map(a -> replayActions.getTopology().getTraderOids().get(a.getActionTarget()))
+                    .map(a -> a.getActionTarget().getOid())
                     .collect(Collectors.toList());
 
         // Check that populated replay actions contain all Deactivate actions.

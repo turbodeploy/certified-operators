@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.search.UIBooleanFilter;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.SetOnce;
@@ -319,8 +320,8 @@ public class EntityFilterMapper {
     private List<SearchFilter> getUserDefinedEntityProcessor(SearchFilterContext context) {
         final FilterApiDTO filter = context.getFilter();
         final String criteriaOption = filter.getExpVal();
-        final boolean positiveMatch = criteriaOption.equals("True") &&
-                isPositiveMatchingOperator(filter.getExpType());
+        final boolean positiveMatch = criteriaOption.equals(UIBooleanFilter.TRUE.apiStr())
+                && isPositiveMatchingOperator(filter.getExpType());
         if (!udtOid.getValue().isPresent()) {
             udtOid.trySetValue(thinTargetCache.getAllTargets()
                     .stream()

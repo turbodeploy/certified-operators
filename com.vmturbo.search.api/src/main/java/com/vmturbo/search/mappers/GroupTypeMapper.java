@@ -22,11 +22,11 @@ public class GroupTypeMapper {
      */
     private static final BiMap<EntityType, GroupType> GROUP_TYPE_MAPPINGS =
         new ImmutableBiMap.Builder()
-            .put( EntityType.REGULAR, GroupType.GROUP)
+            .put( EntityType.GROUP, GroupType.GROUP)
             .put( EntityType.BILLING_FAMILY, GroupType.BILLING_FAMILY)
-            .put( EntityType.COMPUTE_HOST_CLUSTER, GroupType.COMPUTE_HOST_CLUSTER)
-            .put( EntityType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
-            .put( EntityType.RESOURCE, GroupType.RESOURCE)
+            .put( EntityType.COMPUTE_CLUSTER, GroupType.COMPUTE_HOST_CLUSTER)
+            .put( EntityType.K8S_CLUSTER, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
+            .put( EntityType.RESOURCE_GROUP, GroupType.RESOURCE)
             .put( EntityType.STORAGE_CLUSTER, GroupType.STORAGE_CLUSTER)
             .build();
 
@@ -61,12 +61,12 @@ public class GroupTypeMapper {
      * Functional Interface of {@link GroupTypeMapper#fromSearchSchemaToApi}.
      */
     public static final Function<EntityType, GroupType>
-        fromSearchSchemaToApiFunction = (en) -> GroupTypeMapper.fromSearchSchemaToApi(en);
+        fromSearchSchemaToApiFunction = GroupTypeMapper::fromSearchSchemaToApi;
 
 
     /**
      * Functional Interface of {@link GroupTypeMapper#fromApiToSearchSchema}.
      */
     public static final Function<GroupType, EntityType>
-        fromApiToSearchSchemaFunction = (gtype) -> GroupTypeMapper.fromApiToSearchSchema(gtype);
+        fromApiToSearchSchemaFunction = GroupTypeMapper::fromApiToSearchSchema;
 }

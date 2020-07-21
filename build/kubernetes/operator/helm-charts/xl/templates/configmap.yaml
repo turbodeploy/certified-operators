@@ -16,7 +16,6 @@ data:
         kafkaServers : kafka:9092
         kafkaNamespace : {{ .Release.Namespace }}
         deadlockCheckIntervalSecs: 900
-        maxHealthyUsedMemoryRatio: 0.95
         scheduledMetricsIntervalMs: 60000
         grpcPingIntervalSeconds: 300
         realtimeTopologyContextId: 777777
@@ -137,7 +136,6 @@ data:
         # Schedule for the Reserved Instance tables cleanup scheduler
         reservedInstanceStatCleanup.scheduler: 360000
         retention.updateRetentionIntervalSeconds: 10
-        projectedTopologyListenerTimeOut: 3600
       group:
         identityGeneratorPrefix: 4
         createDefaultSettingPolicyRetryIntervalSec: 30
@@ -391,7 +389,7 @@ data:
         #
         # Even if this parameter is turned to false the journal can be manually collected
         # using the /topology-processor/stitchingJournal REST endpoint.
-        stitchingJournalEnabled: true
+        stitchingJournalEnabled: false
         # Control parameters for tuning how frequently and how many entities we trace
         # through the stitching journal. Tracking more changes in the journal introduces
         # a greater performance hit but also provides greater debugging information.

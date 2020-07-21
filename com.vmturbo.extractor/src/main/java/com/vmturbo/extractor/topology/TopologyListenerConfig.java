@@ -131,6 +131,7 @@ public class TopologyListenerConfig {
                 .lastSeenAdditionalFuzzMinutes(lastSeenAdditionalFuzzMinutes)
                 .insertTimeoutSeconds(insertTimeoutSeconds)
                 .addAllReportingCommodityWhitelist(getReportingCommodityWhitelist())
+                .unaggregatedCommodities(ModelDefinitions.UNAGGREGATED_KEYED_COMMODITY_TYPES)
                 .build();
     }
 

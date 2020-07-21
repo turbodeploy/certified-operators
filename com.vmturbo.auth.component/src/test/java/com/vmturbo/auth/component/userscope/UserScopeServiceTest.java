@@ -76,7 +76,7 @@ public class UserScopeServiceTest {
 
     private static final SupplyChain TEST_NON_INFRASTRUCTURE_SUPPLY_CHAIN = SupplyChain.newBuilder()
             .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                    .setEntityType(EntityType.APPLICATION.name())
+                    .setEntityType(EntityType.APPLICATION_COMPONENT.name())
                     .putMembersByState(EntityState.ACTIVE.ordinal(), MemberList.newBuilder()
                             .addMemberOids(10L)
                             .build()))

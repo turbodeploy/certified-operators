@@ -548,7 +548,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
 
     private ReservationDTO.Reservation buildReservation(long templateId) {
         return Reservation.newBuilder()
-                .setName("Test-first-reservation")
+                .setName("Test-first-reservation" + templateId)
                 .setStartDate(1543105352845L)
                 .setExpirationDate(1553105352845L)
                 .setStatus(ReservationStatus.FUTURE)

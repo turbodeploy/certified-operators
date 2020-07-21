@@ -71,6 +71,7 @@ import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -89,7 +90,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
@@ -165,6 +165,7 @@ public class ActionExecutionRpcTest {
 
     private GrpcTestServer grpcServer;
     private ActionStore actionStoreSpy;
+    private ActionTopologyStore actionTopologyStore = new ActionTopologyStore();
 
     /**
      * Sets up the tests.
@@ -198,7 +199,7 @@ public class ActionExecutionRpcTest {
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                actionTopologyStore,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
@@ -403,7 +404,7 @@ public class ActionExecutionRpcTest {
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
 
         EntitySeverityCache severityCacheMock = mock(EntitySeverityCache.class);
-        doReturn(severityCacheMock).when(actionStoreSpy).getEntitySeverityCache();
+        doReturn(Optional.of(severityCacheMock)).when(actionStoreSpy).getEntitySeverityCache();
 
         actionStorehouse.storeActions(plan);
         actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
@@ -544,7 +545,7 @@ public class ActionExecutionRpcTest {
             grpcServer.getChannel());
         IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                actionTopologyStore,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,

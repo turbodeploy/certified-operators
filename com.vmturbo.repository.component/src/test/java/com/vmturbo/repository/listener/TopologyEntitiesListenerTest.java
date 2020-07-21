@@ -164,7 +164,7 @@ public class TopologyEntitiesListenerTest {
         TopologyInfo tInfo = TopologyInfo.newBuilder()
             .setTopologyId(1)
             .build();
-        final SourceRealtimeTopologyBuilder bldr = liveTopologyStore.newRealtimeTopology(tInfo);
+        final SourceRealtimeTopologyBuilder bldr = liveTopologyStore.newRealtimeSourceTopology(tInfo);
         bldr.addEntities(Collections.singletonList(host));
         bldr.finish();
         // Host goes into maintenance, with associated id = 1
@@ -183,7 +183,7 @@ public class TopologyEntitiesListenerTest {
             .setTopologyId(3)
             .build();
         // New topology gets ingested, with a new state for the host
-        final SourceRealtimeTopologyBuilder bldr1 = liveTopologyStore.newRealtimeTopology(tInfo1);
+        final SourceRealtimeTopologyBuilder bldr1 = liveTopologyStore.newRealtimeSourceTopology(tInfo1);
         bldr1.addEntities(Collections.singletonList(host));
         bldr1.finish();
         // Make sure the host state is no longer updated with maintenance, but it has the new

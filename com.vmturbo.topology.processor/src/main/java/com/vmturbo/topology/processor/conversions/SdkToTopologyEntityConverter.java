@@ -773,7 +773,8 @@ public class SdkToTopologyEntityConverter {
 
             // If it is an application, set cloneable value to same as suspendable value
             // to represent horizontal scalability.
-            if (entityType == EntityType.APPLICATION_VALUE) {
+            if (entityType == EntityType.APPLICATION_VALUE
+                    || entityType == EntityType.APPLICATION_COMPONENT_VALUE) {
                 analysisSettingsBuilder.setCloneable(suspendableValue);
             }
         }

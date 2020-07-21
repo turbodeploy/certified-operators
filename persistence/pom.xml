@@ -4,7 +4,7 @@
     <parent>
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.22.100-MPC-SNAPSHOT</version>
+        <version>7.22.6-SNAPSHOT</version>
         <relativePath>../build</relativePath>
     </parent>
 

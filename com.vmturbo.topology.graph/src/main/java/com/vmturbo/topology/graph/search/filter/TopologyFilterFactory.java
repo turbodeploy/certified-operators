@@ -270,20 +270,19 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
             }
             case SearchableProperties.ENCRYPTED: {
                 if (stringCriteria.getOptionsCount() == 1) {
-                    final boolean targetBool = Boolean.parseBoolean(stringCriteria.getOptions(0));
+                    final boolean targetBool = getExpectedValue(stringCriteria);
                     return PropertyFilter.typeSpecificFilter(v -> v.isEncrypted() == targetBool, VolumeProps.class);
                 }
             }
             case SearchableProperties.EPHEMERAL: {
                 if (stringCriteria.getOptionsCount() == 1) {
-                    final boolean targetEphemeral = Boolean.parseBoolean(stringCriteria.getOptions(0));
+                    final boolean targetEphemeral = getExpectedValue(stringCriteria);
                     return PropertyFilter.typeSpecificFilter(v -> v.isEphemeral() == targetEphemeral, VolumeProps.class);
                 }
             }
             case SearchableProperties.VM_DESKTOP_POOL_ACTIVE_SESSIONS: {
                 if (stringCriteria.getOptionsCount() == 1) {
-                    final boolean targetActiveSessions =
-                        Boolean.parseBoolean(stringCriteria.getOptions(0));
+                    final boolean targetActiveSessions = getExpectedValue(stringCriteria);
                     final Predicate<SearchableProps> propsTest =
                         targetActiveSessions
                             ? e -> (long)e.getCommodityUsed(CommodityType.ACTIVE_SESSIONS_VALUE) == 1L
@@ -293,24 +292,21 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
             }
             case SearchableProperties.HOT_ADD_MEMORY:
                 if (stringCriteria.getOptionsCount() == 1) {
-                    final boolean expectedValue = Boolean.parseBoolean(
-                            stringCriteria.getOptions(0));
+                    final boolean expectedValue = getExpectedValue(stringCriteria);
                     return PropertyFilter.typeSpecificFilter(
                             v -> v.isHotAddSupported(CommodityType.VMEM.getNumber())
                                     == expectedValue, VmProps.class);
                 }
             case SearchableProperties.HOT_ADD_CPU:
                 if (stringCriteria.getOptionsCount() == 1) {
-                    final boolean expectedValue = Boolean.parseBoolean(
-                            stringCriteria.getOptions(0));
+                    final boolean expectedValue = getExpectedValue(stringCriteria);
                     return PropertyFilter.typeSpecificFilter(
                             v -> v.isHotAddSupported(CommodityType.VCPU.getNumber())
                                     == expectedValue, VmProps.class);
                 }
             case SearchableProperties.HOT_REMOVE_CPU:
                 if (stringCriteria.getOptionsCount() == 1) {
-                    final boolean expectedValue = Boolean.parseBoolean(
-                            stringCriteria.getOptions(0));
+                    final boolean expectedValue = getExpectedValue(stringCriteria);
                     return PropertyFilter.typeSpecificFilter(
                             v -> v.isHotRemoveSupported(CommodityType.VCPU.getNumber())
                                     == expectedValue, VmProps.class);
@@ -340,6 +336,11 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
                         + " with criteria: " + stringCriteria);
         }
+    }
+
+    private static boolean getExpectedValue(@Nonnull StringFilter stringCriteria) {
+        return stringCriteria.getPositiveMatch() == Boolean.parseBoolean(
+                stringCriteria.getOptions(0));
     }
 
     @Nonnull

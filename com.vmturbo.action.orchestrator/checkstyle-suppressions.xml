@@ -14,7 +14,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionCategoryExtractor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionDescriptionBuilder.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionEvent.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionModeCalculator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionPaginator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionStateMachine.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionTranslation.java" />
@@ -114,7 +113,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]ActionOrchestratorTestUtils.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionCategoryExtractorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionDescriptionBuilderTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionModeCalculatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionPaginatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionStateMachineTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionTest.java" />

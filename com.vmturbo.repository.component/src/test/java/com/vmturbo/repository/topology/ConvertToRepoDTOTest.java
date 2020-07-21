@@ -35,7 +35,7 @@ public class ConvertToRepoDTOTest {
         // arrange
         final TopologyEntityDTO.Builder applicationEntityDTOBuilder = TopologyEntityDTO.newBuilder()
             .setOid(TEST_OID)
-            .setEntityType(EntityType.APPLICATION_VALUE)
+            .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setApplication(
                 ApplicationInfo.newBuilder()
                     .setIpAddress(IpAddress.newBuilder()
@@ -60,7 +60,7 @@ public class ConvertToRepoDTOTest {
         // arrange
         final TopologyEntityDTO.Builder applicationEntityDTOBuilder = TopologyEntityDTO.newBuilder()
             .setOid(TEST_OID)
-            .setEntityType(EntityType.APPLICATION_VALUE)
+            .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setApplication(
                 ApplicationInfo.newBuilder()));
 

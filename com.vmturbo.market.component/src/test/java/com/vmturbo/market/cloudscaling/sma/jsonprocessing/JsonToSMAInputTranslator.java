@@ -372,14 +372,12 @@ public class JsonToSMAInputTranslator {
                 SMAVirtualMachine virtualMachine = new SMAVirtualMachine(newOid, vm_name, groupName, businessAccountOid,
                     oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid,
                     oidToRI.get(currentRiOid), osType);
-                virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(virtualMachine);
             }
         } else {
             SMAVirtualMachine virtualMachine = new SMAVirtualMachine(oid, name, groupName, businessAccountOid,
                 oidToTemplate.get(currentTemplateOid), providers, currentRICoverage, zoneOid,
                 oidToRI.get(currentRiOid), osType);
-            virtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(virtualMachine);
         }
         return smaVirtualMachines;

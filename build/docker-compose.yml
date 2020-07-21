@@ -702,7 +702,7 @@ services:
       JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
       JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
-      JAVA_OPTS: "${JAVA_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_UDT_MEM_LIMIT_MB}M
 

@@ -46,6 +46,7 @@ import com.vmturbo.action.orchestrator.store.AtomicActionFactory.AtomicActionRes
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -57,7 +58,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -139,6 +139,7 @@ public class LiveActionStore implements ActionStore {
      * @param actionFactory the action factory
      * @param actionIdentityService identity service to fetch OIDs for actions
      * @param topologyContextId the topology context id
+     * @param actionTopologyStore Store for the live topology.
      * @param actionTargetSelector selects which target/probe to execute each action against
      * @param probeCapabilityCache gets the target-specific action capabilities
      * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot
@@ -157,7 +158,7 @@ public class LiveActionStore implements ActionStore {
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
-                           @Nonnull final RepositoryServiceBlockingStub repositoryService,
+                           @Nonnull final ActionTopologyStore actionTopologyStore,
                            @Nonnull final ActionTargetSelector actionTargetSelector,
                            @Nonnull final ProbeCapabilityCache probeCapabilityCache,
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
@@ -177,8 +178,7 @@ public class LiveActionStore implements ActionStore {
     ) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
-        this.severityCache =
-                new EntitySeverityCache(Objects.requireNonNull(repositoryService), riskPropagationEnabled);
+        this.severityCache = new EntitySeverityCache(Objects.requireNonNull(actionTopologyStore), riskPropagationEnabled);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
@@ -329,6 +329,7 @@ public class LiveActionStore implements ActionStore {
             // Apply addition and removal to the internal store atomically.
             final List<ActionView> completedSinceLastPopulate = new ArrayList<>();
             final List<Action> actionsToRemove = new ArrayList<>();
+            final Set<Long> newActionIds = Sets.newHashSet();
 
             actions.doForEachMarketAction(action -> {
                 // Only retain IN-PROGRESS, QUEUED, ACCEPTED, REJECTED and READY actions which are
@@ -348,6 +349,7 @@ public class LiveActionStore implements ActionStore {
                     case FAILED:
                         completedSinceLastPopulate.add(action);
                         actionsToRemove.add(action);
+                        newActionIds.add(action.getId());
                         break;
                     default:
                         actionsToRemove.add(action);
@@ -364,7 +366,7 @@ public class LiveActionStore implements ActionStore {
 
             final long planId = actionPlan.getId();
             final MutableInt newActionCounts = new MutableInt(0);
-            final Set<Long> newActionIds = Sets.newHashSet();
+
             // TODO (marco, July 16 2019): We can do the translation before we do the support
             // level resolution. In this way we wouldn't need to go to the repository for entities
             // that fail translation.
@@ -464,7 +466,7 @@ public class LiveActionStore implements ActionStore {
                 Stream.concat(completedSinceLastPopulate.stream(),
                     // Need to make a copy because it's not safe to iterate otherwise.
                     actions.copy().values().stream())
-                    .filter(VISIBILITY_PREDICATE), newActionIds);
+                    .filter(VISIBILITY_PREDICATE));
             final int deletedActions =
                 entitiesWithNewStateCache.clearActionsAndUpdateCache(sourceTopologyInfo.getTopologyId());
             final List<ActionView> newActions = newActionIds.stream().map(actions::get)
@@ -733,8 +735,8 @@ public class LiveActionStore implements ActionStore {
 
     @Override
     @Nonnull
-    public EntitySeverityCache getEntitySeverityCache() {
-        return severityCache;
+    public Optional<EntitySeverityCache> getEntitySeverityCache() {
+        return Optional.of(severityCache);
     }
 
     @Override

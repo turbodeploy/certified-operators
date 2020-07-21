@@ -88,8 +88,7 @@ public class ReservationManager {
                 .forEachRemaining(reservation -> {
                     if (topologyType == TopologyType.REALTIME
                             || planType == PlanProjectType.CLUSTER_HEADROOM) {
-                        if (reservation.getStatus() == ReservationStatus.RESERVED ||
-                                        reservation.getStatus() == ReservationStatus.PLACEMENT_FAILED) {
+                        if (reservation.getStatus() == ReservationStatus.RESERVED) {
                             reservedReservations.put(reservation.getId(), reservation);
                         }
                     }

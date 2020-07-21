@@ -72,7 +72,6 @@ public class SMAInputContext {
                     oldVM.getZoneId(),
                     oldVM.getCurrentRI(),
                     oldVM.getOsType());
-            smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             newVirtualMachines.add(smaVirtualMachine);
         }
         this.virtualMachines = newVirtualMachines;
@@ -123,7 +122,6 @@ public class SMAInputContext {
                             SMAUtils.BOGUS_RI :
                             smaMatch.getReservedInstance(),
                     oldVM.getOsType());
-            smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             newVirtualMachines.add(smaVirtualMachine);
         }
         this.virtualMachines = newVirtualMachines;

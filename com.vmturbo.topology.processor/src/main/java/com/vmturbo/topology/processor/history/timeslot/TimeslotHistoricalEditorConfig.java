@@ -20,7 +20,7 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
     /**
      * Default value how often to checkpoint observation window.
      */
-    public static int defaultMaintenanceWindowHours = 23;
+    public static final int DEFAULT_MAINTENANCE_WINDOW_HOURS = 23;
 
     private final int maintenanceWindowHours;
 
@@ -29,6 +29,7 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
      *
      * @param loadingChunkSize chunk size for loading from the persistence store
      * @param calculationChunkSize chunk size for calculating values
+     * @param realtimeTopologyContextId identifier of the realtime topology.
      * @param backgroundLoadThreshold if that many commodities are not initialized, run loading in the background
      * @param backgroundLoadRetries how many load failures to tolerate before giving up
      * @param backgroundLoadTimeoutMin how much time to give to a single loading attempt
@@ -37,11 +38,12 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
      * @param kvConfig the config to access the topology processor key value store.
      */
     public TimeslotHistoricalEditorConfig(int loadingChunkSize, int calculationChunkSize,
-                    int backgroundLoadThreshold, int backgroundLoadRetries,
-                    int backgroundLoadTimeoutMin, int maintenanceWindowHours, @Nonnull Clock clock,
-                    @Nonnull KVConfig kvConfig) {
-        super(loadingChunkSize, calculationChunkSize, backgroundLoadThreshold, backgroundLoadRetries,
-              backgroundLoadTimeoutMin, clock, kvConfig);
+                    long realtimeTopologyContextId, int backgroundLoadThreshold,
+                    int backgroundLoadRetries, int backgroundLoadTimeoutMin,
+                    int maintenanceWindowHours, @Nonnull Clock clock, @Nonnull KVConfig kvConfig) {
+        super(loadingChunkSize, calculationChunkSize, realtimeTopologyContextId,
+                        backgroundLoadThreshold, backgroundLoadRetries, backgroundLoadTimeoutMin,
+                        clock, kvConfig);
         this.maintenanceWindowHours = maintenanceWindowHours;
     }
 

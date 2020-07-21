@@ -5,12 +5,13 @@ import static com.vmturbo.trax.Trax.trax;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
-import java.util.function.Function;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -111,7 +112,7 @@ public class ActionInterpreter {
                       @Nonnull final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
                       @Nonnull final ProjectedRICoverageCalculator projectedRICoverageCalculator,
                       @Nonnull final TierExcluder tierExcluder,
-                      @Nonnull final CommodityIndex commodityIndex) {
+                      @Nonnull final Supplier<CommodityIndex> commodityIndexSupplier) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
@@ -120,7 +121,7 @@ public class ActionInterpreter {
         this.cert = cert;
         this.projectedRICoverageCalculator = projectedRICoverageCalculator;
         this.tierExcluder = tierExcluder;
-        this.commodityIndex = commodityIndex;
+        this.commodityIndex = commodityIndexSupplier.get();
     }
 
     /**

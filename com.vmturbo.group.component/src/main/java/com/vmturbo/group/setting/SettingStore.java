@@ -128,6 +128,8 @@ public class SettingStore implements DiagsRestorable {
 
     private final SettingsUpdatesSender settingsUpdatesSender;
 
+    private static final Set<String> ACTION_WORKFLOW_SETTING_NAMES;
+
     static {
         final Map<ValueCase, SettingValueConverter> settingValueConverters =
                 new EnumMap<>(ValueCase.class);
@@ -141,6 +143,11 @@ public class SettingStore implements DiagsRestorable {
         settingValueConverters.put(ValueCase.SORTED_SET_OF_OID_SETTING_VALUE,
                 new OidsSetValueConverter());
         SETTING_VALUE_CONVERTERS = Collections.unmodifiableMap(settingValueConverters);
+        ACTION_WORKFLOW_SETTING_NAMES = Collections.unmodifiableSet(
+                ActionSettingSpecs.getActionWorkflowSettingSpecs()
+                        .stream()
+                        .map(SettingSpec::getName)
+                        .collect(Collectors.toSet()));
     }
 
     /**
@@ -1280,6 +1287,15 @@ public class SettingStore implements DiagsRestorable {
             resultMap.computeIfAbsent(targetId, key -> new HashMap<>()).put(name, identity);
         }
         return Collections.unmodifiableMap(resultMap);
+    }
+
+    /**
+     * Return names of the action workflow settings.
+     *
+     * @return list of action workflow setting names
+     */
+    public static Set<String> getActionWorkflowSettingNames() {
+        return ACTION_WORKFLOW_SETTING_NAMES;
     }
 
     /**

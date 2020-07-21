@@ -58,7 +58,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
     public void before() {
         clock = Mockito.mock(Clock.class);
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(0L));
-        config = new PercentileHistoricalEditorConfig(1, 24, 10, 100,
+        config = new PercentileHistoricalEditorConfig(1, 24, 777777L, 10, 100,
                         Collections.emptyMap(), null, clock);
         context = Mockito.mock(HistoryAggregationContext.class);
         topologyInfo = TopologyInfo.newBuilder().setTopologyId(77777L).build();
@@ -177,14 +177,14 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                 CoreMatchers.is(expectedResizable)));
     }
 
-    private ICommodityFieldAccessor createAccessor(long currentTime) {
+    private static ICommodityFieldAccessor createAccessor(long currentTime) {
         final TopologyEntity entity =
                         mockEntity(EntityType.VIRTUAL_MACHINE_VALUE, 1, commType, 100f, 76d, null,
                                         null, null, null, true);
         return createAccessor(100f, 99d, 12d, 80d, entity, currentTime);
     }
 
-    private ICommodityFieldAccessor createAccessor(float cap, double used2, double used3,
+    private static ICommodityFieldAccessor createAccessor(float cap, double used2, double used3,
                     double realTime, TopologyEntity entity, long lastPointTimestamp) {
         ICommodityFieldAccessor accessor = Mockito.spy(new CommodityFieldAccessor(
                         mockGraph(Collections.singleton(entity))));

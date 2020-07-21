@@ -97,7 +97,7 @@ public class StitchingMatchingMetaDataImplTest {
                 .stream()
                 .map(DTOFieldSpec::getMessagePath)
                 .filter(list -> !list.isEmpty())
-                .flatMap(List::stream)
+                .flatMap(Collection::stream)
                 .collect(Collectors.toList()));
     }
 

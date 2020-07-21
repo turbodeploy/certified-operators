@@ -18,6 +18,7 @@ import com.google.common.collect.Table;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.ActionStat;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
+import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician.PreviousBroadcastActions;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.ActionAggregator;
@@ -54,7 +55,7 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
      * 1. Creation
      * 2. {@link ActionAggregator#start()} to initialize
      * 3. for each action recorded by the {@link LiveActionsStatistician}:
-     *     - {@link ActionAggregator#processAction(StatsActionView, Set)}
+     *     - {@link ActionAggregator#processAction(StatsActionView, PreviousBroadcastActions)}
      * 4. {@link ActionAggregator#createRecords(Map, Map)} ()} to retrieve the aggregated records.
      */
     abstract class ActionAggregator {
@@ -80,7 +81,7 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
 
         /**
          * This method must be called before any calls to
-         * {@link ActionAggregator#processAction(StatsActionView, Set)}.
+         * {@link ActionAggregator#processAction(StatsActionView, PreviousBroadcastActions)}.
          *
          * The aggregator can override this to get any information it needs to process actions -
          * e.g. members of the management unit.
@@ -91,23 +92,22 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
          * Process a single action, adding it to any {@link ActionStat}
          *
          * @param action The action to process.
-         * @param newActionIds the IDs for all actions that are "new", i.e.
-         *                     not previously recommended
+         * @param previousBroadcastActions a mapping from action id to its old {@link ActionGroupKey}
          */
-        public abstract void processAction(@Nonnull final StatsActionView action,
-                                           @Nonnull final Set<Long> newActionIds);
+        public abstract void processAction(@Nonnull StatsActionView action,
+                                           @Nonnull PreviousBroadcastActions previousBroadcastActions);
 
         /**
          * Check if a given action is "new", i.e. not previously recommended, given a set of
          * action IDs for new actions.
          *
          * @param action the action to be checkted
-         * @param newActionIds the set of IDs of new actions
-         * @return true iff the action is "new", i.e. the ID is contained in the newActionIds set
+         * @param previousBroadcastActions a mapping from action id to its old {@link ActionGroupKey}
+         * @return true iff the action is "new"
          */
-        protected boolean actionIsNew(@Nonnull final StatsActionView action,
-                                      @Nonnull final Set<Long> newActionIds) {
-            return newActionIds.contains(action.recommendation().getId());
+        public boolean actionIsNew(@Nonnull StatsActionView action,
+                                   @Nonnull PreviousBroadcastActions previousBroadcastActions) {
+            return previousBroadcastActions.actionChanged(action.recommendation().getId(), action.actionGroupKey());
         }
 
         /**
@@ -133,7 +133,7 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
 
         /**
          * This method should only be called after all calls to
-         * {@link ActionAggregator#processAction(StatsActionView, Set)}.
+         * {@link ActionAggregator#processAction(StatsActionView, PreviousBroadcastActions)}.
          *
          * Return the {@link ActionStat}s this aggregator processed -
          * organized by {@link MgmtUnitSubgroupKey} and {@link ActionGroupKey} - as a stream of

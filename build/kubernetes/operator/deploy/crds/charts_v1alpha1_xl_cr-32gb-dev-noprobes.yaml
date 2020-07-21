@@ -3,6 +3,7 @@ kind: Xl
 metadata:
   name: xl-release
 spec:
+
   # Global settings
   global:
     repository: turbonomic

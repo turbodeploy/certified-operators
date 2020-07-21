@@ -2,15 +2,14 @@ package com.vmturbo.integrations.intersight.licensing;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.cisco.intersight.client.ApiException;
-import com.cisco.intersight.client.JSON;
 import com.cisco.intersight.client.model.LicenseLicenseInfo;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -41,6 +40,11 @@ public class IntersightLicenseCountUpdater {
      */
     public static final String LAST_PUBLISHED_WORKLOAD_COUNT_KEY = "licenseSync/lastPublishedWorkloadCount";
 
+    /**
+     * The license moid that received the last published workload count.
+     */
+    public static final String LAST_PUBLISHED_WORKLOAD_COUNT_LICENSE_MOID_KEY = "licenseSync/lastPublishedWorkloadCountLicenseMoid";
+
     private boolean enabled;
 
     private final KeyValueStore kvStore;
@@ -51,13 +55,19 @@ public class IntersightLicenseCountUpdater {
 
     private final int licenseCountCheckIntervalSecs;
 
+    private final IntersightLicenseSyncService licenseSyncService;
+
     // the "latest available" workload count info. This will be published to intersight when the
     // sync task runs.
-    private WorkloadCountInfo latestWorkloadCountInfo = new WorkloadCountInfo(0, null);
+    private WorkloadCountInfo latestWorkloadCountInfo;
 
     // tracks the last published workload count info. So we know we need to only publish newer material.
     @GuardedBy("this")
     private WorkloadCountInfo lastPublishedWorkloadCountInfo = new WorkloadCountInfo(0, null);
+
+    // tracks the last license that we published a workload count to. For detecting license changes
+    @GuardedBy("this")
+    private String lastPublishedWorkloadLicenseMoid = null;
 
     /**
      * Construct an instance of IntersightLicenseCountUpdater.
@@ -66,17 +76,20 @@ public class IntersightLicenseCountUpdater {
      * @param licenseCheckClient {@link LicenseCheckClient} used for monitoring license summary changes.
      * @param intersightLicenseClient {@link IntersightLicenseClient} for making calls to Intersight API
      * @param checkIntervalSecs the delay (in seconds) between workload count upload checks.
+     * @param licenseSyncService the {@link IntersightLicenseSyncService} that is synchronizing the licenses
      */
     public IntersightLicenseCountUpdater(boolean enabled,
                                          @Nonnull final KeyValueStore kvStore,
                                          @Nonnull final LicenseCheckClient licenseCheckClient,
                                          @Nonnull final IntersightLicenseClient intersightLicenseClient,
-                                        final int checkIntervalSecs) {
+                                        final int checkIntervalSecs,
+                                         @Nonnull final IntersightLicenseSyncService licenseSyncService) {
         this.enabled = enabled;
         this.kvStore = kvStore;
         this.licenseCheckClient = licenseCheckClient;
         this.intersightLicenseClient = intersightLicenseClient;
         this.licenseCountCheckIntervalSecs = checkIntervalSecs;
+        this.licenseSyncService = licenseSyncService;
     }
 
     /**
@@ -128,7 +141,10 @@ public class IntersightLicenseCountUpdater {
         Instant lastPublishedTimeSummaryGenerationTime = kvStore.get(LAST_PUBLISHED_WORKLOAD_TIMESTAMP_KEY)
                 .map(Instant::parse)
                 .orElse(null);
-        logger.info("Initial last published workload count {} generated at {}", lastPublishedCount, lastPublishedTimeSummaryGenerationTime);
+        lastPublishedWorkloadLicenseMoid = kvStore.get(LAST_PUBLISHED_WORKLOAD_COUNT_LICENSE_MOID_KEY)
+                .orElse("");
+        logger.info("Initial last published workload count {} generated at {} to license moid {}",
+                lastPublishedCount, lastPublishedTimeSummaryGenerationTime, lastPublishedWorkloadLicenseMoid);
         lastPublishedWorkloadCountInfo = new WorkloadCountInfo(lastPublishedCount, lastPublishedTimeSummaryGenerationTime);
     }
 
@@ -146,7 +162,8 @@ public class IntersightLicenseCountUpdater {
         if (licenseSummary.hasNumInUseEntities() && licenseSummary.hasGenerationDate()
                 && StringUtils.isNotBlank(licenseSummary.getGenerationDate())) {
             // first check if the workload count has actually changed.
-            if (lastPublishedWorkloadCountInfo.getWorkloadCount() == licenseSummary.getNumInUseEntities()) {
+            if ((lastPublishedWorkloadCountInfo.getWorkloadCount() == licenseSummary.getNumInUseEntities())
+                    && (latestWorkloadCountInfo != null)) {
                 // no change -- skip the rest of processing.
                 logger.info("Workload count hasn't changed. Will not update intersight.");
                 return;
@@ -173,89 +190,127 @@ public class IntersightLicenseCountUpdater {
     /**
      * This method will run on a background thread, and is responsible for updating the Intersight
      * server with the latest available workload count information we discover in XL.
+     *
+     * <p>IMPORTANT: As agreed with Cisco, we are going to attribute the whole workload count to a single
+     * license info object. This is because, unlike regular Turbo or CWOM licenses, we have no access
+     * to a number of "available license counts" for any given license, and thus are in no position
+     * to intelligently subdivide or distribute the workload count across multiple licenses.
+     * As a tiebreaker, if we have multiple license, we will sync to the first item in our proxy
+     * license list, which has been pre-sorted by sync priority.
      */
     protected void syncLicenseCounts() throws InterruptedException {
         logger.info("Starting license count synchronization thread.");
         // we're just going to loop forever
         while (true) {
-            // if there is a "pending" WorkloadCountInfo to be uploaded that differs from the
-            // "last uploaded" one, then upload it. We'll use a simple object reference check for
-            // this, as we only expect the references to change when there is a new summary available.
-            if (latestWorkloadCountInfo != null
-                    && (latestWorkloadCountInfo != lastPublishedWorkloadCountInfo)) {
-                // there's a new workload count to publish
-                logger.info("New workload count info generated at {} found -- will upload.", latestWorkloadCountInfo.getGeneratedTime());
-                try {
-                    uploadWorkloadCount(latestWorkloadCountInfo);
-                } catch (Exception e) {
-                    logger.error("Error while uploading workload count.", e);
+            try {
+                List<LicenseLicenseInfo> targetLicenses = licenseSyncService.getAvailableIntersightLicenses();
+                WorkloadCountInfo workloadCountInfo = latestWorkloadCountInfo;
+                if (shouldUpdateWorkloadCounts(workloadCountInfo,
+                        lastPublishedWorkloadCountInfo,
+                        lastPublishedWorkloadLicenseMoid,
+                        targetLicenses)) {
+                    logger.info("License count changes detected -- uploading changes.");
+                    // we will iterate through the list of target licenses. The first item in the list is
+                    // the "primary" license and will have all of the workload set as it's "license count".
+                    // all of the others will be zeroed out.
+                    for (int x = 0 ; x < targetLicenses.size() ; x++) {
+                        LicenseLicenseInfo license = targetLicenses.get(x);
+                        // the highest-priority license will receive the actual workload count.
+                        int newCount = (x == 0) ? workloadCountInfo.getWorkloadCount() : 0;
+                        try {
+                            uploadWorkloadCount(license, newCount);
+                        } catch (ApiException ae) {
+                            // log some additional info specific to the Intersight API errors that may help
+                            // debugging.
+                            logger.error("API error while {} uploading workload count.",
+                                    IntersightLicenseUtils.describeApiError(ae), ae);
+                        } catch (Exception e) {
+                            logger.error("Error while uploading workload count.", e);
+                        }
+                    }
+                    // update the consul workload tracking values.
+                    updateLastPublishedWorkloadCountInfo(workloadCountInfo, targetLicenses.get(0));
                 }
+            } catch (RuntimeException rte) {
+                logger.error("Error running license count updates.", rte);
             }
-
-            logger.info("Sleeping for {} secs", licenseCountCheckIntervalSecs);
+            logger.debug("Sleeping for {} secs", licenseCountCheckIntervalSecs);
             Thread.sleep(licenseCountCheckIntervalSecs * 1000);
         }
     }
 
     /**
-     * Upload the latest available workload count to Intersight.
+     * Utility method for determining if we should run a workload count update.
+     * We should run a workload count update when we have a target intersight license to sync with,
+     * and either of these is true:
+     * <ul>
+     *     <li>There is a "pending" WorkloadCountInfo to be uploaded that differs from the "last
+     *     uploaded" one. We'll use a simple object reference check for this, as we only expect the
+     *     references to change when there is a new summary available.</li>
+     *     <li>The last uploaded-to license moid is different from the one targeted by our license
+     *     sync service. A difference here means that the active license has changed, and we should
+     *     transfer the workload count to the new license.</li>
+     * </ul>
+     * @return true, if the conditions above are true.
+     */
+    protected boolean shouldUpdateWorkloadCounts(WorkloadCountInfo latestCountInfo,
+                                                WorkloadCountInfo lastPublishedCountInfo,
+                                                String lastPublishedTargetLicenseMoid,
+                                                List<LicenseLicenseInfo> currentTargetLicenses) {
+        boolean hasWorkloadCount = (latestCountInfo != null && latestCountInfo.getGeneratedTime() != null);
+        boolean workloadCountHasChanged = (hasWorkloadCount
+                && latestCountInfo.getWorkloadCount() != lastPublishedCountInfo.getWorkloadCount());
+        boolean hasTargetLicense = (currentTargetLicenses != null && currentTargetLicenses.size() > 0);
+        boolean licenseHasChanged = hasTargetLicense
+                && (!StringUtils.equals(currentTargetLicenses.get(0).getMoid(), lastPublishedTargetLicenseMoid));
+        return hasTargetLicense && hasWorkloadCount && (workloadCountHasChanged || licenseHasChanged);
+    }
+
+    /**
+     * Update an Intersight license with a new license count.
      *
      * <p>This will be best-effort, but we will not go crazy with the retries. If we fail, then we'll
      * end up trying again on the next cycle anyways.
      *
-     * @param workloadCountInfo The {@link WorkloadCountInfo} to upload.
+     * @param licenseToUpdate The {@link LicenseLicenseInfo} to update.
+     * @param newCount the new license count to set.
      */
-    protected synchronized void uploadWorkloadCount(WorkloadCountInfo workloadCountInfo)
+    protected synchronized void uploadWorkloadCount(LicenseLicenseInfo licenseToUpdate, int newCount)
             throws IOException, ApiException {
-        // get the license list
-        List<LicenseLicenseInfo> intersightLicenses = intersightLicenseClient.getIntersightLicenses().getResults();
-        // get the first license moid.
-        if (intersightLicenses.size() == 0) {
-            logger.warn("No intersight licenses found. Will not publish new workload count.");
+        // if the license is already set to this count, no need to do anything.
+        if (licenseToUpdate.getLicenseCount() == newCount) {
+            logger.info("License {} already has licenseCount {} - no change needed.",
+                    licenseToUpdate.getMoid(), newCount);
             return;
         }
-        // IMPORTANT: As agreed with Cisco, we are only going to publish license count info to a
-        // single license info object!! This is because we have no access to the number of "available
-        // license counts" for any given license, and thus are in no position to intelligently
-        // subdivide or distribute the workload count across multiple licenses.
-        // So, if we have multiple licenses, we will sort them by moid and post license counts to
-        // the license with the lowest moid in the list.
-        intersightLicenses.sort(Comparator.comparing(LicenseLicenseInfo::getMoid));
-        LicenseLicenseInfo licenseToUpdate = intersightLicenses.get(0);
-        // get the "parent" account license data moid -- we will need to monitor this object later
-        // to know when the workload count update was finished.
-        if (licenseToUpdate.getParent() == null) {
-            logger.error("LicenseLicenseInfo has no parent account -- will not update license count.");
+
+        // make sure this is not a fallback license -- this means a true "IWO" license was not
+        // found.
+        if (IntersightProxyLicenseEdition.fromIntersightLicenseType(licenseToUpdate.getLicenseType())
+                .equals(IntersightProxyLicenseEdition.IWO_FALLBACK)) {
+            logger.info("LicenseCountUpdater: Fallback license in use, will not update license count");
             return;
         }
-        String accountLicenseDataMoid = licenseToUpdate.getParent().getMoid();
-        if (StringUtils.isBlank(accountLicenseDataMoid)) {
-            logger.error("AccountLicenseData.moid is empty -- cannot update license count.");
-            return;
-        }
+
+        logger.info("Updating license {} licenseCount to {}", licenseToUpdate.getMoid(), newCount);
 
         // publish the new count
         // we'll need to create and edited version of the LicenseInfo object with the new LicenseCount
         // assigned. Since this field is not directly editable, we will make our edit through json.
         // TODO: We *should* be allowed to use licenseInfo.setLicenseCount(x) method directly if/when
         // the IWO back end model is updated to mark this field as read-write instead of read-only.
-        JSON json = intersightLicenseClient.getApiClient().getJSON();
+
+        ObjectMapper jsonMapper = intersightLicenseClient.getApiClient().getJSON().getMapper();
         // The flow will be: LicenseLicenseInfo -> json -> json w/license count -> LicenseLicenseInfo w/license count
-        String originalJson = json.getMapper().writeValueAsString(licenseToUpdate);
-        JSONObject editableJson = new JSONObject(originalJson);
-        editableJson.put("LicenseCount", workloadCountInfo.workloadCount);
+        JSONObject editableJson = new JSONObject();
+        editableJson.put("ClassId", "license.LicenseInfo");
+        editableJson.put("LicenseType", licenseToUpdate.getLicenseType().getValue());
+        editableJson.put("LicenseState", licenseToUpdate.getLicenseState().getValue());
+        editableJson.put("LicenseCount", newCount);
         String editedJson = editableJson.toString();
-        LicenseLicenseInfo editedLicenseInfo = json.getMapper().readValue(editedJson,
-                LicenseLicenseInfo.class);
+        LicenseLicenseInfo editedLicenseInfo = jsonMapper.readValue(editedJson, LicenseLicenseInfo.class);
 
         LicenseLicenseInfo responseInfo = intersightLicenseClient.updateLicenseLicenseInfo(licenseToUpdate.getMoid(), editedLicenseInfo);
-        logger.info("Response license: moid {} license count {}}", responseInfo.getMoid(), responseInfo.getLicenseCount());
-        // monitor the account license data SyncStatus
-        // TBD: will add after the initial license count update is working.
-
-        // update the consul workload tracking values.
-        updateLastPublishedWorkloadCountInfo(workloadCountInfo);
-
     }
 
     /**
@@ -263,10 +318,13 @@ public class IntersightLicenseCountUpdater {
      * starts up and used to avoid publishing either stale or duplicate data after the restart.
      * @param workloadCountInfo the workload count info to save.
      */
-    protected synchronized void updateLastPublishedWorkloadCountInfo(WorkloadCountInfo workloadCountInfo) {
-        kvStore.put(LAST_PUBLISHED_WORKLOAD_TIMESTAMP_KEY, workloadCountInfo.generatedTime.toString());
+    protected synchronized void updateLastPublishedWorkloadCountInfo(WorkloadCountInfo workloadCountInfo,
+                                                                     LicenseLicenseInfo targetLicense) {
+        kvStore.put(LAST_PUBLISHED_WORKLOAD_TIMESTAMP_KEY, workloadCountInfo.getGeneratedTimeString());
         kvStore.put(LAST_PUBLISHED_WORKLOAD_COUNT_KEY, String.valueOf(workloadCountInfo.getWorkloadCount()));
+        kvStore.put(LAST_PUBLISHED_WORKLOAD_COUNT_LICENSE_MOID_KEY, targetLicense.getMoid());
         lastPublishedWorkloadCountInfo = workloadCountInfo;
+        lastPublishedWorkloadLicenseMoid = targetLicense.getMoid();
     }
 
     /**
@@ -293,6 +351,17 @@ public class IntersightLicenseCountUpdater {
 
         public Instant getGeneratedTime() {
             return generatedTime;
+        }
+
+        /**
+         * Utility method to get the generated time as a string, if a timestamp is present.
+         * @return The timestamp string, if present, or null if not.
+         */
+        public String getGeneratedTimeString() {
+            if (generatedTime == null) {
+                return null;
+            }
+            return generatedTime.toString();
         }
 
         public boolean wasGeneratedBefore(Instant instant) {

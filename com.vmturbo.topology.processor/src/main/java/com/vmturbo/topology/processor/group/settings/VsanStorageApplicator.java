@@ -9,9 +9,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -33,7 +33,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
  * Applicator for vSAN commodities.
  */
 @ThreadSafe
-public class VsanStorageApplicator implements SettingApplicator {
+public class VsanStorageApplicator extends BaseSettingApplicator {
     private static final Logger logger = LogManager.getLogger();
 
     private static final double THRESHOLD_EFFECTIVE_CAPACITY = 1;
@@ -57,21 +57,21 @@ public class VsanStorageApplicator implements SettingApplicator {
         }
 
         final double slackSpaceRatio = getSlackSpaceRatio(settings);
-        final double iopsCapacityPerHost =  getNumericSetting(settings,
+        final double iopsCapacityPerHost = getNumericSetting(settings,
                 EntitySettingSpecs.HciHostIopsCapacity);
         final boolean useCompressionSetting = getBooleanSetting(settings,
                 EntitySettingSpecs.HciUseCompression);
         final double compressionRatio = useCompressionSetting
                 ? getNumericSetting(settings, EntitySettingSpecs.HciCompressionRatio)
                 : 1.0;
-        // hostCapacityReservcation is handled in HCIPhysicalMachineEntityConstructor for Plans
+        // hostCapacityReservcation is handled in
+        // HCIPhysicalMachineEntityConstructor for Plans
         final double hostCapacityReservation = storage.getOrigin().hasPlanScenarioOrigin()
                 || storage.getOrigin().hasReservationOrigin() ? 0
-                : getNumericSetting(settings,
-                EntitySettingSpecs.HciHostCapacityReservation);
-        final double storageOverprovisioningCoefficient =
-                getNumericSetting(settings,
-                        EntitySettingSpecs.StorageOverprovisionedPercentage) / 100;
+                        : getNumericSetting(settings,
+                                EntitySettingSpecs.HciHostCapacityReservation);
+        final double storageOverprovisioningCoefficient = getNumericSetting(settings,
+                EntitySettingSpecs.StorageOverprovisionedPercentage) / 100;
         final double raidFactor = computeRaidFactor(storage);
         final double hciUsablePercentage = raidFactor * slackSpaceRatio * compressionRatio * 100;
         try {
@@ -93,7 +93,7 @@ public class VsanStorageApplicator implements SettingApplicator {
      */
     private double getSlackSpaceRatio(@Nonnull Map<EntitySettingSpecs, Setting> settings) {
         double slackSpacePercentage = getNumericSetting(settings,
-                        EntitySettingSpecs.HciSlackSpacePercentage);
+                EntitySettingSpecs.HciSlackSpacePercentage);
         return (100.0 - slackSpacePercentage) / 100.0;
     }
 
@@ -244,8 +244,7 @@ public class VsanStorageApplicator implements SettingApplicator {
     private static CommoditySoldDTO.Builder getSoldStorageCommodityBuilder(
                     @Nonnull Builder storage, @Nonnull CommodityType type)
                                     throws EntityApplicatorException {
-        Collection<CommoditySoldDTO.Builder> comms = SettingApplicator
-                .getCommoditySoldBuilders(storage, type);
+        Collection<CommoditySoldDTO.Builder> comms = getCommoditySoldBuilders(storage, type);
         if (CollectionUtils.isEmpty(comms)) {
             throw new EntityApplicatorException("vSAN storage '" + storage.getDisplayName()
                     + "' is missing " + type + " commodity");
@@ -313,38 +312,6 @@ public class VsanStorageApplicator implements SettingApplicator {
             return THRESHOLD_EFFECTIVE_CAPACITY;
         }
         return capacity;
-    }
-
-    private static double getNumericSettingDefault(EntitySettingSpecs settingSpecs) {
-        return settingSpecs.getSettingSpec().getNumericSettingValueType().getDefault();
-    }
-
-    private static boolean getBooleanSettingDefault(EntitySettingSpecs settingSpecs) {
-        return settingSpecs.getSettingSpec().getBooleanSettingValueType().getDefault();
-    }
-
-    private static double getNumericSetting(@Nonnull Map<EntitySettingSpecs, Setting> settings,
-            @Nonnull EntitySettingSpecs spec) {
-        Setting setting = settings.get(spec);
-
-        if (setting == null || !setting.hasNumericSettingValue()) {
-            logger.error("The numeric setting " + spec.getDisplayName() + " is missing.  Using defaults. ");
-            return getNumericSettingDefault(spec);
-        }
-
-        return setting.getNumericSettingValue().getValue();
-    }
-
-    private static boolean getBooleanSetting(@Nonnull Map<EntitySettingSpecs, Setting> settings,
-            @Nonnull EntitySettingSpecs spec) {
-        Setting setting = settings.get(spec);
-
-        if (setting == null || !setting.hasBooleanSettingValue()) {
-            logger.error("The boolean setting " + spec.getDisplayName() + " is missing. Using defaults. ");
-            return getBooleanSettingDefault(spec);
-        }
-
-        return setting.getBooleanSettingValue().getValue();
     }
 
     private void setAccessCapacityForProvider(TopologyEntity provider,

@@ -4,8 +4,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -17,32 +17,31 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Streams;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
+import com.vmturbo.action.orchestrator.topology.ActionRealtimeTopology;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Maintain a cache of entity severities. Refreshing the entire cache causes the recomputation of
@@ -51,7 +50,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * operation is not that much faster than a full recomputation because it still requires an
  * examination of every action in the {@link ActionStore}.
  *
- * The severity for an entity is considered the maximum severity across all "visible" actions for
+ * <p/>The severity for an entity is considered the maximum severity across all "visible" actions for
  * which the entity is a "SeverityEntity".
  *
  * <p>The cache should be invalidated and refreshed when:
@@ -107,22 +106,21 @@ public class EntitySeverityCache {
         Collections.synchronizedMap(new HashMap<>());
 
     private final SeverityComparator severityComparator = new SeverityComparator();
-    private final RepositoryServiceBlockingStub repositoryService;
+    private final ActionTopologyStore actionTopologyStore;
     private final boolean isCalculatingBreakdowns;
 
     /**
      * Constructs the EntitySeverityCache that uses grpc to calculation risk propagation.
      *
-     * @param repositoryService the service that provides entities by type used as the seeds in risk
-     *                          propagation.
+     * @param actionTopologyStore Used to look up action-related information.
      * @param isCalculatingBreakdowns true for instances that calculate severity breakdowns. When
      *                                false, {@link #getSeverityBreakdown(long)} be empty and
      *                                {@link #getSeverityCounts(List)} will not consider severity
      *                                breakdowns.
      */
-    public EntitySeverityCache(@Nonnull final RepositoryServiceBlockingStub repositoryService,
+    public EntitySeverityCache(@Nonnull final ActionTopologyStore actionTopologyStore,
                                final boolean isCalculatingBreakdowns) {
-        this.repositoryService = repositoryService;
+        this.actionTopologyStore = actionTopologyStore;
         this.isCalculatingBreakdowns = isCalculatingBreakdowns;
         logger.debug("Property isCalculatingBreakdowns is set to " + isCalculatingBreakdowns);
     }
@@ -134,32 +132,47 @@ public class EntitySeverityCache {
      * @param actionStore the action store to use for the refresh
      */
     public void refresh(@Nonnull final ActionStore actionStore) {
+        final Long2ObjectMap<Severity> newSeverities = new Long2ObjectOpenHashMap<>(severities.size());
+        visibleActionViews(actionStore)
+            .forEach(actionView -> handleActionSeverity(actionView, newSeverities));
+        final Long2ObjectMap<SeverityCount> newSeverityBreakdowns =
+                calculateSeverityBreakdowns(newSeverities);
         synchronized (severities) {
             severities.clear();
+            severities.putAll(newSeverities);
+            entitySeverityBreakdowns.clear();
+            entitySeverityBreakdowns.putAll(newSeverityBreakdowns);
+        }
+    }
+
+    /**
+     * Refresh the calculated severity for the "SeverityEntity" for the given
+     * action based on the current contents of the {@link ActionStore}.
+     *
+     * @param action The action whose "SeverityEntity" should have its severity recalculated.
+     * @param actionStore The action store where the action view for this action is stored. The
+     *     entity types map is taken from that action view.
+     */
+    public void refresh(@Nonnull final Action action, @Nonnull final ActionStore actionStore) {
+        try {
+            long severityEntity = ActionDTOUtil.getSeverityEntity(action);
 
             visibleActionViews(actionStore)
-                .forEach(this::handleActionSeverity);
-            if (isCalculatingBreakdowns) {
-                calculateSeverityBreakdowns();
-            }
+                    .filter(actionView -> matchingSeverityEntity(severityEntity, actionView))
+                    .map(ActionView::getActionSeverity)
+                    .max(severityComparator)
+                    .ifPresent(severity -> severities.put(severityEntity, severity));
+        } catch (UnsupportedActionException e) {
+            logger.error("Unable to refresh severity cache for action {}", action, e);
         }
     }
 
     /**
      * A lock on {@link #severities} must be held when calling this method.
      * <ol>
-     *     <li>Compute the breakdown for all entities that directly connect to BusinessApp,
-     *         BusinessTxn, and Service. These can be: Application Component, Database Server,
-     *         Container, and Virtual Machine</li>
-     *     <li>Compute Service using the direct connections from the repository, using the counts
-     *         from step 1.</li>
-     *     <li>Compute Business Transactions using the direct connections from repository, using
-     *         the counts accumulated from step 1 and 2.</li>
-     *     <li>Compute Business Applications using the direct connections from repository, using
-     *         the counts accumulated from step 1, 2 and 3.</li>
-     *     <li>Remove break downs for Application Component, Database Server, Container, and
-     *         Virtual Machine because they are not used anywhere. It's a waste to keep them
-     *         around.</li>
+     * <li>calculate the break downs of the entities in the order from the bottom of the topology (Storage and VM) to the top (BApp)</li>
+     * <li>for each entity look take the break downs of the producers and combine them</li>
+     * <li>also add in the severity of the entity itself</li>
      * </ol>
      * We must compute the breakdowns in this way for the following reasons:
      * <ol>
@@ -201,67 +214,77 @@ public class EntitySeverityCache {
      *     critical: 2 entities (Host1 thru App1 and Host1 again through App2)
      *     normal: 4 entities (App1, App2, VM1 and VM2)
      * </pre>
+     *
+     * @param entitySeverities The entity severities to use for the breakdowns.
+     * @return The new severity breakdowns, by entity OID.
      */
-    @GuardedBy("severities")
-    private void calculateSeverityBreakdowns() {
-        entitySeverityBreakdowns.clear();
-        StopWatch stopWatch = new StopWatch();
-        stopWatch.start();
-        Map<Long, SeverityCount> temporarySeverities = new HashMap<>();
-        for (TraversalConfig traversalConfig : RETRIEVAL_ORDER) {
-            accumulateCounts(temporarySeverities, traversalConfig);
+    @Nonnull
+    public Long2ObjectMap<SeverityCount> calculateSeverityBreakdowns(Long2ObjectMap<Severity> entitySeverities) {
+        final Long2ObjectMap<SeverityCount> retMap =
+                new Long2ObjectOpenHashMap<>(entitySeverityBreakdowns.size());
+        if (isCalculatingBreakdowns) {
+            StopWatch stopWatch = new StopWatch();
+            stopWatch.start();
+            final Long2ObjectMap<SeverityCount> temporarySeverities = new Long2ObjectOpenHashMap<>();
+            Optional<ActionRealtimeTopology> curTopology = actionTopologyStore.getSourceTopology();
+            if (curTopology.isPresent()) {
+                for (TraversalConfig traversalConfig : RETRIEVAL_ORDER) {
+                    accumulateCounts(temporarySeverities, curTopology.get().entityGraph(),
+                            traversalConfig, entitySeverities, retMap);
+                }
+            }
+            stopWatch.stop();
+            logger.info("completed calculateSeverityBreakdowns for {} entities in {}", retMap.size(), stopWatch.toString());
+        } else {
+            logger.debug("Skipping calculating breakdowns.");
         }
-        stopWatch.stop();
-        logger.info("completed calculateSeverityBreakdowns in " + stopWatch.toString());
+        return retMap;
     }
 
     /**
      * Accumulates the severity counts in temporarySeverities for only entities of type entityType.
      *
      * @param temporarySeverities The map to temporarily store the severity counts in.
+     * @param topology The topology to use for traversals.
      * @param traversalConfig The type of the entities to compute the severity counts for and how
      *                        the traversal should happen. For instance, we should not traverse
      *                        a physical machines producers or else we will hit unrelated storages.
+     * @param entitySeverities The per-entity severities to use for the accumulation.
+     * @param newSeveritiesOutput The map where we track the new severity breakdowns. This method
+     *       will add some entries to this map.
      */
-    private void accumulateCounts(Map<Long, SeverityCount> temporarySeverities,
-                                  TraversalConfig traversalConfig) {
+    private void accumulateCounts(Long2ObjectMap<SeverityCount> temporarySeverities,
+                                  TopologyGraph<ActionGraphEntity> topology,
+                                  TraversalConfig traversalConfig,
+                                  Long2ObjectMap<Severity> entitySeverities,
+                                  Long2ObjectMap<SeverityCount> newSeveritiesOutput) {
         StopWatch stopWatchMethod = new StopWatch();
         stopWatchMethod.start();
 
-        Iterator<PartialEntityBatch> batchedIterator =
-            repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                .addEntityType(traversalConfig.entityType.getNumber())
-                .setReturnType(Type.API)
-                .build());
-        Streams.stream(batchedIterator)
-            .map(PartialEntityBatch::getEntitiesList)
-            .flatMap(List::stream)
-            .filter(PartialEntity::hasApi)
-            .map(PartialEntity::getApi)
-            .forEach(apiPartialEntity -> {
+
+        topology.entitiesOfType(traversalConfig.entityType)
+            .forEach(entity -> {
                 // add the counts from all the entities before this one
-                long oid = apiPartialEntity.getOid();
+                long oid = entity.getOid();
                 SeverityCount severityBreakdown = new SeverityCount();
 
                 if (traversalConfig.traverseProducers) {
-                    for (RelatedEntity connectedEntity : apiPartialEntity.getProvidersList()) {
-                        severityBreakdown.combine(
-                            temporarySeverities.get(connectedEntity.getOid()));
+                    for (ActionGraphEntity provider : entity.getProviders()) {
+                        severityBreakdown.combine(temporarySeverities.get(provider.getOid()));
                     }
                 }
 
                 if (!traversalConfig.connectedEntities.isEmpty()) {
-                    for (RelatedEntity connectedEntity : apiPartialEntity.getConnectedToList()) {
+                    for (ActionGraphEntity connectedEntity : entity.getOutboundAssociatedEntities()) {
                         if (traversalConfig.connectedEntities.contains(EntityType.forNumber(connectedEntity.getEntityType()))) {
-                            severityBreakdown.combine(
-                                temporarySeverities.get(connectedEntity.getOid()));
+                            severityBreakdown.combine(temporarySeverities.get(connectedEntity.getOid()));
                         }
                     }
                 }
 
                 // add the count from the entity itself
                 if (traversalConfig.includeSelf) {
-                    Severity entitySeverity = severities.get(oid);
+                    Severity entitySeverity = entitySeverities.get(oid);
                     if (entitySeverity == null) {
                         entitySeverity = Severity.NORMAL;
                     }
@@ -271,7 +294,7 @@ public class EntitySeverityCache {
 
                 // persist to in memory store
                 if (traversalConfig.persist) {
-                    entitySeverityBreakdowns.put(oid, severityBreakdown);
+                    newSeveritiesOutput.put(oid, severityBreakdown);
                 }
             });
 
@@ -284,7 +307,8 @@ public class EntitySeverityCache {
 
     /**
      * Describes how the entities of TraversalConfig's entity type should be used in the
-     * {@link EntitySeverityCache#accumulateCounts(Map, TraversalConfig)} traversal.
+     * {@link EntitySeverityCache#accumulateCounts(Long2ObjectMap, TopologyGraph,
+     * TraversalConfig, Long2ObjectMap, Long2ObjectMap)} traversal.
      */
     private static class TraversalConfig {
 
@@ -344,7 +368,7 @@ public class EntitySeverityCache {
     public static class SeverityCount {
 
         private final Map<Severity, Integer> counts =
-            Collections.synchronizedMap(new HashMap<>());
+            Collections.synchronizedMap(new EnumMap<>(Severity.class));
 
         /**
          * Increments the provided severity.
@@ -410,30 +434,6 @@ public class EntitySeverityCache {
     }
 
     /**
-     * Refresh the calculated severity for the "SeverityEntity" for the given
-     * action based on the current contents of the {@link ActionStore}.
-     *
-     * TODO(davidblinn): This may need to be made more efficient when lots of actions are updated
-     *
-     * @param action The action whose "SeverityEntity" should have its severity recalculated.
-     * @param actionStore The action store where the action view for this action is stored. The
-     *     entity types map is taken from that action view.
-     */
-    public void refresh(@Nonnull final Action action, @Nonnull final ActionStore actionStore) {
-        try {
-            long severityEntity = ActionDTOUtil.getSeverityEntity(action);
-
-            visibleActionViews(actionStore)
-                .filter(actionView -> matchingSeverityEntity(severityEntity, actionView))
-                .map(ActionView::getActionSeverity)
-                .max(severityComparator)
-                .ifPresent(severity -> severities.put(severityEntity, severity));
-        } catch (UnsupportedActionException e) {
-            logger.error("Unable to refresh severity cache for action {}", action, e);
-        }
-    }
-
-    /**
      * Get the severity for a given entity by that entity's OID.
      *
      * @param entityOid The OID of the entity whose severity should be retrieved.
@@ -461,12 +461,12 @@ public class EntitySeverityCache {
      * Get the severity counts for the entities in the stream.
      * Entities that are unknown to the cache are mapped to an {@link Optional#empty()} severity.
      *
-     * Note that we calculate severity based on actions that apply to an entity and the AO only
+     * <p/>Note that we calculate severity based on actions that apply to an entity and the AO only
      * knows about entities that have actions because it doesn't receive the topology that
      * contains the authoratitive list of all entities. So if no actions apply to an entity,
      * the AO won't know about that entity.
      *
-     * So this creates the following problem: if you ask for the severity of a real entity that
+     * <p/>So this creates the following problem: if you ask for the severity of a real entity that
      * has no actions, or if you ask for the severity of an entity that does not actually exist,
      * the AO has to respond with "I don't know" in both cases. If querying for real entities,
      * the AO response of "I don't know" means that there were no actions for an entity,
@@ -483,7 +483,7 @@ public class EntitySeverityCache {
     public Map<Optional<Severity>, Long> getSeverityCounts(@Nonnull final List<Long> entityOids) {
         Map<Optional<Severity>, Long> accumulatedCounts = new HashMap<>();
         synchronized (severities) {
-            for (long oid : entityOids) {
+            for (Long oid : entityOids) {
                 SeverityCount countForOid = entitySeverityBreakdowns.get(oid);
                 if (countForOid != null) {
                     for (Entry<Severity, Integer> entry : countForOid.getSeverityCounts()) {
@@ -527,18 +527,20 @@ public class EntitySeverityCache {
      * the current value for the severityEntity and the severity associated with the actionView.
      *
      * @param actionView The action whose severity should be updated.
+     * @param newSeverities The map of severities we are currently building up. This method will
+     *                      modify this map based on the input action view.
      */
-    private void handleActionSeverity(@Nonnull final ActionView actionView) {
+    private void handleActionSeverity(@Nonnull final ActionView actionView,
+                                      @Nonnull final Long2ObjectMap<Severity> newSeverities) {
         try {
             final long severityEntity = ActionDTOUtil.getSeverityEntity(
                     actionView.getTranslationResultOrOriginal());
             final Severity nextSeverity = actionView.getActionSeverity();
-
-            final Severity maxSeverity = getSeverity(severityEntity)
-                .map(currentSeverity -> maxSeverity(currentSeverity, nextSeverity))
-                .orElse(nextSeverity);
-
-            severities.put(severityEntity, maxSeverity);
+            final Severity existingSeverity = newSeverities.get(severityEntity);
+            final Severity newSeverity = maxSeverity(existingSeverity, nextSeverity);
+            if (newSeverity != null) {
+                newSeverities.put(severityEntity, newSeverity);
+            }
         } catch (UnsupportedActionException e) {
             logger.warn("Unable to handle action severity for action {}", actionView);
         }
@@ -580,8 +582,8 @@ public class EntitySeverityCache {
      * @return The severity that is the more severe. In the case where they are equally
      *         severe no guarantee is made about which will be returned.
      */
-    @Nonnull
-    private Severity maxSeverity(Severity s1, Severity s2) {
+    @Nullable
+    private Severity maxSeverity(@Nullable Severity s1, @Nullable Severity s2) {
         return severityComparator.compare(s1, s2) > 0 ? s1 : s2;
     }
 
@@ -592,7 +594,7 @@ public class EntitySeverityCache {
 
         @Override
         public int compare(Severity s1, Severity s2) {
-            return s1.getNumber() - s2.getNumber();
+            return (s1 == null ? 0 : s1.getNumber()) - (s2 == null ? 0 : s2.getNumber());
         }
     }
 

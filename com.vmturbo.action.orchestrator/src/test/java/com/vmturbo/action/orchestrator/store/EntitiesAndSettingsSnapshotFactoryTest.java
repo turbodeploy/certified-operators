@@ -211,7 +211,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                         .setSeedOid(businessAccountId)
                         .setSupplyChain(SupplyChain.newBuilder()
                                 .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                                        .setEntityType(EntityType.APPLICATION_SERVER.name())
+                                        .setEntityType(EntityType.APPLICATION_COMPONENT.name())
                                         .putMembersByState(EntityState.POWERED_ON.getNumber(),
                                                 MemberList.newBuilder()
                                                         .addMemberOids(appServerId)

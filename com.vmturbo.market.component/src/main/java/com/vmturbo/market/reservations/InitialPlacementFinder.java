@@ -149,16 +149,16 @@ public class InitialPlacementFinder {
         Topology t = new Topology();
         Economy cloneEconomy = t.getEconomyForTesting();
         cloneEconomy.setTopology(t);
-        BiMap<Trader, Long> originalTraderToOidMap = originalEconomy.getTopology().getModifiableTraderOids();
-        BiMap<Trader, Long> cloneTraderToOidMap = t.getModifiableTraderOids();
+        Map<Long, Trader> cloneTraderToOidMap = t.getModifiableTraderOids();
         originalEconomy.getTraders().stream()
                 .filter(trader -> PROVIDER_ENTITY_TYPES.contains(trader.getType()))
                 .forEach(trader -> {
                     Trader cloneTrader = cloneEconomy.addTrader(trader.getType(), trader.getState(),
                             new Basket(trader.getBasketSold()), trader.getCliques());
+                    cloneTrader.setOid(trader.getOid());
 
                     // Copy traderOids in clone economy
-                    cloneTraderToOidMap.put(cloneTrader, originalTraderToOidMap.get(trader));
+                    cloneTraderToOidMap.put(trader.getOid(), cloneTrader);
 
                     // Copy bare minimum trader properties
                     cloneTrader.setDebugInfoNeverUseInCode(
@@ -208,7 +208,7 @@ public class InitialPlacementFinder {
      * @param economy the economy for reservation
      */
     private void addReservationEntities(@Nonnull final Economy economy) {
-        BiMap<Long, Trader> traderOidToTrader = economy.getTopology().getModifiableTraderOids().inverse();
+        Map<Long, Trader> traderOidToTrader = economy.getTopology().getModifiableTraderOids();
         reservationBuyerToShoppingLists.forEach((traderId, shoppingListsToProvider) -> {
             if (!traderOidToTrader.containsKey(traderId)) {
                 Trader t = economy.addTrader(EntityType.VIRTUAL_MACHINE_VALUE, TraderState.ACTIVE, new Basket());
@@ -241,13 +241,15 @@ public class InitialPlacementFinder {
         List<TraderTO> traderTOs = new ArrayList<>();
         for (InitialPlacementBuyer buyer : buyers) {
             TraderTO.Builder traderTO = TraderTO.newBuilder();
+            boolean validConstraint = true;
             for (InitialPlacementCommoditiesBoughtFromProvider sl : buyer.getInitialPlacementCommoditiesBoughtFromProviderList()) {
                 List<CommodityBoughtTO> commBoughtTOs = constructCommBoughtTO(sl
                         .getCommoditiesBoughtFromProvider().getCommodityBoughtList(), commTypeToSpecMap);
                 if (commBoughtTOs.isEmpty()) {
                     logger.warn("Empty commodity bought created in this trader {} sl {}, skipping"
                             + " reservation for it", buyer.getBuyerId(), sl.getCommoditiesBoughtFromProviderId());
-                    continue;
+                    validConstraint = false;
+                    break;
                 }
                 // NOTE: InitialPlacementShoppingList has a provider type attribute, but sl doesnt
                 // have a counterpart representing it.
@@ -257,13 +259,15 @@ public class InitialPlacementFinder {
                         .addAllCommoditiesBought(commBoughtTOs).build();
                 traderTO.addShoppingLists(slTO);
             }
-            traderTO.setOid(buyer.getBuyerId())
-                    .setDebugInfoNeverUseInCode(buyer.getBuyerId() + PLACEMENT_CLONE_SUFFIX)
-                    .setSettings(TraderSettingsTO.newBuilder()
-                    .setIsShopTogether(true)
-                    .setQuoteFunction(QuoteFunctionDTO.newBuilder().setSumOfCommodity(SumOfCommodity
-                            .newBuilder().build())));
-            traderTOs.add(traderTO.build());
+            if (validConstraint) {
+                traderTO.setOid(buyer.getBuyerId())
+                        .setDebugInfoNeverUseInCode(buyer.getBuyerId() + PLACEMENT_CLONE_SUFFIX)
+                        .setSettings(TraderSettingsTO.newBuilder()
+                                .setIsShopTogether(true)
+                                .setQuoteFunction(QuoteFunctionDTO.newBuilder().setSumOfCommodity(SumOfCommodity
+                                        .newBuilder().build())));
+                traderTOs.add(traderTO.build());
+            }
         }
         return traderTOs;
     }
@@ -284,7 +288,7 @@ public class InitialPlacementFinder {
                 logger.warn("The reservation is given a commodity type {} key {} which may be just"
                         + " created in system, please wait one round of analysis and try this reservation again",
                         commBought.getCommodityType().getType(), commBought.getCommodityType().getKey());
-                return commBoughtTOs;
+                return new ArrayList<>();
             }
             CommodityBoughtTO commBoughtTO = CommodityBoughtTO.newBuilder()
                     .setSpecification(CommoditySpecificationTO.newBuilder()
@@ -322,7 +326,7 @@ public class InitialPlacementFinder {
      * @param economy the economy
      */
     public void clearDeletedBuyersImpact(@Nonnull final Economy economy) {
-        BiMap<Long, Trader> traderByOid = economy.getTopology().getTraderOids().inverse();
+        Map<Long, Trader> traderByOid = economy.getTopology().getTradersByOid();
         Set<Long> removeBuyers = new HashSet<>();
         for (long oid : buyersToBeDeleted) {
             Trader removeBuyer = traderByOid.get(oid);
@@ -335,7 +339,7 @@ public class InitialPlacementFinder {
             Trader buyer = traderByOid.get(removeOid);
             // remove deleted reservation entities from economy and topology
             economy.removeTrader(buyer);
-            economy.getTopology().getModifiableTraderOids().remove(buyer);
+            economy.getTopology().getModifiableTraderOids().remove(removeOid);
         }
 
         if (!removeBuyers.isEmpty()) {
@@ -368,7 +372,7 @@ public class InitialPlacementFinder {
             cachedEconomy.resetMarketsPopulatedFlag();
             // buyers constructed using the cachedCommTypeMap, which has to be the same map for
             // cachedEconomy commodity construction
-            BiMap commTypeToSpecMap = HashBiMap.create();
+            BiMap<CommodityType, Integer> commTypeToSpecMap = HashBiMap.create();
             cachedCommTypeMap.entrySet().forEach(e -> commTypeToSpecMap.put(e.getKey(), e.getValue()));
             // There maybe cases where the deletion arrives market component after new reservation request,
             // even though user trigger the deletion first. In that case, we failed to clear the impact of
@@ -390,14 +394,14 @@ public class InitialPlacementFinder {
 
             final Map<Long, ShoppingList> slOidToSlMap =
                     cachedEconomy.getTopology().getShoppingListOids().inverse();
-            final BiMap<Trader, Long> traderToTraderOid = cachedEconomy.getTopology().getTraderOids();
+            final Map<Long, Trader> traderToTraderOid = cachedEconomy.getTopology().getTradersByOid();
             final Map<Long, Map<ShoppingList, Long>> tIdToSL = new HashMap<>();
 
             logger.info("Start processing reservation {} result", reservationId);
             // process failed placement and pass information to caller
             if (!placementResults.getUnplacedTraders().isEmpty()) {
                 reservationResult = buildReservationFailureInfo(
-                        placementResults, cachedEconomy, traderToTraderOid, commTypeToSpecMap, reservationTraders);
+                        placementResults, cachedEconomy, commTypeToSpecMap, reservationTraders);
             }
             // A set of traders that come from reservations that are not fully successful.
             // This list contains all traders from partial successful reservation or traders from
@@ -417,7 +421,7 @@ public class InitialPlacementFinder {
                         });
                     }
                 }
-                rollbackPlacedTraders(cachedEconomy, tradersToBeRolledBack, traderToTraderOid.inverse());
+                rollbackPlacedTraders(cachedEconomy, tradersToBeRolledBack, traderToTraderOid);
                 logger.info("Rolled back placement for failed reservation {}", buyersByReservationId.keySet());
             }
             Set<TraderTO> traderInFullySuccessfulReservation = reservationTraders.stream()
@@ -426,21 +430,23 @@ public class InitialPlacementFinder {
                 for (ShoppingListTO slTO : trader.getShoppingListsList()) {
                     if (slOidToSlMap.containsKey(slTO.getOid())) {
                         ShoppingList sl = slOidToSlMap.get(slTO.getOid());
-                        Long supplierId = traderToTraderOid.get(sl.getSupplier());
-                        if (supplierId != null) {
-                            // when we find provider for reservation, the only field needs to be populated
-                            // in ReservationResult is provider oid.
-                            reservationResult.put(trader.getOid(), slTO.getOid(),
+                        if (sl.getSupplier() != null) {
+                            long supplierId = sl.getSupplier().getOid();
+                            if (sl.getSupplier().isOidSet()) {
+                                // when we find provider for reservation, the only field needs to be populated
+                                // in ReservationResult is provider oid.
+                                reservationResult.put(trader.getOid(), slTO.getOid(),
                                     new InitialPlacementFinderResult(Optional.of(supplierId), new ArrayList<>()));
-                            // make sure the reservation entity start to consume on the supplier
-                            new Move(cachedEconomy, sl, sl.getSupplier()).take();
-                            logger.debug("Reservation succeeded for entity {} sl oid {} to be placed"
+                                // make sure the reservation entity start to consume on the supplier
+                                new Move(cachedEconomy, sl, sl.getSupplier()).take();
+                                logger.debug("Reservation succeeded for entity {} sl oid {} to be placed"
                                     + " on supplier {}", trader.getOid(), slTO.getOid(), supplierId);
-                        }
-                        // stop both placed and unplaced reservation entity moving
-                        sl.setMovable(false);
-                        tIdToSL.computeIfAbsent(trader.getOid(), v -> new HashMap<>()).put(sl,
+                            }
+                            // stop both placed and unplaced reservation entity moving
+                            sl.setMovable(false);
+                            tIdToSL.computeIfAbsent(trader.getOid(), v -> new HashMap<>()).put(sl,
                                 supplierId);
+                        }
                     }
                 }
             }
@@ -483,14 +489,12 @@ public class InitialPlacementFinder {
      *
      * @param result placementResult containing {@link QuoteTracker}
      * @param economy the reservation economy
-     * @param traderToOid trader to its oid mapping
      * @param commTypeToSpecMap  a bidirectional map of TopologyDTO.CommodityType and CommoditySpecification's type
      * @param reservationTraders a list of reservation traders
      * @return a table of buyer oid, shopping list oid and {@link InitialPlacementFinderResult}
      */
     public Table<Long, Long, InitialPlacementFinderResult> buildReservationFailureInfo(@Nonnull final PlacementResults result,
             @Nonnull final Economy economy,
-            @Nonnull final Map<Trader, Long> traderToOid,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final List<TraderTO> reservationTraders) {
         Table<Long, Long, InitialPlacementFinderResult> failureInfo = HashBasedTable.create();
@@ -498,9 +502,9 @@ public class InitialPlacementFinder {
         // iterate unplaced trader and its quote tracker collection to figure out the commodity that exceeds
         // the availability as well as its closest seller that can provide max quantity for that commodity
         for (Map.Entry<Trader, Collection<QuoteTracker>> entry : result.getUnplacedTraders().entrySet()) {
-            Long unplacedTraderOid = traderToOid.get(entry.getKey());
+            long unplacedTraderOid = entry.getKey().getOid();
             // make sure the unplaced trader is indeed from reservation request
-            if (unplacedTraderOid == null || !reservationTraderOids.contains(unplacedTraderOid)) {
+            if (!entry.getKey().isOidSet() || !reservationTraderOids.contains(unplacedTraderOid)) {
                 continue;
             }
             for (QuoteTracker quoteTracker : entry.getValue()) {
@@ -518,7 +522,7 @@ public class InitialPlacementFinder {
                     int commIndex = sl.getBasket().indexOf(commSpec);
                     IndividualCommodityQuote commQuote = e.getValue();
                     CommodityType commType = commTypeToSpecMap.inverse().get(commSpec.getType());
-                    failureInfoList.add(new FailureInfo(commType, traderToOid.get(commQuote.quote.getSeller()),
+                    failureInfoList.add(new FailureInfo(commType, commQuote.quote.getSeller().getOid(),
                             commQuote.availableQuantity, commIndex == -1 ? 0 : sl.getQuantity(commIndex)));
                 }
                 // the ReservationResult's providerOid is empty in failed cases

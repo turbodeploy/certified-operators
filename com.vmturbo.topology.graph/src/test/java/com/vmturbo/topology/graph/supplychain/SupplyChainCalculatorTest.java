@@ -26,7 +26,6 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -108,16 +107,6 @@ public class SupplyChainCalculatorTest {
     private static final long VDC_ID = 11;
     private static final long VDC_CONTAINERS_TOPO_VM_1_ID = 21;
     private static final long VDC_CONTAINERS_TOPO_VM_2_ID = 22;
-
-    /**
-     * Constants for VDI topology creation.
-     */
-    private static final long VDI_TOPO_PM1ID = 1L;
-    private static final long VDI_TOPO_PM2ID = 2L;
-    private static final long VDI_TOPO_VDC1ID = 11L;
-    private static final long VDI_TOPO_DP1ID = 12L;
-    private static final long VDI_TOPO_VM1ID = 21L;
-    private static final long VDI_TOPO_BU1ID = 22L;
 
     /**
      * Simple topology.
@@ -1585,117 +1574,6 @@ public class SupplyChainCalculatorTest {
         vdcTopology = TestGraphEntity.newGraph(pm1Builder, pm2Builder, pm3Builder,
                 vdc1Builder, vdc2Builder, vdc3Builder, vdc4Builder,
                 vm1Builder, vm2Builder, vm3Builder, vm4Builder);
-    }
-
-    /**
-     * In the topology created by {@link #createVdiTopology()}, scope on VM1.
-     * Expect: PM1, BU1, VM1, DP1.
-     */
-    @Test
-    public void testVdiTopologyScopeOnVm1() {
-        final TopologyGraph<TestGraphEntity> topology = createVdiTopology();
-        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(topology, VDI_TOPO_VM1ID);
-        assertEquals(4, supplyChain.keySet().size());
-        assertEquals(Collections.singleton(VDI_TOPO_PM1ID),
-                getAllNodeIds(supplyChain.get(EntityType.PHYSICAL_MACHINE_VALUE)));
-        assertEquals(Collections.singleton(VDI_TOPO_DP1ID),
-                getAllNodeIds(supplyChain.get(EntityType.DESKTOP_POOL_VALUE)));
-        assertEquals(Collections.singleton(VDI_TOPO_VM1ID),
-                getAllNodeIds(supplyChain.get(EntityType.VIRTUAL_MACHINE_VALUE)));
-        assertEquals(Collections.singleton(VDI_TOPO_BU1ID),
-                getAllNodeIds(supplyChain.get(EntityType.BUSINESS_USER_VALUE)));
-    }
-
-    /**
-     * In the topology created by {@link #createVdiTopology()}, scope on BU1.
-     * Expect: PM1, BU1, VM1, DP1.
-     */
-    @Test
-    public void testVdiTopologyScopeOnBu1() {
-        final TopologyGraph<TestGraphEntity> topology = createVdiTopology();
-        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(topology, VDI_TOPO_BU1ID);
-        assertEquals(4, supplyChain.keySet().size());
-        assertEquals(Collections.singleton(VDI_TOPO_PM1ID),
-                getAllNodeIds(supplyChain.get(EntityType.PHYSICAL_MACHINE_VALUE)));
-        assertEquals(Collections.singleton(VDI_TOPO_DP1ID),
-                getAllNodeIds(supplyChain.get(EntityType.DESKTOP_POOL_VALUE)));
-        assertEquals(Collections.singleton(VDI_TOPO_VM1ID),
-                getAllNodeIds(supplyChain.get(EntityType.VIRTUAL_MACHINE_VALUE)));
-        assertEquals(Collections.singleton(VDI_TOPO_BU1ID),
-                getAllNodeIds(supplyChain.get(EntityType.BUSINESS_USER_VALUE)));
-    }
-
-    /**
-     * In the topology created by {@link #createVdiTopology()}, scope on Dp1.
-     * Expect: PM1, PM2, BU1, VM1, DP1, and VDC1.
-     */
-    @Test
-    public void testVdiTopologyScopeOnDp1() {
-        final TopologyGraph<TestGraphEntity> topology = createVdiTopology();
-        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(topology, VDI_TOPO_DP1ID);
-        assertEquals(5, supplyChain.keySet().size());
-        assertThat(getAllNodeIds(supplyChain.get(EntityType.PHYSICAL_MACHINE_VALUE)),
-                containsInAnyOrder(VDI_TOPO_PM1ID, VDI_TOPO_PM2ID));
-        assertEquals(Collections.singleton(VDI_TOPO_DP1ID),
-                getAllNodeIds(supplyChain.get(EntityType.DESKTOP_POOL_VALUE)));
-        assertEquals(Collections.singleton(VDI_TOPO_VM1ID),
-                getAllNodeIds(supplyChain.get(EntityType.VIRTUAL_MACHINE_VALUE)));
-        assertEquals(Collections.singleton(VDI_TOPO_BU1ID),
-                getAllNodeIds(supplyChain.get(EntityType.BUSINESS_USER_VALUE)));
-        assertEquals(Collections.singleton(VDI_TOPO_VDC1ID),
-                getAllNodeIds(supplyChain.get(EntityType.VIRTUAL_DATACENTER_VALUE)));
-    }
-
-    /*
-     * Topology:
-     *    BU1-------
-     *      \      /
-     *     VM2----DP1
-     *      \     /
-     *       \ VDC1
-     *       \  / \
-     *        PM1 PM2
-     **/
-    private TopologyGraph<TestGraphEntity> createVdiTopology() {
-        // entities
-        final TestGraphEntity.Builder pm1Builder =
-                TestGraphEntity.newBuilder(VDI_TOPO_PM1ID, ApiEntityType.PHYSICAL_MACHINE);
-        final TestGraphEntity.Builder pm2Builder =
-                TestGraphEntity.newBuilder(VDI_TOPO_PM2ID, ApiEntityType.PHYSICAL_MACHINE);
-
-        final TestGraphEntity.Builder vdc1Builder =
-                TestGraphEntity.newBuilder(VDI_TOPO_VDC1ID, ApiEntityType.VIRTUAL_DATACENTER);
-
-        final TestGraphEntity.Builder dp1Builder =
-                TestGraphEntity.newBuilder(VDI_TOPO_DP1ID, ApiEntityType.DESKTOP_POOL);
-
-        final TestGraphEntity.Builder vm1Builder =
-                TestGraphEntity.newBuilder(VDI_TOPO_VM1ID, ApiEntityType.VIRTUAL_MACHINE);
-
-        final TestGraphEntity.Builder bu1Builder =
-                TestGraphEntity.newBuilder(VDI_TOPO_BU1ID, ApiEntityType.BUSINESS_USER);
-
-        // VM consumes from PM
-        vm1Builder.addProviderId(VDI_TOPO_PM1ID);
-
-        // VM consumes from DP
-        vm1Builder.addProviderId(VDI_TOPO_DP1ID);
-
-        // BU consumes from VM
-        bu1Builder.addProviderId(VDI_TOPO_VM1ID);
-
-        // BU consumes from DP
-        bu1Builder.addProviderId(VDI_TOPO_DP1ID);
-
-        // VDC consumes from PMs
-        vdc1Builder.addProviderId(VDI_TOPO_PM1ID);
-        vdc1Builder.addProviderId(VDI_TOPO_PM2ID);
-
-        // DP consumes from VDC
-        dp1Builder.addProviderId(VDC_TOPO_VDC1ID);
-
-        return TestGraphEntity.newGraph(pm1Builder, pm2Builder, vdc1Builder, vm1Builder,
-                bu1Builder, dp1Builder);
     }
 
     private void populateVdcTopoEntityFields(@Nonnull Map<Integer, SupplyChainNode> graph) {

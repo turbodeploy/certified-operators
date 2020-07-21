@@ -118,7 +118,7 @@ public class InterpretCloudExplanationTest {
         // move action, but we want to test the explanation.
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
             cloudTc, originalTopology, oidToTraderTOMap, cert, riCoverageCalculator, tierExcluder,
-            CommodityIndex.newFactory().newIndex()));
+            CommodityIndex.newFactory()::newIndex));
 
         initialCoverage = Optional.of(EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
             .putCouponsCoveredByRi(1L, 4)

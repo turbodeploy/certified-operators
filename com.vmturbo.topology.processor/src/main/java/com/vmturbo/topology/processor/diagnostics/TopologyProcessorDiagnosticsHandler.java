@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
@@ -42,6 +43,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagnosticsHandler;
 import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
@@ -106,6 +108,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader;
     private final PriceTableUploader priceTableUploader;
     private final TopologyPipelineExecutorService topologyPipelineExecutorService;
+    private final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -120,7 +123,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             @Nonnull final IdentityProvider identityProvider,
             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
             @Nonnull final PriceTableUploader priceTableUploader,
-            @Nonnull final TopologyPipelineExecutorService topologyPipelineExecutorService) {
+            @Nonnull final TopologyPipelineExecutorService topologyPipelineExecutorService,
+            @Nonnull final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
@@ -132,6 +136,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
         this.priceTableUploader = priceTableUploader;
         this.topologyPipelineExecutorService = topologyPipelineExecutorService;
+        this.fixedFilenameBinaryDiagnosticParts = fixedFilenameBinaryDiagnosticParts;
     }
 
     /**
@@ -253,6 +258,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
 
         diagsWriter.dumpDiagnosable(
                 new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry));
+        fixedFilenameBinaryDiagnosticParts.values().forEach(diagsWriter::dumpDiagnosable);
+
 
         // discovery dumps
         File dumpDirInZip = new File("discoveryDumps");
@@ -398,7 +405,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         for (Diags diags : sortedDiagnostics) {
             final String diagsName = diags.getName();
             final List<String> diagsLines = diags.getLines();
-            if (diagsLines == null) {
+            final byte[] bytes = diags.getBytes();
+            if (Stream.of(diagsLines, bytes).allMatch(Objects::isNull)) {
                 continue;
             }
             try {
@@ -428,7 +436,21 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                         priceTableUploader.restoreDiags(diagsLines);
                         break;
                     default:
-                       // Other diags files should match a pattern
+                        // TODO Roman Zimine, Emanuele Maccherani history processing restoration is
+                        // incomplete until restoring state from the diagnostics will not restore
+                        // property sources (yaml, consul) and reload properties in topology
+                        // processor. This should be done in a generic way. JIRA issue to fix this
+                        // todo item: https://vmturbo.atlassian.net/browse/OM-60398.
+                        final BinaryDiagsRestorable diagnosticPart =
+                                        fixedFilenameBinaryDiagnosticParts.get(diagsName);
+                        if (diagnosticPart != null) {
+                            logger.info("'{}' state will be restored from '{}' file found in diagnostics.",
+                                            diagnosticPart.getClass().getSimpleName(),
+                                            diagsName);
+                            diagnosticPart.restoreDiags(bytes);
+                            break;
+                        }
+                        // Other diags files should match a pattern
                         Matcher entitiesMatcher = ENTITIES_PATTERN.matcher(diagsName);
                         Matcher groupsMatcher = GROUPS_PATTERN.matcher(diagsName);
                         Matcher settingPolicyMatcher = SETTING_POLICIES_PATTERN.matcher(diagsName);

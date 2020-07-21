@@ -159,7 +159,7 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder vm1InDc1 = createHypervisorTopologyEntity(30001L, "vm1InDc1", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC1PM1DS1, basketSoldByVM1, virtualVolume.getOid());
     private final TopologyEntity.Builder vm2InDc1 = createHypervisorTopologyEntity(30002L, "vm2InDc1", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC1PM2DS1, basketSoldByVM1);
     private final TopologyEntity.Builder vmInDc2 = createHypervisorTopologyEntity(30003L, "vmInDc2", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC2PMDS2, basketSoldByVM2);
-    private final TopologyEntity.Builder app1 = createHypervisorTopologyEntity(60001L, "app1", EntityType.APPLICATION, commBoughtByApp1, new ArrayList<>());
+    private final TopologyEntity.Builder appc1 = createHypervisorTopologyEntity(60001L, "appc1", EntityType.APPLICATION_COMPONENT, commBoughtByApp1, new ArrayList<>());
     private final TopologyEntity.Builder as1 = createHypervisorTopologyEntity(70001L, "as1", EntityType.APPLICATION_SERVER, commBoughtByApp1, basketSoldByAS1);
     private final TopologyEntity.Builder as2 = createHypervisorTopologyEntity(70002L, "as2", EntityType.APPLICATION_SERVER, commBoughtByApp2, basketSoldByAS2);
     private final TopologyEntity.Builder bapp1 = createHypervisorTopologyEntity(80001L, "bapp1", EntityType.BUSINESS_APPLICATION, commBoughtByBA, new ArrayList<>());
@@ -189,7 +189,7 @@ public class PlanTopologyScopeEditorTest {
 
     private final TopologyEntity.Builder appAws =
             TopologyEntityUtils.topologyEntity(900000L, CLOUD_TARGET_1, 0,
-                                               EntityType.APPLICATION, vm1InLondon.getOid());
+                                               EntityType.APPLICATION_COMPONENT, vm1InLondon.getOid());
 
     private final TopologyEntity.Builder dbLondon = createCloudConnectedTopologyEntity(
             CLOUD_TARGET_1, 8001L, "DB in London", EntityType.DATABASE);
@@ -278,7 +278,7 @@ public class PlanTopologyScopeEditorTest {
 
     private final TopologyEntity.Builder appAzure =
             TopologyEntityUtils.topologyEntity(900001L, CLOUD_TARGET_2, 0,
-                                               EntityType.APPLICATION, vmInCanada.getOid());
+                                               EntityType.APPLICATION_COMPONENT, vmInCanada.getOid());
 
     private final TopologyEntity.Builder regionCentralUs = createRegion(
             CLOUD_TARGET_2, 2004L, "Central US",
@@ -303,7 +303,7 @@ public class PlanTopologyScopeEditorTest {
                     /     \
                    /       \
                   /         \
-        app1    as1         as2
+        appc1   as1         as2
            \  /              |
            vm1               vm3
            / \               / \
@@ -317,7 +317,7 @@ public class PlanTopologyScopeEditorTest {
 
      */
     private final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils
-        .topologyGraphOf(bapp1, app1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
+        .topologyGraphOf(bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
                 pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
                 as2, az1London, az2London, azOhio,
                 az1HongKong, az2HongKong, regionLondon, regionOhio,
@@ -588,7 +588,7 @@ public class PlanTopologyScopeEditorTest {
 
     /**
      * Scenario: scope on pm1 and pm2 which consumes on dc1.
-     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, app1, as1, ba
+     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, appc1, as1, ba
      *
      * @throws Exception An exception thrown when a stage of the pipeline fails.
      */

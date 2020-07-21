@@ -102,18 +102,18 @@ public class AtomicActionFactory {
         @Override
         public List<AtomicActionResult> executeMerge(@Nonnull final List<Action> actionsToMerge) {
             // group the  merge action translators with actions that need to be merged
-            Map<AtomicActionMerger, List<Action>> actionsByAtomicTranslationMethod = new HashMap<>();
+            Map<AtomicActionMerger, List<Action>> actionsByMergeType = new HashMap<>();
             for (Action action : actionsToMerge) {
-                AtomicActionMerger actionTranslator = getActionMerger(action);
-                if (actionTranslator != null) {
-                    actionsByAtomicTranslationMethod.computeIfAbsent(actionTranslator, v -> new ArrayList<>())
+                AtomicActionMerger actionMerger = getActionMerger(action);
+                if (actionMerger != null && actionMerger.appliesTo(action)) {
+                    actionsByMergeType.computeIfAbsent(actionMerger, v -> new ArrayList<>())
                             .add(action);
                 }
             }
 
             // execute the merge for all the action mergers and combine result to create the AtomicActionResult
             List<AtomicActionResult> atomicActions =
-            actionsByAtomicTranslationMethod.entrySet().stream()
+                    actionsByMergeType.entrySet().stream()
                     .map(entry -> {
                         List<AtomicActionResult> result = merge(entry.getKey(), entry.getValue());
                         return result;

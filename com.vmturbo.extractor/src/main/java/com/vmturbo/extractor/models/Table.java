@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -416,6 +417,19 @@ public class Table {
         @Override
         public void close() {
             sink.accept(this);
+        }
+
+        /**
+         * Return this record as a map, ommitting null keys and values, if any.
+         *
+         * <p>This is currently used for testing.</p>
+         *
+         * @return the record as a map
+         */
+        public Map<String, Object> asMap() {
+            return values.entrySet().stream()
+                    .filter(e -> e.getKey() != null && e.getValue() != null)
+                    .collect(Collectors.toMap(e -> e.getKey().getName(), Entry::getValue));
         }
     }
 }

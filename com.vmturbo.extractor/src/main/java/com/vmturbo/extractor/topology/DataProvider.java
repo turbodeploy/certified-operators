@@ -14,14 +14,14 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import it.unimi.dsi.fastutil.ints.Int2DoubleArrayMap;
 import it.unimi.dsi.fastutil.ints.Int2DoubleMap;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -49,6 +49,17 @@ public class DataProvider {
     // commodity values cached for use later in finish stage
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityUsed = new Long2ObjectArrayMap<>();
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityCapacity = new Long2ObjectArrayMap<>();
+
+    /**
+     * Cache the historical utilization value (when present) for each entity, for use in calculating
+     * average group utilization (currently only applies to Clusters).
+     *
+     * <p>The historical utilization is a percentage; there are multiple ways it can be calculated.
+     * If the percentile-based calculation is available, that will be used to populate this value.
+     * Otherwise, if the older weighted-average calculation is available then that will be used.
+     * Entities with no historical utilization will be omitted.</p>
+     */
+    private final Long2ObjectMap<Int2DoubleMap> entityToCommodityHistoricalUtilization = new Long2ObjectArrayMap<>();
 
     private GroupData groupData;
 
@@ -81,10 +92,13 @@ public class DataProvider {
             if (commodityTypes.contains(commodityType)) {
                 used.put(commodityType, used.get(commodityType) + commoditySoldDTO.getUsed());
                 capacity.put(commodityType, capacity.get(commodityType) + commoditySoldDTO.getCapacity());
+                //TODO: We can't follow the above pattern because we can't sum utilization, we have to average it
+                // We'll have to change this whole loop to allow us to address one commodity type at a time
             }
         });
         entityToCommodityUsed.put(topologyEntityDTO.getOid(), used);
         entityToCommodityCapacity.put(topologyEntityDTO.getOid(), capacity);
+        //entityToCommodityHistoricalUtilization.put(topologyEntityDTO.getOid(), historicalUtilization);
     }
 
     /**

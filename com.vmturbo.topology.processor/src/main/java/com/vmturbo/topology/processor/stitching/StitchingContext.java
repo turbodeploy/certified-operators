@@ -1,9 +1,11 @@
 package com.vmturbo.topology.processor.stitching;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -363,26 +365,49 @@ public class StitchingContext {
      */
     @Nonnull
     public Map<Long, TopologyEntity.Builder> constructTopology() {
+
+        final Function<TopologyStitchingEntity, TopologyEntity.Builder> valueMapper =
+                        stitchingEntity -> {
+                            final TopologyEntityDTO.Builder builder = SdkToTopologyEntityConverter
+                                            .newTopologyEntityDTO(stitchingEntity,
+                                                            resoldCommodityCache)
+                                            .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
+                                                            stitchingEntity.buildDiscoveryOrigin()));
+                            return TopologyEntity.newBuilder(builder);
+                        };
         /**
          * If this line throws an exception, it indicates an error in stitching. If stitching is
          * successful it should merge down all entities with duplicate OIDs into a single entity.
          *
          * If multiple entities have the same OID, we log it as an error and pick one to use at random.
          */
-        return stitchingGraph.entities()
-            .collect(Collectors.toMap(TopologyStitchingEntity::getOid,
-                stitchingEntity -> {
-                    final TopologyEntityDTO.Builder builder =
-                        SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity, resoldCommodityCache)
-                            .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(stitchingEntity.buildDiscoveryOrigin()));
-                    return TopologyEntity.newBuilder(builder);
-                },
-                (oldValue, newValue) -> {
-                    logger.error("Multiple entities with oid {}. Keeping the first.", oldValue.getOid());
-                    return oldValue;
-                }
-            ));
+        final Map<Long, Collection<TopologyEntity.Builder>> duplicatedOids = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> result = stitchingGraph.entities()
+                        .collect(Collectors.toMap(TopologyStitchingEntity::getOid, valueMapper,
+                                        (oldValue, newValue) -> {
+                                            final Collection<TopologyEntity.Builder>
+                                                            duplicatedBuilders =
+                                                            duplicatedOids.computeIfAbsent(
+                                                                            oldValue.getOid(),
+                                                                            k -> new LinkedList<>());
+                                            if (duplicatedBuilders.isEmpty()) {
+                                                duplicatedBuilders.add(oldValue);
+                                            }
+                                            duplicatedBuilders.add(newValue);
+                                            return oldValue;
+                                        }
+                        ));
+        if (!duplicatedOids.isEmpty()) {
+            final StringBuilder messageBuilder = new StringBuilder();
+            messageBuilder.append(
+                            "First entity will be kept for the following OIDs with duplications:");
+            messageBuilder.append(System.lineSeparator());
+            duplicatedOids.forEach((oid, builders) -> messageBuilder
+                            .append(String.format("Oid '%s' assigned to '%s' entities.%n", oid,
+                                            builders.size())));
+            logger.error(messageBuilder.toString());
+        }
+        return result;
     }
 
     @Nonnull

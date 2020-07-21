@@ -1,10 +1,13 @@
 package com.vmturbo.action.orchestrator.workflow.store;
 
 import static com.vmturbo.action.orchestrator.db.tables.Workflow.WORKFLOW;
+import static com.vmturbo.action.orchestrator.db.tables.WorkflowOid.WORKFLOW_OID;
 import static com.vmturbo.action.orchestrator.workflow.store.WorkflowAttributeExtractor.WORKFLOW_TARGET_ID;
+import static org.jooq.impl.DSL.select;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,21 +16,22 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.action.orchestrator.db.tables.pojos.Workflow;
+import com.vmturbo.action.orchestrator.workflow.rpc.WorkflowFilter;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.OrchestratorType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
@@ -145,7 +149,7 @@ public class PersistentWorkflowStore implements WorkflowStore {
      */
     @Override
     @Nonnull
-    public Set<WorkflowDTO.Workflow> fetchWorkflows(@Nullable OrchestratorType orchestratorTypeFilter)
+    public Set<WorkflowDTO.Workflow> fetchWorkflows(@Nonnull WorkflowFilter workflowFilter)
             throws WorkflowStoreException {
         // note that the 'orchestratorFilterType' is defined by the UI but not set; it is ignored here
         // in the future the filter may need to be implemented, but not currently.
@@ -157,6 +161,7 @@ public class PersistentWorkflowStore implements WorkflowStore {
                 for (com.vmturbo.action.orchestrator.db.tables.pojos.Workflow workflow :
                         transactionDsl.select()
                         .from(WORKFLOW)
+                        .where(createConditions(workflowFilter))
                         .fetchInto(Workflow.class)) {
                     // todo: replace the call to the builder with a fetch using a Jooq Converter
                     WorkflowDTO.Workflow workflowInfo = buildWorkflowInfo(workflow);
@@ -237,5 +242,16 @@ public class PersistentWorkflowStore implements WorkflowStore {
                 .setId(dbWorkflow.getId())
                 .setWorkflowInfo(dbWorkflow.getWorkflowInfo())
                 .build();
+    }
+
+    @Nonnull
+    private Collection<Condition> createConditions(@Nonnull WorkflowFilter workflowFilter) {
+        final ImmutableList.Builder<Condition> condBuilder = ImmutableList.builder();
+        final List<Long> desiredTargets = workflowFilter.getDesiredTargetIds();
+        if (!desiredTargets.isEmpty()) {
+            condBuilder.add(WORKFLOW.ID.in(select(WORKFLOW_OID.ID).from(WORKFLOW_OID)
+                    .where(WORKFLOW_OID.TARGET_ID.in(desiredTargets))));
+        }
+        return condBuilder.build();
     }
 }

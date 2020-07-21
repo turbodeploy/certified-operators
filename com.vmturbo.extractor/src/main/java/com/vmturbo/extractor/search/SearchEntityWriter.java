@@ -91,6 +91,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
                     new GroupRelatedActionsPatcher(),
                     new GroupPrimitiveFieldsNotOnGroupingPatcher(),
                     new GroupMemberFieldPatcher(),
+                    new GroupRelatedEntitiesPatcher(),
                     new GroupAggregatedCommoditiesPatcher()
             );
 

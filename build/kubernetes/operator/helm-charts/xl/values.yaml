@@ -88,11 +88,16 @@ grafana:
   #   adminPassword: somePassword
   grafana.ini:
     users:
+      # Disallow explicit user creation.
       allow_sign_up: false
       auto_assign_org_role: Editor
       default_theme: light
     server:
+      # This needs to be in sync with the UI, and the NGINX configuration.
       root_url: "https://%(domain)s/reports"
+      serve_from_sub_path: true
+    auth.proxy:
+      enabled: true
     database:
       # SQLite by default, overridable to postgres.
       type: sqlite3
