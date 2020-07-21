@@ -3,12 +3,12 @@ package com.vmturbo.extractor.models;
 import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_SEVERITY_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_STATE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENVIRONMENT_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.NUM_ACTIONS;
 import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_TABLE;
+import static com.vmturbo.extractor.models.ModelDefinitions.SEVERITY_ENUM;
 import static com.vmturbo.extractor.util.RecordTestUtil.createRecordByName;
 
 import java.sql.SQLException;
@@ -35,10 +35,10 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
-import com.vmturbo.extractor.schema.enums.EntitySeverity;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -80,7 +80,7 @@ public class DslReplaceRecordWriterTest {
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
 
     private final Map<String, Object> vmData1 = createRecordMap(1L, EntityType.VIRTUAL_MACHINE,
-            "", EnvironmentType.ON_PREM, EntityState.POWERED_ON, EntitySeverity.MAJOR, 2,
+            "", EnvironmentType.ON_PREM, EntityState.POWERED_ON, Severity.MAJOR, 2,
             Collections.emptyMap());
 
     /**
@@ -153,7 +153,7 @@ public class DslReplaceRecordWriterTest {
     private static Map<String, Object> createRecordMap(
             final long oid, final EntityType entityType, final String name,
             final EnvironmentType environmentType, final EntityState entityState,
-            final EntitySeverity entitySeverity, final int actionCount,
+            final Severity entitySeverity, final int actionCount,
             final Map<String, Object> attrs) {
         return ImmutableList.<Pair<String, Object>>of(
                 Pair.of(ENTITY_OID_AS_OID.getName(), oid),
@@ -161,7 +161,7 @@ public class DslReplaceRecordWriterTest {
                 Pair.of(ENTITY_NAME.getName(), name),
                 Pair.of(ENVIRONMENT_TYPE_ENUM.getName(), environmentType),
                 Pair.of(ENTITY_STATE_ENUM.getName(), entityState),
-                Pair.of(ENTITY_SEVERITY_ENUM.getName(), entitySeverity),
+                Pair.of(SEVERITY_ENUM.getName(), entitySeverity),
                 Pair.of(NUM_ACTIONS.getName(), actionCount),
                 Pair.of(ATTRS.getName(), attrs))
                 .stream()

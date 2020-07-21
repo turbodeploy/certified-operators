@@ -271,6 +271,7 @@ public class ActionTranslator {
 
         ActionSpec.Builder specBuilder = ActionSpec.newBuilder()
             .setRecommendation(recommendationForDisplay)
+            .setRecommendationId(actionView.getRecommendationOid())
             .setActionPlanId(actionView.getActionPlanId())
             .setRecommendationTime(actionView.getRecommendationTime()
                 .toInstant(ZoneOffset.ofTotalSeconds(0)).toEpochMilli())

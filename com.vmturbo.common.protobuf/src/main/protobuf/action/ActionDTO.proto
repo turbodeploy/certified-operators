@@ -1030,6 +1030,11 @@ message ActionSpec {
     // The recommended steps to take in the environment.
     optional Action recommendation = 1;
 
+    // ID of the recommendation. This is the "stable" id shared by all action instances that
+    // represent the same logical action. For example, all moves of VM 1 from Host 2 to Host 3 will
+    // have the same recommendation ID.
+    optional int64 recommendation_id = 15;
+
     // The execution step associated with an action that is being executed.
     // If the action has not begun to be executed, will be empty.
     //

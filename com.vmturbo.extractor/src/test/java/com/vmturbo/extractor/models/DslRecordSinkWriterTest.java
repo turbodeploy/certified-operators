@@ -31,6 +31,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
+import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -43,7 +44,7 @@ import com.vmturbo.sql.utils.DbEndpointTestRule;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 public class DslRecordSinkWriterTest {
 
     private static final WriterConfig config = ImmutableWriterConfig.builder()
@@ -71,9 +72,9 @@ public class DslRecordSinkWriterTest {
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
 
     private final Map<String, Object> metricData1 = createMetricRecordMap(
-            OffsetDateTime.now(), 1L, 100L, "CPU", null, null, null, 1.0, 1.0, 2L);
+            OffsetDateTime.now(), 1L, 100L, MetricType.CPU, null, null, null, 1.0, 1.0, 2L);
     private final Map<String, Object> metricData2 = createMetricRecordMap(
-            OffsetDateTime.now(), 2L, 200L, "MEM", null, 1.0, 1.0, null, null, null);
+            OffsetDateTime.now(), 2L, 200L, MetricType.MEM, null, 1.0, 1.0, null, null, null);
 
 
     /**
