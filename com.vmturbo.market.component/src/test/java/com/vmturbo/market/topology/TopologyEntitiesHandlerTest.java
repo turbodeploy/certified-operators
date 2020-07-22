@@ -46,7 +46,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -74,6 +73,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Builder;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
+import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -93,6 +93,8 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -686,15 +688,13 @@ public class TopologyEntitiesHandlerTest {
                                                                         Function.identity())));
     }
 
-    // TODO: fix the shopping list context set up in testMoveToCheaperComputeTier and re-enable it
-    @Ignore
+    @Test
     public void testMoveToCheaperComputeTier_ShopTogether()
                     throws FileNotFoundException, InvalidProtocolBufferException {
         testMoveToCheaperComputeTier(true);
     }
 
-    // TODO: fix the shopping list context set up in testMoveToCheaperComputeTier and re-enable it
-    @Ignore
+    @Test
     public void testMoveToCheaperComputeTier_ShopAlone()
                     throws FileNotFoundException, InvalidProtocolBufferException {
         testMoveToCheaperComputeTier(false);
@@ -729,6 +729,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyEntityDTO m1Large = null;
         TopologyEntityDTO region = null;
         TopologyEntityDTO ba = null;
+        TopologyEntityDTO stTier = null;
         for (TopologyEntityDTO topologyEntityDTO : dtosToProcess) {
             if (topologyEntityDTO.getDisplayName().contains("m1.large")
                             && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
@@ -740,6 +741,8 @@ public class TopologyEntitiesHandlerTest {
                 region = topologyEntityDTO;
             } else if (topologyEntityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
                 ba = topologyEntityDTO;
+            } else if (topologyEntityDTO.getEntityType() == EntityType.STORAGE_TIER_VALUE) {
+                stTier = topologyEntityDTO;
             }
         }
 
@@ -757,6 +760,14 @@ public class TopologyEntitiesHandlerTest {
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
         when(marketPriceTable.getComputePriceBundle(m1Medium, region.getOid(), accountPricingData))
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
+        Map<TopologyDTO.CommodityType, StorageTierPriceData> stPrices = new HashMap<>();
+        stPrices.put(TopologyDTO.CommodityType.newBuilder().setType(8).build(), StorageTierPriceData
+                .newBuilder().setIsUnitPrice(true).setIsAccumulativeCost(false)
+                .setUpperBound(Double.MAX_VALUE).addCostTupleList(CostTuple.newBuilder()
+                        .setBusinessAccountId(ba.getOid()).setPrice(1).setRegionId(region.getOid()))
+                .build());
+        when(marketPriceTable.getStoragePriceBundle(stTier.getOid(), region.getOid(), accountPricingData))
+                .thenReturn(mockStoragePriceBundle(stPrices));
         when(ccd.getFilteredRiCoverage(anyLong())).thenReturn(Optional.empty());
         when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
@@ -951,6 +962,14 @@ public class TopologyEntitiesHandlerTest {
         Builder builder = ComputePriceBundle.newBuilder();
         for (Map.Entry<OSType, Double> e : osPriceMapping.entrySet()) {
             builder.addPrice(businessAccountId, e.getKey(), e.getValue(), false);
+        }
+        return builder.build();
+    }
+
+    private StoragePriceBundle mockStoragePriceBundle(Map<TopologyDTO.CommodityType, StorageTierPriceData> map) {
+        StoragePriceBundle.Builder builder = StoragePriceBundle.newBuilder();
+        for (Map.Entry<TopologyDTO.CommodityType, StorageTierPriceData> e : map.entrySet()) {
+            builder.addPrice(e.getKey(), e.getValue());
         }
         return builder.build();
     }
