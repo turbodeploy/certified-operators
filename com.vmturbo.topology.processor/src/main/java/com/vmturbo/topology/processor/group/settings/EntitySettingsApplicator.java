@@ -217,7 +217,6 @@ public class EntitySettingsApplicator {
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
                         CommodityType.TOTAL_SESSIONS),
                 new VsanStorageApplicator(graphWithSettings),
-                new PlanOriginEntityApplicator(),
                 new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
                         CommodityType.HEAP),
