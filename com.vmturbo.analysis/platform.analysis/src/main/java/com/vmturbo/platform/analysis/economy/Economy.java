@@ -94,6 +94,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private Map<String, ScalingGroupPeerInfo> scalingGroupToPeerInfo = new HashMap<>();
     // Map from scaling group ID to members in scaling group
     private Map<String, Set<Trader>> scalingGroupToMembers = new HashMap<>();
+    // Map of trader to its context list
+    private Map<Trader, List<Context>> traderWithContext = new HashMap<>();
 
     // Cached data
 
@@ -380,6 +382,18 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader>
                     getShopTogetherTraders(@ReadOnly Economy this) {
         return unmodifiableShopTogetherTraders_;
+    }
+
+    /**
+     * Returns a map of trader and its context combination.
+     * This map will keep track of the context combination per trader so that when buyer doesn't have
+     * context specified, it can iterate all possible context to get the best quote associated context.
+     *
+     * @return trader to context list map.
+     */
+    @Override
+    public @NonNull Map<Trader, List<Context>> getTraderWithContextMap() {
+        return traderWithContext;
     }
 
     /**

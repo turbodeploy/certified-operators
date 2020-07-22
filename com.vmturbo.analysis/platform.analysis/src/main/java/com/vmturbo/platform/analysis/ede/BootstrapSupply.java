@@ -18,6 +18,8 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -335,6 +337,9 @@ public class BootstrapSupply {
         if (!Placement.shouldConsiderTraderForShopTogether(economy, buyingTrader)) {
             return allActions;
         }
+        if (!shouldConsiderForBootstrap(economy, buyingTrader)) {
+            return allActions;
+        }
         Set<Long> commonCliques = economy.getCommonCliques(buyingTrader);
         CliqueMinimizer minimizer =
                         Placement.computeBestQuote(economy, buyingTrader);
@@ -369,6 +374,26 @@ public class BootstrapSupply {
         }
         return allActions;
     }
+
+    /**
+     * If a trader shops in any market in which all active sellers has a cost function(cloud providers),
+     * that trader does not need to be considered for bootstrap.
+     *
+     * @param economy the economy
+     * @param buyingTrader the buying trader
+     * @return true if bootstrap
+     */
+    @VisibleForTesting
+    protected static boolean shouldConsiderForBootstrap(Economy economy, Trader buyingTrader) {
+        for (Market mkt : economy.getMarketsAsBuyer(buyingTrader).values()) {
+            if (!mkt.getActiveSellers().isEmpty() && mkt.getActiveSellers().stream()
+                    .allMatch(s -> s.getSettings().getCostFunction() != null)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Consider all cliques the buyer can buy from. Find the clique which
      * need only provision by supply. If all the cliques need a provision by
@@ -459,6 +484,14 @@ public class BootstrapSupply {
         // map for efficient lookup.
         @NonNull Set<Trader> newSuppliersToIgnore = new HashSet<>();
         if (movableSlByMarket.isEmpty()) {
+            return provisionedRelatedActions;
+        }
+        // in case no market has at least 1 active clonable trader or at least 1 inactive seller
+        // with the given clique, we should directly return because there is no way to provision
+        // or activate: e.g: cloud entity market
+        if (movableSlByMarket.stream().noneMatch(e -> (e.getValue().getActiveSellers().stream()
+                .anyMatch(s -> s.getSettings().isCloneable()) || e.getValue().getInactiveSellers().stream()
+                .anyMatch(t -> t.getCliques().contains(commonClique))))) {
             return provisionedRelatedActions;
         }
         List<Trader> traderList = new ArrayList<>();
@@ -608,7 +641,10 @@ public class BootstrapSupply {
             // a compound move with no constituent actions will be generated (OM-42701)
             if (numOfSlWithDiffSrcAndDest > 0) {
                 Placement.generateCompoundMoveOrMoveAction(
-                    economy, slList, currentSuppliers, traderList, provisionedRelatedActions, 0.0d);
+                    economy, slList, currentSuppliers, traderList, provisionedRelatedActions, 0.0d,
+                    // there is no context because trader buys in cloud market should not reach here
+                    // it should return when reaches shouldConsiderForBootstrap()
+                    new ArrayList<>());
             }
         }
         return provisionedRelatedActions;
@@ -721,6 +757,9 @@ public class BootstrapSupply {
             }
             return allActions;
         }
+        if (!shouldConsiderForBootstrap(economy, shoppingList.getBuyer())) {
+            return allActions;
+        }
         List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
         // find the bestQuote
         final QuoteMinimizer minimizer =
@@ -740,16 +779,9 @@ public class BootstrapSupply {
         if (shoppingList.getSupplier() == null) {
             if (Double.isFinite(minimizer.getTotalBestQuote())) {
                 // on getting finiteQuote, move unplaced Trader to the best provider
-                if (minimizer.getBestQuote().getContext().isPresent()) {
-                    allActions.addAll(new Move(economy, shoppingList, shoppingList.getSupplier(),
-                            minimizer.getBestSeller(), minimizer.getBestQuote().getContext())
-                            .take().setImportance(Double.POSITIVE_INFINITY)
-                            .getAllActions());
-                } else {
-                    allActions.addAll(new Move(economy, shoppingList, minimizer.getBestSeller())
-                            .take().setImportance(Double.POSITIVE_INFINITY)
-                            .getAllActions());
-                }
+                allActions.addAll(new Move(economy, shoppingList, minimizer.getBestSeller())
+                        .take().setImportance(Double.POSITIVE_INFINITY)
+                        .getAllActions());
                 if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
                     logger.info("{" + buyerDebugInfo + "} moves to "
                                 + sellerDebugInfo + " because it is unplaced.");

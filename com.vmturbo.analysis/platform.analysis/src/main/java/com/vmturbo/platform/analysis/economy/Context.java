@@ -215,6 +215,17 @@ public class Context {
             this(spent, budget, id, priceId, null);
         }
 
+        /**
+         * Constructor for the {@link BalanceAccount} with a given account id.
+         * When priceId is not specified, defaults it to be the same as account id, as there is
+         * one possible. Otherwise, use the other constructor.
+         *
+         * @param id the business account id.
+         */
+        public BalanceAccount(long id) {
+            this(0, 0, id, id, null);
+        }
+
         public void setSpent(double spent) {
             spent_ = spent;
         }
@@ -247,11 +258,34 @@ public class Context {
         public Long getParentId() {
             return parentId_;
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(spent_, budget_, id_, priceId_, parentId_);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof BalanceAccount)) {
+                return false;
+            }
+            // the balance account is considered to be equal if all the contents
+            // are the same.
+            BalanceAccount otherBalanceAccount = (BalanceAccount)other;
+            return this.getSpent() == otherBalanceAccount.getSpent()
+                    && this.getBudget() == otherBalanceAccount.getBudget()
+                    && this.getId() == otherBalanceAccount.getId()
+                    && this.getPriceId() == otherBalanceAccount.getPriceId()
+                    && this.getParentId() == otherBalanceAccount.getParentId();
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(regionId_, balanceAccount_);
+        return Objects.hash(regionId_) + balanceAccount_.hashCode();
     }
 
     @Override
@@ -266,7 +300,8 @@ public class Context {
 
         Context otherContext = (Context)other;
 
-        return this.getBalanceAccount() == otherContext.getBalanceAccount() && this.getRegionId() == otherContext.getRegionId();
+        return this.getBalanceAccount().equals(otherContext.getBalanceAccount())
+                && this.getRegionId() == otherContext.getRegionId();
     }
 
     @Override

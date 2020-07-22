@@ -338,6 +338,45 @@ public class CompoundMove extends ActionImpl {
         return ActionType.COMPOUND_MOVE;
     }
 
+    /**
+     * Create a {@link CompoundMove} with a list of shopping lists, their source traders, destination
+     * traders and contexts.
+     *
+     * @param economy the economy.
+     * @param shoppingLists a list of shopping lists.
+     * @param sources a list of source traders where the shopping lists used to stay. The order of
+     *                {@link sources} should match with the order of {@link shoppingLists}.
+     * @param destinations a list of destination traders where the shopping lists will move to. The
+     *                     order of {@link destinations} should match with the order of
+     *                     {@link shoppingLists}.
+     * @param contextList a list of contexts. The order of {@link contextList} should match with
+     *                    the order of {@link shoppingLists}.
+     * @return a CompoundMove.
+     */
+    public static @Nullable CompoundMove
+            createAndCheckCompoundMoveWithExplicitSources(@NonNull Economy economy,
+                                                          @NonNull Collection<@Nullable ShoppingList> shoppingLists,
+                                                          @NonNull Collection<@Nullable Trader> sources,
+                                                          @NonNull Collection<@Nullable Trader> destinations,
+                                                          @NonNull Collection<Optional<Context>> contextList) {
+
+        CompoundMove compoundMove = new CompoundMove(economy, shoppingLists, sources, destinations, contextList);
+        return validateCompoundMove(compoundMove, sources, destinations);
+    }
+
+    /**
+     * Create a {@link CompoundMove} with a list of shopping lists, their source traders and destination
+     * traders.
+     *
+     * @param economy the economy
+     * @param shoppingLists a list of shopping lists
+     * @param sources a list of source traders where the shopping lists used to stay. The order of
+     *                {@link sources} should match with the order of {@link shoppingLists}.
+     * @param destinations a list of destination traders where the shopping lists will move to. The
+     *                     order of {@link destinations} should match with the order of
+     *                     {@link shoppingLists}.
+     * @return a CompoundMove
+     */
     public static @Nullable CompoundMove createAndCheckCompoundMoveWithExplicitSources(
                             @NonNull Economy economy,
                             @NonNull Collection<@Nullable ShoppingList> shoppingLists,
@@ -345,11 +384,26 @@ public class CompoundMove extends ActionImpl {
                             @NonNull Collection<@Nullable Trader> destinations) {
 
         CompoundMove compoundMove = new CompoundMove(economy, shoppingLists, sources, destinations);
+        return validateCompoundMove(compoundMove, sources, destinations);
+    }
+
+    /**
+     * Utility method to check if the there is any constituent move within the compoundMove. If no,
+     * print out an error message.
+     *
+     * @param compoundMove the given compoundMove.
+     * @param sources a list of source traders.
+     * @param destinations a list of destination traders.
+     * @return a CompoundMove.
+     */
+    private static @Nullable CompoundMove validateCompoundMove(@NonNull CompoundMove compoundMove,
+                                                               @NonNull Collection<@Nullable Trader> sources,
+                                                               @NonNull Collection<@Nullable Trader> destinations) {
         if (!compoundMove.getConstituentMoves().isEmpty()) {
             return compoundMove;
         } else {
             StringBuilder errorMsg = new StringBuilder("A compound move with no " +
-                    "constituent actions was generated. ");
+                            "constituent actions was generated. ");
             errorMsg.append("Current Suppliers: ");
             for (Trader supplier : sources) {
                 errorMsg.append(supplier.getDebugInfoNeverUseInCode()).append(" ");

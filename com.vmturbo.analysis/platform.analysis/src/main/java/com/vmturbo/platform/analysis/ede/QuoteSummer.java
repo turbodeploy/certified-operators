@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -23,6 +24,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import com.vmturbo.platform.analysis.utilities.QuoteCacheUtils;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
@@ -60,7 +62,12 @@ final class QuoteSummer {
     static final Logger logger = LogManager.getLogger(QuoteSummer.class);
 
     private final Map<ShoppingList, QuoteTracker> unplacedShoppingListQuoteTrackers = new HashMap<>();
-
+    // a map which contains shopping lists and the each shopping list's best quote
+    // associated context. It is used to help generating actions.
+    // Note: The QuoteMinimizer contains CommodityCloudQuote object which stores the context,
+    // we could populate a map for Quote by shopping list, but only "context" is needed
+    // outside of CliqueMinimizer, hence we can directly store the context for efficiency.
+    private final Map<ShoppingList, Optional<Context>> shoppingListContextMap = new HashMap<>();
     private final QuoteCache cache_;
     private int shoppingListIndex_ = 0;
 
@@ -126,6 +133,19 @@ final class QuoteSummer {
     }
 
     /**
+     * Returns a map which contains shopping lists and the each shopping list's best quote
+     * associated context.
+     * Note: the map is necessary for keep track of context data which will be needed when generating
+     * actions. The QuoteMinimizer has a reference to Quote which stores the context, but in this
+     * QuoteSummer class, Quote object doesnt exist.
+     *
+     * @return the shopping list to context mapping.
+     */
+    public @NonNull Map<ShoppingList, Optional<Context>> getShoppingListContextMap() {
+        return shoppingListContextMap;
+    }
+
+    /**
      * Returns an list of the Move actions to the sellers that offered the minimum quote per
      * (shopping list, market) pair seen by {@code this} summer.
      *
@@ -159,7 +179,10 @@ final class QuoteSummer {
                     && seller.getSettings().canAcceptNewCustomers()).collect(Collectors.toList());
         QuoteMinimizer minimizer = Placement.initiateQuoteMinimizer(economy_, sellers,
                                                     entry.getKey(), cache_, shoppingListIndex_++);
-
+        Optional<Context> context = minimizer.getBestQuote().getContext();
+        if (context.isPresent()) {
+            shoppingListContextMap.put(entry.getKey(), minimizer.getBestQuote().getContext());
+        }
         totalQuote_ += minimizer.getTotalBestQuote();
         bestSellers_.add(minimizer.getBestSeller());
         economy_.getPlacementStats().incrementQuoteSummerCount();
@@ -179,6 +202,9 @@ final class QuoteSummer {
     public void combine(@NonNull @ReadOnly QuoteSummer other) {
         totalQuote_ += other.getTotalQuote();
         bestSellers_.addAll(other.getBestSellers());
+        other.getShoppingListContextMap().entrySet().forEach(e -> {
+            shoppingListContextMap.put(e.getKey(), e.getValue());
+        });
 
         other.getUnplacedShoppingListQuoteTrackers().forEach((sl, otherQuoteTracker) -> {
             final QuoteTracker thisQuoteTracker = unplacedShoppingListQuoteTrackers.get(sl);

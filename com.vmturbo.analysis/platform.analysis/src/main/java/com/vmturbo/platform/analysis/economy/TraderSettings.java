@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.economy;
 
 import java.util.Optional;
-
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;

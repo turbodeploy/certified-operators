@@ -15,7 +15,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
-import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
@@ -196,9 +195,8 @@ public class ActionStats {
                     incrementMoves(actionStatsData, (Move) action);
                     break;
                 case COMPOUND_MOVE:
-                    for (Move m : ((CompoundMove) action).getConstituentMoves()) {
-                        incrementMoves(actionStatsData, m);
-                    }
+                    increaseEntityCount(actionStatsData, action.getType(),
+                            extractEntityType(action.getActionTarget().getDebugInfoNeverUseInCode()));
                     break;
                 case RESIZE:
                     Resize resize = (Resize) action;
