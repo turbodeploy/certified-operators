@@ -62,7 +62,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.Units;
@@ -2503,8 +2502,9 @@ public class TopologyConverter {
         if (cloudTc.isMarketTier(providerOid)) {
             // For cloud buyers, add biClique comm bought because we skip them in
             // convertCommodityBought method
-            if (!shopTogether && !isCloudMigration) {
-                // TODO: Skip biClique creation for migration case till shopTogether is fixed.
+            if (!shopTogether) {
+                // NOTE: Skip biClique creation for migration case where the shoptogether is true
+                // for migrating entities.
                 createBcCommodityBoughtForCloudEntity(providerOid, entityForSLOid).forEach(values::add);
             }
             // Create DC comm bought

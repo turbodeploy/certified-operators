@@ -255,8 +255,8 @@ public class CloudMigrationPlanHelper {
             final TopologyEntity entity = optionalEntity.get();
             final TopologyEntityDTO.Builder builder = entity.getTopologyEntityDtoBuilder();
 
-            // TODO: Set shopTogether as false till market issue is fixed.
-            builder.getAnalysisSettingsBuilder().setShopTogether(false);
+            // It could be overridden in settingsApplicator
+            builder.getAnalysisSettingsBuilder().setShopTogether(true);
 
             // Analysis needs to treat the entity as if it's a cloud entity for purposes of
             // applying template exclusions, obtaining pricing, etc.
