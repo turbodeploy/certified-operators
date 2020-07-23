@@ -147,6 +147,11 @@ public class ReservedInstanceConfig {
     }
 
     @Bean
+    public AccountRIMappingStore accountRIMappingStore() {
+        return new AccountRIMappingStore(databaseConfig.dsl());
+    }
+
+    @Bean
     public ReservedInstanceUtilizationStore reservedInstanceUtilizationStore() {
         return new ReservedInstanceUtilizationStore(databaseConfig.dsl(),
                 reservedInstanceBoughtStore(),
@@ -233,8 +238,7 @@ public class ReservedInstanceConfig {
                 reservedInstanceCoverageValidatorFactory(),
                 supplementalRICoverageAnalysisFactory(),
                 costNotificationConfig.costNotificationSender(),
-                riCoverageCacheExpireMinutes,
-                pricingConfig.businessAccountPriceTableKeyStore());
+                riCoverageCacheExpireMinutes);
     }
 
     /**

@@ -49,6 +49,7 @@ data:
         dbUsername: root
         sqlDialect: MARIADB
         mariadbHealthCheckIntervalSeconds: 60
+        histEntityRiCoverageRecordsRollingWindowDays: 60
         # Mediation Component Common
         serverAddress: ws://topology-processor:8080/remoteMediation
         silentRetryTime: 0

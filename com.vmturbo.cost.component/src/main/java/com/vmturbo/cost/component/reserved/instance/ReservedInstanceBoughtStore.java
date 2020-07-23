@@ -62,7 +62,7 @@ import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 
 /**
  * This class is used to update reserved instance table by latest reserved instance bought data which
- * comes from Topology Processor. And it use "probeReservedInstanceId" to tell if the latest reserved instance
+ * comes from Topology Processor. It uses "probeReservedInstanceId" to tell if the latest reserved instance
  * is same with current existing reserved instance record or not.
  */
 public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore implements ReservedInstanceCostStore, DiagsRestorable {
