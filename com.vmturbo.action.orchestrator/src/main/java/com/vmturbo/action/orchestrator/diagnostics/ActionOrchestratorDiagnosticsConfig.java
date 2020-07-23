@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
+import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
@@ -23,11 +24,13 @@ import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
  * can be used to debug deployments in local environments.
  */
 @Configuration
-@Import({ActionStoreConfig.class})
+@Import({ActionStoreConfig.class, WorkflowConfig.class})
 public class ActionOrchestratorDiagnosticsConfig {
 
     @Autowired
     private ActionStoreConfig storeConfig;
+    @Autowired
+    private WorkflowConfig workflowConfig;
 
     @Bean
     public ActionOrchestratorDiagnostics diagnostics() {
@@ -48,7 +51,10 @@ public class ActionOrchestratorDiagnosticsConfig {
     @Bean
     public DiagnosticsHandlerImportable diagnosticsHandler() {
         return new DiagnosticsHandlerImportable(diagsZipReaderFactory(),
-                Arrays.asList(diagnostics(),
+                Arrays.asList(
+                        diagnostics(),
+                        workflowConfig.workflowPersistentIdentityStore(),
+                        workflowConfig.workflowDiagnostics(),
                         new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry)));
     }
 
