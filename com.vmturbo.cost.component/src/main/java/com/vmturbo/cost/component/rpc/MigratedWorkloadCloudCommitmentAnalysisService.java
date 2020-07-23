@@ -1,6 +1,11 @@
 package com.vmturbo.cost.component.rpc;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import com.google.common.collect.ImmutableMap;
 
 import io.grpc.stub.StreamObserver;
 
@@ -13,8 +18,16 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisResponse;
 import com.vmturbo.common.protobuf.cost.MigratedWorkloadCloudCommitmentAnalysisServiceGrpc.MigratedWorkloadCloudCommitmentAnalysisServiceImplBase;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.cost.component.plan.PlanService;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSender;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.MigratedWorkloadCloudCommitmentAlgorithmStrategy;
 
@@ -25,15 +38,25 @@ import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitm
 public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWorkloadCloudCommitmentAnalysisServiceImplBase {
     private static final Logger logger = LogManager.getLogger(MigratedWorkloadCloudCommitmentAnalysisService.class);
 
+    /**
+     * Used to publish an action plan to the action orchestrator.
+     */
     private final ReservedInstanceActionsSender actionsSender;
+
+    /**
+     * Used for retrieving the PlanInstance from the plan service.
+     */
+    private final PlanService planService;
 
     /**
      * Creates a new MigratedWorkloadCloudCommitmentAnalysisService.
      *
      * @param actionsSender The action sender that is used to publish our action plan to the action orchestrator
+     * @param planService   The plan service that is used for retrieving the plan with the plan ID in the MigratedWorkloadCloudCommitmentAnalysisRequest
      */
-    public MigratedWorkloadCloudCommitmentAnalysisService(ReservedInstanceActionsSender actionsSender) {
+    public MigratedWorkloadCloudCommitmentAnalysisService(ReservedInstanceActionsSender actionsSender, PlanService planService) {
         this.actionsSender = actionsSender;
+        this.planService = planService;
     }
 
     /**
@@ -44,24 +67,37 @@ public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWork
 
     /**
      * Starts the cloud commitment analysis.
-     * @param request           The gRPC request
-     * @param responseObserver  The gRPC response observer
+     *
+     * @param request          The gRPC request
+     * @param responseObserver The gRPC response observer
      */
     @Override
     public void startAnalysis(MigratedWorkloadCloudCommitmentAnalysisRequest request,
                               StreamObserver<MigratedWorkloadCloudCommitmentAnalysisResponse> responseObserver) {
         logger.info("MigratedWorkloadCloudCommitmentAnalysisService::startAnalysis for topology: {}", request.getTopologyContextId());
-        long analysisStartTime = System.currentTimeMillis();
 
         // Respond back to our client that we've received the message
         responseObserver.onNext(MigratedWorkloadCloudCommitmentAnalysisResponse.getDefaultInstance());
         responseObserver.onCompleted();
 
-        // Analyze the topology
-        List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(request.getVirtualMachinesList(),
-                request.getBusinessAccount(),
-                request.getMigrationProfile(),
-                request.getTopologyContextId());
+        // Record our start time
+        final long analysisStartTime = System.currentTimeMillis();
+
+        // Retrieve the plan and its scenarios
+        Optional<Map<CloudType, RIProviderSetting>> riProviderSettingMap = getRIProviderSetting(request.getTopologyContextId());
+        List<ActionDTO.Action> actions = new ArrayList<>();
+        if (riProviderSettingMap.isPresent() && !riProviderSettingMap.get().isEmpty()) {
+            // Only perform the analysis if we have valid RI provider settings
+            CloudType cloudType = riProviderSettingMap.get().keySet().stream().findFirst().get();
+            RIProviderSetting riProviderSetting = riProviderSettingMap.get().get(cloudType);
+
+            // Analyze the topology
+            actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(request.getVirtualMachinesList(),
+                    request.getBusinessAccount(),
+                    cloudType,
+                    riProviderSetting,
+                    request.getTopologyContextId());
+        }
 
         // Create an ActionPlan
         ActionDTO.ActionPlan actionPlan = ActionDTO.ActionPlan.newBuilder()
@@ -79,10 +115,46 @@ public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWork
         try {
             // Publish the ActionPlan to Kafka
             actionsSender.notifyActionsRecommended(actionPlan);
-        } catch (CommunicationException e) {
-            logger.error("An error occurred while publishing ActionPlan: {}", e);
-        } catch (InterruptedException e) {
-            logger.error("An error occurred while publishing ActionPlan: {}", e);
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("An error occurred while publishing ActionPlan: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Returns the RIProviderSettings defined in the plan scenario.
+     *
+     * @param planId The ID of the plan for which to retrieve the RIProviderSettings
+     * @return The RIProviderSettings
+     */
+    private Optional<Map<CloudType, RIProviderSetting>> getRIProviderSetting(long planId) {
+        PlanInstance planInstance = planService.getPlan(planId);
+        if (planInstance != null) {
+            Scenario scenario = planInstance.getScenario();
+            if (scenario != null) {
+                ScenarioInfo scenarioInfo = scenario.getScenarioInfo();
+                if (scenarioInfo != null) {
+                    List<ScenarioChange> changeList = scenarioInfo.getChangesList();
+                    if (changeList != null && !changeList.isEmpty()) {
+                        for (ScenarioOuterClass.ScenarioChange change : changeList) {
+                            if (change.hasRiSetting()) {
+                                ScenarioOuterClass.ScenarioChange.RISettingOrBuilder riSettings = change.getRiSetting();
+                                Map<String, ScenarioOuterClass.ScenarioChange.RIProviderSetting> settingMap = riSettings.getRiSettingByCloudtypeMap();
+                                logger.debug("RI Provider Setting Map: {}", settingMap);
+                                Optional<Map.Entry<String, RIProviderSetting>> setting = settingMap.entrySet().stream().findFirst();
+                                if (setting.isPresent()) {
+                                    Optional<CloudType> cloudType = CloudType.fromString(setting.get().getKey());
+                                    if (cloudType.isPresent()) {
+                                        return Optional.of(ImmutableMap.of(cloudType.get(), setting.get().getValue()));
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+                }
+            }
+        }
+
+        return Optional.empty();
     }
 }

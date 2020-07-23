@@ -20,12 +20,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement;
-import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigrationProfile;
 import com.vmturbo.common.protobuf.cost.Pricing;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.component.db.tables.pojos.ActionContextRiBuy;
 import com.vmturbo.cost.component.db.tables.pojos.BuyReservedInstance;
+import com.vmturbo.cost.component.db.tables.records.ActionContextRiBuyRecord;
 import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
 import com.vmturbo.cost.component.history.HistoricalStatsService;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
@@ -81,7 +83,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     /**
      * Create a new ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy.
      *
-     * @param historicalStatsService The historical status service that will be used to retrieve historical VCPU metrics
+     * @param historicalStatsService            The historical status service that will be used to retrieve historical VCPU metrics
      * @param priceTableStore                   The price table store, from which we retrieve on-demand and reserved instance prices
      * @param businessAccountPriceTableKeyStore Used to map the business account to a price table key
      * @param planBuyReservedInstanceStore      Used to create a record in the buy_reserved_instance database table
@@ -131,11 +133,12 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     @Override
     public List<ActionDTO.Action> analyze(List<MigratedWorkloadPlacement> migratedWorkloads,
                                           Long masterBusinessAccountOid,
-                                          MigrationProfile migrationProfile,
+                                          CloudType cloudType,
+                                          RIProviderSetting riProviderSetting,
                                           Long topologyContextId) {
-        logger.info("Starting Buy RI Analysis");
+        logger.info("Starting Buy RI Analysis for plan {}", topologyContextId);
 
-        // Extract the list of OIDs to analyze
+        // Extract the list of OIDs to analyze; TODO: filter out VMs already using an RI
         List<Long> oids = migratedWorkloads.stream()
                 .map(workload -> workload.getVirtualMachine().getOid())
                 .collect(Collectors.toList());
@@ -152,10 +155,11 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
             List<ActionDTO.Action> actions = createActions(oidsForWhichToBuyRIs,
                     migratedWorkloads,
                     masterBusinessAccountOid,
-                    migrationProfile,
+                    cloudType,
+                    riProviderSetting,
                     topologyContextId);
 
-            logger.info("Buy RI Analysis completed successfully");
+            logger.info("Buy RI Analysis completed successfully for plan {}", topologyContextId);
 
             // Return the list of actions
             return actions;
@@ -212,11 +216,12 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     /**
      * Creates a list of actions for the specified OIDs from the list of migrated workload placements.
      *
-     * @param oidsForWhichToBuyRIs      A list of the OIDs for which to create a Buy RI action
-     * @param migratedWorkloads         The list of migrated workloads that contain these OIDs
-     * @param masterBusinessAccountOid  The business account for which to buy RIs
-     * @param migrationProfile          The migration profile to use when buying RIs
-     * @param topologyContextId         The topology context ID with which to associate the actions
+     * @param oidsForWhichToBuyRIs     A list of the OIDs for which to create a Buy RI action
+     * @param migratedWorkloads        The list of migrated workloads that contain these OIDs
+     * @param masterBusinessAccountOid The business account for which to buy RIs
+     * @param cloudType                The cloud service provider
+     * @param riProviderSetting        The RI provider settings to use when buying RIs
+     * @param topologyContextId        The topology context ID with which to associate the actions
      * @return A list of Buy RI actions
      * @throws MigratedWorkloadCloudCommitmentAlgorithmException If the actions could not be created
      */
@@ -224,7 +229,8 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     private List<ActionDTO.Action> createActions(List<Long> oidsForWhichToBuyRIs,
                                                  List<MigratedWorkloadPlacement> migratedWorkloads,
                                                  Long masterBusinessAccountOid,
-                                                 MigrationProfile migrationProfile,
+                                                 CloudType cloudType,
+                                                 RIProviderSetting riProviderSetting,
                                                  Long topologyContextId) throws MigratedWorkloadCloudCommitmentAlgorithmException {
         // Retrieve our price tables
         Long priceTableKey = getPriceTableKey(masterBusinessAccountOid).orElseThrow(MigratedWorkloadCloudCommitmentAlgorithmException::new);
@@ -255,7 +261,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
 
                 try {
                     // Add a new action to our list
-                    createAction(placement, masterBusinessAccountOid, priceTable, riPriceTable, migrationProfile, topologyContextId).ifPresent(actions::add);
+                    createAction(placement, masterBusinessAccountOid, priceTable, riPriceTable, cloudType, riProviderSetting, topologyContextId).ifPresent(actions::add);
                 } catch (MigratedWorkloadCloudCommitmentAlgorithmException e) {
                     logger.warn("Unable to create a Buy RI action for VM: {} to compute tier: {} in region {}",
                             placement.getVirtualMachine().getOid(), placement.getComputeTier().getOid(), placement.getRegion().getOid());
@@ -326,12 +332,13 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     /**
      * Creates a Buy RI action for the specified migrated workload placement.
      *
-     * @param placement The migrated workload placement for which to create a Buy RI action
-     * @param masterBusinessAccountOid  The master business account for which to buy the RI
-     * @param priceTable                The price table that contains on-demand prices
-     * @param riPriceTable              The reserved instance price table that contains RI prices
-     * @param migrationProfile          The migration profile to use to create the Buy RI actions
-     * @param topologyContextId         The topology context ID with which to associate the actions
+     * @param placement                The migrated workload placement for which to create a Buy RI action
+     * @param masterBusinessAccountOid The master business account for which to buy the RI
+     * @param priceTable               The price table that contains on-demand prices
+     * @param riPriceTable             The reserved instance price table that contains RI prices
+     * @param cloudType                The cloud service provider
+     * @param riProviderSetting        The RI provider settings to use to create the Buy RI actions
+     * @param topologyContextId        The topology context ID with which to associate the actions
      * @return A Buy RI action
      * @throws MigratedWorkloadCloudCommitmentAlgorithmException If the action could not be created
      */
@@ -340,10 +347,11 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                                                     Long masterBusinessAccountOid,
                                                     Pricing.PriceTable priceTable,
                                                     Pricing.ReservedInstancePriceTable riPriceTable,
-                                                    MigrationProfile migrationProfile,
+                                                    CloudType cloudType,
+                                                    RIProviderSetting riProviderSetting,
                                                     Long topologyContextId) throws MigratedWorkloadCloudCommitmentAlgorithmException {
         // Retrieve the costs for migrating this workload: on-demand and various RI costs
-        CostRecord costRecord = getCosts(placement, priceTable, riPriceTable, migrationProfile).orElseThrow(MigratedWorkloadCloudCommitmentAlgorithmException::new);
+        CostRecord costRecord = getCosts(placement, priceTable, riPriceTable, cloudType, riProviderSetting).orElseThrow(MigratedWorkloadCloudCommitmentAlgorithmException::new);
 
         // Build our BuyRI action info
         ActionDTO.BuyRI buyRI = ActionDTO.BuyRI.newBuilder()
@@ -371,7 +379,8 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                 .setBuyRI(ActionDTO.Explanation.BuyRIExplanation.newBuilder()
                         .setCoveredAverageDemand(100f)
                         .setTotalAverageDemand(100f)
-                        .setEstimatedOnDemandCost((float)costRecord.getOnDemandPrice())
+                        // Shown as the estimated on-demand cost per term
+                        .setEstimatedOnDemandCost((float)costRecord.calculateOnDemandCostForTerm())
                         .build())
                 .build();
 
@@ -409,7 +418,8 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         actionContextRiBuy.setTemplateType(placement.getComputeTier().getDisplayName());
         actionContextRiBuy.setTemplateFamily(placement.getComputeTier().getTypeSpecificInfo().getComputeTier().getFamily());
 
-        planActionContextRiBuyStore.save(actionContextRiBuy);
+        ActionContextRiBuyRecord actionContextRiBuyRecord = planActionContextRiBuyStore.save(actionContextRiBuy);
+        logger.debug("Created ActionContextRiBuyRecord: {}", actionContextRiBuyRecord);
     }
 
     /**
@@ -435,7 +445,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                         .setReservedInstanceBoughtCoupons(Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons.newBuilder()
                                 .setNumberOfCoupons(costRecord.getNumberOfCoupons())
                                 .setNumberOfCouponsUsed(costRecord.getNumberOfCoupons())
-                                .build()) // Assume we're using all of the coupons. TODO: confirm this is what we want
+                                .build()) // Assume we're using all of the coupons.
                         .setReservedInstanceDerivedCost(Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost.newBuilder()
                                 .setAmortizedCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder()
                                         .setAmount(costRecord.getAmortizedHourlyCost())
@@ -463,23 +473,25 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
 
         // Save the BuyReservedInstance to the database
         BuyReservedInstanceRecord buyReservedInstanceRecord = planBuyReservedInstanceStore.save(buyReservedInstance);
-        logger.info("Created BuyReservedInstanceRecord: {}", buyReservedInstanceRecord);
+        logger.debug("Created BuyReservedInstanceRecord: {}", buyReservedInstanceRecord);
     }
 
     /**
      * Retrieves the cost information for the specified placement, using the provided price table, RI price table,
      * and migration profile.
      *
-     * @param placement        The workload placement for which to retrieve cost information
-     * @param priceTable       The on demand price table
-     * @param riPriceTable     The RI price table
-     * @param migrationProfile The migration profile, specifying the type of RI to buy
+     * @param placement         The workload placement for which to retrieve cost information
+     * @param priceTable        The on demand price table
+     * @param riPriceTable      The RI price table
+     * @param cloudType         The cloud service provider
+     * @param riProviderSetting The RI provider settings, specifying the type of RI to buy
      * @return A CostRecord that contains all of the relevant fields
      */
     private Optional<CostRecord> getCosts(MigratedWorkloadPlacement placement,
                                           Pricing.PriceTable priceTable,
                                           Pricing.ReservedInstancePriceTable riPriceTable,
-                                          MigrationProfile migrationProfile) {
+                                          CloudType cloudType,
+                                          RIProviderSetting riProviderSetting) {
         // Create a cost record to hold the cost information we discover
         CostRecord costRecord = new CostRecord();
 
@@ -495,27 +507,39 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         // TODO: Get on-demand license cost, not presently in the price table for this compute tier
 
         // Find the reserved instance spec for the RI we want to buy
-        List<Cost.ReservedInstanceSpec> riSpecs = planReservedInstanceSpecStore.getReservedInstanceSpecs(
-                placement.getRegion().getOid(),
-                placement.getComputeTier().getOid(),
-                migrationProfile.getPreferredOfferingClass(),
-                migrationProfile.getPreferredPaymentOption(),
-                migrationProfile.getPreferredTerm(),
-                CloudCostDTO.Tenancy.DEFAULT,
-                costRecord.getOsType());
+        List<Cost.ReservedInstanceSpec> riSpecs = new ArrayList<>();
+        if (cloudType == CloudType.AWS) {
+            riSpecs = planReservedInstanceSpecStore.getReservedInstanceSpecs(
+                    placement.getRegion().getOid(),
+                    placement.getComputeTier().getOid(),
+                    riProviderSetting.getPreferredOfferingClass(),
+                    riProviderSetting.getPreferredPaymentOption(),
+                    riProviderSetting.getPreferredTerm(),
+                    CloudCostDTO.Tenancy.DEFAULT,
+                    costRecord.getOsType());
+        } else if (cloudType == CloudType.AZURE) {
+            riSpecs = planReservedInstanceSpecStore.getReservedInstanceSpecs(
+                    placement.getRegion().getOid(),
+                    placement.getComputeTier().getOid(),
+                    riProviderSetting.getPreferredTerm());
+        } else {
+            logger.error("Unknown cloud type: {}, cannot lookup RI specification for which to buy RIs", cloudType);
+            return Optional.empty();
+        }
 
         if (riSpecs.size() == 0) {
             logger.warn("Could not find RI for: region={}, compute tier={}, offering class={}, payment option={}, term={}, tenancy={}, os={}",
                     placement.getRegion().getOid(),
                     placement.getComputeTier().getOid(),
-                    migrationProfile.getPreferredOfferingClass(),
-                    migrationProfile.getPreferredPaymentOption(),
-                    migrationProfile.getPreferredTerm(),
+                    riProviderSetting.getPreferredOfferingClass(),
+                    riProviderSetting.getPreferredPaymentOption(),
+                    riProviderSetting.getPreferredTerm(),
                     CloudCostDTO.Tenancy.DEFAULT,
                     costRecord.getOsType());
             return Optional.empty();
         }
         costRecord.setRiSpecId(riSpecs.get(0).getId());
+        costRecord.setTerm(riProviderSetting.getPreferredTerm());
 
         // Get RI costs
         PricingDTO.ReservedInstancePrice reservedInstancePrice = riPriceTable.getRiPricesBySpecIdMap().get(costRecord.getRiSpecId());
@@ -524,7 +548,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         costRecord.setUsagePrice(reservedInstancePrice.getUsagePrice().getPriceAmount().getAmount());
 
         // Compute the amortized hourly cost
-        costRecord.setAmortizedHourlyCost(costRecord.getUpFrontPrice() / (migrationProfile.getPreferredTerm() * 365 * 24) + costRecord.getRecurringPrice());
+        costRecord.setAmortizedHourlyCost(costRecord.getUpFrontPrice() / (riProviderSetting.getPreferredTerm() * 365 * 24) + costRecord.getRecurringPrice());
 
         // Return the cost record
         return Optional.of(costRecord);
@@ -542,6 +566,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         private double recurringPrice;
         private double usagePrice;
         private double amortizedHourlyCost;
+        private int term;
         private long riSpecId;
 
         CostRecord() {
@@ -612,6 +637,14 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
             this.amortizedHourlyCost = amortizedHourlyCost;
         }
 
+        public int getTerm() {
+            return term;
+        }
+
+        public void setTerm(int term) {
+            this.term = term;
+        }
+
         public long getRiSpecId() {
             return riSpecId;
         }
@@ -622,6 +655,10 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
 
         public double calculateSavingsPerHour() {
             return onDemandPrice - amortizedHourlyCost;
+        }
+
+        public double calculateOnDemandCostForTerm() {
+            return onDemandPrice * 24 * 365 * term;
         }
     }
 }

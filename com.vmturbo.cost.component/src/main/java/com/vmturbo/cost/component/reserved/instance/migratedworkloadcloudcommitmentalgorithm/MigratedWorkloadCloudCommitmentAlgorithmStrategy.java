@@ -4,7 +4,8 @@ import java.util.List;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement;
-import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigrationProfile;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
+import com.vmturbo.common.protobuf.search.CloudType;
 
 /**
  * Strategy interface for implementing a migrated workflow cloud commitment (Buy RI) analysis. The purpose for
@@ -17,14 +18,16 @@ public interface MigratedWorkloadCloudCommitmentAlgorithmStrategy {
     /**
      * Performs the analysis of our input data and generates Buy RI recommendations.
      *
-     * @param migratedWorkloads The workloads that are being migrated as part of a migrate to cloud plan
-     * @param masterBusinessAccountOid  The master business account for which to buy RIs
-     * @param migrationProfile          The migration profile specifying the type of RIs to buy
-     * @param topologyContextId         The topology context with which to associate the actions
+     * @param migratedWorkloads        The workloads that are being migrated as part of a migrate to cloud plan
+     * @param masterBusinessAccountOid The master business account for which to buy RIs
+     * @param cloudType                The cloud service provider
+     * @param riProviderSetting        The RI provider settings specifying the type of RIs to buy
+     * @param topologyContextId        The topology context with which to associate the actions
      * @return A list of Buy RI actions for these workloads
      */
     List<Action> analyze(List<MigratedWorkloadPlacement> migratedWorkloads,
                          Long masterBusinessAccountOid,
-                         MigrationProfile migrationProfile,
+                         CloudType cloudType,
+                         RIProviderSetting riProviderSetting,
                          Long topologyContextId);
 }

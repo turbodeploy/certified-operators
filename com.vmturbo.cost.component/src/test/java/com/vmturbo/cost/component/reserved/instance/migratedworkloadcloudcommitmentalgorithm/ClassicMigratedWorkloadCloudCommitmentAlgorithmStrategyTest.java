@@ -66,7 +66,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTest {
                 .thenReturn(Arrays.asList(entityStats));
 
         // Execute our strategy
-        List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null, null, null);
+        List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null, null, null, null);
 //        List<ReservedInstanceAnalysisRecommendation> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null);
 
         // Assert our results
@@ -89,7 +89,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTest {
 
         // Execute our strategy
 //        List<ReservedInstanceAnalysisRecommendation> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null);
-        List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null, null, null);
+        List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null, null, null, null);
         Assert.assertNotNull(actions);
 
         // Assert our results
@@ -122,7 +122,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTest {
 
         // Execute our strategy
         List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(
-                Arrays.asList(createMockMigratedWorkloadPlacement(1), createMockMigratedWorkloadPlacement(2)), null, null, null);
+                Arrays.asList(createMockMigratedWorkloadPlacement(1), createMockMigratedWorkloadPlacement(2)), null, null, null, null);
         Assert.assertNotNull(actions);
 
         // Assert our results
@@ -140,7 +140,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTest {
                 .thenReturn(Arrays.asList(createEnityStatsThatWillBuyRI(1), createEnityStatsThatWillNotBuyRI(2)));
 
         // Execute our strategy
-        List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null, null, null);
+        List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null, null, null, null);
         Assert.assertNotNull(actions);
 
         // Assert our results

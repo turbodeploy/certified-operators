@@ -74,6 +74,7 @@ import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
 import com.vmturbo.api.dto.scenario.UtilizationApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.api.enums.DestinationEntityType;
@@ -310,7 +311,7 @@ public class ScenarioMapper {
         final Set<Long> templateIds = getTemplatesIds(dto.getTopologyChanges());
 
         infoBuilder.addAllChanges(getTopologyChanges(dto.getTopologyChanges(),
-            dto.getConfigChanges(), templateIds));
+            dto.getConfigChanges(), templateIds, getScope(dto.getScope())));
         infoBuilder.addAllChanges(getConfigChanges(dto.getConfigChanges()));
         infoBuilder.addAllChanges(getPolicyChanges(dto.getConfigChanges()));
         infoBuilder.addAllChanges(getLoadChanges(dto.getLoadChanges()));
@@ -1162,7 +1163,8 @@ public class ScenarioMapper {
     @Nonnull
     private List<ScenarioChange> getTopologyChanges(@Nonnull final TopologyChangesApiDTO topoChanges,
                                                     @Nonnull final ConfigChangesApiDTO configChanges,
-                                                    @Nonnull final Set<Long> templateIds)
+                                                    @Nonnull final Set<Long> templateIds,
+                                                    PlanScope planScope)
             throws IllegalArgumentException, UnknownObjectException {
         if (topoChanges == null) {
             return Collections.emptyList();
@@ -1186,7 +1188,7 @@ public class ScenarioMapper {
             // 2. Create the migration change
             changes.add(getTopologyMigrationChange(migrateObjects, configChanges));
             // 3. Create the RI Buy configuration
-            changes.add(getRiSettings());
+            changes.add(getRiSettings(planScope));
         }
 
         return changes.build();
@@ -1288,15 +1290,46 @@ public class ScenarioMapper {
      * Create a {@link ScenarioChange} representing an {@link RISetting} loaded with the current real-time RI purchase
      * settings. This is required in the MCP context for initiating and providing setting values to the RI buy algorithm.
      *
+     * @param planScope The scope of the plan
      * @return a {@link ScenarioChange} representing the current real-time RI purchase settings
      * @throws UnknownObjectException if an invalid setting manager UUID is provided
      */
-    public ScenarioChange getRiSettings() throws UnknownObjectException {
+    public ScenarioChange getRiSettings(PlanScope planScope) throws UnknownObjectException {
+        // Retrieve the provider for the plan scope
+        Optional<CloudType> provider = getProvider(planScope);
+
         List<SettingApiDTO> settingApiDTOs =
                 this.settingsService.getSettingsByUuid("reservedinstancemanager").stream()
                         .map(d -> (SettingApiDTO)d)
+                        .filter(d -> !provider.isPresent() || (d.getCategories() != null && d.getCategories().contains(provider.get().name().toLowerCase())))
                         .collect(Collectors.toList());
         return buildRISettingChanges(settingApiDTOs);
+    }
+
+    /**
+     * Returns the CSP provider name for the specified regionId.
+     *
+     * @param planScope The scope of the plan
+     * @return          The provider type
+     */
+    private Optional<CloudType> getProvider(PlanScope planScope) {
+        try {
+            List<PlanScopeEntry> scopeEntries = planScope.getScopeEntriesList();
+            if (!scopeEntries.isEmpty()) {
+                // Retrieve the SE list for the region (should only be one)
+                List<ServiceEntityApiDTO> seList = this.repositoryApi.getRegion(Arrays.asList(scopeEntries.get(0).getScopeObjectOid())).getSEList();
+                if (!seList.isEmpty()) {
+                    // Retrieve the target
+                    TargetApiDTO target = seList.get(0).getDiscoveredBy();
+                    if (target != null && target.getType() != null) {
+                        return CloudType.fromProbeType(target.getType());
+                    }
+                }
+            }
+        } catch (InterruptedException | ConversionException e) {
+            logger.error("An error occurred trying to find the provider type for scope: {}", planScope, e);
+        }
+        return Optional.empty();
     }
 
     /**

@@ -9,7 +9,9 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.HistoryServiceConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
+import com.vmturbo.cost.component.PlanOrchestratorConfig;
 import com.vmturbo.cost.component.history.HistoricalStatsService;
+import com.vmturbo.cost.component.plan.PlanService;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSenderConfig;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanActionContextRiBuyStore;
@@ -24,6 +26,7 @@ import com.vmturbo.cost.component.rpc.MigratedWorkloadCloudCommitmentAnalysisSer
 @ComponentScan
 @Import({
         HistoryServiceConfig.class,
+        PlanOrchestratorConfig.class,
         CostDBConfig.class,
         ReservedInstanceActionsSenderConfig.class,
         PricingConfig.class,
@@ -69,6 +72,12 @@ public class MigratedWorkloadCloudCommitmentConfig {
     private PlanActionContextRiBuyStore planActionContextRiBuyStore;
 
     /**
+     * The plan service, which is needed by the MigratedWorkloadCloudCommitmentAnalysisService to retrieve PlanInstances.
+     */
+    @Autowired
+    private PlanService planService;
+
+    /**
      * Provides access to the business account price table key store, which is used to find the price table key for
      * a business account, and the price table store, which is used to retrieve on-demand and reserved instance prices.
      */
@@ -82,7 +91,7 @@ public class MigratedWorkloadCloudCommitmentConfig {
      */
     @Bean
     public MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService() {
-        return new MigratedWorkloadCloudCommitmentAnalysisService(reservedInstanceActionsSenderConfig.actionSender());
+        return new MigratedWorkloadCloudCommitmentAnalysisService(reservedInstanceActionsSenderConfig.actionSender(), planService);
     }
 
     /**
