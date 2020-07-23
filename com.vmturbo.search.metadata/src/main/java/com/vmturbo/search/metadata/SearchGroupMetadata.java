@@ -34,8 +34,6 @@ public enum SearchGroupMetadata {
     RESOURCE(GroupType.RESOURCE, GROUP_COMMON_FIELDS),
     STORAGE_CLUSTER(GroupType.STORAGE_CLUSTER, GROUP_COMMON_FIELDS);
 
-
-
     private final GroupType groupType;
 
     private final Map<FieldApiDTO, SearchMetadataMapping> metadataMappingMap;

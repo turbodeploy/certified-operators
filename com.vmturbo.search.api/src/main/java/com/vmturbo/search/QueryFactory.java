@@ -8,13 +8,17 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
 import com.vmturbo.api.dto.searchquery.EntityCountRequestApiDTO;
+import com.vmturbo.api.dto.searchquery.EntityMetadataRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.FieldValueTypeApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupCountRequestApiDTO;
+import com.vmturbo.api.dto.searchquery.GroupMetadataRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchAllQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
+import com.vmturbo.search.fields.MetadataFieldsQuery;
 
 /**
  * A factory for constructing search queries of different types (entity, group).
@@ -115,5 +119,27 @@ public class QueryFactory {
         GroupCountQuery query = new GroupCountQuery(request, readOnlyDSLContext);
         logger.info("Processing group count query");
         return query.count();
+    }
+
+    /**
+     * Perform a group fields query, and return the results.
+     *
+     * @param request the API entity field query input
+     * @return the group fields in the system
+     */
+    public List<FieldValueTypeApiDTO> performEntityFieldQuery(final EntityMetadataRequestApiDTO request) {
+        logger.info("Processing entity field query");
+        return MetadataFieldsQuery.processRequest(request);
+    }
+
+    /**
+     * Perform a entity fields query, and return the results.
+     *
+     * @param request the API entity field query input
+     * @return the group fields in the system
+     */
+    public List<FieldValueTypeApiDTO> performGroupFieldQuery(final GroupMetadataRequestApiDTO request) {
+        logger.info("Processing entity field query");
+        return MetadataFieldsQuery.processRequest(request);
     }
 }

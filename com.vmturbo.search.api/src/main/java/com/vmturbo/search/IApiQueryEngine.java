@@ -5,8 +5,11 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.searchquery.EntityCountRequestApiDTO;
+import com.vmturbo.api.dto.searchquery.EntityMetadataRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.FieldValueTypeApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupCountRequestApiDTO;
+import com.vmturbo.api.dto.searchquery.GroupMetadataRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchAllQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
@@ -68,4 +71,24 @@ public interface IApiQueryEngine {
      */
     List<SearchCountRecordApiDTO> countGroups(
         @Nonnull GroupCountRequestApiDTO groupCountRequestApiDTO) throws Exception;
+
+    /**
+     * Processes a {@link EntityMetadataRequestApiDTO} and returns an (unpaginated) list of results.
+     *
+     * @param entityMetadataRequestApiDTO describes the entity who's fields we request
+     * @return a list of results
+     * @throws Exception when the query cannot be processed
+     */
+    List<FieldValueTypeApiDTO> entityFields(
+            @Nonnull EntityMetadataRequestApiDTO entityMetadataRequestApiDTO) throws Exception;
+
+    /**
+     * Processes a {@link GroupMetadataRequestApiDTO} and returns an (unpaginated) list of results.
+     *
+     * @param groupMetadataRequestApiDTO describes the group who's fields we request
+     * @return a list of results
+     * @throws Exception when the query cannot be processed
+     */
+    List<FieldValueTypeApiDTO> groupFields(
+            @Nonnull GroupMetadataRequestApiDTO groupMetadataRequestApiDTO) throws Exception;
 }
