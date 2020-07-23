@@ -45,7 +45,7 @@
     "DatabaseTier": {
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseTiersByName"},
-            {"inputType": "#", "elements": "commoditySoldList[type=DBMem,capacity]", "filterCategory": "property", "filterType": "databaseTiersByDBMem"}
+            {"inputType": "#", "elements": "commoditySoldList[type=StorageAmount,capacity]", "filterCategory": "property", "filterType": "databaseTiersByStorageAmount"}
         ]
     },
 

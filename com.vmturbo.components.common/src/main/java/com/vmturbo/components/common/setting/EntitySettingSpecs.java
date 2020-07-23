@@ -298,7 +298,7 @@ public enum EntitySettingSpecs {
     /**
      * Storage utilization threshold.
      */
-    StorageAmountUtilization("storageAmountUtilization", "Scaling Target Storage Amount Utilization",
+    StorageAmountUtilization("storageAmountUtilization", "Storage Amount Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY, EntityType.STORAGE_CONTROLLER,
                     EntityType.DATABASE),

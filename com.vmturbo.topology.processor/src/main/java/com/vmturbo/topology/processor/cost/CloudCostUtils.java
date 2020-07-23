@@ -181,10 +181,12 @@ public class CloudCostUtils {
      */
     private static String azureDatabaseTierLocalNameToId(@Nonnull String localName,
                                                          @Nonnull SDKProbeType probeType) {
-        String dbTypeName = localName.substring(0, localName.indexOf("/")).trim();
+        int indexOfStorageDelimiter = localName.indexOf("/");
+        String dbTypeName = indexOfStorageDelimiter == -1 ?
+                localName : localName.substring(0, indexOfStorageDelimiter).trim();
         String dbTypeLetter = dbTypeName.substring(0, 1);
         return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType) +
-            AZURE_DATABASE_LETTER_TO_NAME.get(dbTypeLetter) + dbTypeName;
+                AZURE_DATABASE_LETTER_TO_NAME.get(dbTypeLetter) + dbTypeName;
     }
 
     /**
@@ -197,8 +199,7 @@ public class CloudCostUtils {
      */
     private static String azureDatabaseTierFullNameToId(@Nonnull String localName,
                                                        @Nonnull SDKProbeType probeType) {
-        String dbTypeName = localName.substring(0, localName.indexOf("/")).trim();
-        String dbTypeLetter = dbTypeName.substring(0, 1);
+        String dbTypeLetter = localName.substring(0, 1);
         return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType) +
                 AZURE_DATABASE_LETTER_TO_NAME.get(dbTypeLetter) + localName;
     }

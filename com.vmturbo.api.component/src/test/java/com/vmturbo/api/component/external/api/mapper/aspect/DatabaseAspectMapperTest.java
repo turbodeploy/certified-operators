@@ -26,6 +26,7 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
     private static final int MAX_CONCURRENT_SESSION = 400;
     private static final int MAX_CONCURRENT_WORKER = 10;
     private static final String PRICING_MODEL = "DTU";
+    private static final String STORAGE_AMOUNT = "2";
 
     private static final long TEST_OID = 123L;
 
@@ -44,7 +45,8 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
                 .build())
                 .putEntityPropertyMap("max_concurrent_session", "400")
                 .putEntityPropertyMap("max_concurrent_worker", "10")
-                .putEntityPropertyMap("pricing_model", PRICING_MODEL);
+                .putEntityPropertyMap("pricing_model", PRICING_MODEL)
+                .putEntityPropertyMap("storage_amount", STORAGE_AMOUNT);
 
         final DatabaseAspectMapper mapper = new DatabaseAspectMapper();
         // act
@@ -61,6 +63,7 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
         assertEquals(MAX_CONCURRENT_SESSION, dbAspect.getMaxConcurrentSessions());
         assertEquals(MAX_CONCURRENT_WORKER, dbAspect.getMaxConcurrentWorkers());
         assertEquals(PRICING_MODEL, dbAspect.getPricingModel());
+        assertEquals(STORAGE_AMOUNT, dbAspect.getStorageAmount());
 
     }
 }
