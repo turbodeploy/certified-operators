@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.SortedMap;
+import java.util.function.Predicate;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -41,6 +42,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProtoREST.SupplyChainSe
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
 import com.vmturbo.common.protobuf.search.SearchREST.SearchServiceController;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.components.common.BaseVmtComponent;
@@ -72,6 +74,7 @@ import com.vmturbo.repository.service.SupplyChainStatistician;
 import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
 import com.vmturbo.repository.service.TopologyGraphSearchRpcService;
 import com.vmturbo.repository.service.TopologyGraphSupplyChainRpcService;
+import com.vmturbo.repository.topology.util.GuestLoadFilters;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
@@ -159,6 +162,9 @@ public class RepositoryComponent extends BaseVmtComponent {
     // Disable it by default to support Lemur edition.
     @Value("${enableArangodbHealthCheck:false}")
     private boolean enableArangodbHealthCheck;
+
+    @Value("${showGuestLoad:false}")
+    private boolean showGuestLoad;
 
     @PostConstruct
     private void setup() {
@@ -316,7 +322,13 @@ public class RepositoryComponent extends BaseVmtComponent {
     public TopologyEntitiesListener topologyEntitiesListener() {
         return new TopologyEntitiesListener(repositoryComponentConfig.topologyManager(),
                                             repositoryComponentConfig.liveTopologyStore(),
-                                            apiConfig.repositoryNotificationSender());
+                                            apiConfig.repositoryNotificationSender(),
+                                            topologyEntitiesFilter());
+    }
+
+    @Bean
+    public Predicate<TopologyDTO.TopologyEntityDTO> topologyEntitiesFilter() {
+        return showGuestLoad ? e -> true : GuestLoadFilters::isNotGuestLoad;
     }
 
     @Bean
