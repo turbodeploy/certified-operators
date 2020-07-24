@@ -3,6 +3,7 @@ package com.vmturbo.history.listeners;
 import static com.vmturbo.history.listeners.IngestionStatus.IngestionState.None;
 import static com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor.Live;
 import static com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor.Projected;
+import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -27,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.PlanDTOUtil;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
@@ -534,6 +536,7 @@ public class TopologyCoordinator extends TopologyListenerBase
         processingStatus.startHourRollup(snapshot);
         List<Table> tables = processingStatus.getIngestionTables(snapshot)
                 .distinct()
+                .filter(t -> t == MARKET_STATS_LATEST || isRolledUpTable(t))
                 .collect(Collectors.toList());
         // nothing to do if there are no stats
         if (!tables.isEmpty()) {
@@ -562,6 +565,7 @@ public class TopologyCoordinator extends TopologyListenerBase
         processingStatus.startDayMonthRollup(snapshot);
         List<Table> tables = processingStatus.getIngestionTablesForHour(snapshot)
                 .distinct()
+                .filter(this::isRolledUpTable)
                 .collect(Collectors.toList());
         if (!tables.isEmpty()) {
             rollupLock.lock();

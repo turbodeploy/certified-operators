@@ -33,7 +33,9 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]ingesters[/\\]live[/\\]writers[/\\]SystemLoadWriter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]listeners[/\\]ProcessingLoop.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]listeners[/\\]ProcessingStatus.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]listeners[/\\]RollupProcessor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]listeners[/\\]SnapshotStatus.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]listeners[/\\]TopologyCoordinator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]MarketStatsAccumulator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]MarketStatsAccumulatorImpl.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]PlanStatsAggregator.java" />
