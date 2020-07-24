@@ -16,6 +16,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyCollection;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -50,6 +51,7 @@ import org.mockito.Mockito;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper.ScenarioChangeMappingContext;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
@@ -184,6 +186,15 @@ public class ScenarioMapperTest {
         // Return empty by default to keep NPE's at bay.
         MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+
+        // Return a VM ServiceEntityApiDTO that returns an AWS target (getDisoveredBy) when the repositoryApi's getRegion is called
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setType("AWS");
+        final ServiceEntityApiDTO vm = new ServiceEntityApiDTO();
+        vm.setDiscoveredBy(target);
+        SearchRequest searchRequest = Mockito.mock(SearchRequest.class);
+        when(searchRequest.getSEList()).thenReturn(Arrays.asList(vm));
+        when(repositoryApi.getRegion(anyCollection())).thenReturn(searchRequest);
 
         scenarioMapper = new ScenarioMapper(repositoryApi,
                 templatesUtils, settingsService, settingsManagerMapping, settingsMapper,
