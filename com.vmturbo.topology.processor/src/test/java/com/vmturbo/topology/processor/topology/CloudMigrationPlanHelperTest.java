@@ -190,7 +190,7 @@ public class CloudMigrationPlanHelperTest {
         settings.volumeId = 73433887060893L;
 
         settings.movable = false;
-        settings.totalSkipped = 6;
+        settings.totalSkipped = 5;
         settings.totalAccess = 6;
         settings.totalInactive = 0;
         settings.countsByProvider.put(settings.hostProviderId, 13L);
@@ -201,14 +201,14 @@ public class CloudMigrationPlanHelperTest {
 
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1OnPrem, allocationTopologyInfo);
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1OnPrem, allocationTopologyInfo, true);
 
         settings.movable = true;
         settings.totalSkipped = 0;
         settings.totalAccess = 0;
-        settings.totalInactive = 2;
+        settings.totalInactive = 3;
         settings.countsByProvider.put(settings.hostProviderId, 4L);
-        settings.countsByProvider.put(settings.storageProviderId1, 3L);
+        settings.countsByProvider.put(settings.storageProviderId1, 4L);
 
         // Check counts after.
         verifyCommBoughtCounts(vm1OnPrem, settings);
@@ -235,9 +235,9 @@ public class CloudMigrationPlanHelperTest {
         settings.volumeId = 0;
 
         settings.movable = false;
-        settings.totalSkipped = 5;
+        settings.totalSkipped = 3;
         settings.totalAccess = 4;
-        settings.totalInactive = 0;
+        settings.totalInactive = 2;
         settings.countsByProvider.put(settings.hostProviderId, 8L);
         settings.countsByProvider.put(settings.storageProviderId1, 6L);
         settings.countsByProvider.put(settings.storageProviderId2, 6L);
@@ -247,15 +247,15 @@ public class CloudMigrationPlanHelperTest {
 
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Azure, allocationTopologyInfo);
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Azure, allocationTopologyInfo, true);
 
         settings.movable = true;
         settings.totalSkipped = 0;
         settings.totalAccess = 0;
-        settings.totalInactive = 4;
+        settings.totalInactive = 6;
         settings.countsByProvider.put(settings.hostProviderId, 3L);
-        settings.countsByProvider.put(settings.storageProviderId1, 4L);
-        settings.countsByProvider.put(settings.storageProviderId2, 4L);
+        settings.countsByProvider.put(settings.storageProviderId1, 5L);
+        settings.countsByProvider.put(settings.storageProviderId2, 5L);
 
         // Check counts after.
         verifyCommBoughtCounts(vm1Azure, settings);
@@ -281,7 +281,7 @@ public class CloudMigrationPlanHelperTest {
         settings.volumeId = 0;
 
         settings.movable = false;
-        settings.totalSkipped = 3;
+        settings.totalSkipped = 2;
         settings.totalAccess = 3;
         settings.totalInactive = 0;
         settings.countsByProvider.put(settings.hostProviderId, 9L);
@@ -292,14 +292,14 @@ public class CloudMigrationPlanHelperTest {
 
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Aws, allocationTopologyInfo);
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Aws, allocationTopologyInfo, true);
 
         settings.movable = true;
         settings.totalSkipped = 0;
         settings.totalAccess = 0;
-        settings.totalInactive = 3;
+        settings.totalInactive = 4;
         settings.countsByProvider.put(settings.hostProviderId, 5L);
-        settings.countsByProvider.put(settings.storageProviderId1, 4L);
+        settings.countsByProvider.put(settings.storageProviderId1, 5L);
 
         // Check counts after.
         verifyCommBoughtCounts(vm1Aws, settings);

@@ -75,6 +75,7 @@ import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.group.settings.SettingPolicyEditor;
+import com.vmturbo.topology.processor.topology.CloudStorageMigrationHelper.IopsToStorageRatios;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
@@ -136,8 +137,6 @@ public class CloudMigrationPlanHelper {
             CommodityType.HOT_STORAGE,
             CommodityType.CPU_PROVISIONED,
             CommodityType.MEM_PROVISIONED,
-            CommodityType.STORAGE_PROVISIONED,
-            // TODO: These 2 are sold by Azure compute tiers, but not by AWS tiers.
             CommodityType.INSTANCE_DISK_SIZE,
             CommodityType.INSTANCE_DISK_TYPE
     );
@@ -159,6 +158,11 @@ public class CloudMigrationPlanHelper {
     private static final Set<EntityType> LICENSE_PROVIDER_TYPES = ImmutableSet.of(
             COMPUTE_TIER,
             PHYSICAL_MACHINE);
+
+    /**
+     * IOPS to Storage ratios: used for adjusting storage amount based on IOPS.
+     */
+    private IopsToStorageRatios iopsToStorageRatios;
 
     /**
      * Constructor called by migration stage.
@@ -199,6 +203,7 @@ public class CloudMigrationPlanHelper {
                 migrationChange);
 
         // Prepare source entities for migration.
+        iopsToStorageRatios = CloudStorageMigrationHelper.populateMaxIopsRatioAndCapacity(inputGraph);
         prepareEntities(context, outputGraph, migrationChange);
         prepareProviders(outputGraph, context.getTopologyInfo());
         savePolicyGroups(context, outputGraph, migrationChange);
@@ -260,11 +265,19 @@ public class CloudMigrationPlanHelper {
 
             // Analysis needs to treat the entity as if it's a cloud entity for purposes of
             // applying template exclusions, obtaining pricing, etc.
-            builder.setEnvironmentType(EnvironmentType.CLOUD);
+            if (builder.getEnvironmentType().equals(EnvironmentType.ON_PREM)
+                    && builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                // Set environment type of associated virtual volumes of on-prem VMs to CLOUD.
+                entity.getOutboundAssociatedEntities().stream()
+                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                        .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                        .forEach(b -> b.setEnvironmentType(EnvironmentType.CLOUD));
+                builder.setEnvironmentType(EnvironmentType.CLOUD);
+            }
 
             // Remove non-applicable commodities first here, before other stages add some bought
             // commodities like segmentation.
-            prepareBoughtCommodities(builder, context.getTopologyInfo());
+            prepareBoughtCommodities(builder, context.getTopologyInfo(), true);
 
             // Add coupon commodity to allow existing RIs to be utilized
             addCouponCommodity(entity);
@@ -450,7 +463,7 @@ public class CloudMigrationPlanHelper {
                     providerDtoBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
 
                     // Need to set movable/scalable true for provider commBought.
-                    prepareBoughtCommodities(providerDtoBuilder, topologyInfo);
+                    prepareBoughtCommodities(providerDtoBuilder, topologyInfo, true);
                     prepareSoldCommodities(providerDtoBuilder);
                 });
     }
@@ -494,10 +507,13 @@ public class CloudMigrationPlanHelper {
      *
      * @param dtoBuilder Source entity or provider DTO being updated.
      * @param topologyInfo Info about plan topology.
+     * @param isConsumer true if updating commBought of the consumer (i.e. VM) false if updating the
+     *                   provider of the VM.
      */
     @VisibleForTesting
     void prepareBoughtCommodities(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
-                                         @Nonnull final TopologyInfo topologyInfo) {
+                                  @Nonnull final TopologyInfo topologyInfo,
+                                  boolean isConsumer) {
         List<CommoditiesBoughtFromProvider> newCommoditiesByProvider = new ArrayList<>();
         // Go over grouping of comm bought along with their providers.
         for (CommoditiesBoughtFromProvider commBoughtGrouping
@@ -505,7 +521,7 @@ public class CloudMigrationPlanHelper {
 
             // We need to skip some on-prem specific commodities bought to allow cloud migration.
             List<CommodityBoughtDTO> commoditiesToInclude = getUpdatedCommBought(
-                    commBoughtGrouping, topologyInfo);
+                    commBoughtGrouping, topologyInfo, dtoBuilder.getOid(), isConsumer);
             if (commoditiesToInclude.size() == 0) {
                 // Don't keep this group if there are no valid bought commodities from it.
                 continue;
@@ -536,12 +552,17 @@ public class CloudMigrationPlanHelper {
      *
      * @param commBoughtGrouping Grouping to look for commBoughtDTO in.
      * @param topologyInfo Plan topology info.
+     * @param entityOid entity OID
+     * @param isConsumer true if updating commBought of the consumer (i.e. VM) false if updating the
+     *                   provider of the VM.
      * @return Updated list of only applicable CommBoughtDTOs.
      */
     @Nonnull
     private List<CommodityBoughtDTO> getUpdatedCommBought(
             @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping,
-            @Nonnull final TopologyInfo topologyInfo) {
+            @Nonnull final TopologyInfo topologyInfo,
+            final long entityOid,
+            boolean isConsumer) {
         List<CommodityBoughtDTO> commoditiesToInclude = new ArrayList<>();
         for (CommodityBoughtDTO dtoBought : commBoughtGrouping.getCommodityBoughtList()) {
             CommodityType commodityType = CommodityType.forNumber(dtoBought
@@ -552,19 +573,36 @@ public class CloudMigrationPlanHelper {
                     || dtoBought.getCommodityType().hasKey()) {
                 continue;
             }
-            if ((commodityType == CommodityType.STORAGE_ACCESS
-                    || commodityType == CommodityType.IO_THROUGHPUT)
-                    && !TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
-                // For Allocation plan, we need to disable IOPS (Storage_Access) commodity, as
-                // we force migration to GP2 which has restriction rule between storage_amount and
-                // max iops. Storage_Amount x 3 >= IOPS (Storage_Access)
-                // Also disabling IO_Throughput, same restriction issue.
-                // TODO: Place capping logic here or in TC?
+            if (commodityType == CommodityType.IO_THROUGHPUT
+                    || commodityType == CommodityType.STORAGE_PROVISIONED) {
+                // Disable the IO_THROUGHPUT and STORAGE_PROVISIONED commodity because it is not
+                // used in migration decision.
                 CommodityBoughtDTO dtoBoughtUpdated = CommodityBoughtDTO
                         .newBuilder(dtoBought)
                         .setActive(false)
                         .build();
                 commoditiesToInclude.add(dtoBoughtUpdated);
+            } else if (isConsumer && commodityType == CommodityType.STORAGE_ACCESS) {
+                // Use historical max value for storage access.
+                CommodityBoughtDTO.Builder commodityBoughtDTO = CloudStorageMigrationHelper.getHistoricalMaxIOPS(dtoBought);
+                if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
+                    // Disable Storage Access commodity for Lift and Shift plan so it can always
+                    // fit in GP2 or Azure Managed Premium.
+                    commodityBoughtDTO.setActive(false);
+                }
+                commoditiesToInclude.add(commodityBoughtDTO.build());
+            } else if (isConsumer && commodityType == CommodityType.STORAGE_AMOUNT) {
+                if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
+                    // Assign storage provisioned used value for storage amount.
+                    // Also adjust storage amount based on IOPS value if necessary.
+                    commoditiesToInclude.add(CloudStorageMigrationHelper
+                            .adjustStorageAmountForCloudMigration(dtoBought, commBoughtGrouping,
+                                    iopsToStorageRatios, entityOid));
+                } else {
+                    // Assign storage provisioned used value for storage amount
+                    commoditiesToInclude.add(CloudStorageMigrationHelper
+                            .updateStorageAmountCommodityBought(dtoBought, commBoughtGrouping));
+                }
             } else {
                 commoditiesToInclude.add(dtoBought);
             }

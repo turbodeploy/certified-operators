@@ -177,8 +177,7 @@ public class PolicyManager {
             final Map<PolicyDetailCase, Integer> policyTypeCounts = Maps.newEnumMap(PolicyDetailCase.class);
 
 
-            final List<PlacementPolicy> policiesToApply =
-                new ArrayList<>();
+            final List<PlacementPolicy> policiesToApply = new ArrayList<>();
 
             // Bind sources (consumers) to destinations (providers) in case of migration
             // NOTE: the resulting BindToGroupPolicy binds source entities to destination (PM/tier).
@@ -189,7 +188,7 @@ public class PolicyManager {
                     });
 
             // If we are doing migration, on-prem policies should be excluded.
-            if (TopologyDTOUtil.isCloudMigrationPlan(context.getTopologyInfo())) {
+            if (!TopologyDTOUtil.isCloudMigrationPlan(context.getTopologyInfo())) {
                 getServerPolicies(changes, livePolicies, groupsById)
                         .forEach(policiesToApply::add);
             }
