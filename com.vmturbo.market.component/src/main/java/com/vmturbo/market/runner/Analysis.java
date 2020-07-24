@@ -947,21 +947,15 @@ public class Analysis {
                         return;
                     }
 
-//                    // Get the region's provider
-//                    Optional<TopologyEntityDTO> provider = projectedCloudTopology.getServiceProvider(region.get().getOid());
-//                    if (!provider.isPresent()) {
-//                        logger.warn("Could not find region provider for workload placement for VM: {}, compute tier: {}, region: {}",
-//                                entity.getOid(), computeTier.get().getOid(), region.get().getOid());
-//                        return;
-//                    }
-
-                    // Add the VM to our workload placement list
-                    workloadPlacementList.add(Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement.newBuilder()
-                            .setVirtualMachine(entity)
-                            .setComputeTier(computeTier.get())
-                            .setRegion(region.get())
-//                            .setProvider(provider.get())
-                            .build());
+                    // Only add the VM to the list to analyze if it has not been resized specifically to use an existing reserved instance
+                    if (!isVMUsingRI(entity, computeTier.get())) {
+                        // Add the VM to our workload placement list
+                        workloadPlacementList.add(Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement.newBuilder()
+                                .setVirtualMachine(entity)
+                                .setComputeTier(computeTier.get())
+                                .setRegion(region.get())
+                                .build());
+                    }
                 });
 
         // Get the master business account
@@ -973,6 +967,31 @@ public class Analysis {
 
         // Send the request to start the analysis
         migratedWorkloadCloudCommitmentAnalysisService.startAnalysis(topologyInfo.getTopologyContextId(), masterBusinessAccount.get().getOid(), workloadPlacementList);
+    }
+
+    /**
+     * Checks to see if the specified entity is using coupon commodities sold by the specified compute tier. This will tell
+     * us if the market has resized the VM specifically to use a reserved instance.
+     *
+     * @param entity        The virtual machine entity
+     * @param computeTier   The compute tier to which the virtual machine is being moved
+     * @return              True if the VM is using an RI, false otherwise
+     */
+    private boolean isVMUsingRI(TopologyEntityDTO entity, TopologyEntityDTO computeTier) {
+        List<CommoditiesBoughtFromProvider> commodities = entity.getCommoditiesBoughtFromProvidersList();
+        for (CommoditiesBoughtFromProvider commodity: commodities) {
+            if (commodity.getProviderId() == computeTier.getOid()) {
+                // Find all coupon commodities with a used value greater than zero that this entity is buying from the computer tier
+                List<CommodityBoughtDTO> couponCommodities = commodity.getCommodityBoughtList().stream()
+                        .filter(c -> c.getCommodityType().getType() == CommodityType.COUPON_VALUE)
+                        .filter(c -> c.getUsed() > 0)
+                        .collect(Collectors.toList());
+                if (!couponCommodities.isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
