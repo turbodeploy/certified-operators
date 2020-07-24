@@ -2970,6 +2970,73 @@ public class GroupMapperTest {
         assertThat(mappedDto.getClassName(), is("Group"));
     }
 
+
+    /**
+     * Test that the VM group criteria by encrypted volume is converted to SearchParameters correctly.
+     * @throws Exception any error happens
+     */
+    @Test
+    public void testVmsByEncryptedVolumeToSearchParameters() throws Exception {
+        GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE,
+                filterDTO(EntityFilterMapper.REGEX_MATCH, "False", "vmsConnectedToEncryptedVolume"));
+        List<SearchParameters> parameters =
+                entityFilterMapper.convertToSearchParameters(
+                        groupDto.getCriteriaList(), groupDto.getClassName(), null);
+        assertEquals(1, parameters.size());
+        SearchParameters param = parameters.get(0);
+
+        // verify that the starting filter is virtual Volume
+        assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME), param.getStartingFilter());
+
+        // search filters after starting filter
+        assertEquals(3, param.getSearchFilterCount());
+
+        // 1. first one is encrypted propertyFilter
+        assertTrue(param.getSearchFilter(0).hasPropertyFilter());
+        PropertyFilter propertyFilter = param.getSearchFilter(0).getPropertyFilter();
+        assertEquals("encrypted", propertyFilter.getPropertyName());
+
+
+        // 2. second one is traversalFilter
+        assertTrue(param.getSearchFilter(1).hasTraversalFilter());
+        TraversalFilter traversalFilter = param.getSearchFilter(1).getTraversalFilter();
+        assertEquals("PRODUCES", traversalFilter.getTraversalDirection().name());
+        assertEquals(1, traversalFilter.getTraversalDirection().getNumber());
+    }
+
+    /**
+     * Test that the VM group criteria by Ephemeral Storage is converted to SearchParameters correctly.
+     * @throws Exception any error happens
+     */
+    @Test
+    public void testVmsByEphemeralStorageToSearchParameters() throws Exception {
+        GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE,
+                filterDTO(EntityFilterMapper.REGEX_MATCH, "True", "vmsConnectedToEphemeralStorage"));
+        List<SearchParameters> parameters =
+                entityFilterMapper.convertToSearchParameters(
+                        groupDto.getCriteriaList(), groupDto.getClassName(), null);
+        assertEquals(1, parameters.size());
+        SearchParameters param = parameters.get(0);
+
+        // verify that the starting filter is virtual Volume
+        assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME), param.getStartingFilter());
+
+        // search filters after starting filter
+        assertEquals(3, param.getSearchFilterCount());
+
+        // 1. first one is ephemeral propertyFilter
+        assertTrue(param.getSearchFilter(0).hasPropertyFilter());
+        PropertyFilter propertyFilter = param.getSearchFilter(0).getPropertyFilter();
+        assertEquals("ephemeral", propertyFilter.getPropertyName());
+
+
+        // 2. second one is traversalFilter
+        assertTrue(param.getSearchFilter(1).hasTraversalFilter());
+        TraversalFilter traversalFilter = param.getSearchFilter(1).getTraversalFilter();
+        assertEquals("PRODUCES", traversalFilter.getTraversalDirection().name());
+        assertEquals(1, traversalFilter.getTraversalDirection().getNumber());
+    }
+
     private GroupAndMembers createGroup(@Nonnull Grouping grouping, Long... members) {
         return ImmutableGroupAndMembers.builder()
                 .group(grouping)
