@@ -512,35 +512,6 @@ public class ActionSpecMappingContextFactory {
             volumesAspectsByEntity = volumeAspectMapper.mapVirtualMachines(virtualMachinesOIDs, topologyContextId);
         }
 
-        // only process volumes aspects if we have them
-        if (!volumesAspectsByEntity.isEmpty()) {
-            // add "beforePlan" filter to existing StorageAmount and add a new StorageAmount for after plan
-            volumesAspectsByEntity.values().forEach(virtualDisks ->
-                    virtualDisks.forEach(virtualDisk -> {
-                        StatApiDTO newStorageAmount = new StatApiDTO();
-                        for (StatApiDTO stat : virtualDisk.getStats()) {
-                            if (CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase().equals(stat.getName())) {
-                                // beforePlan filter so ui will show this number in the correct column
-                                StatFilterApiDTO beforePlanFilter = new StatFilterApiDTO();
-                                beforePlanFilter.setValue(StringConstants.BEFORE_PLAN);
-                                beforePlanFilter.setType(StringConstants.RESULTS_TYPE);
-                                stat.getFilters().add(beforePlanFilter);
-                                // todo: calculate new capacity for volume on new tier dynamically
-                                // based on old volume capacity and new tier constraints, or this
-                                // should be calculated from market side and returned in action?
-                                newStorageAmount.setName(stat.getName());
-                                newStorageAmount.setCapacity(stat.getCapacity());
-                                newStorageAmount.setValue(stat.getValue());
-                                newStorageAmount.setValues(stat.getValues());
-                                newStorageAmount.setUnits(stat.getUnits());
-                                break;
-                            }
-                        }
-                        virtualDisk.getStats().add(newStorageAmount);
-                    })
-            );
-        }
-
         // retrieve volume aspects for delete volume actions
         final Map<Long, List<VirtualDiskApiDTO>> aspectsByEntity = new HashMap<>(volumesAspectsByEntity);
         final Set<Long> virtualVolumeOIDs = involvedWorkloadIdsMap.get(ApiEntityType.VIRTUAL_VOLUME);

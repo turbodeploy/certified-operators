@@ -878,6 +878,10 @@ public class ActionInterpreter {
         }
 
         Long resourceId = shoppingListOidToInfos.get(move.getShoppingListToMove()).resourceId;
+        if (resourceId == null && shoppingListInfo.getCollapsedBuyerId() != null) {
+            // For cloud->cloud move storage shopping list, use the collapsed buyer (volume id).
+            resourceId = shoppingListInfo.getCollapsedBuyerId();
+        }
         // 4 case of moves:
         // 1) Cloud to cloud. 2) on prem to cloud. 3) cloud to on prem. 4) on prem to on prem.
         if (sourceMarketTier != null && destMarketTier != null) {

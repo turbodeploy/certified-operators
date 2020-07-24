@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -109,6 +110,10 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     private final long getMostRecentStatRpcDeadlineDurationSeconds;
 
     private final long getMostRecentStatRpcFutureTimeoutSeconds;
+
+    private static final String ENCRYPTION_STATE_ENABLED = "Enabled";
+
+    private static final String ENCRYPTION_STATE_DISABLED = "Disabled";
 
     public VirtualVolumeAspectMapper(@Nonnull final CostServiceBlockingStub costServiceRpc,
                                      @Nonnull final RepositoryApi repositoryApi,
@@ -364,7 +369,10 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     @Nullable
     private EntityAspect mapVirtualMachines(@Nonnull List<TopologyEntityDTO> vmDTOs)
             throws ConversionException, InterruptedException {
-        Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVMId = mapVirtualMachines(vmDTOs, null);
+        Set<Long> vmIds = vmDTOs.stream()
+                .map(TopologyEntityDTO::getOid)
+                .collect(Collectors.toSet());
+        Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVMId = mapVirtualMachines(vmIds, null);
         if (volumeAspectsByVMId.isEmpty()) {
             return null;
         }
@@ -374,52 +382,80 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         return aspect;
     }
 
-    private Map<Long, List<VirtualDiskApiDTO>> mapVirtualMachines(
-            @Nonnull List<TopologyEntityDTO> vms, @Nullable Long topologyContextId)
-            throws ConversionException, InterruptedException {
-        // mapping from volume id to vm
-        final Map<Long, TopologyEntityDTO> vmByVolumeId = Maps.newHashMap();
+    /**
+     * Get a map of VM ID to a list of VirtualDiskApiDTO.
+     *
+     * @param vmIds Set of VM IDs
+     * @param topologyContextId topology context ID. Null if real-time topology
+     * @return Map of VM ID to list of VirtualDiskpiDTO
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     */
+    public Map<Long, List<VirtualDiskApiDTO>> mapVirtualMachines(@Nonnull Set<Long> vmIds,
+                                                                  @Nullable final Long topologyContextId)
+            throws InterruptedException, ConversionException {
+        // VM entities from source topology
+        final List<TopologyEntityDTO> sourceVms = repositoryApi.entitiesRequest(vmIds)
+                .contextId(topologyContextId)
+                .getFullEntities()
+                .collect(Collectors.toList());
+
+        // VM entities from projected topology
+        final List<TopologyEntityDTO> projectedVms = repositoryApi.entitiesRequest(vmIds)
+                .contextId(topologyContextId)
+                .projectedTopology()
+                .getFullEntities()
+                .collect(Collectors.toList());
+
         // mapping from zone id to region
         final Map<Long, ApiPartialEntity> regionByZoneId = Maps.newHashMap();
+
         // mapping from volume id to storage tier
         final Map<Long, ServiceEntityApiDTO> storageTierByVolumeId = Maps.newHashMap();
+
         // mapping from volume id to region entity
         final Map<Long, ApiPartialEntity> regionByVolumeId = Maps.newHashMap();
 
-        // mapping from volume id to vm
-        vms.forEach(vm -> {
+        // Set of volume IDs of volumes attached to the VMs.
+        final Set<Long> volumeIds = new HashSet<>();
+        sourceVms.forEach(vm -> {
             // In old model (On Prem) volumes are attached to VMs using ConnectedTo relationship
             vm.getConnectedEntityListList().forEach(connectedEntity -> {
                 if (connectedEntity.getConnectedEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
-                    vmByVolumeId.put(connectedEntity.getConnectedEntityId(), vm);
+                    volumeIds.add(connectedEntity.getConnectedEntityId());
                 }
             });
 
             // In new model (Cloud) volumes are attached to VMs using bought commodities
             vm.getCommoditiesBoughtFromProvidersList().forEach(commBought -> {
                 if (commBought.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
-                    vmByVolumeId.put(commBought.getProviderId(), vm);
+                    volumeIds.add(commBought.getProviderId());
                 }
             });
         });
 
+        // Map of volume ID to volume entities on the projected topology
+        final Map<Long, TopologyEntityDTO> projectedVolumeMap = repositoryApi.entitiesRequest(volumeIds)
+                .contextId(topologyContextId)
+                .projectedTopology()
+                .getFullEntities()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+        // Map of volume ID to a list of cost stats
+        final Map<Long, List<StatApiDTO>> volIdToCostStatsMap =
+                getVolumeCostStats(new ArrayList<>(projectedVolumeMap.values()), topologyContextId);
+
         // fetch all the regions and create mapping from region id to region
         final Map<Long, ApiPartialEntity> regionById = fetchRegions();
         regionById.values().forEach(region ->
-            region.getConnectedToList().stream()
-                .filter(connectedEntity -> connectedEntity.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
-                .forEach(connectedEntity -> regionByZoneId.put(connectedEntity.getOid(), region))
+                region.getConnectedToList().stream()
+                        .filter(connectedEntity -> connectedEntity.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                        .forEach(connectedEntity -> regionByZoneId.put(connectedEntity.getOid(), region))
         );
 
         // fetch all the storage tiers and create mapping from tier id to tier
         final Map<Long, ServiceEntityApiDTO> storageTierById = fetchStorageTiers();
-
-        // fetch all related volumes
-        final List<TopologyEntityDTO> volumes = repositoryApi.entitiesRequest(vmByVolumeId.keySet())
-            .contextId(topologyContextId)
-            .getFullEntities()
-            .collect(Collectors.toList());
-        volumes.forEach(volume -> {
+        projectedVolumeMap.values().forEach(volume -> {
             volume.getConnectedEntityListList().forEach(connectedEntity -> {
                 int connectedEntityType = connectedEntity.getConnectedEntityType();
                 Long connectedEntityId = connectedEntity.getConnectedEntityId();
@@ -439,28 +475,184 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                     .forEach(storageTier -> storageTierByVolumeId.put(volume.getOid(), storageTier));
         });
 
-        // get cost stats for all volumes
-        final Map<Long, List<StatApiDTO>> volumeCostStatById = getVolumeCostStats(volumes, topologyContextId);
-
-        // convert to VirtualDiskApiDTO
-        final Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVMId = new HashMap<>();
-        for (TopologyEntityDTO volume: volumes) {
-            VirtualDiskApiDTO volumeAspect = convert(volume, vmByVolumeId, storageTierByVolumeId,
-                regionByVolumeId, volumeCostStatById, volumes.size() == 1);
-            Long vmId = vmByVolumeId.get(volume.getOid()).getOid();
-            volumeAspectsByVMId.computeIfAbsent(vmId, k -> Lists.newArrayList()).add(volumeAspect);
+        // Map volume ID to before-plan commList
+        // VM ID -> Volume ID -> List<commodityBoughtDTO>
+        Map<Long, Map<Long, List<CommodityBoughtDTO>>> beforePlanVolIdToCommListMap = new HashMap<>();
+        for (TopologyEntityDTO vm : sourceVms) {
+            final List<CommoditiesBoughtFromProvider> virtualDiskCommBoughtLists =
+                    vm.getCommoditiesBoughtFromProvidersList().stream()
+                            .filter(commList -> commList.getProviderEntityType() == EntityType.STORAGE_VALUE
+                                    || commList.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                            .collect(Collectors.toList());
+            Function<CommoditiesBoughtFromProvider, Long> getVolumeId = commoditiesBoughtFromProvider ->
+                commoditiesBoughtFromProvider.hasVolumeId()
+                         ? commoditiesBoughtFromProvider.getVolumeId() : commoditiesBoughtFromProvider.getProviderId();
+            beforePlanVolIdToCommListMap.put(vm.getOid(), virtualDiskCommBoughtLists.stream()
+                    .collect(Collectors.toMap(getVolumeId, CommoditiesBoughtFromProvider::getCommodityBoughtList)));
         }
-        return volumeAspectsByVMId;
+
+        final Map<Long, List<VirtualDiskApiDTO>> virtualDisksByVmId = new HashMap<>();
+        for (TopologyEntityDTO vm : projectedVms) {
+            List<CommoditiesBoughtFromProvider> virtualDiskCommBoughtLists =
+                    vm.getCommoditiesBoughtFromProvidersList().stream()
+                            .filter(commList -> commList.getProviderEntityType() == EntityType.STORAGE_VALUE
+                                    || commList.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE)
+                            .collect(Collectors.toList());
+
+
+            List<VirtualDiskApiDTO> virtualDiskList = new ArrayList<>();
+            for (CommoditiesBoughtFromProvider commList : virtualDiskCommBoughtLists) {
+                long volId = commList.getVolumeId();
+                List<StatApiDTO> costStats = volIdToCostStatsMap.get(volId);
+                Map<Long, List<CommodityBoughtDTO>> volIdToCommListMap = beforePlanVolIdToCommListMap.get(vm.getOid());
+                List<CommodityBoughtDTO> sourceCommList = volIdToCommListMap != null ? volIdToCommListMap.get(volId) : null;
+                if (sourceCommList == null) {
+                    continue;
+                }
+                VirtualDiskApiDTO virtualDiskApiDTO = createVirtualDiskApiDTO(vm, projectedVolumeMap.get(volId),
+                        beforePlanVolIdToCommListMap.get(vm.getOid()).get(volId),
+                        commList.getCommodityBoughtList(), costStats, regionByVolumeId, storageTierByVolumeId,
+                        projectedVolumeMap.values().size() == 1);
+                virtualDiskList.add(virtualDiskApiDTO);
+            }
+            virtualDisksByVmId.put(vm.getOid(), virtualDiskList);
+        }
+        return virtualDisksByVmId;
     }
 
-    public Map<Long, List<VirtualDiskApiDTO>> mapVirtualMachines(@Nonnull Set<Long> vmIds,
-            final long topologyContextId) throws InterruptedException, ConversionException {
-        // fetch vms from given topology, for example: a plan projected topology
-        final List<TopologyEntityDTO> vms = repositoryApi.entitiesRequest(vmIds)
-            .contextId(topologyContextId)
-            .getFullEntities()
-            .collect(Collectors.toList());
-        return mapVirtualMachines(vms, topologyContextId);
+    /**
+     * Create a VirtualDiskApiDTO object from data collected about volume and VM.
+     *
+     * @param vm VM entity
+     * @param volume Volume entity
+     * @param beforeActionCommList the commodity bought list of the VM before the action
+     * @param afterActionCommList the commodity bought list of the VM after the action
+     * @param costStats cost stats
+     * @param regionByVolumeId map of volume ID to region
+     * @param storageTierByVolumeId map of volume ID to storage tier
+     * @param fetchAttachmentHistory true if attachment history should be retrieved for the volume
+     * @return VirtualDiskApiDTO
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     */
+    private VirtualDiskApiDTO createVirtualDiskApiDTO(TopologyEntityDTO vm,
+                                                      TopologyEntityDTO volume,
+                                                      List<CommodityBoughtDTO> beforeActionCommList,
+                                                      List<CommodityBoughtDTO> afterActionCommList,
+                                                      List<StatApiDTO> costStats,
+                                                      final Map<Long, ApiPartialEntity> regionByVolumeId,
+                                                      final Map<Long, ServiceEntityApiDTO> storageTierByVolumeId,
+                                                      boolean fetchAttachmentHistory)
+            throws InterruptedException, ConversionException {
+        VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
+        virtualDiskApiDTO.setUuid(String.valueOf(volume.getOid()));
+        virtualDiskApiDTO.setDisplayName(volume.getDisplayName());
+        virtualDiskApiDTO.setAttachedVirtualMachine(ServiceEntityMapper.toBasicEntity(vm));
+        virtualDiskApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
+
+        List<StatApiDTO> statDTOs = Lists.newArrayList();
+        // Add projected stats
+        for (CommodityBoughtDTO commodity : afterActionCommList) {
+            switch (commodity.getCommodityType().getType()) {
+                case CommodityType.STORAGE_AMOUNT_VALUE:
+                    // Convert unit of storage amount from GB to MB.
+                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+                            CLOUD_STORAGE_AMOUNT_UNIT, (float)(commodity.getUsed() / Units.KIBI),
+                            (float)(getCommodityCapacity(volume, CommodityType.STORAGE_AMOUNT) / Units.KIBI),
+                            null, volume.getDisplayName(), false));
+                    break;
+                case CommodityType.STORAGE_ACCESS_VALUE:
+                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+                            CommodityTypeUnits.STORAGE_ACCESS.getUnits(), (float)commodity.getUsed(),
+                            getCommodityCapacity(volume, CommodityType.STORAGE_ACCESS),
+                            null, volume.getDisplayName(), false));
+                    break;
+                case CommodityType.IO_THROUGHPUT_VALUE:
+                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+                            CommodityTypeUnits.IO_THROUGHPUT.getUnits(), (float)commodity.getUsed(),
+                            getCommodityCapacity(volume, CommodityType.IO_THROUGHPUT),
+                            null, volume.getDisplayName(), false));
+                    break;
+            }
+        }
+
+        // Add stats for before action stats.
+        for (CommodityBoughtDTO commodity : beforeActionCommList) {
+            switch (commodity.getCommodityType().getType()) {
+                case CommodityType.STORAGE_AMOUNT_VALUE:
+                    // Unit of storage amount in source topology is in MB.
+                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+                            CLOUD_STORAGE_AMOUNT_UNIT, (float)(commodity.getUsed() / Units.KIBI),
+                            (float)(commodity.getUsed() / Units.KIBI),
+                            null, volume.getDisplayName(), true));
+                    break;
+                case CommodityType.STORAGE_ACCESS_VALUE:
+                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+                            CommodityTypeUnits.STORAGE_ACCESS.getUnits(), (float)commodity.getUsed(),
+                            (float)commodity.getUsed(),
+                            null, volume.getDisplayName(), true));
+                    break;
+                case CommodityType.IO_THROUGHPUT_VALUE:
+                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+                            CommodityTypeUnits.IO_THROUGHPUT.getUnits(), (float)commodity.getUsed(),
+                            (float)commodity.getUsed(),
+                            null, volume.getDisplayName(), true));
+                    break;
+            }
+        }
+
+        // Get cost stats
+        if (costStats != null) {
+            statDTOs.addAll(costStats);
+        }
+
+        // find region for the volume and set it in VirtualDiskApiDTO
+        final ApiPartialEntity region = regionByVolumeId.get(volume.getOid());
+        if (region != null) {
+            virtualDiskApiDTO.setDataCenter(ServiceEntityMapper.toBasicEntity(region));
+        }
+        // set storage tier
+        final ServiceEntityApiDTO storageTier = storageTierByVolumeId.get(volume.getOid());
+        if (storageTier != null) {
+            // set tier
+            virtualDiskApiDTO.setTier(storageTier.getDisplayName());
+            // set storage tier as provider
+            virtualDiskApiDTO.setProvider(storageTier);
+        }
+        if (virtualDiskApiDTO.getEnvironmentType() == EnvironmentType.CLOUD
+                && AttachmentState.UNATTACHED.name()
+                .equals(virtualDiskApiDTO.getAttachmentState()) && fetchAttachmentHistory) {
+            populateUnattachedHistoryInfo(volume, virtualDiskApiDTO);
+        }
+        repositoryApi.newSearchRequest(
+                SearchProtoUtil.neighborsOfType(volume.getOid(),
+                        TraversalDirection.OWNED_BY,
+                        ApiEntityType.BUSINESS_ACCOUNT))
+                .getSEList()
+                .forEach(businessAccount -> virtualDiskApiDTO.setBusinessAccount(businessAccount));
+
+        if (volume.hasTypeSpecificInfo() && volume.getTypeSpecificInfo().hasVirtualVolume()) {
+            VirtualVolumeInfo volumeInfo = volume.getTypeSpecificInfo().getVirtualVolume();
+            if (volumeInfo.hasSnapshotId()) {
+                virtualDiskApiDTO.setSnapshotId(volumeInfo.getSnapshotId());
+            }
+            if (volumeInfo.hasAttachmentState()) {
+                virtualDiskApiDTO.setAttachmentState(volumeInfo.getAttachmentState().name());
+            }
+            if (volumeInfo.hasEncryption()) {
+                String encrpytionState = ENCRYPTION_STATE_DISABLED;
+                if (volumeInfo.getEncryption()) {
+                    encrpytionState = ENCRYPTION_STATE_ENABLED;
+                }
+                virtualDiskApiDTO.setEncryption(encrpytionState);
+            }
+            if (volumeInfo.hasIsEphemeral()) {
+                virtualDiskApiDTO.setEphemeral(Boolean.toString(volumeInfo.getIsEphemeral()));
+            }
+        }
+
+        virtualDiskApiDTO.setStats(statDTOs);
+        return virtualDiskApiDTO;
     }
 
     /**
@@ -628,7 +820,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      * @return map of cost StatApiDTO for each volume id
      */
     private Map<Long, List<StatApiDTO>> getVolumeCostStats(@Nonnull List<TopologyEntityDTO> volumes,
-                                                     @Nullable Long topologyContextId) {
+                                                           @Nullable Long topologyContextId) {
         final Set<Long> cloudVolumeIds = volumes.stream()
             .filter(AbstractAspectMapper::isCloudEntity)
             .map(TopologyEntityDTO::getOid)
@@ -644,6 +836,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                                 .build());
         if (topologyContextId != null) {
             // get projected cost
+            cloudCostStatsQuery.setTopologyContextId(topologyContextId);
             cloudCostStatsQuery.setRequestProjected(true);
         }
         request.addCloudCostStatsQuery(cloudCostStatsQuery.build());
@@ -732,7 +925,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         retVal.setStats(Collections.singletonList(createStatApiDTO(
             CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
             CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), file.getSizeKb() / 1024F,
-            file.getSizeKb() / 1024F, ServiceEntityMapper.toBasicEntity(storage), file.getPath())));
+            file.getSizeKb() / 1024F, ServiceEntityMapper.toBasicEntity(storage), file.getPath(), false)));
         return retVal;
     }
 
@@ -858,21 +1051,21 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         if (isCloudEntity(volume)) {
             statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                 CLOUD_STORAGE_AMOUNT_UNIT, convertStorageAmountToCloudStorageAmount(storageAmountUsed),
-                convertStorageAmountToCloudStorageAmount(storageAmountCapacity), storageTier, volume.getDisplayName()));
+                convertStorageAmountToCloudStorageAmount(storageAmountCapacity), storageTier, volume.getDisplayName(), false));
         } else {
             statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                 CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), storageAmountUsed,
-                storageAmountCapacity, storageTier, volume.getDisplayName()));
+                storageAmountCapacity, storageTier, volume.getDisplayName(), false));
         }
         // storage access stats
         statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
             CommodityTypeUnits.STORAGE_ACCESS.getUnits(), storageAccessUsed,
-            storageAccessCapacity, storageTier, volume.getDisplayName()));
+            storageAccessCapacity, storageTier, volume.getDisplayName(), false));
 
         // storage throughput stats
         statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
             CommodityTypeUnits.IO_THROUGHPUT.getUnits(), ioThroughputUsed,
-            ioThroughputCapacity, storageTier, volume.getDisplayName()));
+            ioThroughputCapacity, storageTier, volume.getDisplayName(), false));
 
         virtualDiskApiDTO.setStats(statDTOs);
 
@@ -977,15 +1170,25 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         }
     }
 
-    /**
+    /*
      * Helper method to create StatApiDTO for given stats.
+     *
+     * @param statName Stat name
+     * @param statUnit Stat unit
+     * @param used "used" value
+     * @param capacity capacity value
+     * @param relatedEntity related entity
+     * @param volumeName volume name
+     * @param isBeforePlan true is the stats is the before action value, false if it is the projected value.
+     * @return
      */
     private StatApiDTO createStatApiDTO(@Nonnull String statName,
             @Nonnull String statUnit,
             float used,
             float capacity,
             @Nullable ServiceEntityApiDTO relatedEntity,
-            @Nullable String volumeName) {
+            @Nullable String volumeName,
+            boolean isBeforePlan) {
         StatApiDTO statApiDTO = new StatApiDTO();
         statApiDTO.setName(statName);
         statApiDTO.setUnits(statUnit);
@@ -1024,8 +1227,15 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         filter2.setType("relation");
         filter2.setValue("bought");
         filters.add(filter2);
-        statApiDTO.setFilters(filters);
 
+        if (isBeforePlan) {
+            StatFilterApiDTO resultTypeFilter = new StatFilterApiDTO();
+            resultTypeFilter.setType(StringConstants.RESULTS_TYPE);
+            resultTypeFilter.setValue(StringConstants.BEFORE_PLAN);
+            filters.add(resultTypeFilter);
+        }
+
+        statApiDTO.setFilters(filters);
         return statApiDTO;
     }
 }
