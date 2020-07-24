@@ -900,6 +900,7 @@ public class TopologyConverter {
             supplier = slInfo.sellerId;
         }
         if (supplier != null) {
+            int supplierEntityType = 0;
             // If the supplier is a market tier, then get the tier TopologyEntityDTO and
             // make that the supplier.
             if (cloudTc.isMarketTier(supplier)) {
@@ -913,23 +914,35 @@ public class TopologyConverter {
                     Optional<TopologyEntityDTO> computeTier = cloudTopology.getComputeTier(slInfo.getBuyerId());
                     if (computeTier.isPresent()) {
                         supplier = computeTier.get().getOid();
+                        supplierEntityType = computeTier.get().getEntityType();
                     } else {
                         logger.error("{} does not have compute tier supplier", slInfo.getBuyerId());
-                        supplier = cloudTc.getMarketTier(supplier).getTier().getOid();
+                        TopologyEntityDTO tier = cloudTc.getMarketTier(supplier).getTier();
+                        supplier = tier.getOid();
+                        supplierEntityType = tier.getEntityType();
                     }
                 } else {
-                    supplier = cloudTc.getMarketTier(supplier).getTier().getOid();
+                    TopologyEntityDTO tier = cloudTc.getMarketTier(supplier).getTier();
+                    supplier = tier.getOid();
+                    supplierEntityType = tier.getEntityType();
                 }
             }
             commoditiesBoughtFromProviderBuilder.setProviderId(supplier);
+            commoditiesBoughtFromProviderBuilder.setProviderEntityType(supplierEntityType);
         }
         // For a sl of an unplaced VM before market, it doesn't have a provider, but has
         // providerEntityType. It should remain the same if it's unplaced after market.
         // For a sl moving from active provider/unplaced to provisioned provider,
         // we can get the providerEntityType from slInfo.
-        slInfo.getSellerEntityType()
-            .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
+        if (!commoditiesBoughtFromProviderBuilder.hasProviderEntityType()) {
+            slInfo.getSellerEntityType()
+                    .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
+        }
         slInfo.getResourceId().ifPresent(commoditiesBoughtFromProviderBuilder::setVolumeId);
+        if (!commoditiesBoughtFromProviderBuilder.hasVolumeId()
+                && slInfo.getCollapsedBuyerId() != null) {
+            commoditiesBoughtFromProviderBuilder.setVolumeId(slInfo.getCollapsedBuyerId());
+        }
         return commoditiesBoughtFromProviderBuilder.build();
     }
 
@@ -1345,7 +1358,7 @@ public class TopologyConverter {
                             .setEntityType(originalVolume.getEntityType())
                             .setOid(originalVolume.getOid());
 
-                    // connect to storage
+                    // connect to storage or storage tier
                     final ConnectedEntity connectedStorage = ConnectedEntity.newBuilder()
                             .setConnectedEntityId(commBoughtGrouping.getProviderId())
                             .setConnectedEntityType(commBoughtGrouping.getProviderEntityType())
@@ -1366,6 +1379,50 @@ public class TopologyConverter {
                             .build();
                         volume.addConnectedEntityList(connectedAzOrRegion);
                     }
+
+                    // Create commodities of the volume. Volumes don't have a corresponding trader
+                    // object. The commodity values are taken from the commodity bought list of the VM.
+                    if (commBoughtGrouping.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE) {
+                        // Add commodity bought list
+                        CommoditiesBoughtFromProvider.Builder commBoughtListBuilder =
+                                CommoditiesBoughtFromProvider.newBuilder()
+                                        .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                                        .setProviderId(commBoughtGrouping.getProviderId());
+                        for (CommodityBoughtDTO comm : commBoughtGrouping.getCommodityBoughtList()) {
+                            if (OLD_QUANTITY_REQUIRED_COMM_TYPES.contains(comm.getCommodityType().getType())) {
+                                CommodityBoughtDTO.Builder commBoughtBuilder = CommodityBoughtDTO.newBuilder()
+                                        .setCommodityType(comm.getCommodityType());
+                                if (comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
+                                    // Storage amount unit was converted to GB when creating traderTO.
+                                    // Convert the unit back to MB when creating the projected value.
+                                    // Cost and API expects storage to be in MB.
+                                    commBoughtBuilder.setUsed(comm.getUsed() * Units.KIBI);
+                                } else {
+                                    commBoughtBuilder.setUsed(comm.getUsed());
+                                }
+                                commBoughtListBuilder.addCommodityBought(commBoughtBuilder);
+                            }
+                        }
+                        volume.addCommoditiesBoughtFromProviders(commBoughtListBuilder);
+
+                        // Add commodity sold list
+                        for (CommodityBoughtDTO comm : commBoughtGrouping.getCommodityBoughtList()) {
+                            if (OLD_QUANTITY_REQUIRED_COMM_TYPES.contains(comm.getCommodityType().getType())) {
+                                CommoditySoldDTO.Builder commSoldBuilder = CommoditySoldDTO.newBuilder()
+                                        .setCommodityType(comm.getCommodityType());
+                                if (comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
+                                    // Storage amount unit was converted to GB when creating traderTO.
+                                    // Convert the unit back to MB when creating the projected value.
+                                    // Cost and API expects storage to be in MB.
+                                    commSoldBuilder.setCapacity(comm.getUsed() * Units.KIBI);
+                                } else {
+                                    commSoldBuilder.setCapacity(comm.getUsed());
+                                }
+                                volume.addCommoditySoldList(commSoldBuilder);
+                            }
+                        }
+                    }
+
                     copyStaticAttributes(originalVolume, volume);
                     volume.setDisplayName(originalVolume.getDisplayName());
                     resources.add(volume.build());

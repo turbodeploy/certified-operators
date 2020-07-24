@@ -261,6 +261,20 @@ public class CloudTopologyConverter {
                         .setConnectionType(ConnectedEntity.ConnectionType.OWNS_CONNECTION)
                         .setConnectedEntityType(traderTO.getType())
                         .setConnectedEntityId(traderTO.getOid()).build();
+                TopologyEntityDTO sourceEntity = originalTopology.get(traderOid);
+                List<Long> volumeIds = new ArrayList<>();
+                if (sourceEntity != null && sourceEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                    // If provider is a virtual volume, get volume ID from the provider ID.
+                    volumeIds.addAll(sourceEntity.getCommoditiesBoughtFromProvidersList().stream()
+                            .filter(commList -> commList.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                            .map(CommoditiesBoughtFromProvider::getProviderId)
+                            .collect(Collectors.toList()));
+                    // If provider is a storage (on-prem), get the volume ID from the volumeId field.
+                    volumeIds.addAll(sourceEntity.getCommoditiesBoughtFromProvidersList().stream()
+                            .filter(commList -> commList.getProviderEntityType() == EntityType.STORAGE_VALUE)
+                            .map(CommoditiesBoughtFromProvider::getVolumeId)
+                            .collect(Collectors.toList()));
+                }
                 if (businessAccountToNewlyOwnedEntities.containsKey(businessAccountOid)) {
                     businessAccountToNewlyOwnedEntities
                             .get(businessAccountOid)
@@ -268,6 +282,15 @@ public class CloudTopologyConverter {
                 } else {
                     businessAccountToNewlyOwnedEntities.put(businessAccountOid, Sets.newHashSet(newlyOwnedEntity));
                 }
+                volumeIds.forEach(id -> {
+                    final ConnectedEntity connectedVolume = ConnectedEntity.newBuilder()
+                            .setConnectionType(ConnectedEntity.ConnectionType.OWNS_CONNECTION)
+                            .setConnectedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                            .setConnectedEntityId(id).build();
+                    businessAccountToNewlyOwnedEntities
+                            .get(businessAccountOid)
+                            .add(connectedVolume);
+                });
             }
         }
         return businessAccountToNewlyOwnedEntities;
