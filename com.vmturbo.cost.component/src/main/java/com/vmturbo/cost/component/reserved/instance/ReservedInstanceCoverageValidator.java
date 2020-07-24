@@ -122,8 +122,6 @@ public class ReservedInstanceCoverageValidator {
     public List<EntityRICoverageUpload> validateCoverageUploads(
             @Nonnull Collection<EntityRICoverageUpload> entityRICoverageEntries) {
 
-        logger.info("Running RI coverage validation on {} coverage uploads", entityRICoverageEntries.size());
-
         try (DataMetricTimer timer = VALIDATION_DURATION_METRIC_SUMMARY.startTimer()) {
             return entityRICoverageEntries.stream()
                     .map(this::validateCoverageUpload)
@@ -169,7 +167,7 @@ public class ReservedInstanceCoverageValidator {
                 isTierValid && isOSValid && isLocationValid && isTenancyValid;
 
         if (!isCoverageValid) {
-            logger.warn("Coverage validated (EntityOid={}, RIOid={}, RISpecAvailable={}, RIExpired={}, " +
+            logger.debug("Coverage validated (EntityOid={}, RIOid={}, RISpecAvailable={}, RIExpired={}, " +
                             "AccountScopeValid={}, TierValid={}, OSValid={}, LocationValid={}, TenancyValid={})",
                     entityDTO.getOid(), reservedInstance.getId(), isReservedInstanceSpecAvailable,
                     isReservedInstanceExpired, isAccountScopeValid, isTierValid, isOSValid,
@@ -310,7 +308,7 @@ public class ReservedInstanceCoverageValidator {
                         if (entityBillingAccountIdRI == entityBillingAccountIdVM) {
                             return true;
                         } else {
-                            logger.warn("The billing account id for the entity {} and the RI {} is not the same",
+                            logger.debug("The billing account id for the entity {} and the RI {} is not the same",
                                     entityDTO.getOid(), reservedInstance.getId());
                             return false;
                         }

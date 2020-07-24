@@ -8,20 +8,14 @@ import static com.vmturbo.reserved.instance.coverage.allocator.key.CoverageKeyMa
 import static com.vmturbo.reserved.instance.coverage.allocator.key.CoverageKeyMaterial.TIER_FAMILY_KEY;
 import static com.vmturbo.reserved.instance.coverage.allocator.key.CoverageKeyMaterial.TIER_OID_KEY;
 
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableSet;
-
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -71,16 +65,17 @@ public class HashableCoverageKeyCreator implements CoverageKeyCreator {
      * {@inheritDoc}
      */
     @Override
-    public Set<CoverageKey> createKeysForReservedInstance(final long riOid) {
+    public Optional<CoverageKey> createKeyForReservedInstance(final long riOid) {
         final CoverageKey.Builder keyBuilder = HashableCoverageKey.newBuilder();
         boolean validKey = addReservedInstanceSpecInfo(
                 coverageTopology.getSpecForReservedInstance(riOid), keyBuilder);
+        validKey &= addOwnershipInfo(coverageTopology.getReservedInstanceOwner(riOid), keyBuilder);
         validKey &= addTierInfo(coverageTopology.getReservedInstanceProviderTier(riOid), keyBuilder);
         validKey &= addRegionInfo(coverageTopology.getReservedInstanceRegion(riOid), keyBuilder);
         validKey &= addAvailabilityZoneInfo(coverageTopology.getReservedInstanceAvailabilityZone(riOid),
                 keyBuilder);
 
-        return validKey ? createScopedKeysForRI(riOid, keyBuilder) : Collections.emptySet();
+        return validKey ? Optional.of(keyBuilder.build()) : Optional.empty();
     }
 
     /**
@@ -188,40 +183,5 @@ public class HashableCoverageKeyCreator implements CoverageKeyCreator {
                     throw new UnsupportedOperationException();
             }
         }).orElse(false);
-    }
-
-    private Set<CoverageKey> createScopedKeysForRI(long riOid, @Nonnull CoverageKey.Builder keyBuilder) {
-        return coverageTopology.getReservedInstanceBought(riOid)
-                .map(reservedInstance -> {
-                    final ReservedInstanceBoughtInfo riInfo = reservedInstance.getReservedInstanceBoughtInfo();
-                    final ReservedInstanceScopeInfo scopeInfo = riInfo.getReservedInstanceScopeInfo();
-
-
-                    if (scopeInfo.getShared()) {
-
-                        final long purchasingAccountOid = riInfo.getBusinessAccountId();
-
-                        final long sharedOwnerOid;
-                        if (keyCreationConfig.isSharedScope()) {
-                            sharedOwnerOid = coverageTopology.getBillingFamilyForEntity(purchasingAccountOid)
-                                    .map(g -> g.group().getId())
-                                    .orElse(purchasingAccountOid);
-                        } else {
-                            sharedOwnerOid = purchasingAccountOid;
-                        }
-
-                        return Collections.singleton(
-                                keyBuilder.keyMaterial(ACCOUNT_SCOPE_OID_KEY, sharedOwnerOid)
-                                        .build());
-                    } else {
-                        return scopeInfo.getApplicableBusinessAccountIdList()
-                                .stream()
-                                .map(accountId ->
-                                        keyBuilder.keyMaterial(ACCOUNT_SCOPE_OID_KEY, accountId)
-                                                .build())
-                                .collect(ImmutableSet.toImmutableSet());
-                    }
-                }).orElse(Collections.emptySet());
-
     }
 }
