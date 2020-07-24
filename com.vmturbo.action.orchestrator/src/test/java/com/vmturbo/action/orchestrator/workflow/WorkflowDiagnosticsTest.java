@@ -1,8 +1,8 @@
 package com.vmturbo.action.orchestrator.workflow;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -95,7 +95,8 @@ public class WorkflowDiagnosticsTest {
         final List<String> diags = collectDiags();
         final Map<Long, List<WorkflowInfo>> persistedWorkflows = restoreDiags(diags);
         Assert.assertEquals(Sets.newHashSet(TGT1, TGT2), persistedWorkflows.keySet());
-        Assert.assertEquals(Arrays.asList(INFO_1, INFO_3), persistedWorkflows.get(TGT1));
+        Assert.assertEquals(Sets.newHashSet(INFO_1, INFO_3),
+                new HashSet<>(persistedWorkflows.get(TGT1)));
         Assert.assertEquals(Collections.singletonList(INFO_2), persistedWorkflows.get(TGT2));
     }
 
