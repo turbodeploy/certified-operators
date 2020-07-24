@@ -876,6 +876,8 @@ public class SettingStore implements DiagsRestorable {
         record.setEnabled(policy.getInfo().getEnabled());
         if (policy.getInfo().hasScheduleId()) {
             record.setScheduleId(policy.getInfo().getScheduleId());
+        } else {
+            record.setScheduleId(null);
         }
 
         final Collection<TableRecord<?>> inserts =
