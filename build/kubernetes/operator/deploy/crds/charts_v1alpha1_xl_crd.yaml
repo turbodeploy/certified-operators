@@ -3260,12 +3260,5 @@ spec:
                 topology-processor:
                   description: topology-processor property overrides
                   type: object
-                repository:
-                  description: repository property overrides
-                  properties:
-                    showGuestLoad:
-                      description: Show GuestLoad entities
-                      type: boolean
-                  type: object
               type: object
           type: object

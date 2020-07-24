@@ -100,8 +100,7 @@ public class TopologyEntitiesListenerTest {
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyManager,
                 liveTopologyStore,
-                notificationSender,
-                e -> true);
+                notificationSender);
 
         // Simulates three DTOs with two chunks received by the listener.
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))

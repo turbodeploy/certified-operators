@@ -1,7 +1,6 @@
 package com.vmturbo.repository.listener;
 
 import java.util.Objects;
-import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -47,7 +46,6 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
     private final RepositoryNotificationSender notificationSender;
     private final TopologyLifecycleManager topologyManager;
     private final LiveTopologyStore liveTopologyStore;
-    private final Predicate<TopologyEntityDTO> entitiesFilter;
 
     private Object topologyInfoLock = new Object();
 
@@ -56,12 +54,10 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
 
     public TopologyEntitiesListener(@Nonnull final TopologyLifecycleManager topologyManager,
                                     @Nonnull final LiveTopologyStore liveTopologyStore,
-                                    @Nonnull final RepositoryNotificationSender sender,
-                                    @Nonnull final Predicate<TopologyEntityDTO> entitiesFilter) {
+                                    @Nonnull final RepositoryNotificationSender sender) {
         this.notificationSender = Objects.requireNonNull(sender);
         this.topologyManager = Objects.requireNonNull(topologyManager);
         this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
-        this.entitiesFilter = Objects.requireNonNull(entitiesFilter);
     }
 
 
@@ -158,7 +154,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
         try (TracingScope tracingScope = Tracing.trace("repository_handle_topology", tracingContext)) {
             topologyCreator = topologyManager.newSourceTopologyCreator(tid, topologyInfo);
             TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,
-                tid, topologyCreator, notificationSender, entitiesFilter);
+                tid, topologyCreator, notificationSender);
         }  catch (InterruptedException e) {
             logger.error("Thread interrupted receiving source topology " + topologyId, e);
             SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.SOURCE_LABEL, SharedMetrics.FAILED_LABEL).increment();

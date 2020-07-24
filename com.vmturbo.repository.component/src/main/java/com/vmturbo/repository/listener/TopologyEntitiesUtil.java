@@ -2,7 +2,6 @@ package com.vmturbo.repository.listener;
 
 import java.util.Collection;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -45,38 +44,12 @@ public class TopologyEntitiesUtil {
      * @throws InterruptedException Throws InterruptedException
      */
     public static void createTopology(@Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
-                                      @Nonnull final long topologyId,
-                                      @Nonnull final long topologyContextId,
-                                      @Nonnull final DataMetricTimer timer,
-                                      @Nonnull final TopologyID tid,
-                                      @Nonnull final TopologyCreator<TopologyEntityDTO> topologyCreator,
-                                      @Nonnull final RepositoryNotificationSender notificationSender)
-            throws CommunicationException, InterruptedException {
-        createTopology(entityIterator, topologyId, topologyContextId, timer, tid, topologyCreator, notificationSender, e -> true);
-    }
-
-    /**
-     * Create topology in repository.
-     *
-     * @param entityIterator Iterator over the entities
-     * @param topologyId The topology ID
-     * @param topologyContextId The topology context ID
-     * @param timer Timer
-     * @param tid The TopologyID
-     * @param topologyCreator The topology creator
-     * @param notificationSender The notification sender
-     * @param entitiesFilter entities filter
-     * @throws CommunicationException Throws CommunicationException
-     * @throws InterruptedException Throws InterruptedException
-     */
-    public static void createTopology(@Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
-                                      @Nonnull final long topologyId,
-                                      @Nonnull final long topologyContextId,
-                                      @Nonnull final DataMetricTimer timer,
-                                      @Nonnull final TopologyID tid,
-                                      @Nonnull final TopologyCreator<TopologyEntityDTO> topologyCreator,
-                                      @Nonnull final RepositoryNotificationSender notificationSender,
-                                      @Nonnull final Predicate<TopologyEntityDTO> entitiesFilter)
+                               @Nonnull final long topologyId,
+                               @Nonnull final long topologyContextId,
+                               @Nonnull final DataMetricTimer timer,
+                               @Nonnull final TopologyID tid,
+                               @Nonnull final TopologyCreator<TopologyEntityDTO> topologyCreator,
+                               @Nonnull final RepositoryNotificationSender notificationSender)
             throws CommunicationException, InterruptedException {
         try {
             topologyCreator.initialize();
@@ -90,7 +63,6 @@ public class TopologyEntitiesUtil {
                     chunk.stream()
                          .filter(TopologyDTO.Topology.DataSegment::hasEntity)
                          .map(TopologyDTO.Topology.DataSegment::getEntity)
-                         .filter(entitiesFilter)
                          .collect(Collectors.toList());
                 if (entities.isEmpty()) {
                     continue;

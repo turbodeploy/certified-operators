@@ -80,8 +80,7 @@ public class TopologyEntitiesListenerExceptionTest {
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyManager,
                 liveTopologyStore,
-                notificationSender,
-                e -> true);
+                notificationSender);
 
         // Simulates one chunk and then an exception
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
