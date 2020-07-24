@@ -18,9 +18,11 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -32,6 +34,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.commons.Pair;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import org.junit.Assert;
 import org.junit.Before;
@@ -89,7 +92,11 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -655,5 +662,60 @@ public class AnalysisTest {
                 analysis.getProjectedTopology().get();
         Assert.assertEquals(1, projectedEntities.size());
         Assert.assertEquals(vmInScope.getOid(), projectedEntities.iterator().next().getEntity().getOid());
+    }
+
+    /**
+     * Test unplaceFailedCloudMigrations, which removes current suppliers for VMs
+     * that failed to migrate and which returns a list of those VMs.
+     */
+    @Test
+    public void testUnplaceFailedMigrations() {
+        final long placedOid = 1L;
+        final long unplacedOid = 2L;
+        final long supplierOid = 42L;
+
+        final TraderTO placed = TraderTO.newBuilder()
+            .setOid(placedOid)
+            .addShoppingLists(ShoppingListTO.newBuilder()
+                .setOid(7)
+                .addCommoditiesBought(CommodityBoughtTO.newBuilder()
+                    .setQuantity(1)
+                    .setPeakQuantity(1)
+                    .setSpecification(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(7)
+                        .setType(8)
+                        .build())
+                    .build())
+                .setSupplier(supplierOid)
+                .build())
+            .build();
+
+        final TraderTO unplaced = TraderTO.newBuilder(placed)
+            .setOid(unplacedOid)
+            .setUnplacedExplanation("some reason").build();
+
+        Pair<List<TraderTO>, Set<Long>> result = Analysis.unplaceFailedCloudMigrations(
+            Collections.unmodifiableList(Arrays.asList(placed, unplaced)));
+
+        final List<TraderTO> updatedTraders = result.first;
+        final Set<Long> unplacedOids = result.second;
+
+        final Optional<TraderTO> placedResult =
+            updatedTraders.stream().filter(t -> t.getOid() == placedOid).findAny();
+
+        assertTrue(placedResult.isPresent());
+        assertEquals(1, placedResult.get().getShoppingListsCount());
+        assertTrue(placedResult.get().getShoppingLists(0).hasSupplier());
+        assertEquals(supplierOid, placedResult.get().getShoppingLists(0).getSupplier());
+
+        final Optional<TraderTO> unplacedResult =
+            updatedTraders.stream().filter(t -> t.getOid() == unplacedOid).findAny();
+
+        assertTrue(unplacedResult.isPresent());
+        assertEquals(1, unplacedResult.get().getShoppingListsCount());
+        assertFalse(unplacedResult.get().getShoppingLists(0).hasSupplier());
+
+        assertEquals(1, unplacedOids.size());
+        assertTrue(unplacedOids.contains(unplacedOid));
     }
 }

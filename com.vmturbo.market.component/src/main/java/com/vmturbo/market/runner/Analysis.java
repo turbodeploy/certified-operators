@@ -23,19 +23,21 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 
-import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
+
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -63,6 +65,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -97,6 +100,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.topology.Topology;
@@ -333,6 +337,10 @@ public class Analysis {
         Map<Long, TopologyEntityDTO> fakeEntityDTOs = Collections.emptyMap();
         AnalysisResults results = null;
         final Set<Long> oidsToRemove = new HashSet<>();
+
+        // Don't generate actions associated with entities with these oids
+        final Set<Long> suppressActionsForOids = new HashSet<>();
+
         if (isM2AnalysisEnabled) {
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME
                     && !originalCloudTopology.getEntities().isEmpty()) {
@@ -565,6 +573,18 @@ public class Analysis {
                             }
                         });
 
+                        // TODO: Remove in MCP phase 2. Once we provide the explanation for
+                        // the VM not being placed to the repository component, it can
+                        // use it to know that a VM is unplaced.
+                        if (isMigrateToCloud) {
+                            // Ensure entities that fail to migrate are considered unplaced,
+                            // and don't return any actions for them.
+                            Pair<List<TraderTO>, Set<Long>> unplacedResult =
+                                unplaceFailedCloudMigrations(projectedTraderDTO);
+                            projectedTraderDTO = unplacedResult.first;
+                            suppressActionsForOids.addAll(unplacedResult.second);
+                        }
+
                         // results can be null if M2Analysis is not run
                         final PriceIndexMessage priceIndexMessage = results != null ?
                                 results.getPriceIndexMsg() : PriceIndexMessage.getDefaultInstance();
@@ -631,6 +651,16 @@ public class Analysis {
                         .setAnalysisStartTimestamp(startTime.toEpochMilli());
                 List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
                      originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
+
+                actions.removeIf(action -> {
+                    try {
+                        return suppressActionsForOids.contains(ActionDTOUtil.getPrimaryEntityId(action));
+                    } catch (UnsupportedActionException e) {
+                        // If it's somehow not recognized, leave the action alone
+                        return false;
+                    }
+                });
+
                 actions.forEach(actionPlanBuilder::addAction);
                 if (config.isSMAOnly()) {
                     actions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
@@ -673,6 +703,40 @@ public class Analysis {
                 + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
         completed = true;
         return true;
+    }
+
+    /**
+     * Check for traders that have an unplaced explanation and remove the current
+     * suppliers of their shopping lists, so they will be considered unplaced by
+     * the repository, rather than "still placed" in their starting situation.
+     *
+     * @param projectedTraderDTOs the list of projected traders to check.
+     * @return The set of oids of unplaced traders.
+     */
+    @Nonnull
+    static Pair<List<TraderTO>, Set<Long>>
+    unplaceFailedCloudMigrations(@Nonnull final List<TraderTO> projectedTraderDTOs) {
+        List<TraderTO> updatedProjectedTraderDTOs = new ArrayList<>();
+        Set<Long> unplacedTraderOids = new HashSet<>();
+
+        for (TraderTO trader : projectedTraderDTOs) {
+            if (StringUtils.isNotEmpty(trader.getUnplacedExplanation())) {
+                List<ShoppingListTO> newShoppingLists = new ArrayList<>();
+                for (ShoppingListTO shoppingList : trader.getShoppingListsList()) {
+                    newShoppingLists.add(shoppingList.toBuilder().clearSupplier().build());
+                }
+
+                unplacedTraderOids.add(trader.getOid());
+                updatedProjectedTraderDTOs.add(trader.toBuilder()
+                    .clearShoppingLists()
+                    .addAllShoppingLists(newShoppingLists)
+                    .build());
+            } else {
+                updatedProjectedTraderDTOs.add(trader);
+            }
+        }
+
+        return new Pair<>(updatedProjectedTraderDTOs, unplacedTraderOids);
     }
 
     /*
