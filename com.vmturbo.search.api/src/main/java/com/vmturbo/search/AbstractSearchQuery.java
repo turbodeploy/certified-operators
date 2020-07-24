@@ -691,7 +691,10 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
         Field<?> field = buildFieldForApiField(apiField, false);
         SortOrder cursorConsideredSortOrder = getSortOrderBasedOnCursor(sortOrder);
         trackSortedOnFields(columnMetadata, field, cursorConsideredSortOrder);
-        return field.sort(cursorConsideredSortOrder);
+        SortField<?> sortField = field.sort(cursorConsideredSortOrder);
+        //Sorting descending order, we want null values to appear last
+        return cursorConsideredSortOrder.equals(SortOrder.DESC)
+                ? sortField.nullsLast() : sortField.nullsFirst();
     }
 
     /**

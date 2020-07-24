@@ -618,8 +618,8 @@ public class EntityQueryTest {
 
         //THEN
         assertTrue(sortFields.size() == 2);
-        final String nameSort = "\"extractor\".\"search_entity\".\"name\" asc";
-        final String oidSort = "\"extractor\".\"search_entity\".\"oid\" asc";
+        final String nameSort = "\"extractor\".\"search_entity\".\"name\" asc nulls first";
+        final String oidSort = "\"extractor\".\"search_entity\".\"oid\" asc nulls first";
         assertTrue(containsSort(sortFields, nameSort));
         assertTrue(containsSort(sortFields, oidSort));
 
@@ -650,9 +650,9 @@ public class EntityQueryTest {
 
         //THEN
         assertTrue(sortFields.size() == 3);
-        final String integerSort = "cast(attrs->>'num_vms' as bigint) asc";
-        final String doubleSort = "cast(attrs->>'mem_hist_utilization' as double) desc";
-        final String defaultOidField = "\"extractor\".\"search_entity\".\"oid\" asc";
+        final String integerSort = "cast(attrs->>'num_vms' as bigint) asc nulls first";
+        final String doubleSort = "cast(attrs->>'mem_hist_utilization' as double) desc nulls last";
+        final String defaultOidField = "\"extractor\".\"search_entity\".\"oid\" asc nulls first";
         assertTrue(containsSort(sortFields, integerSort));
         assertTrue(containsSort(sortFields, doubleSort));
         assertTrue(containsSort(sortFields, defaultOidField));
@@ -682,9 +682,9 @@ public class EntityQueryTest {
 
         //THEN
         assertNotNull(fields);
-        assertTrue(fields.contains("cast(attrs->>'num_vms' as bigint) asc"));
-        assertTrue(fields.contains("cast(attrs->>'mem_hist_utilization' as double) desc"));
-        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"oid\" asc"));
+        assertTrue(fields.contains("cast(attrs->>'num_vms' as bigint) asc nulls first"));
+        assertTrue(fields.contains("cast(attrs->>'mem_hist_utilization' as double) desc nulls last"));
+        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"oid\" asc nulls first"));
 
         Set<String> sortTrackers = query.sortedOnColumns.stream().map(SortedOnColumn::getField).map(Field::toString).collect(Collectors.toSet());
         assertTrue(sortTrackers.contains("cast(attrs->>'num_vms' as bigint)"));
@@ -707,9 +707,9 @@ public class EntityQueryTest {
         //THEN
         assertNotNull(fields);
         //Added by default
-        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"name\" asc"));
+        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"name\" asc nulls first"));
         //Added by default
-        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"oid\" asc"));
+        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"oid\" asc nulls first"));
 
         Set<String> sortTrackers = query.sortedOnColumns.stream().map(SortedOnColumn::getField).map(Field::toString).collect(Collectors.toSet());
         assertTrue("Default sortBy oid should have been added", sortTrackers.contains("\"extractor\".\"search_entity\".\"name\""));
@@ -945,10 +945,10 @@ public class EntityQueryTest {
                 + "      and cast(attrs->>'vmem_capacity' as double precision) = 34.555\n"
                 + "      and \"extractor\".\"search_entity\".\"name\" = 'walter'\n"
                 + "      and \"extractor\".\"search_entity\".\"oid\" > 123\n" + "    )\n" + "  )\n"
-                + ")\n" + "order by \n" + "  cast(attrs->>'related_diskarray' as varchar) asc, \n"
-                + "  cast(attrs->>'vmem_capacity' as double precision) desc, \n"
-                + "  \"extractor\".\"search_entity\".\"name\" desc, \n"
-                + "  \"extractor\".\"search_entity\".\"oid\" asc\n" + "limit 2";
+                + ")\n" + "order by \n" + "  cast(attrs->>'related_diskarray' as varchar) asc nulls first, \n"
+                + "  cast(attrs->>'vmem_capacity' as double precision) desc nulls last, \n"
+                + "  \"extractor\".\"search_entity\".\"name\" desc nulls last, \n"
+                + "  \"extractor\".\"search_entity\".\"oid\" asc nulls first\n" + "limit 2";
         assertTrue(paginatedQuery.toString().equals(expectedQuery));
     }
 
@@ -997,8 +997,8 @@ public class EntityQueryTest {
                 + "  \"extractor\".\"search_entity\".\"type\" = 'VIRTUAL_MACHINE'\n"
                 + "  and (cast(attrs->>'vmem_capacity' as double precision), \"extractor\".\"search_entity\".\"oid\") < (34.555, 123)\n"
                 + ")\n" + "order by \n"
-                + "  cast(attrs->>'vmem_capacity' as double precision) desc, \n"
-                + "  \"extractor\".\"search_entity\".\"oid\" desc\n" + "limit 2";
+                + "  cast(attrs->>'vmem_capacity' as double precision) desc nulls last, \n"
+                + "  \"extractor\".\"search_entity\".\"oid\" desc nulls last\n" + "limit 2";
         assertTrue(paginatedQuery.toString().equals(expectedQuery));
     }
 
