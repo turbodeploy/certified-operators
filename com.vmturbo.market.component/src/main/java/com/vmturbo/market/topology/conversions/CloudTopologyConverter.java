@@ -109,7 +109,7 @@ public class CloudTopologyConverter {
              @Nonnull MarketPriceTable marketPriceTable,
              @Nonnull CloudCostData cloudCostData,
              @Nonnull TierExcluder tierExcluder,
-             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
+             @Nullable CloudTopology<TopologyEntityDTO> cloudTopology) {
          this.topology = topology;
          this.pmBasedBicliquer = pmBasedBicliquer;
          this.dsBasedBicliquer = dsBasedBicliquer;
@@ -340,11 +340,21 @@ public class CloudTopologyConverter {
     }
 
     /**
-     * Return value if there is a DiscountedMarketTier corresponding to the traderTOOid
+     * Gets instance of cloud topology.
+     *
+     * @return Can be null, otherwise CloudTopology instance.
+     */
+    @Nullable
+    public CloudTopology<TopologyEntityDTO> getCloudTopology() {
+        return this.cloudTopology;
+    }
+
+    /**
+     * Return value if there is a DiscountedMarketTier corresponding to the traderTOOid.
      *
      * @param traderToOid the traderToOid for which the corresponding RiDiscountedMarketTier
      *                    will be found.
-     * @return {@link MarketTier} which corresponds to the traderTO oid
+     * @return {@link MarketTier} which corresponds to the traderTO oid.
      */
     @Nullable
     Optional<MarketTier> getRiDiscountedMarketTier(long traderToOid) {

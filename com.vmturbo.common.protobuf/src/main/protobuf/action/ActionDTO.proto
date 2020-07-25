@@ -386,6 +386,10 @@ message ActionEntity {
     // The environment type of the entity.
     // This is used to infer which actions apply to which environments.
     optional .common.EnvironmentType environment_type = 3;
+
+    // Id of cloud service provider. If set, used to detect moves b/w CSPs for cloud-to-cloud
+    // migration scenario, where we to show move actions instead of translating moves to scale.
+    optional int64 service_provider_id = 4;
 }
 
 // Resize a commodity on a specific

@@ -426,10 +426,9 @@ public class ActionDescriptionBuilder {
             long sourceEntityId = primaryChange.getSource().getId();
             ActionPartialEntity currentEntityDTO = entitiesSnapshot.getEntityFromOid(
                 sourceEntityId).get();
-            int sourceType = currentEntityDTO.getEntityType();
-            int destinationType = newEntityDTO.getEntityType();
-            String verb = TopologyDTOUtil.isPrimaryTierEntityType(destinationType)
-                && TopologyDTOUtil.isPrimaryTierEntityType(sourceType) ? SCALE : MOVE;
+            // We show scale if move is not across CSPs, as in cloud-to-cloud migration.
+            String verb = TopologyDTOUtil.isMoveWithinSameRegion(recommendation)
+                    ? SCALE : MOVE;
             String resource = "";
             if (primaryChange.hasResource() &&
                     targetEntityId != primaryChange.getResource().getId()) {

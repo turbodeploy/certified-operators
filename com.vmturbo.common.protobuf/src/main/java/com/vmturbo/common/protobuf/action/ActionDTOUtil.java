@@ -747,7 +747,7 @@ public class ActionDTOUtil {
      */
     @Nonnull
     public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionInfo actionInfo) {
-        return getChangeProviderList(actionInfo).get(getPrimaryChangeProviderIdx(actionInfo)); //
+        return getChangeProviderList(actionInfo).get(getPrimaryChangeProviderIdx(actionInfo));
     }
 
     /**

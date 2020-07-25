@@ -1183,11 +1183,9 @@ public class ScenarioMapper {
 
         List<MigrateObjectApiDTO> migrateObjects = topoChanges.getMigrateList();
         if (CollectionUtils.isNotEmpty(migrateObjects)) {
-            // 1. Set shopTogether to true (all market)
-            changes.add(getShopTogetherChange());
-            // 2. Create the migration change
+            // 1. Create the migration change
             changes.add(getTopologyMigrationChange(migrateObjects, configChanges));
-            // 3. Create the RI Buy configuration
+            // 2. Create the RI Buy configuration
             changes.add(getRiSettings(planScope));
         }
 
@@ -1265,25 +1263,6 @@ public class ScenarioMapper {
             .setTopologyAddition(additionBuilder)
             .build());
         return changes;
-    }
-
-    /**
-     * Create a {@link ScenarioChange.SettingOverride} forcing members of the source group to shopTogether with
-     * their corresponding storages. This guarantees that we don't end up with cloud compute resources attached to
-     * on-prem storages.
-     *
-     * @return a {@link ScenarioChange} representing the shopTogether {@link ScenarioChange.SettingOverride}
-     */
-    private static ScenarioChange getShopTogetherChange() {
-        return ScenarioChange.newBuilder()
-                .setSettingOverride(
-                        ScenarioChange.SettingOverride.newBuilder()
-                                .setSetting(
-                                        Setting.newBuilder()
-                                                .setSettingSpecName(EntitySettingSpecs.ShopTogether.getSettingName())
-                                                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
-                                                .build())
-                                .build()).build();
     }
 
     /**

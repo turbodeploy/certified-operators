@@ -186,7 +186,8 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(moveAction,
-                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
+                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
+                null));
         assertEquals(Collections.singleton("Setting policy compliance"),
             ExplanationComposer.composeShortExplanation(moveAction));
     }
@@ -388,7 +389,8 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(reconfigureAction,
-                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
+                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
+                    null));
         assertEquals(Collections.singleton("Misconfiguration"),
             ExplanationComposer.composeShortExplanation(reconfigureAction));
     }

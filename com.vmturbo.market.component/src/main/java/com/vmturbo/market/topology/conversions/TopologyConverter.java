@@ -25,6 +25,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
+import com.google.common.base.Enums;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashBiMap;
@@ -62,7 +63,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
@@ -93,6 +97,7 @@ import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCatego
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.Phase;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
@@ -113,6 +118,7 @@ import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
@@ -221,6 +227,8 @@ public class TopologyConverter {
         this.marketMode = MarketMode.M2Only;
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
                 oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
+        this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
+        this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
         // Lazy initialize actionInterpreter. It needs to be lazy-initialized because it refers
         // to the lazy-initialized commodity index.
         this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
@@ -229,7 +237,27 @@ public class TopologyConverter {
                 unmodifiableEntityOidToDtoMap,
                 oidToProjectedTraderTOMap,
                 cert,
-                projectedRICoverageCalculator, tierExcluder, commodityIndex));
+                projectedRICoverageCalculator, tierExcluder, commodityIndex,
+                getExplanationOverride()));
+    }
+
+    /**
+     * Returns a function that decides if Compliance risk needs to be overridden in
+     * ActionInterpreter. For cloud migration, we override Optimized plan actions with VM moves.
+     *
+     * @return Function that decides if Compliance risk explanation is to be overridden.
+     */
+    private Function<MoveTO, Boolean> getExplanationOverride() {
+        return moveTO -> {
+            if (!isCloudResizeEnabled) {
+                return false;
+            }
+            final MarketTier marketTier = cloudTc.getMarketTier(moveTO.getDestination());
+            if (marketTier == null) {
+                return false;
+            }
+            return marketTier.getTier().getEntityType() == EntityType.COMPUTE_TIER_VALUE;
+        };
     }
 
     /**
@@ -389,15 +417,15 @@ public class TopologyConverter {
         this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
             oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
-            shoppingListOidToInfos,
-            cloudTc,
-            unmodifiableEntityOidToDtoMap,
-            oidToProjectedTraderTOMap,
-            cert,
-            projectedRICoverageCalculator, tierExcluder, commodityIndex));
         this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
         this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
+        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
+                cloudTc,
+                unmodifiableEntityOidToDtoMap,
+                oidToProjectedTraderTOMap,
+                cert,
+                projectedRICoverageCalculator, tierExcluder, commodityIndex,
+                getExplanationOverride()));
     }
 
     @VisibleForTesting
@@ -428,13 +456,16 @@ public class TopologyConverter {
 
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
             oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
+        this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
+        this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
         this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
-            shoppingListOidToInfos,
-            cloudTc,
-            unmodifiableEntityOidToDtoMap,
-            oidToProjectedTraderTOMap,
-            cert,
-            projectedRICoverageCalculator, tierExcluder, commodityIndex));
+                shoppingListOidToInfos,
+                cloudTc,
+                unmodifiableEntityOidToDtoMap,
+                oidToProjectedTraderTOMap,
+                cert,
+                projectedRICoverageCalculator, tierExcluder, commodityIndex,
+                getExplanationOverride()));
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
     }
@@ -514,10 +545,6 @@ public class TopologyConverter {
 
     private boolean isPlan() {
         return TopologyDTOUtil.isPlan(topologyInfo);
-    }
-
-    private boolean isOptimizeCloudPlan() {
-        return TopologyDTOUtil.isOptimizeCloudPlan(topologyInfo);
     }
 
     /**
@@ -1136,6 +1163,7 @@ public class TopologyConverter {
             });
 
         overwriteCommoditiesBoughtByVMsFromVolumes(entityDTOBuilder);
+        updateProjectedEntityOsType(entityDTOBuilder);
 
         TopologyEntityDTO entityDTO = entityDTOBuilder.build();
         topologyEntityDTOs.add(entityDTO);
@@ -1196,6 +1224,51 @@ public class TopologyConverter {
                     + "doesn't match the number of original commodities. {} extra original "
                     + "commodities found", entityBuilder.getOid(), originalCommodities.size());
         }
+    }
+
+    /**
+     * Reads the license access commodity key value (e.g 'SUSE') and updates it into the VM type
+     * specific info in the projected entity, if it happens to be different. Applicable for cloud
+     * migration case where we possibly migrate from one OS type to another. In such cases,
+     * projected entity's VM type specific info points to the new OS type.
+     *
+     * @param builder Projected entity builder to update.
+     */
+    private void updateProjectedEntityOsType(@Nonnull final TopologyEntityDTO.Builder builder) {
+        if (builder.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
+            return;
+        }
+        final TypeSpecificInfo typeInfo = builder.getTypeSpecificInfo();
+        if (!typeInfo.hasVirtualMachine()) {
+            return;
+        }
+        final Optional<String> optionalNewOsType = Optional.ofNullable(builder
+                .getEntityPropertyMapMap().get(StringConstants.PLAN_NEW_OS_TYPE_PROPERTY));
+        if (!optionalNewOsType.isPresent()) {
+            return;
+        }
+        builder.removeEntityPropertyMap(StringConstants.PLAN_NEW_OS_TYPE_PROPERTY);
+        final CloudCostDTO.OSType newOsType = Enums.getIfPresent(OSType.class,
+                optionalNewOsType.get()).orNull();
+        final CloudCostDTO.OSType oldOsType = typeInfo.getVirtualMachine().getGuestOsInfo()
+                .getGuestOsType();
+        String newOsName = builder.getEntityPropertyMapMap().get(
+                StringConstants.PLAN_NEW_OS_NAME_PROPERTY);
+        builder.removeEntityPropertyMap(StringConstants.PLAN_NEW_OS_NAME_PROPERTY);
+        if (newOsType == null || newOsName == null) {
+            return;
+        }
+        // We want to set the OS name in projected always to be OsType.displayName
+        // (e.g 'Linux (Free)') as that is what we show in user visible mapping tables.
+        logger.trace("Updating OS type for projected entity {} from {} -> {}.",
+                builder.getDisplayName(), oldOsType, newOsType);
+        final TypeSpecificInfo.Builder typeInfoBuilder = TypeSpecificInfo.newBuilder(typeInfo)
+                .setVirtualMachine(VirtualMachineInfo
+                .newBuilder(typeInfo.getVirtualMachine())
+                .setGuestOsInfo(TopologyDTO.OS.newBuilder()
+                        .setGuestOsType(newOsType)
+                        .setGuestOsName(newOsName).build()));
+        builder.setTypeSpecificInfo(typeInfoBuilder);
     }
 
     /**
@@ -1325,6 +1398,11 @@ public class TopologyConverter {
         // copy the TypeSpecificInfo from the original entity
         if (source.hasTypeSpecificInfo()) {
             destination.setTypeSpecificInfo(source.getTypeSpecificInfo());
+        }
+        // Copy over entity property map.
+        Map<String, String> propertyMap = source.getEntityPropertyMapMap();
+        if (propertyMap != null) {
+            destination.putAllEntityPropertyMap(propertyMap);
         }
     }
 

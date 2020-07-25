@@ -472,4 +472,14 @@ public class StringConstants {
      * Accepting/rejecting user type for actions accepted/rejected from external orchestrator.
      */
     public static final String EXTERNAL_ORCHESTRATOR_USER_TYPE = "EXTERNAL_ORCHESTRATOR_USER";
+
+    /**
+     * VM Entity property for license OS override in cloud migration plans.
+     */
+    public static final String PLAN_NEW_OS_TYPE_PROPERTY = "plan.newOsLicenseType";
+
+    /**
+     * OS name property for display purposes.
+     */
+    public static final String PLAN_NEW_OS_NAME_PROPERTY = "plan.newOsLicenseName";
 }

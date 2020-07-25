@@ -60,6 +60,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -248,7 +249,7 @@ public class CloudMigrationPlanHelper {
             throws PipelineStageException {
         Set<Long> sourceEntities = context.getSourceEntities();
 
-        final Map<OSType, String> licenseCommodityKeyByOS = computeLicenseCommodityKeysByOS(
+        final Map<OSType, OsType> licenseCommodityKeyByOS = computeLicenseCommodityKeysByOS(
                 migrationChange);
 
         for (Long oid : sourceEntities) {
@@ -339,14 +340,14 @@ public class CloudMigrationPlanHelper {
      * @param licenseCommodityKeyByOS Map of license key to OS type.
      */
     private void updateLicenseAccessCommodities(final TopologyEntity vm,
-                                                final Map<OSType, String> licenseCommodityKeyByOS) {
+                                                final Map<OSType, OsType> licenseCommodityKeyByOS) {
         if (vm.getEntityType() != VIRTUAL_MACHINE_VALUE) {
             // Only updating licenses for VMs.
             return;
         }
-        String licenseCommodityKey = licenseCommodityKeyByOS.getOrDefault(
+        OsType licenseCommodityKey = licenseCommodityKeyByOS.getOrDefault(
                 vm.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType(),
-                OsType.UNKNOWN.name()
+                OsType.LINUX
         );
 
         updateAccessCommodityForVmAndProviders(vm, LICENSE_PROVIDER_TYPES,
@@ -365,12 +366,12 @@ public class CloudMigrationPlanHelper {
      * @param vm VM entity to add access key for.
      * @param providerTypes Types of providers.
      * @param commodityType Commodity type, e.g LICENSE_ACCESS
-     * @param newKey New key to use for the access commodity being added.
+     * @param osType New key to use for the access commodity being added.
      */
     private void updateAccessCommodityForVmAndProviders(@Nonnull TopologyEntity vm,
                                                         @Nonnull Set<EntityType> providerTypes,
                                                         @Nonnull CommodityType commodityType,
-                                                        @Nonnull String newKey) {
+                                                        @Nonnull OsType osType) {
         TopologyEntityDTO.Builder vmBuilder = vm.getTopologyEntityDtoBuilder();
 
         List<CommoditiesBoughtFromProvider> originalCommBoughtGroupings =
@@ -381,8 +382,9 @@ public class CloudMigrationPlanHelper {
         for (CommoditiesBoughtFromProvider commBoughtGrouping : originalCommBoughtGroupings) {
             if (providerTypes.contains(EntityType.forNumber(
                     commBoughtGrouping.getProviderEntityType()))) {
+                // Bought commodity key will be like 'Linux' which is what compute tier sells.
                 newCommBoughtGroupings.add(updateAccessCommodityKey(
-                        commBoughtGrouping, commodityType, newKey));
+                        commBoughtGrouping, commodityType, osType.getName()));
                 updated = true;
             } else {
                 // Add this commBoughtGrouping as-is, without any updates.
@@ -395,6 +397,13 @@ public class CloudMigrationPlanHelper {
             // affected by whether build() has been called on it or not.
             vmBuilder.clearCommoditiesBoughtFromProviders();
             vmBuilder.addAllCommoditiesBoughtFromProviders(newCommBoughtGroupings);
+
+            // We are storing the DTO equivalent 'OSType' in the property, that is read from TC.
+            vmBuilder.putEntityPropertyMap(StringConstants.PLAN_NEW_OS_TYPE_PROPERTY,
+                    osType.getDtoOS().name());
+            // Set display name for OS type for projected entities.
+            vmBuilder.putEntityPropertyMap(StringConstants.PLAN_NEW_OS_NAME_PROPERTY,
+                    osType.getDisplayName());
         }
     }
 
@@ -1003,17 +1012,17 @@ public class CloudMigrationPlanHelper {
      *
      * @param migrationScenario May contain a lit of os migration options to apply which
      *                          alter the default mapping.
-     * @return A map from each possible OS type to the LICENSE_ACCESS commodty key to buy.
+     * @return A map from each possible OS type to the LICENSE_ACCESS commodity OsType key to buy.
      */
     @Nonnull
-    private Map<OSType, String> computeLicenseCommodityKeysByOS(
+    private Map<OSType, OsType> computeLicenseCommodityKeysByOS(
             @Nonnull TopologyMigration migrationScenario) {
         Map<OsType, OSMigration> licenseTranslations = migrationScenario.getOsMigrationsList()
                 .stream().collect(Collectors.toMap(
                         migration -> OsType.fromDtoOS(migration.getFromOs()),
                         Function.identity()));
 
-        ImmutableMap.Builder<OSType, String> licensingMap = ImmutableMap.builder();
+        ImmutableMap.Builder<OSType, OsType> licensingMap = ImmutableMap.builder();
         for (OSType os : OSType.values()) {
             // 1. Convert subtypes like LINUX_FOO/WINDOWS_FOO to the general category OS
             OsType categoryOs = OsType.fromDtoOS(os).getCategoryOs();
@@ -1039,7 +1048,7 @@ public class CloudMigrationPlanHelper {
                 destinationOS = destinationOS.getByolOs();
             }
 
-            licensingMap.put(os, destinationOS.getName());
+            licensingMap.put(os, destinationOS);
         }
 
         return licensingMap.build();

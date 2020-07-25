@@ -310,18 +310,12 @@ public class ScenarioMapperTest {
         ScenarioInfo info = getScenarioInfo(name, scenarioApiDTO);
         assertEquals(name, info.getName());
 
-        assertEquals(3, info.getChangesCount());
+        // ShopTogether change is no longer there, so expect 2 instead of 3.
+        assertEquals(2, info.getChangesCount());
         List<ScenarioChange> changes = info.getChangesList();
 
-        SettingOverride settingOverride = changes.get(0).getSettingOverride();
-        assertEquals(EntitySettingSpecs.ShopTogether.getSettingName(), settingOverride
-                .getSetting()
-                .getSettingSpecName());
-        assertEquals(false, settingOverride.hasEntityType());
-        assertEquals(false, settingOverride.hasGroupOid());
-
-        assertEquals(DetailsCase.TOPOLOGY_MIGRATION, changes.get(1).getDetailsCase());
-        ScenarioChange.TopologyMigration migration = changes.get(1).getTopologyMigration();
+        assertEquals(DetailsCase.TOPOLOGY_MIGRATION, changes.get(0).getDetailsCase());
+        ScenarioChange.TopologyMigration migration = changes.get(0).getTopologyMigration();
         assertEquals(sourceVmOid, migration.getSourceList().get(0).getOid());
         assertEquals(destinationOid, migration.getDestinationList().get(0).getOid());
         assertEquals(ScenarioChange.TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE, migration.getDestinationEntityType());

@@ -105,6 +105,11 @@ public class ActionInterpreter {
     private static final Set<EntityState> evacuationEntityState =
         EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
     private final CommodityIndex commodityIndex;
+    /**
+     * Whether compliance action explanation needs to be overridden with perf/efficiency, needed
+     * in certain cases like cloud migration.
+     */
+    private final Function<MoveTO, Boolean> complianceExplanationOverride;
 
     ActionInterpreter(@Nonnull final CommodityConverter commodityConverter,
                       @Nonnull final Map<Long, ShoppingListInfo> shoppingListOidToInfos,
@@ -112,7 +117,8 @@ public class ActionInterpreter {
                       @Nonnull final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
                       @Nonnull final ProjectedRICoverageCalculator projectedRICoverageCalculator,
                       @Nonnull final TierExcluder tierExcluder,
-                      @Nonnull final Supplier<CommodityIndex> commodityIndexSupplier) {
+                      @Nonnull final Supplier<CommodityIndex> commodityIndexSupplier,
+                      @Nullable final Function<MoveTO, Boolean> explanationFunction) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
@@ -122,6 +128,7 @@ public class ActionInterpreter {
         this.projectedRICoverageCalculator = projectedRICoverageCalculator;
         this.tierExcluder = tierExcluder;
         this.commodityIndex = commodityIndexSupplier.get();
+        this.complianceExplanationOverride = explanationFunction;
     }
 
     /**
@@ -1141,23 +1148,33 @@ public class ActionInterpreter {
         ChangeProviderExplanation.Builder changeProviderExplanation;
         switch (moveExplanation.getExplanationTypeCase()) {
             case COMPLIANCE:
-                // TODO: For Cloud Migration plans, we need to change compliance to efficiency or
-                // performance based on whether the entity resized down or up. This needs to be done
-                // once resize and cloud migration stories are done
-                Compliance.Builder compliance = ChangeProviderExplanation.Compliance.newBuilder()
-                    .addAllMissingCommodities(
-                        moveExplanation.getCompliance()
-                            .getMissingCommoditiesList().stream()
-                            .map(commodityConverter::commodityIdToCommodityType)
-                            .filter(commType -> !tierExcluder.isCommodityTypeForTierExclusion(commType))
-                            .map(commType2ReasonCommodity())
-                            .collect(Collectors.toList())
-                    );
-                if (isPrimaryChangeExplanation) {
-                    tierExcluder.getReasonSettings(actionTO).ifPresent(compliance::addAllReasonSettings);
+                changeProviderExplanation = null;
+                // For Optimized Migration Plan VM moves only (not for Volume moves), we want to
+                // show Performance/Efficiency actions instead of Compliance.
+                if (complianceExplanationOverride != null
+                        && complianceExplanationOverride.apply(moveTO)) {
+                    changeProviderExplanation = changeExplanationForCloud(moveTO, savings)
+                            .orElse(ChangeProviderExplanation.newBuilder().setEfficiency(
+                                    ChangeProviderExplanation.Efficiency.getDefaultInstance()));
                 }
-                changeProviderExplanation = ChangeProviderExplanation.newBuilder()
-                    .setCompliance(compliance);
+                if (changeProviderExplanation == null) {
+                    Compliance.Builder compliance =
+                            ChangeProviderExplanation.Compliance.newBuilder()
+                                    .addAllMissingCommodities(moveExplanation.getCompliance()
+                                    .getMissingCommoditiesList()
+                                    .stream()
+                                    .map(commodityConverter::commodityIdToCommodityType)
+                                    .filter(commType -> !tierExcluder.isCommodityTypeForTierExclusion(
+                                            commType))
+                                    .map(commType2ReasonCommodity())
+                                    .collect(Collectors.toList()));
+                    if (isPrimaryChangeExplanation) {
+                        tierExcluder.getReasonSettings(actionTO)
+                                .ifPresent(compliance::addAllReasonSettings);
+                    }
+                    changeProviderExplanation =
+                            ChangeProviderExplanation.newBuilder().setCompliance(compliance);
+                }
                 break;
             case CONGESTION:
                 // For cloud entities we explain create either an efficiency or congestion change
@@ -1219,7 +1236,8 @@ public class ActionInterpreter {
     private Optional<ChangeProviderExplanation.Builder> changeExplanationForCloud(
         @Nonnull final MoveTO moveTO, @Nonnull final CalculatedSavings savings) {
         Optional<ChangeProviderExplanation.Builder> explanation = Optional.empty();
-        if (cloudTc.isMarketTier(moveTO.getSource()) && cloudTc.isMarketTier(moveTO.getDestination())) {
+        // Source may not be cloud tier in case of on-prem -> cloud migration.
+        if (cloudTc.isMarketTier(moveTO.getDestination())) {
             ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
             Map<CommodityUsageType, Set<CommodityType>> commsResizedByUsageType =
                 cert.getCommoditiesResizedByUsageType(slInfo.getBuyerId());
@@ -1290,11 +1308,34 @@ public class ActionInterpreter {
     private ActionEntity createActionEntity(final long id,
                             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final TopologyEntityDTO projectedEntity = projectedTopology.get(id).getEntity();
-        return ActionEntity.newBuilder()
+
+        ActionEntity.Builder actionBuilder = ActionEntity.newBuilder()
             .setId(id)
             .setType(projectedEntity.getEntityType())
-            .setEnvironmentType(projectedEntity.getEnvironmentType())
-            .build();
+            .setEnvironmentType(projectedEntity.getEnvironmentType());
+
+        CloudTopology<TopologyEntityDTO> cloudTopology = cloudTc.getCloudTopology();
+        if (cloudTopology == null) {
+            return actionBuilder.build();
+        }
+        // Set service-provider id if applicable, needed for inter-CSP moves for cloud migration.
+        Optional<TopologyEntityDTO> optRegion = Optional.empty();
+        if (projectedEntity.getEntityType() == EntityType.COMPUTE_TIER_VALUE
+                || projectedEntity.getEntityType() == EntityType.STORAGE_TIER_VALUE) {
+            optRegion = cloudTopology.getConnectedRegion(projectedEntity.getOid());
+        } else if (projectedEntity.getEntityType() == EntityType.REGION_VALUE) {
+            optRegion = Optional.of(projectedEntity);
+        }
+        if (optRegion.isPresent()) {
+            // If it is a tier->tier move or a region->region move, then try and set CSP id.
+            // Needed later to decide if move action needs to be translated to scale, should not
+            // be done for cloud-to-cloud migration happening b/w CSPs.
+            Optional<TopologyEntityDTO> optCsp = cloudTopology.getServiceProvider(
+                    optRegion.get().getOid());
+            optCsp.ifPresent(topologyEntityDTO -> actionBuilder.setServiceProviderId(
+                    topologyEntityDTO.getOid()));
+        }
+        return actionBuilder.build();
     }
 
     private static Function<CommodityType, ReasonCommodity> commType2ReasonCommodity() {
