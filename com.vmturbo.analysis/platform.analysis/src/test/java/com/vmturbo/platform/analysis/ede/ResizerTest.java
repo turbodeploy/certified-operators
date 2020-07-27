@@ -908,7 +908,7 @@ public class ResizerTest {
             if (up == 1) {
                 assertEquals(change, namespace.getCommoditiesSold().get(0).getQuantity() - vmemLimitUsedByPod, 0);
             } else if (up == -1) {
-                assertEquals(up * change, namespace.getCommoditiesSold().get(0).getQuantity(), 0);
+                assertEquals(((Resize) actions.get(0)).getNewCapacity(), namespace.getCommoditiesSold().get(0).getQuantity(), 0);
             }
         }
     }
@@ -947,6 +947,36 @@ public class ResizerTest {
                 .mapToDouble(r -> r.getNewCapacity() - r.getOldCapacity())
                 .sum();
         assertTrue(totalIncrease <= namespaceCapacity - namespaceUsage);
+    }
+
+    /**
+     * Create SG1 containing 2 containers. The usages of the containers are such that they all want to resize DOWN.
+     *
+     * Evaluate that the total increase in capacity is less than the available headroom on the Namespace.
+     **/
+    @Test
+    public final void testConsistentResizeDownDecisionsForContainers() {
+        Economy economy = new Economy();
+        double namespaceCapacity = 102400; // 100GB
+        double namespaceUsage = 1536; // 1.5GB
+        setupContainerTopologyForResizeTest(economy, namespaceCapacity, 1024 /*1GB*/,
+                49 /*49MB*/, 1024 /*1GB*/, namespaceUsage, 0.65, 0.75,
+                RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER);
+        Trader container2 = setupContainerAndApp(economy, 512 /*0.5GB*/, 30 /*30MB*/, 512 /*0.5GB*/, 0.65, 0.75, 2);
+        cont.setScalingGroupId("SG1");
+        container2.setScalingGroupId("SG1");
+        economy.populatePeerMembersForScalingGroup(cont, "SG1");
+        economy.populatePeerMembersForScalingGroup(container2, "SG1");
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+        ledger = new Ledger(economy);
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        double totalDecrease = actions.stream().filter(Resize.class::isInstance)
+                .map(Resize.class::cast)
+                .mapToDouble(r -> r.getOldCapacity() - r.getNewCapacity())
+                .sum();
+        assertEquals(totalDecrease, namespaceUsage - namespace.getCommoditiesSold().get(0).getQuantity(), 0);
+
     }
 
     private Trader setupContainerAndApp(Economy economy,
