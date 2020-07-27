@@ -412,7 +412,7 @@ message SaveClusterHeadroomRequest {
     optional int64 headroom = 2;
 
     // The number of VMs in the cluster at the time of this request
-    optional int64 numVMs = 3;
+    optional int64 __deprecated_numVMs = 3 [deprecated = true];
 
     // Headroom information for CPU.
     optional CommodityHeadroom cpu_headroom_info = 4;
@@ -424,10 +424,10 @@ message SaveClusterHeadroomRequest {
     optional CommodityHeadroom storage_headroom_info = 6;
 
     // The number of Hosts in the cluster at the time of this request.
-    optional int64 numHosts = 7;
+    optional int64 __deprecated_numHosts = 7 [deprecated = true];
 
     // The number of Storages in the cluster at the time of this request.
-    optional int64 numStorages = 8;
+    optional int64 __deprecated_numStorages = 8 [deprecated = true];
 
     // Growth in number of VMs for this cluster project monthly.
     optional int64 monthlyVMGrowth = 9;
