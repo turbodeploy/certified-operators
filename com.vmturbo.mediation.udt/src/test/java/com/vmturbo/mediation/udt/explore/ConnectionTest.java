@@ -21,7 +21,8 @@ public class ConnectionTest {
     public void testConnectionFields() {
         ManagedChannel groupChannel = Mockito.mock(ManagedChannel.class);
         ManagedChannel repositoryChannel = Mockito.mock(ManagedChannel.class);
-        Connection connection = new Connection(groupChannel, repositoryChannel);
+        ManagedChannel tpChannel = Mockito.mock(ManagedChannel.class);
+        Connection connection = new Connection(groupChannel, repositoryChannel, tpChannel);
         Assert.assertEquals(groupChannel, connection.getGroupChannel());
         Assert.assertEquals(repositoryChannel, connection.getRepositoryChannel());
     }
@@ -33,7 +34,8 @@ public class ConnectionTest {
     public void testConnectionRelease() {
         ManagedChannel groupChannel = Mockito.mock(ManagedChannel.class);
         ManagedChannel repositoryChannel = Mockito.mock(ManagedChannel.class);
-        Connection connection = new Connection(groupChannel, repositoryChannel);
+        ManagedChannel tpChannel = Mockito.mock(ManagedChannel.class);
+        Connection connection = new Connection(groupChannel, repositoryChannel, tpChannel);
         connection.release();
         verify(groupChannel, times(1)).shutdownNow();
         verify(repositoryChannel, times(1)).shutdownNow();
