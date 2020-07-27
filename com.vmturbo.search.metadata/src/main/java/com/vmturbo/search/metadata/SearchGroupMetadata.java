@@ -27,12 +27,12 @@ public enum SearchGroupMetadata {
     /**
      * Mappings for different group types.
      */
-    BILLING_FAMILY(GroupType.BILLING_FAMILY, GROUP_COMMON_FIELDS),
-    COMPUTE_HOST_CLUSTER(GroupType.COMPUTE_HOST_CLUSTER, getComputeHostClusterMetadata()),
-    COMPUTE_VIRTUAL_MACHINE_CLUSTER(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, GROUP_COMMON_FIELDS),
-    GROUP(GroupType.GROUP, getRegularMetadata()),
-    RESOURCE(GroupType.RESOURCE, GROUP_COMMON_FIELDS),
-    STORAGE_CLUSTER(GroupType.STORAGE_CLUSTER, GROUP_COMMON_FIELDS);
+    BillingFamily(GroupType.BillingFamily, GROUP_COMMON_FIELDS),
+    Cluster(GroupType.Cluster, getComputeHostClusterMetadata()),
+    VMCluster(GroupType.VMCluster, GROUP_COMMON_FIELDS),
+    Group(GroupType.Group, getRegularMetadata()),
+    Resource(GroupType.Resource, GROUP_COMMON_FIELDS),
+    StorageCluster(GroupType.StorageCluster, GROUP_COMMON_FIELDS);
 
     private final GroupType groupType;
 
@@ -84,11 +84,11 @@ public enum SearchGroupMetadata {
                 // common fields
                 .putAll(GROUP_COMMON_FIELDS)
                 // member counts
-                .put(MemberFieldApiDTO.memberCount(EntityType.PHYSICAL_MACHINE),
+                .put(MemberFieldApiDTO.memberCount(EntityType.PhysicalMachine),
                         SearchMetadataMapping.DIRECT_MEMBER_COUNT_PM)
-                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE),
+                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.VirtualMachine),
                         SearchMetadataMapping.RELATED_MEMBER_COUNT_VM)
-                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.STORAGE),
+                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.Storage),
                         SearchMetadataMapping.RELATED_MEMBER_COUNT_ST)
                 // aggregated commodities
                 // TODO: (OM-60754) Change this to be average over last 24 hours, when that data is available

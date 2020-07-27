@@ -989,7 +989,7 @@ public class EntitiesService implements IEntitiesService {
         if (inputDto.getEntityTypeFilter() != null) {
             // TODO: Add a mapper for API EntityType enum (OM-60615)
             request.addPotentialEntityTypes(ApiEntityType.fromString(
-                inputDto.getEntityTypeFilter().getDisplayName()).typeNumber());
+                inputDto.getEntityTypeFilter().name()).typeNumber());
         }
 
         final PotentialPlacementsResponse response =

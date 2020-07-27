@@ -28,36 +28,36 @@ public class EnumUtils {
      */
     private static final BiMap<com.vmturbo.api.enums.EntityType, EntityDTO.EntityType> SUPPORTED_ENTITY_TYPE_MAPPING =
             new ImmutableBiMap.Builder<com.vmturbo.api.enums.EntityType, EntityDTO.EntityType>()
-                    .put(com.vmturbo.api.enums.EntityType.APPLICATION, EntityDTO.EntityType.APPLICATION)
-                    .put(com.vmturbo.api.enums.EntityType.APPLICATION_COMPONENT, EntityDTO.EntityType.APPLICATION_COMPONENT)
-                    .put(com.vmturbo.api.enums.EntityType.BUSINESS_ACCOUNT, EntityDTO.EntityType.BUSINESS_ACCOUNT)
-                    .put(com.vmturbo.api.enums.EntityType.BUSINESS_APPLICATION, EntityDTO.EntityType.BUSINESS_APPLICATION)
-                    .put(com.vmturbo.api.enums.EntityType.BUSINESS_TRANSACTION, EntityDTO.EntityType.BUSINESS_TRANSACTION)
-                    .put(com.vmturbo.api.enums.EntityType.BUSINESS_USER, EntityDTO.EntityType.BUSINESS_USER)
-                    .put(com.vmturbo.api.enums.EntityType.CHASSIS, EntityDTO.EntityType.CHASSIS)
-                    .put(com.vmturbo.api.enums.EntityType.CONTAINER, EntityDTO.EntityType.CONTAINER)
-                    .put(com.vmturbo.api.enums.EntityType.CONTAINER_POD, EntityDTO.EntityType.CONTAINER_POD)
-                    .put(com.vmturbo.api.enums.EntityType.CONTAINER_SPEC, EntityDTO.EntityType.CONTAINER_SPEC)
-                    .put(com.vmturbo.api.enums.EntityType.DATABASE, EntityDTO.EntityType.DATABASE)
-                    .put(com.vmturbo.api.enums.EntityType.DATABASE_SERVER, EntityDTO.EntityType.DATABASE_SERVER)
-                    .put(com.vmturbo.api.enums.EntityType.DATACENTER, EntityDTO.EntityType.DATACENTER)
-                    .put(com.vmturbo.api.enums.EntityType.DESKTOP_POOL, EntityDTO.EntityType.DESKTOP_POOL)
-                    .put(com.vmturbo.api.enums.EntityType.DISKARRAY, EntityDTO.EntityType.DISK_ARRAY)
-                    .put(com.vmturbo.api.enums.EntityType.IOMODULE, EntityDTO.EntityType.IO_MODULE)
-                    .put(com.vmturbo.api.enums.EntityType.NAMESPACE, EntityDTO.EntityType.NAMESPACE)
-                    .put(com.vmturbo.api.enums.EntityType.NETWORK, EntityDTO.EntityType.NETWORK)
-                    .put(com.vmturbo.api.enums.EntityType.REGION, EntityDTO.EntityType.REGION)
-                    .put(com.vmturbo.api.enums.EntityType.PHYSICAL_MACHINE, EntityDTO.EntityType.PHYSICAL_MACHINE)
-                    .put(com.vmturbo.api.enums.EntityType.SERVICE, EntityDTO.EntityType.SERVICE)
-                    .put(com.vmturbo.api.enums.EntityType.STORAGE, EntityDTO.EntityType.STORAGE)
-                    .put(com.vmturbo.api.enums.EntityType.STORAGECONTROLLER, EntityDTO.EntityType.STORAGE_CONTROLLER)
-                    .put(com.vmturbo.api.enums.EntityType.STORAGE_TIER, EntityDTO.EntityType.STORAGE_TIER)
-                    .put(com.vmturbo.api.enums.EntityType.SWITCH, EntityDTO.EntityType.SWITCH)
-                    .put(com.vmturbo.api.enums.EntityType.VIEW_POD, EntityDTO.EntityType.VIEW_POD)
-                    .put(com.vmturbo.api.enums.EntityType.VIRTUAL_DATACENTER, EntityDTO.EntityType.VIRTUAL_DATACENTER)
-                    .put(com.vmturbo.api.enums.EntityType.VIRTUAL_MACHINE, EntityDTO.EntityType.VIRTUAL_MACHINE)
-                    .put(com.vmturbo.api.enums.EntityType.VIRTUAL_VOLUME, EntityDTO.EntityType.VIRTUAL_VOLUME)
-                    .put(com.vmturbo.api.enums.EntityType.WORKLOAD_CONTROLLER, EntityDTO.EntityType.WORKLOAD_CONTROLLER)
+                    .put(com.vmturbo.api.enums.EntityType.Application, EntityDTO.EntityType.APPLICATION)
+                    .put(com.vmturbo.api.enums.EntityType.ApplicationComponent, EntityDTO.EntityType.APPLICATION_COMPONENT)
+                    .put(com.vmturbo.api.enums.EntityType.BusinessAccount, EntityDTO.EntityType.BUSINESS_ACCOUNT)
+                    .put(com.vmturbo.api.enums.EntityType.BusinessApplication, EntityDTO.EntityType.BUSINESS_APPLICATION)
+                    .put(com.vmturbo.api.enums.EntityType.BusinessTransaction, EntityDTO.EntityType.BUSINESS_TRANSACTION)
+                    .put(com.vmturbo.api.enums.EntityType.BusinessUser, EntityDTO.EntityType.BUSINESS_USER)
+                    .put(com.vmturbo.api.enums.EntityType.Chassis, EntityDTO.EntityType.CHASSIS)
+                    .put(com.vmturbo.api.enums.EntityType.Container, EntityDTO.EntityType.CONTAINER)
+                    .put(com.vmturbo.api.enums.EntityType.ContainerPod, EntityDTO.EntityType.CONTAINER_POD)
+                    .put(com.vmturbo.api.enums.EntityType.ContainerSpec, EntityDTO.EntityType.CONTAINER_SPEC)
+                    .put(com.vmturbo.api.enums.EntityType.Database, EntityDTO.EntityType.DATABASE)
+                    .put(com.vmturbo.api.enums.EntityType.DatabaseServer, EntityDTO.EntityType.DATABASE_SERVER)
+                    .put(com.vmturbo.api.enums.EntityType.DataCenter, EntityDTO.EntityType.DATACENTER)
+                    .put(com.vmturbo.api.enums.EntityType.DesktopPool, EntityDTO.EntityType.DESKTOP_POOL)
+                    .put(com.vmturbo.api.enums.EntityType.DiskArray, EntityDTO.EntityType.DISK_ARRAY)
+                    .put(com.vmturbo.api.enums.EntityType.IOModule, EntityDTO.EntityType.IO_MODULE)
+                    .put(com.vmturbo.api.enums.EntityType.Namespace, EntityDTO.EntityType.NAMESPACE)
+                    .put(com.vmturbo.api.enums.EntityType.Network, EntityDTO.EntityType.NETWORK)
+                    .put(com.vmturbo.api.enums.EntityType.Region, EntityDTO.EntityType.REGION)
+                    .put(com.vmturbo.api.enums.EntityType.PhysicalMachine, EntityDTO.EntityType.PHYSICAL_MACHINE)
+                    .put(com.vmturbo.api.enums.EntityType.Service, EntityDTO.EntityType.SERVICE)
+                    .put(com.vmturbo.api.enums.EntityType.Storage, EntityDTO.EntityType.STORAGE)
+                    .put(com.vmturbo.api.enums.EntityType.StorageController, EntityDTO.EntityType.STORAGE_CONTROLLER)
+                    .put(com.vmturbo.api.enums.EntityType.StorageTier, EntityDTO.EntityType.STORAGE_TIER)
+                    .put(com.vmturbo.api.enums.EntityType.Switch, EntityDTO.EntityType.SWITCH)
+                    .put(com.vmturbo.api.enums.EntityType.ViewPod, EntityDTO.EntityType.VIEW_POD)
+                    .put(com.vmturbo.api.enums.EntityType.VirtualDataCenter, EntityDTO.EntityType.VIRTUAL_DATACENTER)
+                    .put(com.vmturbo.api.enums.EntityType.VirtualMachine, EntityDTO.EntityType.VIRTUAL_MACHINE)
+                    .put(com.vmturbo.api.enums.EntityType.VirtualVolume, EntityDTO.EntityType.VIRTUAL_VOLUME)
+                    .put(com.vmturbo.api.enums.EntityType.WorkloadController, EntityDTO.EntityType.WORKLOAD_CONTROLLER)
                     .build();
 
     /**
@@ -66,12 +66,12 @@ public class EnumUtils {
      */
     private static final BiMap<GroupType, GroupDTO.GroupType> GROUP_TYPE_MAPPING =
             new ImmutableBiMap.Builder<GroupType, GroupDTO.GroupType>()
-                    .put(GroupType.GROUP, GroupDTO.GroupType.REGULAR)
-                    .put(GroupType.RESOURCE, GroupDTO.GroupType.RESOURCE)
-                    .put(GroupType.COMPUTE_HOST_CLUSTER, GroupDTO.GroupType.COMPUTE_HOST_CLUSTER)
-                    .put(GroupType.STORAGE_CLUSTER, GroupDTO.GroupType.STORAGE_CLUSTER)
-                    .put(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, GroupDTO.GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
-                    .put(GroupType.BILLING_FAMILY, GroupDTO.GroupType.BILLING_FAMILY)
+                    .put(GroupType.Group, GroupDTO.GroupType.REGULAR)
+                    .put(GroupType.Resource, GroupDTO.GroupType.RESOURCE)
+                    .put(GroupType.Cluster, GroupDTO.GroupType.COMPUTE_HOST_CLUSTER)
+                    .put(GroupType.StorageCluster, GroupDTO.GroupType.STORAGE_CLUSTER)
+                    .put(GroupType.VMCluster, GroupDTO.GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
+                    .put(GroupType.BillingFamily, GroupDTO.GroupType.BILLING_FAMILY)
                     .build();
 
     /**
@@ -230,17 +230,17 @@ public class EnumUtils {
      */
     public static GroupDTO.GroupType groupTypeFromApiToProto(GroupType apiGroupType) {
         switch (apiGroupType) {
-            case GROUP:
+            case Group:
                 return GroupDTO.GroupType.REGULAR;
-            case RESOURCE:
+            case Resource:
                 return GroupDTO.GroupType.RESOURCE;
-            case COMPUTE_HOST_CLUSTER:
+            case Cluster:
                 return GroupDTO.GroupType.COMPUTE_HOST_CLUSTER;
-            case COMPUTE_VIRTUAL_MACHINE_CLUSTER:
+            case VMCluster:
                 return GroupDTO.GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER;
-            case STORAGE_CLUSTER:
+            case StorageCluster:
                 return GroupDTO.GroupType.STORAGE_CLUSTER;
-            case BILLING_FAMILY:
+            case BillingFamily:
                 return GroupDTO.GroupType.BILLING_FAMILY;
             default:
                 return GroupDTO.GroupType.REGULAR;

@@ -126,7 +126,7 @@ public class SearchAllQueryTest {
     @Test
     public void processSearchAllQuery() throws SearchQueryFailedException {
         //GIVEN
-        SelectAllApiDTO selectAllApiDTO = SelectAllApiDTO.selectAll().entityType(EntityType.VIRTUAL_MACHINE).groupType(GroupType.GROUP).build();
+        SelectAllApiDTO selectAllApiDTO = SelectAllApiDTO.selectAll().entityType(EntityType.VirtualMachine).groupType(GroupType.Group).build();
         WhereApiDTO whereApiDTO = WhereApiDTO.where().and(PrimitiveFieldApiDTO.name().like("foo")).build();
         PaginationApiDTO paginationApiDTO = PaginationApiDTO.orderBy(OrderByApiDTO.desc(PrimitiveFieldApiDTO.name())).build();
         SearchAllQueryApiDTO searchAllQueryApiDTO = SearchAllQueryApiDTO.queryAll(selectAllApiDTO, whereApiDTO, paginationApiDTO);
@@ -175,7 +175,7 @@ public class SearchAllQueryTest {
     @Test
     public void buildSelectClause() throws SearchQueryFailedException {
         //GIVEN
-        SelectAllApiDTO selectAllApiDTO = SelectAllApiDTO.selectAll().entityType(EntityType.VIRTUAL_MACHINE).groupType(GroupType.GROUP).build();
+        SelectAllApiDTO selectAllApiDTO = SelectAllApiDTO.selectAll().entityType(EntityType.VirtualMachine).groupType(GroupType.Group).build();
         WhereApiDTO whereApiDTO = WhereApiDTO.where().build();
         SearchAllQueryApiDTO searchAllQueryApiDTO = SearchAllQueryApiDTO.queryAll(selectAllApiDTO, whereApiDTO);
 

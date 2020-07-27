@@ -29,7 +29,7 @@ public class MetadataFieldsQueryTests {
     @Test
     public void testProcessingEntityRequest() {
         //GIVEN
-        EntityType entityType = EntityType.VIRTUAL_MACHINE;
+        EntityType entityType = EntityType.VirtualMachine;
         EntityMetadataRequestApiDTO request = EntityMetadataRequestApiDTO.entityMetaDataRequest(entityType);
 
         //When
@@ -37,7 +37,7 @@ public class MetadataFieldsQueryTests {
 
         //Then
         assertNotNull(results);
-        assertEquals(results.size(), SearchEntityMetadata.VIRTUAL_MACHINE.getMetadataMappingMap().size());
+        assertEquals(results.size(), SearchEntityMetadata.VirtualMachine.getMetadataMappingMap().size());
         results.stream().forEach(fieldValueTypeApiDTO -> {
             FieldApiDTO fieldApiDTO = fieldValueTypeApiDTO.getField();
             if (fieldApiDTO.equals(PrimitiveFieldApiDTO.entityType())) {
@@ -53,7 +53,7 @@ public class MetadataFieldsQueryTests {
     @Test(expected = IllegalArgumentException.class)
     public void testUnsupportedEntityRequestThrowsException() {
         //GIVEN
-        EntityType entityType = EntityType.INTERNET;
+        EntityType entityType = EntityType.Internet;
         EntityMetadataRequestApiDTO request = EntityMetadataRequestApiDTO.entityMetaDataRequest(entityType);
 
         //When
@@ -66,7 +66,7 @@ public class MetadataFieldsQueryTests {
     @Test
     public void testProcessingGroupRequest() {
         //GIVEN
-        GroupType groupType = GroupType.STORAGE_CLUSTER;
+        GroupType groupType = GroupType.StorageCluster;
         GroupMetadataRequestApiDTO request = GroupMetadataRequestApiDTO.groupMetadataRequest(groupType);
 
         //When
@@ -74,7 +74,7 @@ public class MetadataFieldsQueryTests {
 
         //Then
         assertNotNull(results);
-        assertEquals(results.size(), SearchGroupMetadata.STORAGE_CLUSTER.getMetadataMappingMap().size());
+        assertEquals(results.size(), SearchGroupMetadata.StorageCluster.getMetadataMappingMap().size());
         results.stream().forEach(fieldValueTypeApiDTO -> {
             FieldApiDTO fieldApiDTO = fieldValueTypeApiDTO.getField();
             if (fieldApiDTO.equals(PrimitiveFieldApiDTO.entityType())) {

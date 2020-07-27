@@ -71,23 +71,23 @@ public enum SearchMetadataMapping {
      * to help finding the related group for an entity. For example, for a VM, it will find related
      * host, then find cluster which contains the host.
      */
-    RELATED_COMPUTE_HOST_CLUSTER_NAME("attrs", "related_cluster", GroupType.COMPUTE_HOST_CLUSTER,
-            EntityType.PHYSICAL_MACHINE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_COMPUTE_HOST_CLUSTER_NAME("attrs", "related_cluster", GroupType.Cluster,
+            EntityType.PhysicalMachine, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
-    RELATED_STORAGE_CLUSTER_NAME("attrs", "related_storage_cluster", GroupType.STORAGE_CLUSTER,
-            EntityType.STORAGE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_STORAGE_CLUSTER_NAME("attrs", "related_storage_cluster", GroupType.StorageCluster,
+            EntityType.Storage, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
-    RELATED_BILLING_FAMILY_NAME("attrs", "related_billing_family", GroupType.BILLING_FAMILY,
-            EntityType.BUSINESS_ACCOUNT, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_BILLING_FAMILY_NAME("attrs", "related_billing_family", GroupType.BillingFamily,
+            EntityType.BusinessAccount, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
-    RELATED_RESOURCE_GROUP_NAME_FOR_VM("attrs", "related_resource_group", GroupType.RESOURCE,
-            EntityType.VIRTUAL_MACHINE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_RESOURCE_GROUP_NAME_FOR_VM("attrs", "related_resource_group", GroupType.Resource,
+            EntityType.VirtualMachine, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
-    RELATED_RESOURCE_GROUP_NAME_FOR_VV("attrs", "related_resource_group", GroupType.RESOURCE,
-            EntityType.VIRTUAL_VOLUME, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_RESOURCE_GROUP_NAME_FOR_VV("attrs", "related_resource_group", GroupType.Resource,
+            EntityType.VirtualVolume, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
-    RELATED_RESOURCE_GROUP_NAME_FOR_DB("attrs", "related_resource_group", GroupType.RESOURCE,
-            EntityType.DATABASE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_RESOURCE_GROUP_NAME_FOR_DB("attrs", "related_resource_group", GroupType.Resource,
+            EntityType.Database, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
     /**
      * Entity type specific fields.
@@ -386,59 +386,59 @@ public enum SearchMetadataMapping {
     /**
      * Related entities.
      */
-    RELATED_ACCOUNT("attrs", "related_account", Collections.singleton(EntityType.BUSINESS_ACCOUNT),
+    RELATED_ACCOUNT("attrs", "related_account", Collections.singleton(EntityType.BusinessAccount),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_APPLICATION_COMPONENT("attrs", "related_application_component", Collections.singleton(EntityType.APPLICATION_COMPONENT),
+    RELATED_APPLICATION_COMPONENT("attrs", "related_application_component", Collections.singleton(EntityType.ApplicationComponent),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_BUSINESS_APPLICATION("attrs", "related_business_application", Collections.singleton(EntityType.BUSINESS_APPLICATION),
+    RELATED_BUSINESS_APPLICATION("attrs", "related_business_application", Collections.singleton(EntityType.BusinessApplication),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_BUSINESS_TRANSACTION("attrs", "related_business_transaction", Collections.singleton(EntityType.BUSINESS_TRANSACTION),
+    RELATED_BUSINESS_TRANSACTION("attrs", "related_business_transaction", Collections.singleton(EntityType.BusinessTransaction),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_CONTAINER_POD("attrs", "related_container_pod", Collections.singleton(EntityType.CONTAINER_POD),
+    RELATED_CONTAINER_POD("attrs", "related_container_pod", Collections.singleton(EntityType.ContainerPod),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_DISKARRAY("attrs", "related_diskarray", Collections.singleton(EntityType.DISKARRAY),
+    RELATED_DISKARRAY("attrs", "related_diskarray", Collections.singleton(EntityType.DiskArray),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_HOST("attrs", "related_host", Collections.singleton(EntityType.PHYSICAL_MACHINE),
+    RELATED_HOST("attrs", "related_host", Collections.singleton(EntityType.PhysicalMachine),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_DATA_CENTER("attrs", "related_dc", Collections.singleton(EntityType.DATACENTER),
+    RELATED_DATA_CENTER("attrs", "related_dc", Collections.singleton(EntityType.DataCenter),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_NAMESPACE("attrs", "related_namespace", Collections.singleton(EntityType.NAMESPACE),
+    RELATED_NAMESPACE("attrs", "related_namespace", Collections.singleton(EntityType.Namespace),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_REGION("attrs", "related_region", Collections.singleton(EntityType.REGION),
+    RELATED_REGION("attrs", "related_region", Collections.singleton(EntityType.Region),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_SERVICE("attrs", "related_service", Collections.singleton(EntityType.SERVICE),
+    RELATED_SERVICE("attrs", "related_service", Collections.singleton(EntityType.Service),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_STORAGE("attrs", "related_storage", Collections.singleton(EntityType.STORAGE),
+    RELATED_STORAGE("attrs", "related_storage", Collections.singleton(EntityType.Storage),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_STORAGE_TIER("attrs", "related_storage_tier", Collections.singleton(EntityType.STORAGE_TIER),
+    RELATED_STORAGE_TIER("attrs", "related_storage_tier", Collections.singleton(EntityType.StorageTier),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_SWITCH("attrs", "related_switch", Collections.singleton(EntityType.SWITCH),
+    RELATED_SWITCH("attrs", "related_switch", Collections.singleton(EntityType.Switch),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_TRANSACTION("attrs", "related_transaction", Collections.singleton(EntityType.BUSINESS_TRANSACTION),
+    RELATED_TRANSACTION("attrs", "related_transaction", Collections.singleton(EntityType.BusinessTransaction),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_VM("attrs", "related_vm", Collections.singleton(EntityType.VIRTUAL_MACHINE),
+    RELATED_VM("attrs", "related_vm", Collections.singleton(EntityType.VirtualMachine),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    NUM_VMS("attrs", "num_vms", Collections.singleton(EntityType.VIRTUAL_MACHINE),
+    NUM_VMS("attrs", "num_vms", Collections.singleton(EntityType.VirtualMachine),
             RelatedEntitiesProperty.COUNT, Type.INTEGER),
 
     NUM_WORKLOADS("attrs", "num_workloads",
-            ImmutableSet.of(EntityType.VIRTUAL_MACHINE, EntityType.APPLICATION, EntityType.DATABASE),
+            ImmutableSet.of(EntityType.VirtualMachine, EntityType.Application, EntityType.Database),
             RelatedEntitiesProperty.COUNT, Type.INTEGER),
 
     /**
@@ -475,13 +475,13 @@ public enum SearchMetadataMapping {
     DIRECT_MEMBER_COUNT("attrs", "member_count", null, Property.COUNT, true, Type.INTEGER),
 
     /** Member hosts count, different from related entities count below (only used by cluster for now). */
-    DIRECT_MEMBER_COUNT_PM("attrs", "host_count", EntityType.PHYSICAL_MACHINE, Property.COUNT, true,
+    DIRECT_MEMBER_COUNT_PM("attrs", "host_count", EntityType.PhysicalMachine, Property.COUNT, true,
             Type.INTEGER),
     /** Related vms count (only used by cluster for now). */
-    RELATED_MEMBER_COUNT_VM("attrs", "vm_count", ImmutableSet.of(EntityType.VIRTUAL_MACHINE),
+    RELATED_MEMBER_COUNT_VM("attrs", "vm_count", ImmutableSet.of(EntityType.VirtualMachine),
             RelatedEntitiesProperty.COUNT, Type.INTEGER),
     /** related storages count (only used by cluster for now). */
-    RELATED_MEMBER_COUNT_ST("attrs", "st_count", ImmutableSet.of(EntityType.STORAGE),
+    RELATED_MEMBER_COUNT_ST("attrs", "st_count", ImmutableSet.of(EntityType.Storage),
             RelatedEntitiesProperty.COUNT, Type.INTEGER),
 
     /**
@@ -489,7 +489,7 @@ public enum SearchMetadataMapping {
      * in the group (not related entities, like vms related to a cluster).
      */
     GROUP_COMMODITY_CPU_HISTORICAL_UTILIZATION_TOTAL("attrs", "cpu_hist_utilization",
-        EntityType.PHYSICAL_MACHINE,
+        EntityType.PhysicalMachine,
         //TODO: Update this and the mem one below to PERCENTILE when available
         CommodityType.CPU, CommodityAttribute.CURRENT_UTILIZATION, Aggregation.TOTAL,
         CommodityTypeUnits.CPU, Type.NUMBER),
@@ -499,7 +499,7 @@ public enum SearchMetadataMapping {
      * in the group (not related entities, like vms related to a cluster).
      */
     GROUP_COMMODITY_MEM_HISTORICAL_UTILIZATION_TOTAL("attrs", "mem_hist_utilization",
-        EntityType.PHYSICAL_MACHINE,
+        EntityType.PhysicalMachine,
         CommodityType.MEM, CommodityAttribute.CURRENT_UTILIZATION, Aggregation.TOTAL,
         CommodityTypeUnits.MEM, Type.NUMBER);
 

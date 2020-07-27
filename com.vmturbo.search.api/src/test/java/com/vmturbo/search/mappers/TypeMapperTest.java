@@ -18,7 +18,7 @@ public class TypeMapperTest {
     @Test
     public void testApiEntityTypeMappedCorrectly() {
         //GIVEN
-        EntityType vm = EntityType.VIRTUAL_MACHINE;
+        EntityType vm = EntityType.VirtualMachine;
 
         //WHEN
         com.vmturbo.extractor.schema.enums.EntityType type = TypeMapper.fromApiToSearchSchema(vm);
@@ -33,7 +33,7 @@ public class TypeMapperTest {
     @Test
     public void testApiGroupTypeMappedCorrectly() {
         //GIVEN
-        GroupType cluster = GroupType.COMPUTE_HOST_CLUSTER;
+        GroupType cluster = GroupType.Cluster;
 
         //WHEN
         com.vmturbo.extractor.schema.enums.EntityType type = TypeMapper.fromApiToSearchSchema(cluster);
@@ -55,7 +55,7 @@ public class TypeMapperTest {
         Enum<?> cluster = TypeMapper.fromSearchSchemaToApi(type);
 
         //THEN
-        assertEquals(cluster, EntityType.VIRTUAL_MACHINE );
+        assertEquals(cluster, EntityType.VirtualMachine );
     }
 
     /**
@@ -71,7 +71,7 @@ public class TypeMapperTest {
         Enum<?> cluster = TypeMapper.fromSearchSchemaToApi(type);
 
         //THEN
-        assertEquals(cluster, GroupType.COMPUTE_HOST_CLUSTER );
+        assertEquals(cluster, GroupType.Cluster );
     }
 
     /**
@@ -79,7 +79,7 @@ public class TypeMapperTest {
      */
     @Test(expected = IllegalArgumentException.class)
     public void testUnsupportedEntityTypeThrowsIllegalArgumentError() {
-        EntityType vm = EntityType.INTERNET; //Don't ever expect internet to be search db
+        EntityType vm = EntityType.Internet; //Don't ever expect internet to be search db
         TypeMapper.fromApiToSearchSchema(vm);
     }
 
