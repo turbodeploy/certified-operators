@@ -622,6 +622,14 @@ public class ActionSpecMapper {
             actionApiDTO.setActionSchedule(createActionSchedule(actionSpec.getActionSchedule()));
         }
 
+        if (actionSpec.hasExternalActionName()) {
+            actionApiDTO.setExternalActionName(actionSpec.getExternalActionName());
+        }
+
+        if (actionSpec.hasExternalActionUrl()) {
+            actionApiDTO.setExternalActionUrl(actionSpec.getExternalActionUrl());
+        }
+
         return actionApiDTO;
     }
 

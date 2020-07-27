@@ -1,6 +1,7 @@
 package com.vmturbo.mediation.udt.explore;
 
 import static com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import static com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import static com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import static com.vmturbo.common.protobuf.group.GroupServiceGrpc.newBlockingStub;
 import static com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -9,16 +10,24 @@ import static com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import static com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 
 import java.util.Iterator;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.GetTopologyDataDefinitionResponse;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.GetTopologyDataDefinitionsRequest;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc;
@@ -70,8 +79,6 @@ public class RequestExecutor {
         this.groupService = groupService;
         this.searchService = searchService;
     }
-
-
 
     @Nonnull
     SearchEntitiesResponse searchEntities(@Nonnull SearchEntitiesRequest request) {
@@ -125,6 +132,18 @@ public class RequestExecutor {
     @Nonnull
     Iterator<GetMembersResponse> getGroupMembers(@Nonnull GetMembersRequest request) {
         return groupService.getMembers(request);
+    }
+
+    @Nonnull
+    Set<Long> getGroupIds(@Nonnull GetGroupsRequest request) {
+        Spliterator<Grouping> spliterator = Spliterators
+                .spliteratorUnknownSize(groupService.getGroups(request), 0);
+        return StreamSupport.stream(spliterator, false)
+                .map(Grouping::getId).collect(Collectors.toSet());
+    }
+
+    Set<Long> getOwnersOfGroups(@Nonnull GetOwnersRequest request) {
+        return Sets.newHashSet(groupService.getOwnersOfGroups(request).getOwnerIdList());
     }
 
     @Nonnull

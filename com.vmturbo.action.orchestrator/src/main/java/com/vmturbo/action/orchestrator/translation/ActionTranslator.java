@@ -57,28 +57,28 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 /**
  * Translates actions from the market's domain-agnostic actions into real-world domain-specific actions.
  *
- * Some actions may require no translation at all. For those actions, the translator functions purely
+ * <p>Some actions may require no translation at all. For those actions, the translator functions purely
  * as a passthrough. Some actions may require translation of execution and/or display related properties.
- * Some examples of actions that need to be translated:
+ * Some examples of actions that need to be translated:</p>
  *
- * 1. VCPU. the unit is converted from Mhz to number of VCPU's (when resizing the VCPU commodity on a VM).
+ * <p>1. VCPU. the unit is converted from Mhz to number of VCPU's (when resizing the VCPU commodity on a VM).
  * This translation should happen for both execution and display.
  * 2. UCS NetThroughput. In UCS Switches, we want to show resize in terms of ports, and not in terms on kbps.
  * this is done by: (net usage) / (net increment), where network increment specifies the kbps of a single port.
- * (Not yet supported). Not sure if this impacts both execution and display or just display.
+ * (Not yet supported). Not sure if this impacts both execution and display or just display.</p>
  *
- * Both info and explanation for a recommendation may need to be translated.
+ * <p>Both info and explanation for a recommendation may need to be translated.</p>
  *
- * Note that Action information is communicated to other components in the form of {@link ActionSpec} objects.
+ * <p>Note that Action information is communicated to other components in the form of {@link ActionSpec} objects.
  * Components outside the action orchestrator should receive information about those actions in terms of the
  * real-world domain. That is, actions should be translated before their details are sent to other components.
  * In order to consistently enforce that all actions are first translated before being sent to other components,
  * the {@link ActionTranslator} serves as the sole gateway for generating {@link ActionSpec} objects from
- * {@link ActionView} objects.
+ * {@link ActionView} objects.</p>
  *
- * A note on thread-safety: Because both {@link ActionView}s and {@link ActionTranslation} objects are thread-safe,
+ * <p>A note on thread-safety: Because both {@link ActionView}s and {@link ActionTranslation} objects are thread-safe,
  * it is safe to attempt to translate the same action multiple times concurrently. Which translation result takes
- * precedence is not guaranteed, but information on the action will be consistent.
+ * precedence is not guaranteed, but information on the action will be consistent.</p>
  */
 public class ActionTranslator {
 
@@ -97,6 +97,7 @@ public class ActionTranslator {
          * Translate a stream of actions from the market's domain-agnostic form to the domain-specific form
          * relevant for execution and display in the real world.
          *
+         * @param <T> the type of the action being translated.
          * @param actionStream A stream of actions whose info should be translated from the market's
          *                     domain-agnostic variant.
          * @param snapshot A snapshot of all the entities and settings involved in the actions
@@ -105,8 +106,8 @@ public class ActionTranslator {
          *         Note that the order of the actions in the output stream is not guaranteed to be the same as they were
          *         on the input. If this is important, consider applying an {@link Stream#sorted(Comparator)} operation.
          */
-        <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream,
-                                                   @Nonnull final EntitiesAndSettingsSnapshot snapshot);
+        <T extends ActionView> Stream<T> translate(@Nonnull Stream<T> actionStream,
+                                                   @Nonnull EntitiesAndSettingsSnapshot snapshot);
     }
 
     private final TranslationExecutor translationExecutor;
@@ -133,10 +134,10 @@ public class ActionTranslator {
      * action recommendations into actions that can be executed and understood in real-world domain-specific
      * terms.
      *
-     * This method is exposed to permit the generation of action specs in tests without having to supply
-     * all the information necessary to perform real translation.
+     * <p>This method is exposed to permit the generation of action specs in tests without having to supply
+     * all the information necessary to perform real translation.</p>
      *
-     * This method should NOT be used in production code.
+     * <p>This method should NOT be used in production code.</p>
      *
      * @param translationExecutor The object that will perform translation of actions.
      * @param groupChannel Channel to use for creating a blocking stub to query the Group Service.
@@ -241,19 +242,20 @@ public class ActionTranslator {
      * Translate a stream of actions from the market's domain-agnostic form to the domain-specific form
      * relevant for execution and display in the real world.
      *
-     * If an action has already been translated, no attempt will be made to re-translate it.
+     * <p>If an action has already been translated, no attempt will be made to re-translate it.</p>
      *
-     * Note that the portion of this call that requires information from other services is currently blocking.
+     * <p>Note that the portion of this call that requires information from other services is currently blocking.
      * Actions whose translation fail will be given a translation status of
      * {@link TranslationStatus#TRANSLATION_FAILED}, and translations that succeed will be given a translation status
-     * of {@link TranslationStatus#TRANSLATION_SUCCEEDED}.
+     * of {@link TranslationStatus#TRANSLATION_SUCCEEDED}.</p>
      *
-     * This method is blocking until translation of all actions completes.
+     * <p>This method is blocking until translation of all actions completes.</p>
      *
-     * TODO: DavidBlinn 6/20/2017 - consider making the inner operation of this method asynch so that multiple
+     * <p>TODO: DavidBlinn 6/20/2017 - consider making the inner operation of this method asynch so that multiple
      * translation groups can be processed simultaneously. Right now only VCPU is translated so it would not yet
-     * help.
+     * help.</p>
      *
+     * @param <T> the type of the action being translated.
      * @param actionStream A stream of actions whose info should be translated from the market's
      *                     domain-agnostic variant.
      * @param snapshot A snapshot of all the entities and settings involved in the actions
@@ -270,10 +272,10 @@ public class ActionTranslator {
     /**
      * Convert the {@link ActionView} to an {@link ActionSpec}.
      *
-     * In the event that an action has been successfully translated, the recommendation provided will be the
+     * <p>In the event that an action has been successfully translated, the recommendation provided will be the
      * result of translating the market's domain-agnostic action recommendation into a domain-specific recommendation.
      * In the event that an action cannot be translated, the included recommendation is the one originally provided
-     * by the market which may not make sense for the user.
+     * by the market which may not make sense for the user.</p>
      *
      * @param actionView the actions to be translated and whose specs should be generated
      * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
@@ -293,6 +295,7 @@ public class ActionTranslator {
                 ? ((PlanActionStore)actionStore).getTopologyInfo() : null;
         ActionSpec.Builder specBuilder = ActionSpec.newBuilder()
             .setRecommendation(recommendationForDisplay)
+            .setRecommendationId(actionView.getRecommendationOid())
             .setActionPlanId(actionView.getActionPlanId())
             .setRecommendationTime(actionView.getRecommendationTime()
                 .toInstant(ZoneOffset.ofTotalSeconds(0)).toEpochMilli())
@@ -316,6 +319,9 @@ public class ActionTranslator {
         if (actionView.getSchedule().isPresent()) {
             specBuilder.setActionSchedule(actionView.getSchedule().get().getTranslation());
         }
+
+        actionView.getExternalActionName().ifPresent(specBuilder::setExternalActionName);
+        actionView.getExternalActionUrl().ifPresent(specBuilder::setExternalActionUrl);
 
         // Compose pre-requisite description if action has any pre-requisite.
         if (!recommendationForDisplay.getPrerequisiteList().isEmpty()) {
@@ -371,8 +377,9 @@ public class ActionTranslator {
         }
 
         /**
-         * See comments for {@link ActionTranslator#translate(Stream, EntitiesAndSettingsSnapshot)}
+         * See comments for {@link ActionTranslator#translate(Stream, EntitiesAndSettingsSnapshot)}.
          *
+         * @param <T> the type of the action being translated.
          * @param actionStream A stream of actions whose info should be translated from the market's
          *                     domain-agnostic variant.
          * @param snapshot A snapshot of all the entities and settings involved in the actions.

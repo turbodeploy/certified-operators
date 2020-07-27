@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
+import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.BaseVmtComponent.ContextConfigurationException;
 import com.vmturbo.mediation.udt.config.ConnectionProperties;
@@ -31,6 +32,7 @@ import com.vmturbo.mediation.udt.explore.DataProvider;
 import com.vmturbo.mediation.udt.explore.DataRequests;
 import com.vmturbo.mediation.udt.explore.RequestExecutor;
 import com.vmturbo.mediation.udt.explore.UdtProbeExplorer;
+import com.vmturbo.mediation.udt.explore.UdtSearchFilterResolver;
 import com.vmturbo.mediation.udt.inventory.UdtEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery;
@@ -74,8 +76,12 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
                 properties.getRepositoryHost(), properties.getgRpcPort())
                 .keepAliveTime(properties.getgRpcPingIntervalSeconds(), TimeUnit.SECONDS)
                 .build();
+        final ManagedChannel topologyProcessorChannel = ComponentGrpcServer.newChannelBuilder(
+                properties.getTopologyProcessorHost(), properties.getgRpcPort())
+                .keepAliveTime(properties.getgRpcPingIntervalSeconds(), TimeUnit.SECONDS)
+                .build();
         LOGGER.info("UDT Probe connection created.");
-        return new Connection(groupChannel, repositoryChannel);
+        return new Connection(groupChannel, repositoryChannel, topologyProcessorChannel);
     }
 
     @VisibleForTesting
@@ -168,7 +174,9 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
     DataProvider buildDataProvider(@Nonnull Connection connection) {
         final RequestExecutor requestExecutor = new RequestExecutor(connection);
         final DataRequests dataRequests = new DataRequests();
-        return new DataProvider(requestExecutor, dataRequests);
+        final SearchFilterResolver searchFilterResolver
+                = new UdtSearchFilterResolver(connection, requestExecutor, dataRequests);
+        return new DataProvider(requestExecutor, dataRequests, searchFilterResolver);
     }
 
     /**

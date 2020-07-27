@@ -67,6 +67,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.ResourcePath;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
@@ -384,7 +385,8 @@ public class ScopedTopologyTest {
                         migratedWorkloadCloudCommitmentAnalysisService);
             });
 
-        Analysis analysis = runner.scheduleAnalysis(topologyInfo, topologyDTOs, true,
+        Analysis analysis = runner.scheduleAnalysis(topologyInfo, topologyDTOs,
+            Tracing.trace("test").spanContext(), true,
             Optional.empty(), false, false, rightsizeLowerWatermark, rightsizeUpperWatermark,
             discountedComputeCostFactor);
 

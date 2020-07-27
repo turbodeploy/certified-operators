@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 
+import io.opentracing.SpanContext;
+
 import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
@@ -19,7 +21,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
-import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
+import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
@@ -44,6 +46,7 @@ public class LiveTopologyEntitiesListenerTest {
                     mock(TopologyCostCalculatorFactory.class),
                     mock(EntityCostStore.class),
                     reservedInstanceCoverageUpdate,
+                    mock(AccountRIMappingStore.class),
                     mock(BusinessAccountHelper.class),
                     mock(CostJournalRecorder.class),
                     mock(ReservedInstanceAnalysisInvoker.class),
@@ -53,7 +56,7 @@ public class LiveTopologyEntitiesListenerTest {
         when(remoteIterator.hasNext()).thenReturn(false);
         when(topologyCostCalculatorFactory.newCloudTopology(1L, remoteIterator)).thenReturn(cloudTopology);
         when(topologyInfoTracker.isLatestTopology(eq(topologyInfo))).thenReturn(true);
-        liveTopologyEntitiesListener.onTopologyNotification(topologyInfo, remoteIterator);
+        liveTopologyEntitiesListener.onTopologyNotification(topologyInfo, remoteIterator, mock(SpanContext.class));
         verify(topologyCostCalculatorFactory).newCloudTopology(1L, remoteIterator);
         verify(computeTierDemandStatsWriter, never()).calculateAndStoreRIDemandStats(any(), any(), anyBoolean());
     }

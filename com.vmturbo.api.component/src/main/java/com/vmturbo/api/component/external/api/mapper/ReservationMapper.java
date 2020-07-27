@@ -234,7 +234,7 @@ public class ReservationMapper {
         //TODO: need to make sure templates are always available, if templates are deleted, need to
         // mark Reservation not available or also delete related reservations.
         try {
-            final Template template = reservationTemplate.getTemplate() != null
+            final Template template = reservationTemplate.hasTemplate()
                     ? reservationTemplate.getTemplate()
                     : templateService.getTemplate(GetTemplateRequest.newBuilder()
                     .setTemplateId(reservationTemplate.getTemplateId())

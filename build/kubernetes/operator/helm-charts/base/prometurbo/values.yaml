@@ -7,7 +7,7 @@ image:
   prometurboRepository: turbonomic/prometurbo
   prometurboTag: 7.22.5
   turbodifRepository: turbonomic/turbodif
-  turbodifTag: 7.22.4
+  turbodifTag: 7.22.5
   pullPolicy: IfNotPresent
 
 #nameOverride: ""

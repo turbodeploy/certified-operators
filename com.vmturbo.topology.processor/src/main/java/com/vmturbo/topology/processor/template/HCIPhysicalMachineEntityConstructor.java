@@ -241,31 +241,42 @@ public class HCIPhysicalMachineEntityConstructor {
 
             for (TopologyEntity.Builder host : hostsToReplace) {
                 for (TopologyEntity consumer : host.getConsumers()) {
-                    if (consumer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                        setClusterKeyForVm(consumer.getTopologyEntityDtoBuilder(),
-                                clusterTypeWithKey);
-                    }
+                    setClusterKeyForVm(consumer.getTopologyEntityDtoBuilder(), clusterTypeWithKey);
                 }
 
                 for (Long providerId : host.getProviderIds()) {
-                    TopologyEntity.Builder provider = topology.get(providerId);
-
-                    if (provider == null) {
-                        throw new TopologyEntityConstructorException("Cannot find  provider "
-                                + providerId + " for host " + host.getDisplayName());
-                    }
-
-                    if (provider.getEntityType() == EntityType.STORAGE_VALUE) {
-                        provider.getEntityBuilder().addCommoditySoldList(clusterSoldComm);
-                    }
+                    setClusterKeyForProvider(clusterSoldComm, host, providerId);
                 }
             }
         }
     }
 
+    private void setClusterKeyForProvider(CommoditySoldDTO.Builder clusterSoldComm,
+            TopologyEntity.Builder host, Long providerId)
+            throws TopologyEntityConstructorException {
+        TopologyEntity.Builder provider = topology.get(providerId);
+
+        if (provider == null) {
+            throw new TopologyEntityConstructorException("Cannot find  provider "
+                    + providerId + " for host " + host.getDisplayName());
+        }
+
+        if (provider.getEntityType() != EntityType.STORAGE_VALUE
+                || TopologyEntityConstructor.hasCommodity(provider.getEntityBuilder(),
+                        clusterSoldComm.build())) {
+            return;
+        }
+
+        provider.getEntityBuilder().addCommoditySoldList(clusterSoldComm);
+    }
+
     private void setClusterKeyForVm(@Nonnull TopologyEntityDTO.Builder vm,
             @Nonnull TopologyDTO.CommodityType clusterTypeWithKey)
             throws TopologyEntityConstructorException {
+        if (vm.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
+            return;
+        }
+
         List<CommoditiesBoughtFromProvider.Builder> boughtComms = vm
                 .getCommoditiesBoughtFromProvidersBuilderList().stream()
                 .filter(comm -> comm.getProviderEntityType() == EntityType.STORAGE_VALUE)

@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1594226355877,
+  "iteration": 1595508957398,
   "links": [],
   "panels": [
     {
@@ -236,7 +236,7 @@
           "pattern": "Utilization",
           "thresholds": [],
           "type": "number",
-          "unit": "percent"
+          "unit": "percentunit"
         },
         {
           "$$hashKey": "object:468",

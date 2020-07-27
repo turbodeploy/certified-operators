@@ -181,8 +181,6 @@ public class MarketsService implements IMarketsService {
 
     private final UuidMapper uuidMapper;
 
-    private final ActionsServiceBlockingStub actionRpcService;
-
     private final PoliciesService policiesService;
 
     private final PolicyServiceBlockingStub policyRpcService;
@@ -238,7 +236,6 @@ public class MarketsService implements IMarketsService {
 
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
-                          @Nonnull final ActionsServiceBlockingStub actionRpcService,
                           @Nonnull final PoliciesService policiesService,
                           @Nonnull final PolicyServiceBlockingStub policyRpcService,
                           @Nonnull final PlanServiceBlockingStub planRpcService,
@@ -266,7 +263,6 @@ public class MarketsService implements IMarketsService {
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
-        this.actionRpcService = Objects.requireNonNull(actionRpcService);
         this.policiesService = Objects.requireNonNull(policiesService);
         this.policyRpcService = Objects.requireNonNull(policyRpcService);
         this.planRpcService = Objects.requireNonNull(planRpcService);

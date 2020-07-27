@@ -9,6 +9,8 @@ import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import io.opentracing.SpanContext;
+
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
@@ -96,7 +98,8 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
     }
 
     private void onTopologySummary(@Nonnull final TopologySummary topologySummary,
-                                   @Nonnull Runnable commitCommand) {
+                                   @Nonnull Runnable commitCommand,
+                                   @Nonnull final SpanContext tracingContext) {
         getLogger().debug("Received topology summary for context {} id {} creation time {}",
                 topologySummary.getTopologyInfo().getTopologyContextId(),
                 topologySummary.getTopologyInfo().getTopologyId(),
@@ -105,7 +108,9 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
         commitCommand.run();
     }
 
-    private void onEntitiesWithNewStatedNotification(final EntitiesWithNewState entitiesWithNewState, final Runnable commitCommand) {
+    private void onEntitiesWithNewStatedNotification(final EntitiesWithNewState entitiesWithNewState,
+                                                     final Runnable commitCommand,
+                                                     @Nonnull final SpanContext tracingContext) {
         getLogger().debug("EntitiesWithNewState message received{}", entitiesWithNewState);
         doWithListeners(entitiesWithNewStateListeners, l -> l.onEntitiesWithNewState(entitiesWithNewState));
         commitCommand.run();
@@ -176,7 +181,8 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
     }
 
     @Override
-    protected void processMessage(@Nonnull final TopologyProcessorNotification message) throws ApiClientException {
+    protected void processMessage(@Nonnull final TopologyProcessorNotification message,
+                                  @Nonnull final SpanContext tracingContext) throws ApiClientException {
         getLogger().trace("Processing message {} with id {}", message.getTypeCase(),
                 message.getBroadcastId());
         switch (message.getTypeCase()) {

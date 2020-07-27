@@ -320,8 +320,8 @@ public class EntityFilterMapper {
     private List<SearchFilter> getUserDefinedEntityProcessor(SearchFilterContext context) {
         final FilterApiDTO filter = context.getFilter();
         final String criteriaOption = filter.getExpVal();
-        final boolean positiveMatch = criteriaOption.equals(UIBooleanFilter.TRUE.apiStr())
-                && isPositiveMatchingOperator(filter.getExpType());
+        final boolean positiveMatch = !(criteriaOption.equals(UIBooleanFilter.TRUE.apiStr())
+                ^ isPositiveMatchingOperator(filter.getExpType()));
         if (!udtOid.getValue().isPresent()) {
             udtOid.trySetValue(thinTargetCache.getAllTargets()
                     .stream()

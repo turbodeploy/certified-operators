@@ -7,9 +7,13 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.searchquery.EntityCountRequestApiDTO;
+import com.vmturbo.api.dto.searchquery.EntityMetadataRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.FieldValueTypeApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupCountRequestApiDTO;
+import com.vmturbo.api.dto.searchquery.GroupMetadataRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.SearchAllQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
@@ -84,6 +88,15 @@ public class ApiQueryEngine implements IApiQueryEngine {
     }
 
     @Override
+    public SearchQueryPaginationResponse processSearchAllQuery(@Nonnull final SearchAllQueryApiDTO request)
+            throws UnsupportedDialectException, SQLException, SearchQueryFailedException {
+        if (!enableSearchApi) {
+            throw new UnsupportedOperationException("Search API is not yet enabled!");
+        }
+        return getQueryFactory().performSearchAllQuery(request);
+    }
+
+    @Override
     public List<SearchCountRecordApiDTO> countEntites(
             final EntityCountRequestApiDTO request) throws Exception {
         if (!enableSearchApi) {
@@ -99,6 +112,40 @@ public class ApiQueryEngine implements IApiQueryEngine {
             throw new UnsupportedOperationException("Search API is not yet enabled!");
         }
         return getQueryFactory().performGroupCount(request);
+    }
+
+    /**
+     * Processes a {@link EntityMetadataRequestApiDTO} and returns an (unpaginated) list of results.
+     *
+     * @param request describes the group by parameters of the request
+     * @return a list of results
+     * @throws Exception when the query cannot be processed
+     */
+    @Override
+    public List<FieldValueTypeApiDTO> entityFields(
+            @Nonnull EntityMetadataRequestApiDTO request)
+            throws Exception {
+        if (!enableSearchApi) {
+            throw new UnsupportedOperationException("Search API is not yet enabled!");
+        }
+        return getQueryFactory().performEntityFieldQuery(request);
+    }
+
+    /**
+     * Processes a {@link GroupMetadataRequestApiDTO} and returns an (unpaginated) list of results.
+     *
+     * @param request describes the group by parameters of the request
+     * @return a list of results
+     * @throws Exception when the query cannot be processed
+     */
+    @Override
+    public List<FieldValueTypeApiDTO> groupFields(
+            @Nonnull GroupMetadataRequestApiDTO request)
+            throws Exception {
+        if (!enableSearchApi) {
+            throw new UnsupportedOperationException("Search API is not yet enabled!");
+        }
+        return getQueryFactory().performGroupFieldQuery(request);
     }
 
     /**
@@ -118,5 +165,4 @@ public class ApiQueryEngine implements IApiQueryEngine {
         }
         return queryFactory;
     }
-
 }

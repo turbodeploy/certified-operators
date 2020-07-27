@@ -115,13 +115,13 @@ public class GroupQueryTest {
     @Test
     public void processGroupQuery() throws SearchQueryFailedException {
         //GIVEN
-        final GroupType type = GroupType.COMPUTE_HOST_CLUSTER;
+        final GroupType type = GroupType.Cluster;
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
         final FieldApiDTO primitiveTextField = PrimitiveFieldApiDTO.origin();
         final FieldApiDTO aggregatedCommodityNumericField = getAnyGroupKeyField(type, AggregateCommodityFieldApiDTO.class, Type.NUMBER);
         final FieldApiDTO memberFieldApiDTO = getAnyGroupKeyField(type, MemberFieldApiDTO.class, Type.INTEGER);
 
-        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.COMPUTE_HOST_CLUSTER)
+        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.Cluster)
                 .fields(primitiveOid,
                         primitiveTextField,
                         aggregatedCommodityNumericField, // Test to make sure duplicate removed
@@ -181,7 +181,7 @@ public class GroupQueryTest {
     @Test
     public void mapRecordToValueReturnsGroupTypeApiEnum() {
         //GIVEN
-        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.COMPUTE_HOST_CLUSTER).build();
+        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.Cluster).build();
         GroupQueryApiDTO request = GroupQueryApiDTO.queryGroup(selectGroup);
         GroupQuery query = groupQuery(request);
 
@@ -202,11 +202,11 @@ public class GroupQueryTest {
     @Test
     public void buildSelectFieldsWithNoExtraFieldsSpecified() {
         //GIVEN
-        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.GROUP).build();
+        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.Group).build();
         final GroupQueryApiDTO request = GroupQueryApiDTO.queryGroup(selectGroup);
         GroupQuery query = groupQuery(request);
 
-        Map<FieldApiDTO, SearchMetadataMapping> mappings = SearchGroupMetadata.GROUP.getMetadataMappingMap();
+        Map<FieldApiDTO, SearchMetadataMapping> mappings = SearchGroupMetadata.Group.getMetadataMappingMap();
         //WHEN
         Set<String> fields =
                 query.buildSelectFields().stream().map(Field::getName).collect(Collectors.toSet());

@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -650,10 +651,10 @@ public class TopologyEntityConstructor {
                 CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, diskIops, isResizable);
 
         // Since storage templates don't have a latency value, but VMs do buy a
-        // latency commodity, a sold commodity is added. Capacity is left unset.
-        // {@link PlanOriginEntityApplicator} will set it to the settings value.
+        // latency commodity, a sold commodity is added.
         CommoditySoldDTO storageLatencyCommodity = createCommoditySoldDTO(
-                CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE, null, isResizable);
+                CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE,
+                EntitySettingSpecs.LatencyCapacity.getNumericDefault(), isResizable);
 
         // Because we don't have access to settings at this time, we can't calculate capacities for
         // provisioned commodities. By leaving capacities unset, they will be set later in the

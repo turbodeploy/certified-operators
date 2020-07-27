@@ -77,7 +77,7 @@ spec:
   mssql:
     enabled: true
   mysql:
-    enabled: false
+    enabled: true
   newrelic:
     enabled: true
   udt:

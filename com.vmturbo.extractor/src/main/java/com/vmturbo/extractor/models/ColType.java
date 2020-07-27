@@ -14,12 +14,17 @@ import java.util.stream.Stream;
 import net.jpountz.xxhash.StreamingXXHash64;
 
 import org.apache.commons.codec.binary.Hex;
+import org.jooq.EnumType;
 
 import com.vmturbo.extractor.models.Column.JsonString;
-import com.vmturbo.extractor.schema.enums.EntitySeverity;
+import com.vmturbo.extractor.schema.enums.ActionCategory;
+import com.vmturbo.extractor.schema.enums.ActionState;
+import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.schema.enums.Severity;
 
 /**
  * Column types that we support in our model definitions.
@@ -68,8 +73,27 @@ public enum ColType {
     ENVIRONMENT_TYPE(EnvironmentType.values()[0].getName()),
     /** entity_state column. */
     ENTITY_STATE(EntityState.values()[0].getName()),
-    /** entity_severity column. */
-    ENTITY_SEVERITY(EntitySeverity.values()[0].getName());
+
+    /** severity column. */
+    SEVERITY(Severity.values()[0].getName()),
+
+    /**
+     * Commodity type column.
+     */
+    METRIC_TYPE(MetricType.values()[0].getName()),
+
+    /**
+     * Action type column.
+     */
+    ACTION_TYPE(ActionType.values()[0].getName()),
+    /**
+     * Action state column.
+     */
+    ACTION_STATE(ActionState.values()[0].getName()),
+    /**
+     * Action category column.
+     */
+    ACTION_CATEGORY(ActionCategory.values()[0].getName());
 
     static final byte[] NULL_BYTE_ARRAY = {0};
     static final byte[] TRUE_BYTE_ARRAY = {1};
@@ -184,14 +208,9 @@ public enum ColType {
             case TIMESTAMP:
                 return ByteBuffer.allocate(Long.BYTES + Integer.BYTES).putLong(((Timestamp)value).getTime())
                     .putInt(((Timestamp)value).getNanos()).array();
-            case ENTITY_TYPE:
-                return ((EntityType)value).getLiteral().getBytes(UTF_8);
-            case ENVIRONMENT_TYPE:
-                return ((EnvironmentType)value).getLiteral().getBytes(UTF_8);
-            case ENTITY_SEVERITY:
-                return ((EntitySeverity)value).getLiteral().getBytes(UTF_8);
-            case ENTITY_STATE:
-                return ((EntityState)value).getLiteral().getBytes(UTF_8);
+            case ENTITY_TYPE: case ENVIRONMENT_TYPE: case SEVERITY: case ENTITY_STATE: case ACTION_TYPE:
+            case ACTION_STATE: case ACTION_CATEGORY:
+                return ((EnumType)value).getLiteral().getBytes(UTF_8);
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());
         }
@@ -301,10 +320,16 @@ public enum ColType {
                 return EntityType.valueOf(new String(bytes, UTF_8));
             case ENVIRONMENT_TYPE:
                 return EnvironmentType.valueOf(new String(bytes, UTF_8));
-            case ENTITY_SEVERITY:
-                return EntitySeverity.valueOf(new String(bytes, UTF_8));
+            case SEVERITY:
+                return Severity.valueOf(new String(bytes, UTF_8));
             case ENTITY_STATE:
                 return EntityState.valueOf(new String(bytes, UTF_8));
+            case ACTION_TYPE:
+                return ActionType.valueOf(new String(bytes, UTF_8));
+            case ACTION_STATE:
+                return ActionState.valueOf(new String(bytes, UTF_8));
+            case ACTION_CATEGORY:
+                return ActionCategory.valueOf(new String(bytes, UTF_8));
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());
         }
@@ -389,14 +414,9 @@ public enum ColType {
                 return quoteString(value.toString());
             case TIMESTAMP:
                 return value.toString();
-            case ENTITY_TYPE:
-                return ((EntityType)value).getLiteral();
-            case ENVIRONMENT_TYPE:
-                return ((EnvironmentType)value).getLiteral();
-            case ENTITY_SEVERITY:
-                return ((EntitySeverity)value).getLiteral();
-            case ENTITY_STATE:
-                return ((EntityState)value).getLiteral();
+            case ENTITY_TYPE: case ENVIRONMENT_TYPE: case SEVERITY: case ENTITY_STATE:
+            case ACTION_TYPE: case ACTION_STATE: case ACTION_CATEGORY: case METRIC_TYPE:
+                return ((EnumType)value).getLiteral();
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());
         }

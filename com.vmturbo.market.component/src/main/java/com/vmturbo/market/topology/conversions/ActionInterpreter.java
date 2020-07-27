@@ -720,9 +720,6 @@ public class ActionInterpreter {
                         .contains(cs.getBaseType())).findFirst();
                 if (!resizeTriggerTraderTO.isPresent()) {
                     return Optional.empty();
-                } else {
-                    resizeBuilder.setResizeTriggerTrader(createActionEntity(resizeTriggerTraderTO.get()
-                            .getTrader(), projectedTopology));
                 }
             // Scale Down: Pick related vSan host being suspended that has no reason commodities
             // since it is suspension due to low roi.
@@ -732,9 +729,6 @@ public class ActionInterpreter {
                         .isEmpty()).findFirst();
                 if (!resizeTriggerTraderTO.isPresent()) {
                     return Optional.empty();
-                } else {
-                    resizeBuilder.setResizeTriggerTrader(createActionEntity(resizeTriggerTraderTO.get()
-                            .getTrader(), projectedTopology));
                 }
             }
         }
@@ -1502,6 +1496,7 @@ public class ActionInterpreter {
          *
          * @return false
          */
+        @Override
         public boolean hasSavings() {
             return false;
         }

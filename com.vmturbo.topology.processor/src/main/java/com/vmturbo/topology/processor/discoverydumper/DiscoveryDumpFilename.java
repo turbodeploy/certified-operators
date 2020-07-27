@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.discoverydumper;
 
 import java.io.File;
-import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -44,12 +43,7 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
      */
     private final String filenameBinary;
     private final String filenameText;
-
-    /**
-     * The date format used for timestamps
-     */
-    public final static DateFormat dateFormat =
-        new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss.SSS");
+    private static final String dateFormatPattern = "yyyy.MM.dd.HH.mm.ss.SSS";
 
     /**
      * extensions of binary and text dump files resp.
@@ -78,8 +72,8 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
         this.timestamp = (Date)Objects.requireNonNull(timestamp).clone();
         this.discoveryType = Objects.requireNonNull(discoveryType);
         final String genericFileName =
-            sanitizedTargetName + "-" + dateFormat.format(timestamp) + "-" +
-            discoveryType.name() + ".";
+            sanitizedTargetName + "-" + new SimpleDateFormat(dateFormatPattern).format(timestamp) + "-"
+                + discoveryType.name() + ".";
         filenameBinary = genericFileName + BINARY_EXTENSION;
         filenameText = genericFileName + TEXT_EXTENSION;
     }
@@ -154,7 +148,7 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
         // retrieve timestamp
         final Date timeStamp;
         try {
-            timeStamp = dateFormat.parse(filenameSections[1]);
+            timeStamp = new SimpleDateFormat(dateFormatPattern).parse(filenameSections[1]);
         } catch (ParseException e) {
             // filename does not have a valid timestamp
             return null;

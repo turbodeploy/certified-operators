@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.ml.datastore.influx.*;
 import org.apache.logging.log4j.LogManager;
@@ -99,7 +101,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
      */
     @Override
     public void onTopologyNotification(@Nonnull final TopologyInfo topologyInfo,
-                                       @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator) {
+                                       @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
+                                       @Nonnull final SpanContext tracingContext) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
         final long timeMs = topologyInfo.getCreationTime();

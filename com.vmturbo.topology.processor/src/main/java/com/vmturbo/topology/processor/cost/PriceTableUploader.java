@@ -286,28 +286,33 @@ public class PriceTableUploader implements DiagsRestorable {
         List<ProbePriceData> probePricesList = new ArrayList<>();
         synchronized (sourcePriceTableByTargetId) {
             sourcePriceTableByTargetId.forEach((targetId, priceTable) -> {
-                SDKProbeType sdkProbeType = probeTypesForTargetId.get(targetId);
-                ProbePriceData probePriceData = new ProbePriceData();
-                probePriceData.probeType = sdkProbeType.getProbeType();
-                if (priceTable.hasServiceProviderId()) {
-                    // convert the price table for this probe type
-                    probePriceData.priceTable = priceTableToCostPriceTable(priceTable, cloudEntitiesMap,
-                            cloudEntitiesMap.getExtraneousIdLookUps(),
-                            SDKProbeType.create(sdkProbeType.getProbeType()));
-                    // add the RI price table for this probe type
-                    probePriceData.riSpecPrices = getRISpecPrices(priceTable, cloudEntitiesMap);
-                    final Optional<PriceTableKey> optPriceTableKey =
-                            generatePriceTableKey(priceTable, cloudEntitiesMap);
-                    if (optPriceTableKey.isPresent()) {
-                        probePriceData.priceTableKey = optPriceTableKey.get();
-                        probePricesList.add(probePriceData);
+                if (targetId != null && probeTypesForTargetId.containsKey(targetId)) {
+                    SDKProbeType sdkProbeType = probeTypesForTargetId.get(targetId);
+                    ProbePriceData probePriceData = new ProbePriceData();
+                    probePriceData.probeType = sdkProbeType.getProbeType();
+                    if (priceTable.hasServiceProviderId()) {
+                        // convert the price table for this probe type
+                        probePriceData.priceTable =
+                                        priceTableToCostPriceTable(priceTable, cloudEntitiesMap,
+                                                        cloudEntitiesMap.getExtraneousIdLookUps(),
+                                                        SDKProbeType.create(sdkProbeType.getProbeType()));
+                        // add the RI price table for this probe type
+                        probePriceData.riSpecPrices = getRISpecPrices(priceTable, cloudEntitiesMap);
+                        final Optional<PriceTableKey> optPriceTableKey =
+                                        generatePriceTableKey(priceTable, cloudEntitiesMap);
+                        if (optPriceTableKey.isPresent()) {
+                            probePriceData.priceTableKey = optPriceTableKey.get();
+                            probePricesList.add(probePriceData);
+                        } else {
+                            logger.error("Unable to create price table key for price table (TargetID={})",
+                                            targetId);
+                        }
                     } else {
-                        logger.error("Unable to create price table key for price table (TargetID={})",
-                                targetId);
+                        logger.error("Unable to create price table key for price table (TargetID={})."
+                                        + "The price table is missing a service provider id.");
                     }
                 } else {
-                    logger.error("Unable to create price table key for price table (TargetID={})." +
-                            "The price table is missing a service provider id.");
+                    logger.error("Unable to find Probe Type for target with targetID {} in the probeTypesForTargetId map. One reason this may happen is due to stale data in the sourcePriceTableByTargetId map", targetId);
                 }
             });
         }

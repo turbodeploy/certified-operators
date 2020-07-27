@@ -1,9 +1,15 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static com.vmturbo.cost.component.db.Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING;
+import static com.vmturbo.cost.component.db.Tables.HIST_ENTITY_RESERVED_INSTANCE_MAPPING;
+
 import static org.jooq.impl.DSL.sum;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,6 +21,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
@@ -23,7 +30,9 @@ import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.UpdatableRecord;
 import org.jooq.impl.DSL;
 import org.stringtemplate.v4.ST;
 
@@ -38,6 +47,7 @@ import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.enums.EntityToReservedInstanceMappingRiSourceCoverage;
 import com.vmturbo.cost.component.db.tables.pojos.EntityToReservedInstanceMapping;
 import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
+import com.vmturbo.cost.component.db.tables.records.HistEntityReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 
 /**
@@ -46,20 +56,17 @@ import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanc
  * VM1 use RI1 10 coupons, VM1 use RI2 20 coupons, VM2 use RI3 5 coupons.
  */
 public class EntityReservedInstanceMappingStore implements DiagsRestorable {
-
+    private static final Logger logger = LogManager.getLogger();
     private static final String entityReservedInstanceMappingFile = "entityToReserved_dump";
 
-    private final static Logger logger = LogManager.getLogger();
+    private static final String RI_SUM_COUPONS = "RI_SUM_COUPONS";
 
-    private final static String RI_SUM_COUPONS = "RI_SUM_COUPONS";
-
-    private final static String ENTITY_SUM_COUPONS = "ENTITY_SUM_COUPONS";
+    private static final String ENTITY_SUM_COUPONS = "ENTITY_SUM_COUPONS";
 
     private static final EntityReservedInstanceMappingFilter entityReservedInstanceMappingFilter = EntityReservedInstanceMappingFilter
             .newBuilder().build();
 
-    //TODO: set this chunk config through consul.
-    private final static int chunkSize = 1000;
+    private static final int chunkSize = 1000;
 
     private final DSLContext dsl;
 
@@ -83,21 +90,23 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
                     "| Used Coupons : <usedCoupons>\n" +
                     "| Coverage Source : <coverageSource>\n";
 
-    public EntityReservedInstanceMappingStore(
-            @Nonnull final DSLContext dsl) {
+    /**
+     * Construct instance of EntityReservedInstanceMappingStore.
+     *
+     * @param dsl {@link DSLContext} transactional context.
+     */
+    public EntityReservedInstanceMappingStore(@Nonnull final DSLContext dsl) {
         this.dsl = dsl;
     }
 
     /**
      * Input a list of {@link EntityRICoverageUpload}, store them into the database table.
      *
-     * @param context {@link DSLContext} transactional context.
+     * @param context {@link DSLContext} transactional context (configured by client).
      * @param entityReservedInstanceCoverages a list of {@link EntityRICoverageUpload}.
      */
-    public void updateEntityReservedInstanceMapping(
-            @Nonnull final DSLContext context,
+    public void updateEntityReservedInstanceMapping(@Nonnull final DSLContext context,
             @Nonnull final List<EntityRICoverageUpload> entityReservedInstanceCoverages) {
-
         final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
 
         final List<EntityToReservedInstanceMappingRecord> records =
@@ -110,9 +119,113 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
                         .flatMap(List::stream)
                         .collect(Collectors.toList());
 
-        // replace table with the latest mapping record.
-        context.deleteFrom(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING).execute();
-        Lists.partition(records, chunkSize).forEach(entityChunk -> context.batchInsert(records).execute());
+        // Replace table with the latest RI mapping records.
+        final int countDel = context.deleteFrom(ENTITY_TO_RESERVED_INSTANCE_MAPPING).execute();
+        Lists.partition(records, chunkSize).forEach(
+                entitiesChunk -> context.batchInsert(entitiesChunk).execute());
+        logger.info("SE-RI-Mapping: Count of deleted records: {}, updated: {}",
+                countDel, records.size());
+    }
+
+    /**
+     * Inserts RI coverage records into historical Entity RI Coverage mapping table.
+     *
+     * @param context {@link DSLContext} transactional context (configured by client).
+     * @param seRIHistCoverageList list of protobuf structures (one structure per SE) with a summary
+     *        of RI coverage per SE.
+     */
+    public void updateHistEntityRICoverageMappings(@Nonnull final DSLContext context,
+            @Nonnull final List<EntityRICoverageUpload> seRIHistCoverageList) {
+        final List<UpdatableRecord<?>> records = new ArrayList<>();
+
+        final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
+        for (EntityRICoverageUpload seRIUpload : seRIHistCoverageList) {
+            final Long entityOid = seRIUpload.getEntityId();
+            final List<EntityRICoverageUpload.Coverage> riCoverageList = seRIUpload.getCoverageList();
+
+            // Table of covered coupons per entity/RI pair _combined_ by coverage source (i.e supplemental + billing)
+            final Table<Long, Long, Double> riCombinedCoupons = HashBasedTable.create();
+            // Start and end usage tables (per entity/RI pair)
+            final Table<Long, Long, Long> riStartTime = HashBasedTable.create();
+            final Table<Long, Long, Long> riEndTime = HashBasedTable.create();
+            for (EntityRICoverageUpload.Coverage riCov : riCoverageList) {
+                Long riId = riCov.getReservedInstanceId();
+                Double coveredCoupons = riCombinedCoupons.get(entityOid, riId);
+                if (coveredCoupons != null) {
+                    coveredCoupons += riCov.getCoveredCoupons();
+                    riCombinedCoupons.put(entityOid, riId, coveredCoupons);
+                } else {
+                    riCombinedCoupons.put(entityOid, riId, riCov.getCoveredCoupons());
+                }
+                riStartTime.put(entityOid, riId, riCov.getUsageStartTimestamp());
+                riEndTime.put(entityOid, riId, riCov.getUsageEndTimestamp());
+            }
+
+            for (Table.Cell<Long, Long, Double> cell : riCombinedCoupons.cellSet()) {
+                final Long reservedInstanceId = cell.getColumnKey();
+                long usageStartTime = riStartTime.get(entityOid, reservedInstanceId);
+                final LocalDateTime rawUsageStart = LocalDateTime.ofInstant(
+                        // Add full minute to avoid zero timestamp (i.e '1970-01-01 00:00:00') which is out of range
+                        // for MySQL JDBC driver.
+                        Instant.ofEpochMilli(usageStartTime + 1000 * 60),
+                        ZoneId.from(ZoneOffset.UTC));
+
+                // RI coverage Usage Start time is a PK column and we do not want timestamp with precision of seconds
+                // and nanoseconds to be part of PK value (to avoid inserting potential duplicate rows if API returns
+                // slightly different timestamp next time around).
+                // Seconds and nanoseconds play negligible role in Buy RI analysis and related recommendations.
+                final LocalDateTime usageStart = LocalDateTime.of(rawUsageStart.getYear(),
+                        rawUsageStart.getMonth(), rawUsageStart.getDayOfMonth(),
+                        rawUsageStart.getHour(), rawUsageStart.getMinute());
+
+                // Usage end.
+                long usageEndTime = riEndTime.get(entityOid, reservedInstanceId);
+                final LocalDateTime usageEnd = LocalDateTime.ofInstant(
+                        // Again, add a minute to the usage end time.
+                        Instant.ofEpochMilli(usageEndTime + 1000 * 60),
+                        ZoneId.from(ZoneOffset.UTC));
+                logger.info("Usage start/end for Entity/RI pair '{}:{}' = [{} .. {}], covered coupons = {}",
+                        entityOid, reservedInstanceId, usageStart.toString(), usageEnd.toString(), cell.getValue());
+
+                records.add(context.newRecord(HIST_ENTITY_RESERVED_INSTANCE_MAPPING,
+                        new HistEntityReservedInstanceMappingRecord(
+                                currentTime,
+                                entityOid,
+                                reservedInstanceId,
+                                usageStart,
+                                usageEnd)));
+            }
+        }
+
+        // Note that we delete only specific historical coverage records.
+        final int[] countDel = context.batchDelete(records).execute();
+        Lists.partition(records, chunkSize).forEach(
+                entitiesChunk -> context.batchInsert(entitiesChunk).execute());
+        logger.info("Hist-SE-RI-Mapping: Count of deleted records: {}, updated: {}",
+                countUpdatedRecords(countDel), records.size());
+    }
+
+    private int countUpdatedRecords(final int[] rcUpdated) {
+        int recCount = 0;
+        for (int i = 0; i < rcUpdated.length; i++) {
+            recCount += rcUpdated[i];
+        }
+        return recCount;
+    }
+
+    /**
+     * Delete historical Entity RI coverage records for a list of Entities.
+     *
+     * @param entityIds list of Entities whose RI coverage should be deleted.
+     *
+     * @return count of deleted rows.
+     */
+    public int deleteHistEntityRICoverageMappings(List<Long> entityIds) {
+        logger.info("Deleting data from HistEntityRICoverage table for entities count: " + entityIds.size());
+        final int rowsDeleted = dsl.deleteFrom(HIST_ENTITY_RESERVED_INSTANCE_MAPPING)
+                    .where(HIST_ENTITY_RESERVED_INSTANCE_MAPPING.ENTITY_ID
+                                .in(entityIds)).execute();
+        return rowsDeleted;
     }
 
     /**
@@ -123,10 +236,10 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
      */
     public Map<Long, Double> getReservedInstanceUsedCouponsMap(@Nonnull final DSLContext context) {
         final Map<Long, Double> retMap = new HashMap<>();
-        context.select(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
-                (sum(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)).as(RI_SUM_COUPONS))
-            .from(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
-            .groupBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
+        context.select(ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                (sum(ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)).as(RI_SUM_COUPONS))
+            .from(ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+            .groupBy(ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
             .fetch()
             .forEach(record -> retMap.put(record.value1(), record.value2().doubleValue()));
         return retMap;
@@ -141,11 +254,11 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
      */
     public Map<Long, Double> getReservedInstanceUsedCouponsMapWithFilter(@Nonnull final DSLContext context, EntityReservedInstanceMappingFilter filter) {
         final Map<Long, Double> retMap = new HashMap<>();
-        context.select(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
-            (sum(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)))
-            .from(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+        context.select(ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+            (sum(ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)))
+            .from(ENTITY_TO_RESERVED_INSTANCE_MAPPING)
             .where(filter.getConditions())
-            .groupBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
+            .groupBy(ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
             .fetch()
             .forEach(record -> retMap.put(record.value1(), record.value2().doubleValue()));
         return retMap;
@@ -223,17 +336,19 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
      * @return A {@link Map} of Entity OID to a {@link Set} of {@link Coverage} entries
      */
     public Map<Long, Set<Coverage>> getRICoverageByEntity(EntityReservedInstanceMappingFilter filter) {
-
         final Map<Long, Set<Coverage>> riCoverageByEntity = new HashMap<>();
 
-        getEntityRICoverageFromDB(filter).forEach(entityRIMapping ->
-                riCoverageByEntity.computeIfAbsent(entityRIMapping.getEntityId(), __ -> new HashSet<>())
-                        .add(Coverage.newBuilder()
-                                .setReservedInstanceId(entityRIMapping.getReservedInstanceId())
-                                .setCoveredCoupons(entityRIMapping.getUsedCoupons())
-                                .setRiCoverageSource(RICoverageSource.valueOf(
-                                        entityRIMapping.getRiSourceCoverage().toString()))
-                                .build()));
+        getEntityRICoverageFromDB(filter).forEach(entityRIMapping -> {
+            riCoverageByEntity.computeIfAbsent(
+                    entityRIMapping.getEntityId(),
+                    entityId -> new HashSet<Coverage>())
+            .add(Coverage.newBuilder()
+                    .setReservedInstanceId(entityRIMapping.getReservedInstanceId())
+                    .setCoveredCoupons(entityRIMapping.getUsedCoupons())
+                    .setRiCoverageSource(RICoverageSource.valueOf(
+                            entityRIMapping.getRiSourceCoverage().toString()))
+                    .build());
+        });
 
         return riCoverageByEntity;
     }
@@ -265,15 +380,18 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
 
         return riCoverageBySource.cellSet().stream()
                 .map(riCoverage ->
-                        context.newRecord(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING,
+                        context.newRecord(ENTITY_TO_RESERVED_INSTANCE_MAPPING,
                                 new EntityToReservedInstanceMappingRecord(
                                         currentTime,
                                         entityId,
-                                        // This ID will already by the cost component assigned OID
-                                        // For billing coverage, this is updated in RIAndExpenseUploadRpcService
-                                        // For supplemental coverage, it is created with the correct OID
+                                        // reserved_instance_id bigint
+                                        // This ID will already be the Cost component assigned OID.
+                                        // For billing coverage, this is updated in RIAndExpenseUploadRpcService.
+                                        // For supplemental coverage, it is created with the correct OID.
                                         riCoverage.getRowKey(),
+                                        // used_coupons float
                                         riCoverage.getValue(),
+                                        // ri_source_coverage enum('BILLING','SUPPLEMENTAL_COVERAGE_ALLOCATION')
                                         EntityToReservedInstanceMappingRiSourceCoverage.valueOf(
                                                 riCoverage.getColumnKey().toString()))))
                 .collect(Collectors.toList());
@@ -283,10 +401,10 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
         final List<EntityToReservedInstanceMapping> riCoverageRows =
                 // There should only be one set of RI coverage in the table at a time, so
                 // we can just get everything from the table.
-                dsl.selectFrom(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                dsl.selectFrom(ENTITY_TO_RESERVED_INSTANCE_MAPPING)
                         // This is important - lets us process one entity completely before
                         // moving on to the next one.
-                        .orderBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)
+                        .orderBy(ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)
                         .fetch()
                         .into(EntityToReservedInstanceMapping.class);
         return riCoverageRows;
@@ -296,11 +414,11 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
         final List<EntityToReservedInstanceMapping> riCoverageRows =
                 // There should only be one set of RI coverage in the table at a time, so
                 // we can just get everything from the table.
-                dsl.selectFrom(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                dsl.selectFrom(ENTITY_TO_RESERVED_INSTANCE_MAPPING)
                         // This is important - lets us process one entity completely before
                         // moving on to the next one.
                         .where(filter.getConditions())
-                        .orderBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)
+                        .orderBy(ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)
                         .fetch()
                         .into(EntityToReservedInstanceMapping.class);
         return riCoverageRows;
@@ -532,5 +650,86 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
     @Override
     public String getFileName() {
         return entityReservedInstanceMappingFile;
+    }
+
+    /**
+     * Retrieves RI Coverage records per each SE given in the list argument.
+     * Empty argument list will produce RI Coverage records for all SEs in DB.
+     *
+     * @param entityIDs list of entity IDs for which we are interested to get historical RI coverage data.
+     *
+     * @return Map of SEs to list of RI Coverage data records.
+     */
+    public Map<Long, List<EntityHistRIMappingItem>> getHistEntityRICoverageMappings(final Collection<Long> entityIDs) {
+        Map<Long, List<EntityHistRIMappingItem>> riCoverageMap = new HashMap<>();
+
+        List<HistEntityReservedInstanceMappingRecord> records = dsl.selectFrom(HIST_ENTITY_RESERVED_INSTANCE_MAPPING)
+                .where(filterByOidsCondition(entityIDs)).fetch();
+        for (HistEntityReservedInstanceMappingRecord rec : records) {
+            final Long entityId = rec.getEntityId();
+            final Long riId = rec.getReservedInstanceId();
+            final LocalDateTime usageStart = rec.getStartUsageTime();
+            final LocalDateTime usageEnd = rec.getEndUsageTime();
+
+            List<EntityHistRIMappingItem> riCoverageItems = riCoverageMap.get(entityId);
+            if (riCoverageItems == null) {
+                riCoverageItems = new ArrayList<>();
+                riCoverageMap.put(entityId, riCoverageItems);
+            }
+            riCoverageItems.add(new EntityHistRIMappingItem(entityId, riId, usageStart, usageEnd));
+        }
+
+        return riCoverageMap;
+    }
+
+    /**
+     * Condition to filter the Entity Historical RI Coverage table by the list of entity IDs.
+     *
+     * @param oids The entity IDs.
+     * @return The condition.
+     */
+    private Condition filterByOidsCondition(final Collection<Long> oids) {
+        return oids.isEmpty() ? DSL.trueCondition() : HIST_ENTITY_RESERVED_INSTANCE_MAPPING.ENTITY_ID.in(oids);
+    }
+
+    /**
+     * Class representing item of account RI coverage.
+     */
+    protected class EntityHistRIMappingItem {
+        private final Long entityId;
+        private final Long reservedInstanceId;
+        private final LocalDateTime usageStart;
+        private final LocalDateTime usageEnd;
+
+        public EntityHistRIMappingItem(Long entityId, Long reservedInstanceId, LocalDateTime usageStart,
+                LocalDateTime usageEnd) {
+            super();
+            this.entityId = entityId;
+            this.reservedInstanceId = reservedInstanceId;
+            this.usageStart = usageStart;
+            this.usageEnd = usageEnd;
+        }
+
+        public Long getEntityId() {
+            return entityId;
+        }
+
+        public Long getReservedInstanceId() {
+            return reservedInstanceId;
+        }
+
+        public LocalDateTime getUsageStart() {
+            return usageStart;
+        }
+
+        public LocalDateTime getUsageEnd() {
+            return usageEnd;
+        }
+
+        @Override
+        public String toString() {
+            return "EntityHistRICoverageItem [entityId=" + entityId + ", reservedInstanceId=" + reservedInstanceId
+                    + ", usageStart=" + usageStart + ", usageEnd=" + usageEnd + "]";
+        }
     }
 }

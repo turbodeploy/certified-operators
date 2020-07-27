@@ -167,7 +167,7 @@ public class ActionApprovalManager {
             return acceptanceError("Unauthorized to accept action in mode " + action.getMode());
         }
 
-        if (action.getSchedule().isPresent() && !action.getSchedule().get().isActiveSchedule()) {
+        if (action.getSchedule().isPresent() && !action.getSchedule().get().isActiveScheduleNow()) {
             // postpone action execution, because action has related execution window
             return AcceptActionResponse.newBuilder()
                     .setActionSpec(actionTranslator.translateToSpec(action))

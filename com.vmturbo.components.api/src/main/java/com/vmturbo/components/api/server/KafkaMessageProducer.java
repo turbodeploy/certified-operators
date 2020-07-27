@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 
 import com.google.protobuf.AbstractMessage;
 
+import io.opentracing.contrib.kafka.TracingKafkaProducer;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
 
@@ -24,6 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.tracing.Tracing;
 
 /**
  * Creates kafka-based message senders.
@@ -66,7 +68,7 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
             .labelNames("topic")
             .register();
 
-    private final KafkaProducer<String, byte[]> producer;
+    private final TracingKafkaProducer<String, byte[]> producer;
     private final Logger logger = LogManager.getLogger(getClass());
     private final AtomicLong msgCounter = new AtomicLong(0);
     private final String namespacePrefix;
@@ -106,7 +108,7 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
         props.put("key.serializer", StringSerializer.class.getName());
         props.put("value.serializer", ByteArraySerializer.class.getName());
 
-        producer = new KafkaProducer<>(props);
+        producer = new TracingKafkaProducer<>(new KafkaProducer<>(props), Tracing.tracer());
     }
 
     @Override

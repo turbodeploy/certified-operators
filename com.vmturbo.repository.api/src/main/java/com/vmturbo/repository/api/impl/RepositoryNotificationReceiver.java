@@ -5,6 +5,8 @@ import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.AvailableTopology;
 import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.FailedTopology;
@@ -29,7 +31,8 @@ public class RepositoryNotificationReceiver extends
     }
 
     @Override
-    protected void processMessage(@Nonnull RepositoryNotification message) throws ApiClientException {
+    protected void processMessage(@Nonnull RepositoryNotification message,
+                                  @Nonnull final SpanContext tracingContext) throws ApiClientException {
         getLogger().debug("Received message {} of type {}", message.getBroadcastId(),
                 message.getTypeCase());
         switch (message.getTypeCase()) {

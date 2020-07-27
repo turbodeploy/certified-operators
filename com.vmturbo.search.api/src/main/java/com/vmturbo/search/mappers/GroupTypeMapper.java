@@ -20,14 +20,14 @@ public class GroupTypeMapper {
     /**
      * Mappings between {@link EntityType} and {@link GroupType}.
      */
-    private static final BiMap<EntityType, GroupType> GROUP_TYPE_MAPPINGS =
+    protected static final BiMap<EntityType, GroupType> GROUP_TYPE_MAPPINGS =
         new ImmutableBiMap.Builder()
-            .put( EntityType.GROUP, GroupType.GROUP)
-            .put( EntityType.BILLING_FAMILY, GroupType.BILLING_FAMILY)
-            .put( EntityType.COMPUTE_CLUSTER, GroupType.COMPUTE_HOST_CLUSTER)
-            .put( EntityType.K8S_CLUSTER, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
-            .put( EntityType.RESOURCE_GROUP, GroupType.RESOURCE)
-            .put( EntityType.STORAGE_CLUSTER, GroupType.STORAGE_CLUSTER)
+            .put( EntityType.GROUP, GroupType.Group)
+            .put( EntityType.BILLING_FAMILY, GroupType.BillingFamily)
+            .put( EntityType.COMPUTE_CLUSTER, GroupType.Cluster)
+            .put( EntityType.K8S_CLUSTER, GroupType.VMCluster)
+            .put( EntityType.RESOURCE_GROUP, GroupType.Resource)
+            .put( EntityType.STORAGE_CLUSTER, GroupType.StorageCluster)
             .build();
 
     /**

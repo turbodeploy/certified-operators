@@ -196,8 +196,14 @@ public class ActionSpecMappingContextFactory {
             long topologyContextId, @Nonnull final UuidMapper uuidMapper)
             throws ExecutionException, InterruptedException, ConversionException {
 
+        // NOTE: calls made on the current thread will be made "as the user" in upstream components
+        // and trigger user-scoping, authorization checks and so on. Since we decided NOT to restrict
+        // the display of policy-related info in action explanations, we are making the rpcs to populate
+        // the mapping context as the "System", so we don't trigger further auth checks upstream. This
+        // is as simple as running the RPCS on a separate thread (and also gives us parallelization
+        // of the calls, as Pengcheng originally designed for)
         final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
-        Collection<PolicyApiDTO> policiesApiDto = policiesService.convertPolicyDTOCollection(policies.get().values());
+        final Future<Collection<PolicyApiDTO>> policiesApiDto = executorService.submit(() -> policiesService.convertPolicyDTOCollection(policies.get().values()));
         final Future<Map<Long, ApiPartialEntity>> entities = executorService.submit(() ->
             getEntities(actions, topologyContextId));
         Map<Long, ApiPartialEntity> entitiesById = entities.get();
@@ -266,7 +272,7 @@ public class ActionSpecMappingContextFactory {
         if (topologyContextId == realtimeTopologyContextId) {
             return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
                 volumesAspectsByEntity, cloudAspects, Collections.emptyMap(), Collections.emptyMap(),
-                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false, policiesApiDto);
+                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false, policiesApiDto.get());
         }
 
         // fetch all vm aspects
@@ -286,7 +292,7 @@ public class ActionSpecMappingContextFactory {
         final ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesById,
                 policies.get(), entityIdToRegion,
             volumesAspectsByEntity, cloudAspects, vmAspects, dbAspects,
-            buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true, policiesApiDto);
+            buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true, policiesApiDto.get());
 
         if (hasMigrationActions(actions)) {
             final Map<Long, EntityAspect> vmProjectedAspects =

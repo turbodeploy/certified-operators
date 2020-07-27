@@ -257,7 +257,6 @@ public class MarketsServiceTest {
                 .build());
 
         marketsService = new MarketsService(actionSpecMapper, uuidMapper,
-            ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             policiesService,
             PolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             PlanServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),

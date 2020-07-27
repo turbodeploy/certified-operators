@@ -35,4 +35,21 @@ public class WorkflowFilter {
     public List<Long> getDesiredTargetIds() {
         return desiredTargetIds;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof WorkflowFilter)) {
+            return false;
+        }
+        final WorkflowFilter that = (WorkflowFilter)o;
+        return Objects.equals(desiredTargetIds, that.desiredTargetIds);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(desiredTargetIds);
+    }
 }

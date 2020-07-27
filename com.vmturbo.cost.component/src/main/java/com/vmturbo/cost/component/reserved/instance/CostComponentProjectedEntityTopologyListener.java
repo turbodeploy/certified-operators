@@ -8,6 +8,8 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,6 +20,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
@@ -52,11 +56,12 @@ public class CostComponentProjectedEntityTopologyListener implements
     public void onProjectedTopologyReceived(final long projectedTopologyId,
                                             @Nonnull final TopologyInfo originalTopologyInfo,
                                             @Nonnull final RemoteIterator<ProjectedTopologyEntity>
-                                                    projectedTopo) {
+                                                    projectedTopo,
+                                            @Nonnull final SpanContext tracingContext) {
         logger.info("Received projected entities for topologyId {}", projectedTopologyId);
         try {
             onProjectedTopologyReceivedInternal(projectedTopologyId, originalTopologyInfo,
-                    projectedTopo);
+                    projectedTopo, tracingContext);
         } catch (CommunicationException | InterruptedException e) {
             logger.error("Failed to process the projected topology that was received " +
                     projectedTopologyId, e);
@@ -66,7 +71,8 @@ public class CostComponentProjectedEntityTopologyListener implements
     private void onProjectedTopologyReceivedInternal(long projectedTopologyId,
                                                     TopologyInfo originalTopologyInfo,
                                                     @Nonnull final RemoteIterator<ProjectedTopologyEntity>
-                                                            projectedTopo)
+                                                            projectedTopo,
+                                                    @Nonnull final SpanContext tracingContext)
             throws CommunicationException, InterruptedException {
         updateLatestKnownProjectedTopologyId(projectedTopologyId);
 
@@ -85,12 +91,13 @@ public class CostComponentProjectedEntityTopologyListener implements
             return;
         }
 
-        if (topologyContextId != realtimeTopologyContextId) {
-            handlePlanProjectedTopology(projectedTopologyId, originalTopologyInfo, projectedTopo);
-        } else {
-            handleLiveProjectedTopology(projectedTopologyId, originalTopologyInfo, projectedTopo);
+        try (TracingScope scope = Tracing.trace("cost_handle_projected_topology", tracingContext)) {
+            if (topologyContextId != realtimeTopologyContextId) {
+                handlePlanProjectedTopology(projectedTopologyId, originalTopologyInfo, projectedTopo);
+            } else {
+                handleLiveProjectedTopology(projectedTopologyId, originalTopologyInfo, projectedTopo);
+            }
         }
-
     }
 
     private void handlePlanProjectedTopology(final long projectedTopologyId,

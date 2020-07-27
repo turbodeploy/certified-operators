@@ -61,7 +61,6 @@ import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
@@ -162,11 +161,7 @@ public class TargetsService implements ITargetsService {
 
     private final ActionSpecMapper actionSpecMapper;
 
-    private final ActionsServiceBlockingStub actionOrchestratorRpc;
-
     private final ActionSearchUtil actionSearchUtil;
-
-    private final long realtimeTopologyContextId;
 
     private final ApiWebsocketHandler apiWebsocketHandler;
 
@@ -183,7 +178,6 @@ public class TargetsService implements ITargetsService {
             @Nonnull final ApiComponentTargetListener apiComponentTargetListener,
             @Nonnull final RepositoryApi repositoryApi,
             @Nonnull final ActionSpecMapper actionSpecMapper,
-            @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
             @Nonnull final ActionSearchUtil actionSearchUtil,
             final long realtimeTopologyContextId,
             @Nonnull final ApiWebsocketHandler apiWebsocketHandler,
@@ -197,9 +191,7 @@ public class TargetsService implements ITargetsService {
         this.apiComponentTargetListener = Objects.requireNonNull(apiComponentTargetListener);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
-        this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
         this.allowTargetManagement = allowTargetManagement;
         logger.debug("Created TargetsService with topology processor instance {}",

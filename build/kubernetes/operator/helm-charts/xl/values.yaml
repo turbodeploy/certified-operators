@@ -115,14 +115,15 @@ grafana:
       user: grafana_backend
 chronograf:
   enabled: false
-jaeger:
+jaeger-operator:
   enabled: false
-  provisionDataStore:
-    cassandra: true
-    elasticsearch: false
-  cassandra:
-    config:
-      dc_name: dc1
+  jaeger:
+    create: true
+    spec:
+      storage:
+        options:
+          memory:
+            max-traces: 100000
 datacloud:
   enabled: false
 intersight-integration:

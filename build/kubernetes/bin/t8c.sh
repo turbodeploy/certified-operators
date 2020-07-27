@@ -428,6 +428,8 @@ then
     echo "${externalTimescaleDB}"
   else
     /opt/local/bin/configure_timescaledb.sh
+    # Create mount point for both pgsql and mariadb
+    /opt/local/bin/switch_dbs_mount_point.sh
   fi
 
   # Create the operator

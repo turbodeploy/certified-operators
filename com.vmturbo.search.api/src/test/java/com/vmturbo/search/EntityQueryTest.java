@@ -62,7 +62,7 @@ import com.vmturbo.api.dto.searchquery.WhereApiDTO;
 import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
-import com.vmturbo.extractor.schema.enums.EntitySeverity;
+import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.tables.SearchEntity;
 import com.vmturbo.search.AbstractSearchQuery.SortedOnColumn;
 import com.vmturbo.search.mappers.EntityTypeMapper;
@@ -105,7 +105,7 @@ public class EntityQueryTest {
      */
     public static EntityQueryApiDTO basicRequestForEntityType(EntityType entityType) {
         SelectEntityApiDTO selectEntity =
-                SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE).build();
+                SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine).build();
         return EntityQueryApiDTO.queryEntity(selectEntity);
     }
 
@@ -115,10 +115,10 @@ public class EntityQueryTest {
     @Test
     public void buildSelectFieldsWithNoExtraFieldsSpecified() {
         //GIVEN
-        final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.VIRTUAL_MACHINE);
+        final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.VirtualMachine);
         EntityQuery query = entityQuery(request);
 
-        Map<FieldApiDTO, SearchMetadataMapping> mappings = SearchEntityMetadata.VIRTUAL_MACHINE.getMetadataMappingMap();
+        Map<FieldApiDTO, SearchMetadataMapping> mappings = SearchEntityMetadata.VirtualMachine.getMetadataMappingMap();
         //WHEN
         Set<String> fields =
                 query.buildSelectFields().stream().map(Field::getName).collect(Collectors.toSet());
@@ -135,7 +135,7 @@ public class EntityQueryTest {
     @Test
     public void getPrimitiveFieldsWithEmptyFields() {
         //GIVEN
-        final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.VIRTUAL_MACHINE);
+        final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.VirtualMachine);
         EntityQuery query = entityQuery(request);
 
         //WHEN
@@ -151,10 +151,10 @@ public class EntityQueryTest {
     @Test
     public void getFieldsWithPrimitiveTextFields() {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO primitiveEntityField = getAnyEntityKeyField(type, PrimitiveFieldApiDTO.class, null);
 
-        SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE)
+        SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
                 .fields(primitiveEntityField, primitiveEntityField).build();
 
 
@@ -178,7 +178,7 @@ public class EntityQueryTest {
         //GIVEN
         PrimitiveFieldApiDTO severityField = PrimitiveFieldApiDTO.severity();
 
-        SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE)
+        SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
                 .fields(severityField, severityField, // Test to make sure duplicate removed
                         severityField // Test to make sure duplicate removed
                 )
@@ -227,7 +227,7 @@ public class EntityQueryTest {
     @Test
     public void getPrimitiveFieldsWithCommodityFields() {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO commodityField = getAnyEntityKeyField(type, CommodityFieldApiDTO.class, null);
         final SelectEntityApiDTO selectEntity =
                 SelectEntityApiDTO.selectEntity(type).fields(commodityField).build();
@@ -250,7 +250,7 @@ public class EntityQueryTest {
     @Test
     public void getPrimitiveFieldsWithRelatedEntityFields() {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO relatedEntityField = getAnyEntityKeyField(type, RelatedEntityFieldApiDTO.class, null);
         final SelectEntityApiDTO selectEntity =
                 SelectEntityApiDTO.selectEntity(type).fields(relatedEntityField).build();
@@ -278,13 +278,13 @@ public class EntityQueryTest {
     @Test
     public void processEntityQuery() throws SearchQueryFailedException {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
         final FieldApiDTO primitiveTextField = PrimitiveFieldApiDTO.primitive("guestOsType");
         final FieldApiDTO commodityNumericField = getAnyEntityKeyField(type, CommodityFieldApiDTO.class, Type.NUMBER);
         final FieldApiDTO relatedEntityMultiTextField = getAnyEntityKeyField(type, RelatedEntityFieldApiDTO.class, Type.MULTI_TEXT);
 
-        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE)
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
                 .fields(primitiveOid, primitiveTextField, commodityNumericField,
                         // Test to make sure duplicate removed
                         relatedEntityMultiTextField)
@@ -293,10 +293,10 @@ public class EntityQueryTest {
         EntityQuery query = entityQuery(request);
 
         //Jooq Fields for building results
-        final Field oidField = query.buildAndTrackSelectFieldFromEntityType(primitiveOid);
-        final Field primitive = query.buildAndTrackSelectFieldFromEntityType(primitiveTextField);
-        final Field commodity = query.buildAndTrackSelectFieldFromEntityType(commodityNumericField);
-        final Field relateEntity = query.buildAndTrackSelectFieldFromEntityType(relatedEntityMultiTextField);
+        final Field oidField = query.buildFieldForApiField(primitiveOid, true);
+        final Field primitive = query.buildFieldForApiField(primitiveTextField, true);
+        final Field commodity = query.buildFieldForApiField(commodityNumericField, true);
+        final Field relateEntity = query.buildFieldForApiField(relatedEntityMultiTextField, true);
         //Values for jooq results
         final Long oidValue = 123L;
         final String primitiveTextValue = "primitiveTextValue";
@@ -348,7 +348,7 @@ public class EntityQueryTest {
     @Test
     public void buildWhereClauseEntityType() {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO relatedEntityField = getAnyEntityKeyField(type, RelatedEntityFieldApiDTO.class, null);
         final SelectEntityApiDTO selectEntity =
                 SelectEntityApiDTO.selectEntity(type).fields(relatedEntityField).build();
@@ -373,9 +373,9 @@ public class EntityQueryTest {
     public void buildWhereClauseTextConditionEnum() {
         //GIVEN
         TextConditionApiDTO enumCondition =
-                PrimitiveFieldApiDTO.severity().like(EntitySeverity.CRITICAL.getLiteral());
+                PrimitiveFieldApiDTO.severity().like(Severity.CRITICAL.getLiteral());
 
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO relatedEntityField = getAnyEntityKeyField(type, RelatedEntityFieldApiDTO.class, null);
         final WhereApiDTO where = WhereApiDTO.where().and(enumCondition).build();
         final SelectEntityApiDTO selectEntity =
@@ -404,7 +404,7 @@ public class EntityQueryTest {
         TextConditionApiDTO enumCondition =
                 PrimitiveFieldApiDTO.primitive("guestOsType").like("foobar");
 
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO relatedEntityField = getAnyEntityKeyField(type, RelatedEntityFieldApiDTO.class, null);
         final WhereApiDTO where = WhereApiDTO.where().and(enumCondition).build();
         final SelectEntityApiDTO selectEntity =
@@ -433,7 +433,7 @@ public class EntityQueryTest {
         String[] states = {"ACTIVE", "IDLE"};
         InclusionConditionApiDTO enumCondition = PrimitiveFieldApiDTO.entityState().in(states);
 
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final WhereApiDTO where = WhereApiDTO.where().and(enumCondition).build();
         final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(type)
                 .fields(PrimitiveFieldApiDTO.entityState())
@@ -458,7 +458,7 @@ public class EntityQueryTest {
     @Test
     public void buildWhereClauseNumberCondition() {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO commodityField = CommodityFieldApiDTO.used(CommodityType.VCPU);
         Double doubleValue = 98.89;
         NumberConditionApiDTO numberConditionApiDTO = commodityField.eq(doubleValue);
@@ -484,8 +484,8 @@ public class EntityQueryTest {
     @Test
     public void buildWhereClauseIntegerCondition() {
         //GIVEN
-        final EntityType type = EntityType.PHYSICAL_MACHINE;
-        final FieldApiDTO commodityField = RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE);
+        final EntityType type = EntityType.PhysicalMachine;
+        final FieldApiDTO commodityField = RelatedEntityFieldApiDTO.entityCount(EntityType.VirtualMachine);
         Long longValue = 98L;
         IntegerConditionApiDTO integerConditionApiDTO = commodityField.eq(longValue);
         final WhereApiDTO where = WhereApiDTO.where().and(integerConditionApiDTO).build();
@@ -526,7 +526,7 @@ public class EntityQueryTest {
         SearchMetadataMapping columnMetadata = SearchMetadataMapping.COMMODITY_CPU_USED;
         FieldApiDTO fieldApiDto = CommodityFieldApiDTO.used(CommodityType.CPU);
 
-        final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.PHYSICAL_MACHINE);
+        final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.PhysicalMachine);
         EntityQuery querySpy = spy(entityQuery(request));
         querySpy.metadataMapping = mock(Map.class);
 
@@ -550,7 +550,7 @@ public class EntityQueryTest {
     @Test(expected = IllegalArgumentException.class)
     public void testErrorThrownOnInvalidSelectFieldDtoRequest() {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO nonVmField = PrimitiveFieldApiDTO.primitive("Cant touch this");
         final SelectEntityApiDTO selectEntity =
                 SelectEntityApiDTO.selectEntity(type).fields(nonVmField).build();
@@ -567,7 +567,7 @@ public class EntityQueryTest {
     @Test(expected = IllegalArgumentException.class)
     public void testErrorThrownOnInvalidWhereFieldDtoRequest() {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final TextConditionApiDTO invalidTextCondition =
                 PrimitiveFieldApiDTO.primitive("Cant touch this").like("foo");
         final WhereApiDTO whereEntity = WhereApiDTO.where().and(invalidTextCondition).build();
@@ -588,7 +588,7 @@ public class EntityQueryTest {
     @Test
     public void mapRecordToValueReturnsEntityTypeApiEnum() {
         //GIVEN
-        final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.VIRTUAL_MACHINE);
+        final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.VirtualMachine);
         EntityQuery query = entityQuery(request);
 
         com.vmturbo.extractor.schema.enums.EntityType recordValue = com.vmturbo.extractor.schema.enums.EntityType.VIRTUAL_MACHINE;
@@ -609,7 +609,7 @@ public class EntityQueryTest {
     public void defaultSortApplied() {
         //GIVEN
         SelectEntityApiDTO selectEntity =
-                SelectEntityApiDTO.selectEntity(EntityType.PHYSICAL_MACHINE).build();
+                SelectEntityApiDTO.selectEntity(EntityType.PhysicalMachine).build();
         final EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity);
         EntityQuery query = entityQuery(request);
 
@@ -618,8 +618,8 @@ public class EntityQueryTest {
 
         //THEN
         assertTrue(sortFields.size() == 2);
-        final String nameSort = "\"extractor\".\"search_entity\".\"name\" asc";
-        final String oidSort = "\"extractor\".\"search_entity\".\"oid\" asc";
+        final String nameSort = "\"extractor\".\"search_entity\".\"name\" asc nulls first";
+        final String oidSort = "\"extractor\".\"search_entity\".\"oid\" asc nulls first";
         assertTrue(containsSort(sortFields, nameSort));
         assertTrue(containsSort(sortFields, oidSort));
 
@@ -633,9 +633,9 @@ public class EntityQueryTest {
     public void sortFieldsAppliedAndCast() {
         //GIVEN
         SelectEntityApiDTO selectEntity =
-                SelectEntityApiDTO.selectEntity(EntityType.PHYSICAL_MACHINE).build();
+                SelectEntityApiDTO.selectEntity(EntityType.PhysicalMachine).build();
 
-        FieldApiDTO integerFieldApiDTO = RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE);
+        FieldApiDTO integerFieldApiDTO = RelatedEntityFieldApiDTO.entityCount(EntityType.VirtualMachine);
         FieldApiDTO doubleFieldApiDTO = CommodityFieldApiDTO.weightedHistoricalUtilization(CommodityType.MEM);
         OrderByApiDTO orderByIntegerField = OrderByApiDTO.asc(integerFieldApiDTO);
         OrderByApiDTO orderByDoubleField = OrderByApiDTO.desc(doubleFieldApiDTO);
@@ -650,9 +650,9 @@ public class EntityQueryTest {
 
         //THEN
         assertTrue(sortFields.size() == 3);
-        final String integerSort = "cast(attrs->>'num_vms' as bigint) asc";
-        final String doubleSort = "cast(attrs->>'mem_hist_utilization' as double) desc";
-        final String defaultOidField = "\"extractor\".\"search_entity\".\"oid\" asc";
+        final String integerSort = "cast(attrs->>'num_vms' as bigint) asc nulls first";
+        final String doubleSort = "cast(attrs->>'mem_hist_utilization' as double) desc nulls last";
+        final String defaultOidField = "\"extractor\".\"search_entity\".\"oid\" asc nulls first";
         assertTrue(containsSort(sortFields, integerSort));
         assertTrue(containsSort(sortFields, doubleSort));
         assertTrue(containsSort(sortFields, defaultOidField));
@@ -665,9 +665,9 @@ public class EntityQueryTest {
     public void buildSelectAddsOrderByFields() {
         //GIVEN
         SelectEntityApiDTO selectEntity =
-                SelectEntityApiDTO.selectEntity(EntityType.PHYSICAL_MACHINE).build();
+                SelectEntityApiDTO.selectEntity(EntityType.PhysicalMachine).build();
 
-        FieldApiDTO integerFieldApiDTO = RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE);
+        FieldApiDTO integerFieldApiDTO = RelatedEntityFieldApiDTO.entityCount(EntityType.VirtualMachine);
         FieldApiDTO doubleFieldApiDTO = CommodityFieldApiDTO.weightedHistoricalUtilization(CommodityType.MEM);
         OrderByApiDTO orderByIntegerField = OrderByApiDTO.asc(integerFieldApiDTO);
         OrderByApiDTO orderByDoubleField = OrderByApiDTO.desc(doubleFieldApiDTO);
@@ -682,9 +682,9 @@ public class EntityQueryTest {
 
         //THEN
         assertNotNull(fields);
-        assertTrue(fields.contains("cast(attrs->>'num_vms' as bigint) asc"));
-        assertTrue(fields.contains("cast(attrs->>'mem_hist_utilization' as double) desc"));
-        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"oid\" asc"));
+        assertTrue(fields.contains("cast(attrs->>'num_vms' as bigint) asc nulls first"));
+        assertTrue(fields.contains("cast(attrs->>'mem_hist_utilization' as double) desc nulls last"));
+        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"oid\" asc nulls first"));
 
         Set<String> sortTrackers = query.sortedOnColumns.stream().map(SortedOnColumn::getField).map(Field::toString).collect(Collectors.toSet());
         assertTrue(sortTrackers.contains("cast(attrs->>'num_vms' as bigint)"));
@@ -698,7 +698,7 @@ public class EntityQueryTest {
     @Test
     public void buildSelectAddsDefaultOrderByFields() {
         //GIVEN
-        final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.VIRTUAL_MACHINE);
+        final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.VirtualMachine);
         EntityQuery query = entityQuery(request);
 
         //WHEN
@@ -707,9 +707,9 @@ public class EntityQueryTest {
         //THEN
         assertNotNull(fields);
         //Added by default
-        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"name\" asc"));
+        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"name\" asc nulls first"));
         //Added by default
-        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"oid\" asc"));
+        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"oid\" asc nulls first"));
 
         Set<String> sortTrackers = query.sortedOnColumns.stream().map(SortedOnColumn::getField).map(Field::toString).collect(Collectors.toSet());
         assertTrue("Default sortBy oid should have been added", sortTrackers.contains("\"extractor\".\"search_entity\".\"name\""));
@@ -731,10 +731,10 @@ public class EntityQueryTest {
     @Test
     public void testPaginationCursorResults() throws SearchQueryFailedException {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
         final FieldApiDTO primitiveName = PrimitiveFieldApiDTO.name();
-        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE)
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
                 .fields(primitiveOid, primitiveName)
                 .build();
 
@@ -786,13 +786,13 @@ public class EntityQueryTest {
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
         final FieldApiDTO primitiveName = PrimitiveFieldApiDTO.name();
         final FieldApiDTO commodityDoubleField = CommodityFieldApiDTO.capacity(CommodityType.VMEM);
-        final FieldApiDTO relatedEntityFieldApiDTOMultiText = RelatedEntityFieldApiDTO.entityNames(EntityType.DISKARRAY);
+        final FieldApiDTO relatedEntityFieldApiDTOMultiText = RelatedEntityFieldApiDTO.entityNames(EntityType.DiskArray);
 
         OrderByApiDTO orderByRelatedEntity = OrderByApiDTO.asc(relatedEntityFieldApiDTOMultiText);
         OrderByApiDTO orderByCommodity = OrderByApiDTO.desc(commodityDoubleField);
         OrderByApiDTO orderByPrimitiveName = OrderByApiDTO.desc(primitiveName);
 
-        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE)
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
                 .fields(primitiveOid, primitiveName)
                 .build();
 
@@ -846,11 +846,11 @@ public class EntityQueryTest {
     @Test
     public void testPaginationNullCursor() throws SearchQueryFailedException {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
         final FieldApiDTO primitiveName = PrimitiveFieldApiDTO.name();
 
-        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE)
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
                 .fields(primitiveOid, primitiveName)
                 .build();
 
@@ -898,13 +898,13 @@ public class EntityQueryTest {
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
         final FieldApiDTO primitiveName = PrimitiveFieldApiDTO.name();
         final FieldApiDTO commodityDoubleField = CommodityFieldApiDTO.capacity(CommodityType.VMEM);
-        final FieldApiDTO relatedEntityFieldApiDTOMultiText = RelatedEntityFieldApiDTO.entityNames(EntityType.DISKARRAY);
+        final FieldApiDTO relatedEntityFieldApiDTOMultiText = RelatedEntityFieldApiDTO.entityNames(EntityType.DiskArray);
 
         OrderByApiDTO orderByRelatedEntity = OrderByApiDTO.asc(relatedEntityFieldApiDTOMultiText);
         OrderByApiDTO orderByCommodity = OrderByApiDTO.desc(commodityDoubleField);
         OrderByApiDTO orderByPrimitiveName = OrderByApiDTO.desc(primitiveName);
 
-        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE)
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
                 .fields(primitiveOid, primitiveName)
                 .build();
 
@@ -945,10 +945,10 @@ public class EntityQueryTest {
                 + "      and cast(attrs->>'vmem_capacity' as double precision) = 34.555\n"
                 + "      and \"extractor\".\"search_entity\".\"name\" = 'walter'\n"
                 + "      and \"extractor\".\"search_entity\".\"oid\" > 123\n" + "    )\n" + "  )\n"
-                + ")\n" + "order by \n" + "  cast(attrs->>'related_diskarray' as varchar) asc, \n"
-                + "  cast(attrs->>'vmem_capacity' as double precision) desc, \n"
-                + "  \"extractor\".\"search_entity\".\"name\" desc, \n"
-                + "  \"extractor\".\"search_entity\".\"oid\" asc\n" + "limit 2";
+                + ")\n" + "order by \n" + "  cast(attrs->>'related_diskarray' as varchar) asc nulls first, \n"
+                + "  cast(attrs->>'vmem_capacity' as double precision) desc nulls last, \n"
+                + "  \"extractor\".\"search_entity\".\"name\" desc nulls last, \n"
+                + "  \"extractor\".\"search_entity\".\"oid\" asc nulls first\n" + "limit 2";
         assertTrue(paginatedQuery.toString().equals(expectedQuery));
     }
 
@@ -969,7 +969,7 @@ public class EntityQueryTest {
 
         OrderByApiDTO orderByCommodity = OrderByApiDTO.asc(commodityDoubleField);
 
-        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE)
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
                 .fields(primitiveOid, commodityDoubleField)
                 .build();
 
@@ -997,8 +997,8 @@ public class EntityQueryTest {
                 + "  \"extractor\".\"search_entity\".\"type\" = 'VIRTUAL_MACHINE'\n"
                 + "  and (cast(attrs->>'vmem_capacity' as double precision), \"extractor\".\"search_entity\".\"oid\") < (34.555, 123)\n"
                 + ")\n" + "order by \n"
-                + "  cast(attrs->>'vmem_capacity' as double precision) desc, \n"
-                + "  \"extractor\".\"search_entity\".\"oid\" desc\n" + "limit 2";
+                + "  cast(attrs->>'vmem_capacity' as double precision) desc nulls last, \n"
+                + "  \"extractor\".\"search_entity\".\"oid\" desc nulls last\n" + "limit 2";
         assertTrue(paginatedQuery.toString().equals(expectedQuery));
     }
 
@@ -1009,11 +1009,11 @@ public class EntityQueryTest {
     @Test
     public void testNextPage() throws SearchQueryFailedException {
         //GIVEN
-        final EntityType type = EntityType.VIRTUAL_MACHINE;
+        final EntityType type = EntityType.VirtualMachine;
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
         final FieldApiDTO primitiveName = PrimitiveFieldApiDTO.name();
 
-        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE)
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
                 .fields(primitiveOid, primitiveName)
                 .build();
         final Long oidValue = 123L;
@@ -1072,7 +1072,7 @@ public class EntityQueryTest {
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
         final FieldApiDTO primitiveName = PrimitiveFieldApiDTO.name();
 
-        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE)
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
                 .fields(primitiveOid, primitiveName)
                 .build();
         final Long oidValue = 123L;
@@ -1137,7 +1137,7 @@ public class EntityQueryTest {
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
         final FieldApiDTO primitiveName = PrimitiveFieldApiDTO.name();
 
-        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VIRTUAL_MACHINE)
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
                 .fields(primitiveOid, primitiveName)
                 .build();
         final Long oidValue = 123L;

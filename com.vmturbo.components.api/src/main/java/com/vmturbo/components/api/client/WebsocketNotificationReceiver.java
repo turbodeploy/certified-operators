@@ -10,7 +10,6 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -18,6 +17,8 @@ import javax.annotation.Nullable;
 import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.Empty;
+
+import io.opentracing.SpanContext;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,6 +29,7 @@ import com.vmturbo.communication.ConnectionConfig;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.communication.ITransport.EventHandler;
 import com.vmturbo.communication.WebSocketClientTransport;
+import com.vmturbo.components.api.tracing.Tracing;
 
 /**
  * Implementation of {@link IMessageReceiver} using WebSockets to await messages.
@@ -39,7 +41,7 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
 
     private final Logger logger = LogManager.getLogger(getClass());
     private final Deserializer<T> deserializer;
-    private final Collection<BiConsumer<T, Runnable>> listeners = new CopyOnWriteArrayList<>();
+    private final Collection<TriConsumer<T, Runnable, SpanContext>> listeners = new CopyOnWriteArrayList<>();
     private final Future<?> initializationTask;
 
     private ITransport<Empty, T> endpoint;
@@ -112,11 +114,13 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
 
     private void processMessage(@Nonnull T message) throws IOException {
         // Websockets right now do not support message committing
-        listeners.forEach(listener -> listener.accept(message, () -> {}));
+        // or distributed tracing
+        listeners.forEach(listener -> listener.accept(message, () -> { },
+            Tracing.trace("websocket_msg").spanContext()));
     }
 
     @Override
-    public void addListener(@Nonnull BiConsumer<T, Runnable> listener) {
+    public void addListener(@Nonnull TriConsumer<T, Runnable, SpanContext> listener) {
         listeners.add(listener);
     }
 

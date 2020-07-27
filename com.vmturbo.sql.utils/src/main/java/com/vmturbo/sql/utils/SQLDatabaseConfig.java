@@ -177,7 +177,8 @@ public abstract class SQLDatabaseConfig {
             // And dynamically set schema name in the constructed JDBC connection URL to support
             // multi-tenant database.
             .withRenderSchema(false));
-        jooqConfiguration.set(new DefaultExecuteListenerProvider(exceptionTranslator()));
+        jooqConfiguration.set(new DefaultExecuteListenerProvider(exceptionTranslator()),
+            JooqTracingInterceptor::new);
 
         SQLDialect dialect = SQLDialect.valueOf(sqlDialectName);
         jooqConfiguration.set(dialect);

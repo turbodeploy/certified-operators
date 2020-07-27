@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
  * Configuration of {@link DbEndpoint} needed for component.
@@ -19,11 +20,14 @@ import com.vmturbo.sql.utils.DbEndpoint;
  * Initialization occurs in ApiComponent.onStartComponent()</p>
  */
 @Configuration
-@Import({ExtractorDbBaseConfig.class})
+@Import({ExtractorDbBaseConfig.class, SQLDatabaseConfig2.class})
 public class SearchDBConfig {
 
     @Autowired
     private ExtractorDbBaseConfig extractorDbBaseConfig;
+
+    @Autowired
+    private SQLDatabaseConfig2 dbConfig;
 
     @Value("${enableSearchApi:false}")
     private boolean enableSearchApi;
@@ -36,7 +40,7 @@ public class SearchDBConfig {
 
     @Bean
     DbEndpoint queryEndpoint() {
-        return DbEndpoint.secondaryDbEndpoint(QUERY_ENDPOINT_TAG, SQLDialect.POSTGRES)
+        return dbConfig.secondaryDbEndpoint(QUERY_ENDPOINT_TAG, SQLDialect.POSTGRES)
                 .like(extractorDbBaseConfig.ingesterEndpointBase())
                 // extractor component is responsible for provisioning
                 .withDbShouldProvision(false)

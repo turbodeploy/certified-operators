@@ -53,6 +53,8 @@ import com.vmturbo.search.mappers.EntityStateMapper;
 import com.vmturbo.search.mappers.EntityTypeMapper;
 import com.vmturbo.search.mappers.EnvironmentTypeMapper;
 import com.vmturbo.search.mappers.GroupTypeMapper;
+import com.vmturbo.search.metadata.SearchEntityMetadata;
+import com.vmturbo.search.metadata.SearchGroupMetadata;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
@@ -60,7 +62,16 @@ import com.vmturbo.search.metadata.SearchMetadataMapping;
  */
 public abstract class AbstractSearchQuery extends AbstractQuery {
 
-
+    /**
+     * Provides a mapping from EntityType(string) -> SearchEntityMetadata.
+     */
+    public static final EnumMapper<SearchEntityMetadata> SEARCH_ENTITY_METADATA_ENUM_MAPPER =
+        new EnumMapper<>(SearchEntityMetadata.class);
+    /**
+     * Provides a mapping from GroupType(string) -> SearchEntityMetadata.
+     */
+    public static final EnumMapper<SearchGroupMetadata> SEARCH_GROUP_METADATA_ENUM_MAPPER =
+        new EnumMapper<>(SearchGroupMetadata.class);
     /**
      * Default limit of results to return in search queries when not specified.
      */
@@ -70,11 +81,6 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
      * Max number of results allowed to be returned in search queries.
      */
     private int maxLimit;
-
-    /**
-     * String representing request type {@link com.vmturbo.api.enums.GroupType} or {@link com.vmturbo.api.enums.EntityType}.
-     */
-    private final String type;
 
     /**
      * Select clause parsed from user request.
@@ -89,7 +95,7 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
     /**
      * SortBy fields parsed from user request.  LinkedHashSet preserves insertion order
      */
-    private LinkedHashSet<SortField<?>> orderBy = null;
+    protected LinkedHashSet<SortField<?>> orderBy = null;
 
     /**
      * Tracks sorted on columns, used to create cursor conditions and read results.
@@ -119,15 +125,13 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
 
     /**
      * Creates a query to retrieve data from the search db.
-     * @param type the entity or group type associated with this query
      * @param readOnlyDSLContext a context for making read-only database queries
      * @param defaultLimit default limit of results to return
      * @param maxLimit max number of results to return
      */
-    protected AbstractSearchQuery(@NonNull String type, @NonNull final DSLContext readOnlyDSLContext,
+    protected AbstractSearchQuery(@NonNull final DSLContext readOnlyDSLContext,
             final int defaultLimit, final int maxLimit) {
         super(readOnlyDSLContext);
-        this.type = Objects.requireNonNull(type);
         this.defaultLimit = defaultLimit;
         this.maxLimit = maxLimit;
     }
@@ -219,17 +223,7 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
     }
 
     @Override
-    protected Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping() {
-        return lookupMetadataMapping(getType());
-    }
-
-    /**
-     * Retrieves a metadata mapping based on a metadata key from the API request.
-     *
-     * @param type the entity or group type associated with this query
-     * @return a mapping of FieldApiDTO -> metadata mapping describing that field
-     */
-    protected abstract Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping(String type);
+    protected abstract Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping();
 
     protected abstract List<Condition> buildTypeSpecificConditions();
 
@@ -242,8 +236,15 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
     @Nullable
     protected abstract PaginationApiDTO getPaginationApiDto();
 
+    /**
+     * Gets {@link OrderByApiDTO} from Api request.
+     * @return list of {@link OrderByApiDTO}
+     */
     @NonNull
-    protected abstract List<OrderByApiDTO> getOrderBy();
+    protected List<OrderByApiDTO> getOrderBy() {
+        PaginationApiDTO pag = getPaginationApiDto();
+        return pag == null ? Collections.emptyList() : pag.getOrderBy();
+    }
 
     /**
      * Build where {@link Condition}s.
@@ -327,8 +328,9 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
         return limit + 1; //We add extra limit for nextCursor
     }
 
+    @NonNull
     @VisibleForTesting
-    LinkedHashSet<SortField<?>> buildOrderByFields() {
+    protected LinkedHashSet<SortField<?>> buildOrderByFields() {
         if (this.orderBy == null) {
             //LinkedHashSet to maintain order of insertions
             final LinkedHashSet<SortField<?>> sortFields = new LinkedHashSet<>();
@@ -523,7 +525,7 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
         return SearchPaginationUtil.constructPreviousCursor(cursorValues);
     }
 
-    private List<Condition> buildGenericConditions() {
+    protected List<Condition> buildGenericConditions() {
         final WhereApiDTO whereEntity = getWhere();
         if (whereEntity == null) {
             return Collections.EMPTY_LIST;
@@ -665,10 +667,6 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
         return condition;
     }
 
-    private String getType() {
-        return type;
-    }
-
     /**
      * Get {@link Field} configuration for entityField from mappings.
      *
@@ -693,7 +691,10 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
         Field<?> field = buildFieldForApiField(apiField, false);
         SortOrder cursorConsideredSortOrder = getSortOrderBasedOnCursor(sortOrder);
         trackSortedOnFields(columnMetadata, field, cursorConsideredSortOrder);
-        return field.sort(cursorConsideredSortOrder);
+        SortField<?> sortField = field.sort(cursorConsideredSortOrder);
+        //Sorting descending order, we want null values to appear last
+        return cursorConsideredSortOrder.equals(SortOrder.DESC)
+                ? sortField.nullsLast() : sortField.nullsFirst();
     }
 
     /**

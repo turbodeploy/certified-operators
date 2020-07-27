@@ -388,10 +388,10 @@ public class Table {
          * @param includedColumns names of columns to include in the hash calculation
          * @return hash value
          */
-        public long getXxHash(Set<String> includedColumns) {
+        public long getXxHash(Set<Column<?>> includedColumns) {
             final StreamingXXHash64 hash64 = HashUtil.XX_HASH_FACTORY.newStreamingHash64(HashUtil.XX_HASH_SEED);
             tableWriter.getColumns().stream()
-                    .filter(c -> includedColumns.contains(c.getName()))
+                    .filter(includedColumns::contains)
                     .map(c -> c.toHashValue(values.get(c)))
                     // empty byte arrays cause problems in at least the unsafe java xxhash impl
                     .filter(ba -> ba.length > 0)

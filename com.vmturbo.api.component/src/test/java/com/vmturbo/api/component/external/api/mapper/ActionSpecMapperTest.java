@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -184,6 +185,10 @@ public class ActionSpecMapperTest {
     private static final String SCHEDULE_DISPLAY_NAME = "DailySchedule";
     private static final String ACCEPTING_USER = "administrator";
 
+    private static final String EXTERNAL_NAME = "CHG0030039";
+    private static final String EXTERNAL_URL =
+        "https://dev77145.service-now.com/change_request.do?sys_id=ee362595db02101093ac84da0b9619d9";
+
     private ActionSpecMapper mapper;
 
     private PoliciesService policiesService = mock(PoliciesService.class);
@@ -301,6 +306,15 @@ public class ActionSpecMapperTest {
                 REAL_TIME_TOPOLOGY_CONTEXT_ID, uuidMapper);
     }
 
+    /**
+     * Should translate a move action from action orchestartor to ActionApiDTO.
+     *
+     * <p>The external name and URL are not set because the action is not externally approved. As a
+     * result, there should be no errors and the ActionApiDTO should also have null external name and
+     * url.</p>
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testMapMove() throws Exception {
         ActionInfo moveInfo = getHostMoveActionInfo();
@@ -331,6 +345,10 @@ public class ActionSpecMapperTest {
 
         // Validate that the importance value is 0
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
+
+        // no external url
+        assertEquals(null, actionApiDTO.getExternalActionName());
+        assertEquals(null, actionApiDTO.getExternalActionName());
     }
 
     /**
@@ -409,10 +427,14 @@ public class ActionSpecMapperTest {
 
     /**
      * Test mapping of scheduled automated scale.
+     *
+     * <p>The action spec also sets the external URL and name. Those should be copied to the
+     * ActionApiDTO.</p>
+     *
      * @throws Exception in case of mapping error.
      */
     @Test
-    public void testMapScheduledScaleAutomated() throws Exception {
+    public void testMapScheduledExternalScaleAutomated() throws Exception {
         final ActionInfo scaleInfo = getScaleActionInfo();
         final Explanation explanation = Explanation.newBuilder()
             .setScale(ScaleExplanation.newBuilder()
@@ -435,7 +457,9 @@ public class ActionSpecMapperTest {
                 .build();
 
         ActionSpec actionSpec = buildActionSpec(scaleInfo, explanation, Optional.empty(),
-            Optional.empty(), schedule);
+            Optional.empty(), schedule,
+            EXTERNAL_NAME,
+            EXTERNAL_URL);
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
             actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -451,6 +475,10 @@ public class ActionSpecMapperTest {
         assertNull(actionScheduleApiDTO.getRemaingTimeActiveInMs());
         assertNull(actionScheduleApiDTO.getUserName());
         assertTrue(actionScheduleApiDTO.isAcceptedByUserForMaintenanceWindow());
+
+        // copy external name and url
+        assertEquals(EXTERNAL_NAME, actionApiDTO.getExternalActionName());
+        assertEquals(EXTERNAL_URL, actionApiDTO.getExternalActionUrl());
     }
 
     /**
@@ -2360,6 +2388,16 @@ public class ActionSpecMapperTest {
                                        Optional<ActionDTO.ActionDecision> decision,
                                        Optional<ActionDTO.ExecutionStep> executionStep,
                                        ActionSpec.ActionSchedule schedule) {
+        return buildActionSpec(actionInfo, explanation, decision, executionStep,
+            schedule, null, null);
+    }
+
+    private ActionSpec buildActionSpec(ActionInfo actionInfo, Explanation explanation,
+                                       Optional<ActionDTO.ActionDecision> decision,
+                                       Optional<ActionDTO.ExecutionStep> executionStep,
+                                       @Nullable ActionSpec.ActionSchedule schedule,
+                                       @Nullable String externalName,
+                                       @Nullable String externalUrl) {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
             .setRecommendationTime(System.currentTimeMillis())
             .setRecommendation(buildAction(actionInfo, explanation))
@@ -2375,6 +2413,14 @@ public class ActionSpecMapperTest {
         if (schedule != null) {
             builder.setActionSchedule(schedule);
         }
+
+        if (externalName != null) {
+            builder.setExternalActionName(externalName);
+        }
+        if (externalUrl != null) {
+            builder.setExternalActionUrl(externalUrl);
+        }
+
         return builder.build();
     }
     private Action buildAction(ActionInfo actionInfo, Explanation explanation) {

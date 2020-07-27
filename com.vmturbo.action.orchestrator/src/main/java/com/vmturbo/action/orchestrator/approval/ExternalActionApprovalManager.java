@@ -8,6 +8,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,6 +24,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
+import com.vmturbo.platform.common.dto.ActionExecution.ExternalActionInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 
 /**
@@ -41,23 +45,28 @@ public class ExternalActionApprovalManager {
      *
      * @param actionApprovalManager action approval manager
      * @param actionStoreHouse actions store house
-     * @param messageReceiver message receiver to track external accept actions
+     * @param getActionStateResponseReceiver message receiver to track external accept actions
+     * @param actionApprovalResponseReceiver message receiver to track creation of approval in
+     *                                       external system like ServiceNOW.
      * @param topologyContextId context id to retrieve action store from action store house
      * @param rejectedActionsDAO for persisting rejected actions
      */
     public ExternalActionApprovalManager(@Nonnull ActionApprovalManager actionApprovalManager,
             @Nonnull ActionStorehouse actionStoreHouse,
-            @Nonnull IMessageReceiver<GetActionStateResponse> messageReceiver,
-            long topologyContextId, @Nonnull RejectedActionsDAO rejectedActionsDAO) {
+            @Nonnull IMessageReceiver<GetActionStateResponse> getActionStateResponseReceiver,
+            @Nonnull IMessageReceiver<ActionApprovalResponse> actionApprovalResponseReceiver,
+            long topologyContextId,
+            @Nonnull RejectedActionsDAO rejectedActionsDAO) {
         this.actionApprovalManager = Objects.requireNonNull(actionApprovalManager);
         this.actionStoreHouse = Objects.requireNonNull(actionStoreHouse);
         this.topologyContextId = topologyContextId;
         this.rejectedActionsStore = Objects.requireNonNull(rejectedActionsDAO);
-        messageReceiver.addListener(this::externalActionStates);
+        getActionStateResponseReceiver.addListener(this::externalActionStates);
+        actionApprovalResponseReceiver.addListener(this::externalActionsCreated);
     }
 
     private void externalActionStates(@Nonnull GetActionStateResponse externalStates,
-            @Nonnull Runnable commit) {
+            @Nonnull Runnable commit, @Nonnull SpanContext tracingContext) {
         logger.debug("Received the following states from external action approval: {}",
                 externalStates.getActionStateMap()
                         .entrySet()
@@ -70,6 +79,8 @@ public class ExternalActionApprovalManager {
         final Optional<ActionStore> liveActionStore = actionStoreHouse.getStore(topologyContextId);
         if (!liveActionStore.isPresent()) {
             logger.info("There is no live action store yet. Skipping action approval procedure");
+            // Do not commit.run() because we did not process the response yet and are not ready
+            // to process it yet.
             return;
         }
         for (Entry<Long, ActionResponseState> entry : externalStates.getActionStateMap()
@@ -134,4 +145,47 @@ public class ExternalActionApprovalManager {
                     + "rejection is not applied.", recommendationOid);
         }
     }
+
+    private void externalActionsCreated(@Nonnull ActionApprovalResponse createdApprovalsResponse,
+                                       @Nonnull Runnable commit, @Nonnull SpanContext tracingContext) {
+        // none of the approvals were created
+        if (createdApprovalsResponse.getActionStateMap().isEmpty()) {
+            commit.run();
+            return;
+        }
+
+        final Optional<ActionStore> liveActionStoreOpt = actionStoreHouse.getStore(topologyContextId);
+        if (!liveActionStoreOpt.isPresent()) {
+            logger.info("There is no live action store yet. Skipping recording creating actions.");
+            // Do not commit.run() because we did not process the response yet and are not ready
+            // to process it yet.
+            return;
+        }
+        final ActionStore liveActionStore = liveActionStoreOpt.get();
+
+        for (Entry<Long, ExternalActionInfo> entry : createdApprovalsResponse.getActionStateMap()
+                .entrySet()) {
+            final long recommendationOid = entry.getKey();
+            final ExternalActionInfo externalActionInfo = entry.getValue();
+            final Optional<Action> actionOptional = liveActionStore.getActionByRecommendationId(recommendationOid);
+            // The action might not be recommended by the market anymore
+            if (actionOptional.isPresent()) {
+                Action action = actionOptional.get();
+                action.setExternalActionName(externalActionInfo.getShortName());
+                action.setExternalActionUrl(externalActionInfo.getUrl());
+            } else {
+                logger.debug("Action approval created in external approval with,"
+                        + " but the action was not found in the live actions store."
+                        + " oid={},"
+                        + " shortName={},"
+                        + " url={}",
+                    recommendationOid,
+                    externalActionInfo.getShortName(),
+                    externalActionInfo.getUrl());
+            }
+        }
+
+        commit.run();
+    }
+
 }
