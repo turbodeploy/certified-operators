@@ -104,7 +104,7 @@ public class UdtProbeTest {
      */
     @Test
     public void testCreateConnection() {
-        ConnectionProperties props = new ConnectionProperties("group", "repository", "tp", 9001, 300);
+        ConnectionProperties props = new ConnectionProperties("group", "repository", 9001, 300);
         UdtProbe probe = new UdtProbe();
         Connection connection = probe.createProbeConnection(props);
         Assert.assertNotNull(connection);
@@ -119,11 +119,9 @@ public class UdtProbeTest {
         Connection connection = Mockito.mock(Connection.class);
         ManagedChannel groupChannel = Mockito.mock(ManagedChannel.class);
         ManagedChannel repoChannel = Mockito.mock(ManagedChannel.class);
-        ManagedChannel tpChannel = Mockito.mock(ManagedChannel.class);
         Mockito.when(connection.getGroupChannel()).thenReturn(groupChannel);
         Mockito.when(connection.getRepositoryChannel()).thenReturn(repoChannel);
-        Mockito.when(connection.getTopologyProcessorChannel()).thenReturn(tpChannel);
-        DataProvider dataProvider = probe.buildDataProvider(connection);
+        DataProvider dataProvider =  probe.buildDataProvider(connection);
         Assert.assertNotNull(dataProvider);
     }
 

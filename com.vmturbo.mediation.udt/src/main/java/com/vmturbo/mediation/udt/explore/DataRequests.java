@@ -9,24 +9,18 @@ import static com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import static com.vmturbo.common.protobuf.search.SearchProtoUtil.entityTypeFilter;
 import static com.vmturbo.common.protobuf.search.SearchableProperties.TAGS_TYPE_PROPERTY_NAME;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.GetTopologyDataDefinitionsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Class responsible for create gRpc requests used by {@link DataProvider}.
@@ -113,31 +107,5 @@ public class DataRequests {
     @Nonnull
     GetMembersRequest getGroupMembersRequest(long groupId) {
         return GetMembersRequest.newBuilder().addId(groupId).build();
-    }
-
-    /**
-     * Request: get groups by filters.
-     *
-     * @param groupFilter - filters for the request.
-     * @return an instance of {@link GetGroupsRequest}.
-     */
-    @Nonnull
-    GetGroupsRequest getGroupRequest(@Nonnull GroupFilter groupFilter) {
-        return GetGroupsRequest.newBuilder().setGroupFilter(groupFilter).build();
-    }
-
-    /**
-     * Request: get groups owners.
-     *
-     * @param groupIds - IDs of groups.
-     * @param type     - type of groups.
-     * @return an instance of {@link GetOwnersRequest}.
-     */
-    GetOwnersRequest getGroupOwnerRequest(@Nonnull Collection<Long> groupIds, @Nullable GroupType type) {
-        final GetOwnersRequest.Builder builder = GetOwnersRequest.newBuilder().addAllGroupId(groupIds);
-        if (type != null) {
-            builder.setGroupType(type);
-        }
-        return builder.build();
     }
 }

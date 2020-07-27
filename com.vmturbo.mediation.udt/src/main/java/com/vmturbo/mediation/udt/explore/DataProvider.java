@@ -30,7 +30,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -45,21 +44,17 @@ public class DataProvider {
 
     private final DataRequests requests;
     private final RequestExecutor requestExecutor;
-    private final SearchFilterResolver searchFilterResolver;
 
     /**
      * Constructor.
      *
      * @param requestExecutor - an instance of {@link RequestExecutor}.
      * @param requests        - an instance of {@link DataRequests}.
-     * @param filterResolver  - an instance of {@link SearchFilterResolver}.
      */
     @ParametersAreNonnullByDefault
-    public DataProvider(RequestExecutor requestExecutor, DataRequests requests,
-                        SearchFilterResolver filterResolver) {
+    public DataProvider(RequestExecutor requestExecutor, DataRequests requests) {
         this.requestExecutor = requestExecutor;
         this.requests = requests;
-        this.searchFilterResolver = filterResolver;
     }
 
     /**
@@ -108,9 +103,6 @@ public class DataProvider {
     @Nonnull
     @ParametersAreNonnullByDefault
     public Set<TopologyEntityDTO> searchEntities(List<SearchParameters> searchParameters) {
-        searchParameters = searchParameters.stream()
-                .map(searchFilterResolver::resolveExternalFilters)
-                .collect(Collectors.toList());
         SearchEntitiesRequest request = requests.createFilterEntityRequest(searchParameters);
         SearchEntitiesResponse response = requestExecutor.searchEntities(request);
         return response.getEntitiesList().stream()

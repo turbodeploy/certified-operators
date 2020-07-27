@@ -9,20 +9,16 @@ public class Connection {
 
     private final ManagedChannel groupChannel;
     private final ManagedChannel repositoryChannel;
-    private final ManagedChannel topologyProcessorChannel;
 
     /**
      * Constructor.
      *
      * @param groupChannel      - gRpc channel for the Group Component.
      * @param repositoryChannel - gRpc channel for the Repository Component.
-     * @param tpChannel         - gRpc channel for the TopologyProcessor Component.
      */
-    public Connection(ManagedChannel groupChannel, ManagedChannel repositoryChannel,
-                      ManagedChannel tpChannel) {
+    public Connection(ManagedChannel groupChannel, ManagedChannel repositoryChannel) {
         this.groupChannel = groupChannel;
         this.repositoryChannel = repositoryChannel;
-        this.topologyProcessorChannel = tpChannel;
     }
 
     /**
@@ -31,7 +27,6 @@ public class Connection {
     public void release() {
         groupChannel.shutdownNow();
         repositoryChannel.shutdownNow();
-        topologyProcessorChannel.shutdownNow();
     }
 
     public ManagedChannel getGroupChannel() {
@@ -40,9 +35,5 @@ public class Connection {
 
     public ManagedChannel getRepositoryChannel() {
         return repositoryChannel;
-    }
-
-    public ManagedChannel getTopologyProcessorChannel() {
-        return topologyProcessorChannel;
     }
 }

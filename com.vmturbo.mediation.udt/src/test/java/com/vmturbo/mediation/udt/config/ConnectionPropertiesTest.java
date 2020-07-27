@@ -15,10 +15,9 @@ public class ConnectionPropertiesTest {
     public void testPropsValues() {
         String groupHost = "group";
         String repositoryHost = "repository";
-        String tpHost = "topology-processor";
         int gRpcPort = 9001;
         int gRpcPingIntervalSeconds = 30;
-        ConnectionProperties properties = new ConnectionProperties(groupHost, repositoryHost, tpHost, gRpcPort, gRpcPingIntervalSeconds);
+        ConnectionProperties properties = new ConnectionProperties(groupHost, repositoryHost, gRpcPort, gRpcPingIntervalSeconds);
 
         Assert.assertEquals(groupHost, properties.getGroupHost());
         Assert.assertEquals(repositoryHost, properties.getRepositoryHost());

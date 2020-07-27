@@ -3,5 +3,4 @@ defaultProperties:
     serverGrpcPort : 9001
     groupHost: group
     repositoryHost: repository
-    topologyProcessorHost: topology-processor
     grpcPingIntervalSeconds: 300
