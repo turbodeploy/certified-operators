@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isEmptyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -114,6 +115,80 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
                 .setConnectionType(ConnectionType.OWNS_CONNECTION)
                 .build()));
     }
+
+    /**
+     * Test the case where only the AWS billing probe is reporting the business account display name.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testAwsOnlyBusinessAccountsWithNoDisplayName() throws Exception {
+        final EntityDTO billingMasterAccount = account("1", "billing Account name", Collections.singletonList("2"));
+        final EntityDTO billingOwnedAccount = account("2", "owned1", Collections.emptyList());
+
+        final Map<Long, EntityDTO> billingEntities =
+                ImmutableMap.of(1L, billingMasterAccount, 2L, billingOwnedAccount);
+
+        final EntityDTO awsMasterAccount = account("1", "", Collections.singletonList("3"));
+        final EntityDTO awsOwnedAccount = account("3", "owned2", Collections.emptyList());
+        final Map<Long, EntityDTO> awsEntities =
+                ImmutableMap.of(1L, awsMasterAccount, 3L, awsOwnedAccount);
+
+        addEntities(awsEntities, AWS_TARGET_ID);
+        addEntities(billingEntities, BILLING_TARGET_ID);
+
+        final Map<Long, TopologyEntity.Builder> stitchedTopology = stitch();
+        assertThat(stitchedTopology.get(1L).getEntityBuilder().getDisplayName(),
+                is(billingEntities.get(1L).getDisplayName()));
+    }
+
+    /**
+     * Test the case where there's no billing account and main probe does not have account name.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testAwsWithNoDisplayName() throws Exception {
+
+        final EntityDTO awsMasterAccount = account("1", "", Collections.singletonList("3"));
+        final EntityDTO awsOwnedAccount = account("3", "owned2", Collections.emptyList());
+        final Map<Long, EntityDTO> awsEntities =
+                ImmutableMap.of(1L, awsMasterAccount, 3L, awsOwnedAccount);
+
+        addEntities(Collections.emptyMap(), BILLING_TARGET_ID);
+        addEntities(awsEntities, AWS_TARGET_ID);
+
+        final Map<Long, TopologyEntity.Builder> stitchedTopology = stitch();
+        assertThat(stitchedTopology.get(1L).getEntityBuilder().getDisplayName(),
+                isEmptyString());
+    }
+
+    /**
+     * Test the case where both probes are reporting the business account display name. and name from main probe is respected.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testAwsOnlyBusinessAccountsWithDisplayName() throws Exception {
+        final EntityDTO billingMasterAccount = account("1", "billing Account name", Collections.singletonList("2"));
+        final EntityDTO billingOwnedAccount = account("2", "owned1", Collections.emptyList());
+
+        final Map<Long, EntityDTO> billingEntities =
+                ImmutableMap.of(1L, billingMasterAccount, 2L, billingOwnedAccount);
+
+        final EntityDTO awsMasterAccount = account("1", "Real Account name", Collections.singletonList("3"));
+        final EntityDTO awsOwnedAccount = account("3", "owned2", Collections.emptyList());
+        final Map<Long, EntityDTO> awsEntities =
+                ImmutableMap.of(1L, awsMasterAccount, 3L, awsOwnedAccount);
+
+        addEntities(awsEntities, AWS_TARGET_ID);
+        addEntities(billingEntities, BILLING_TARGET_ID);
+
+        final Map<Long, TopologyEntity.Builder> stitchedTopology = stitch();
+        assertThat(stitchedTopology.get(1L).getEntityBuilder().getDisplayName(),
+                is(awsEntities.get(1L).getDisplayName()));
+    }
+
 
     /**
      * Test the case where only the AWS Billing probe is reporting the business accounts.
@@ -277,6 +352,8 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
                         .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                         .setConnectionType(ConnectionType.OWNS_CONNECTION)
                         .build()));
+            assertThat(stitchedTopology.get(1L).getEntityBuilder().getDisplayName(),
+                    is(awsEntities.get(1L).getDisplayName()));
         }
     }
 
