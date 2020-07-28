@@ -69,6 +69,7 @@ public class TestUtils {
     public static final int DB_TYPE = 11;
     public static final int DC_TYPE = 12;
     public static final int NAMESPACE_TYPE = 13;
+    public static final int DB_TIER_TYPE = 14;
 
     public static final double FLOATING_POINT_DELTA = 1e-7;
     public static final double FLOATING_POINT_DELTA2 = 1e-15;
@@ -117,6 +118,7 @@ public class TestUtils {
     public static final CommoditySpecification SPACE = createNewCommSpec();
     public static final CommoditySpecification COOLING = createNewCommSpec();
     public static final CommoditySpecification VMEMLIMITQUOTA = createNewCommSpec();
+    public static final CommoditySpecification DTU = createNewCommSpec();
 
     public static final CommoditySpecificationTO iopsTO =
                     CommoditySpecificationTO.newBuilder().setBaseType(TestUtils.IOPS.getBaseType())

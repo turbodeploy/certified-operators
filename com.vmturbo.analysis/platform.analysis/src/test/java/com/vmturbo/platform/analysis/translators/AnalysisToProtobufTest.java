@@ -1,12 +1,16 @@
 package com.vmturbo.platform.analysis.translators;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.BiMap;
@@ -56,6 +60,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificati
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 
 /**
  * A test case for the {@link AnalysisToProtobuf} class.
@@ -79,6 +84,7 @@ public class AnalysisToProtobufTest {
     private static final Trader pm2 = e.addTrader(1, TraderState.ACTIVE, basketBought1, empty);
     private static final Trader st1 = e.addTrader(2, TraderState.ACTIVE, basketBought2, empty);
     private static final Trader st2 = e.addTrader(2, TraderState.ACTIVE, basketBought2, empty);
+    private static final float STORAGE_AMOUNT_NEW_ASSIGNED_CAPACITY = 5000;
     // Methods for converting PriceFunctionDTOs.
 
     @Test
@@ -177,6 +183,7 @@ public class AnalysisToProtobufTest {
             shop1 = e.addBasketBought(vm1, basketBought1);
             shop1.move(pm1);
             shop2 = e.addBasketBought(vm2, basketBought1);
+            shop2.addAssignedCapacity(STORAGE_AMOUNT.getBaseType(), 100);
             shop2.move(pm2);
 
             Field shoppingListOidField = Topology.class.getDeclaredField("shoppingListOids_");
@@ -215,8 +222,11 @@ public class AnalysisToProtobufTest {
                                                         (ActionImpl)deactivate).getImportance())
                         .setIsNotExecutable(false)
                         .build();
-
-        Action move = new Move(e, shop2, pm1);
+        final CommodityContext commodityContext =
+            new CommodityContext(STORAGE_AMOUNT, STORAGE_AMOUNT_NEW_ASSIGNED_CAPACITY, true);
+        Action move = new Move(e, shop2, shop2.getSupplier(), pm1, Optional.empty(),
+            Collections.singletonList(commodityContext));
+        move.take();
         ActionTO moveTO = ActionTO.newBuilder().setMove(
                         MoveTO.newBuilder().setShoppingListToMove(20l).setDestination(2l)
                                 .setCouponId(2l).setCouponDiscount(0.0)
@@ -373,6 +383,11 @@ public class AnalysisToProtobufTest {
             final MoveTO actionTOMove = actionTO.getMove();
             assertEquals(output.getCouponId(), actionTOMove.getCouponId());
             assertEquals(output.getCouponDiscount(), actionTOMove.getCouponDiscount(), 0.001);
+            final List<MoveTO.CommodityContext> commodityContexts = actionTOMove
+                .getCommodityContextList();
+            assertFalse(commodityContexts.isEmpty());
+            assertEquals(STORAGE_AMOUNT_NEW_ASSIGNED_CAPACITY,
+                commodityContexts.iterator().next().getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
         } else if (input instanceof CompoundMove) {
             final CompoundMoveTO output = expect.getCompoundMove();
             final CompoundMoveTO actionTOMove = actionTO.getCompoundMove();

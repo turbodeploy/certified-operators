@@ -18,10 +18,13 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
-import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.DependentResourcePair;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.CapacityLimitation;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RatioBasedResourceDependency;
+import com.vmturbo.platform.analysis.utilities.Quote.InfiniteRangeBasedResourceDependencyQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InfiniteRatioBasedResourceDependencyQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InfiniteBelowMinAboveMaxCapacityLimitationQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentComputeCommodityQuote;
-import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentResourcePairQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InsufficientCommodity;
 import com.vmturbo.platform.analysis.utilities.Quote.LicenseUnavailableQuote;
 
@@ -171,13 +174,37 @@ public class QuoteTest {
         assertEquals("License Linux unavailable", quote.getExplanation(shoppingList));
     }
 
+    /**
+     * Test InfiniteRatioBasedResourceDependencyQuote explanation.
+     */
     @Test
-    public void testInfiniteDependentResourcePairQuote() {
-        final DependentResourcePair dependentResourcePair = new DependentResourcePair(cpuSpec, memSpec, 2);
-
-        final Quote quote = new InfiniteDependentResourcePairQuote(dependentResourcePair, 1.0, 5.0);
+    public void testInfiniteRatioBasedResourceDependencyQuote() {
+        final RatioBasedResourceDependency dependency = new RatioBasedResourceDependency(cpuSpec, memSpec, 2, false, 0, true);
+        final Quote quote = new InfiniteRatioBasedResourceDependencyQuote(dependency, 1.0, 5.0);
         assertEquals("Dependent commodity MEM (5.0) exceeds base commodity CPU (1.0) [maxRatio=2.0]",
-            quote.getExplanation(shoppingList));
+                quote.getExplanation(shoppingList));
+    }
+
+    /**
+     * Test InfiniteBelowMinAboveMaxCapacityLimitationQuote explanation.
+     */
+    @Test
+    public void testInfiniteBelowMinAboveMaxCapacityLimitationQuote() {
+        final CapacityLimitation capacityLimitation = new CapacityLimitation(5.0, 10.0, true);
+
+        final Quote quote = new InfiniteBelowMinAboveMaxCapacityLimitationQuote(cpuSpec, capacityLimitation, 4.0);
+        assertEquals("Commodity CPU with quantity 4.0 can't meet capacity limitation, where min is 5.0, and max is 10.0",
+                quote.getExplanation(shoppingList));
+    }
+
+    /**
+     * Test InfiniteRangeBasedResourceDependencyQuote explanation.
+     */
+    @Test
+    public void testInfiniteRangeBasedResourceDependencyQuote() {
+        final Quote quote = new InfiniteRangeBasedResourceDependencyQuote(cpuSpec, memSpec, 10.0, 5.0, 12.0);
+        assertEquals("Dependent commodity MEM (12.0) exceeds ranged capacity (10.0), with base commodity CPU (5.0).",
+                quote.getExplanation(shoppingList));
     }
 
     @Test

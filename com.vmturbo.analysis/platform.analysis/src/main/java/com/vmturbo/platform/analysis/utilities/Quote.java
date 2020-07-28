@@ -22,7 +22,8 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CoverageEntry;
-import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.DependentResourcePair;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.CapacityLimitation;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RatioBasedResourceDependency;
 
 /**
  * A {@link Quote} is the output of running a {@link com.vmturbo.platform.analysis.pricefunction.QuoteFunction}
@@ -209,6 +210,11 @@ public abstract class Quote {
         return Optional.empty();
     }
 
+    @Nonnull
+    public List<CommodityContext> getCommodityContexts() {
+        return Collections.emptyList();
+    }
+
     /**
      * Ranks are used to differentiate infinite quotes from each other.
      *
@@ -342,10 +348,14 @@ public abstract class Quote {
         // Context with extra data about the Quote
         protected Context moveContext;
 
+        // Context with commodity data about the Quote
+        protected List<CommodityContext> commodityContexts;
+
         protected CommodityCloudQuote(@Nullable final Trader seller,
                                       final double quoteValue,
                                       @Nullable final Long regionId,
-                                      @Nullable final Long balanceAccountId) {
+                                      @Nullable final Long balanceAccountId,
+                                      @Nullable final List<CommodityContext> commodityContexts) {
             super(seller, quoteValue);
             Context.Builder builder = Context.newBuilder();
             if (regionId != null) {
@@ -356,6 +366,7 @@ public abstract class Quote {
                 builder.setBalanceAccount(balanceAccount);
             }
             moveContext = builder.build();
+            this.commodityContexts = commodityContexts;
         }
 
         protected CommodityCloudQuote(@Nullable final Trader seller,
@@ -383,6 +394,11 @@ public abstract class Quote {
         @Override
         public Optional<Context> getContext() {
             return Optional.ofNullable(moveContext);
+        }
+
+        @Override
+        public @Nonnull List<CommodityContext> getCommodityContexts() {
+            return commodityContexts == null ? Collections.emptyList() : commodityContexts;
         }
     }
 
@@ -624,24 +640,68 @@ public abstract class Quote {
     }
 
     /**
-     * Create a new {@link InfiniteDependentResourcePairQuote} which describes an infinite {@link Quote}
-     * due to a dependent resource requirement that cannot be met.
+     * A {@link InfiniteBelowMinAboveMaxCapacityLimitationQuote} is generated when min/max capacity limitation is not met.
      */
-    public static class InfiniteDependentResourcePairQuote extends MutableQuote {
-        private final DependentResourcePair dependentResourcePair;
+    public static class InfiniteBelowMinAboveMaxCapacityLimitationQuote extends MutableQuote {
+        private final CommoditySpecification commoditySpecification;
+        private final CapacityLimitation capacityLimitation;
+        private final double commodityQuantity;
+
+        /**
+         * Create a new {@link InfiniteBelowMinAboveMaxCapacityLimitationQuote}.
+         *
+         * @param commoditySpecification commodity.
+         * @param capacityLimitation capacityLimitation for the commodity.
+         * @param commodityQuantity commodity quantity.
+         */
+        public InfiniteBelowMinAboveMaxCapacityLimitationQuote(@Nonnull final CommoditySpecification commoditySpecification,
+                                                               @Nonnull final CapacityLimitation capacityLimitation,
+                                                               final double commodityQuantity) {
+            super(null, Double.POSITIVE_INFINITY);
+            this.commoditySpecification = Objects.requireNonNull(commoditySpecification);
+            this.capacityLimitation = Objects.requireNonNull(capacityLimitation);
+            this.commodityQuantity = commodityQuantity;
+        }
+
+        @Override
+        public int getRank() {
+            // (1 - diff / quantity) * MAX_RANK, where diff is the distance of commodityQuantity from capacityLimitation.
+            // Rank is related to how far commodityQuantity is from limitation. With larger diff, rank is lower.
+            // above max
+            if (commodityQuantity > capacityLimitation.getMaxCapacity()) {
+                return (int)(1 - Math.abs(commodityQuantity - capacityLimitation.getMaxCapacity()) / commodityQuantity) * MAX_RANK;
+            }
+            // below min
+            return (int)(1 - Math.abs(commodityQuantity - capacityLimitation.getMinCapacity()) / commodityQuantity) * MAX_RANK;
+        }
+
+        @Override
+        public String getExplanation(@Nonnull final ShoppingList shoppingList) {
+            return "Commodity " + commoditySpecification.getDebugInfoNeverUseInCode() + " with quantity "
+                    + commodityQuantity + " can't meet capacity limitation, where min is " + capacityLimitation.getMinCapacity()
+                    + ", and max is " + capacityLimitation.getMaxCapacity();
+        }
+    }
+
+    /**
+     * Create a new {@link InfiniteRatioBasedResourceDependencyQuote} which describes an infinite {@link Quote}
+     * due to ratio based dependent resource requirement that cannot be met.
+     */
+    public static class InfiniteRatioBasedResourceDependencyQuote extends MutableQuote {
+        private final RatioBasedResourceDependency dependentResourcePair;
         private final double baseCommodityQuantity;
         private final double dependentCommodityQuantity;
 
         /**
-         * Create a new {@link InfiniteDependentResourcePairQuote}.
+         * Create a new {@link InfiniteRatioBasedResourceDependencyQuote}.
          *
-         * @param dependentResourcePair The {@link DependentResourcePair} whose requirement cannot be met.
+         * @param dependentResourcePair The {@link RatioBasedResourceDependency} whose requirement cannot be met.
          * @param baseCommodityQuantity The quantity of the base commodity in the dependent pair.
          * @param dependentCommodityQuantity The quantity of the dependent commodity in the pair.
          */
-        public InfiniteDependentResourcePairQuote(@Nonnull final DependentResourcePair dependentResourcePair,
-                                                  final double baseCommodityQuantity,
-                                                  final double dependentCommodityQuantity) {
+        public InfiniteRatioBasedResourceDependencyQuote(@Nonnull final RatioBasedResourceDependency dependentResourcePair,
+                                                         final double baseCommodityQuantity,
+                                                         final double dependentCommodityQuantity) {
             super(null, Double.POSITIVE_INFINITY);
 
             this.dependentResourcePair = Objects.requireNonNull(dependentResourcePair);
@@ -651,7 +711,11 @@ public abstract class Quote {
 
         @Override
         public int getRank() {
-            return MAX_RANK;
+            // (1 - diff / quantity) * MAX_RANK, where diff is the distance of dependentCommodityQuantity
+            // from the restricted value by constraint. With larger diff, rank is lower.
+            final double restrictedDependentQuantity = dependentResourcePair.getMaxRatio() * baseCommodityQuantity;
+            return (int)(1 - Math.abs(dependentCommodityQuantity
+                    - restrictedDependentQuantity) / dependentCommodityQuantity) * MAX_RANK;
         }
 
         @Override
@@ -661,6 +725,57 @@ public abstract class Quote {
                 + dependentCommodityQuantity + ") exceeds base commodity "
                 + dependentResourcePair.getBaseCommodity().getDebugInfoNeverUseInCode() + " ("
                 + baseCommodityQuantity + ") [maxRatio=" + dependentResourcePair.getMaxRatio() + "]";
+        }
+    }
+
+    /**
+     * Create a new {@link InfiniteRangeBasedResourceDependencyQuote} which describes an infinite {@link Quote}
+     * due to a range based dependent resource requirement that cannot be met.
+     */
+    public static class InfiniteRangeBasedResourceDependencyQuote extends MutableQuote {
+        private final CommoditySpecification baseCommodityType;
+        private final CommoditySpecification dependentCommodityType;
+        private final Double dependentCommodityCapacity;
+        private final double baseCommodityQuantity;
+        private final double dependentCommodityQuantity;
+
+        /**
+         * Create a new {@link InfiniteRangeBasedResourceDependencyQuote}.
+         *
+         * @param baseCommodityType base commodity type.
+         * @param dependentCommodityType dependent commodity type.
+         * @param dependentCommodityCapacity The capacity of the dependent commodity in the dependent pair.
+         * @param baseCommodityQuantity The quantity of the base commodity in the pair.
+         * @param dependentCommodityQuantity The quantity of the dependent commodity in the pair.
+         */
+        public InfiniteRangeBasedResourceDependencyQuote(@Nonnull final CommoditySpecification baseCommodityType,
+                                                            @Nonnull final CommoditySpecification dependentCommodityType,
+                                                            @Nullable Double dependentCommodityCapacity,
+                                                            @Nullable Double baseCommodityQuantity,
+                                                            @Nullable Double dependentCommodityQuantity) {
+            super(null, Double.POSITIVE_INFINITY);
+
+            this.baseCommodityType = Objects.requireNonNull(baseCommodityType);
+            this.dependentCommodityType = Objects.requireNonNull(dependentCommodityType);
+            this.dependentCommodityCapacity = dependentCommodityCapacity;
+            this.baseCommodityQuantity = baseCommodityQuantity;
+            this.dependentCommodityQuantity = dependentCommodityQuantity;
+        }
+
+        @Override
+        public int getRank() {
+            // (1 - diff / quantity) * MAX_RANK, where diff is the distance of dependentCommodityQuantity
+            // from the restricted value by constraint. With larger diff, rank is lower.
+            return (int)(1 - Math.abs(dependentCommodityQuantity
+                    - dependentCommodityCapacity) / dependentCommodityQuantity) * MAX_RANK;
+        }
+
+        @Override
+        public String getExplanation(@Nonnull final ShoppingList shoppingList) {
+            return "Dependent commodity " + dependentCommodityType.getDebugInfoNeverUseInCode() + " ("
+                    + dependentCommodityQuantity + ") exceeds ranged capacity (" + dependentCommodityCapacity
+                    + "), with base commodity " + baseCommodityType.getDebugInfoNeverUseInCode()
+                    + " (" + baseCommodityQuantity + ").";
         }
     }
 
@@ -764,6 +879,68 @@ public abstract class Quote {
                                      final double availableQuantity) {
             this.commodity = Objects.requireNonNull(commodity);
             this.availableQuantity = availableQuantity;
+        }
+    }
+
+    /**
+     * class to represent commodity context on a specific seller.
+     */
+    public static class CommodityContext {
+
+        private final CommoditySpecification commodity;
+        private final double newCapacity;
+        /**
+         * A commodity is considered to be decisive on the seller if buyer's commodity capacity is configured
+         * by user instead of some constant values. For example, GP2 StorageTier as a seller, storageAmount
+         * is decisive because when user creates a GP2 volume, they need to configure the volume size(i.e.
+         * storageAmount capacity for the volume).
+         *
+         * The field is used to check whether there is commodity resize when QuoteMinimizer thinks the best
+         * seller for the buyer is its current supplier. After analysis, when best seller is current supplier,
+         * decisive commodities' new capacities are compared with buyer's old capacities to decide whether
+         * the decisive commodities should be resized.
+         */
+        private boolean isDecisive;
+
+        /**
+         * Initialize a CommodityContext which represents commodity capacity on specific seller.
+         *
+         * @param commodity commodity specification.
+         * @param newCapacity new capacity on the seller.
+         * @param isDecisive whether commodity is decisive on the seller.
+         */
+        public CommodityContext(@Nonnull CommoditySpecification commodity,
+                                double newCapacity, boolean isDecisive) {
+            this.commodity = commodity;
+            this.newCapacity = newCapacity;
+            this.isDecisive = isDecisive;
+        }
+
+        /**
+         * Commodity type.
+         *
+         * @return commodity specification for the CommodityContext.
+         */
+        public CommoditySpecification getCommoditySpecification() {
+            return commodity;
+        }
+
+        /**
+         * Commodity new capacity at the seller.
+         *
+         * @return new capacity for the commodity at the seller.
+         */
+        public double getNewCapacityOnSeller() {
+            return newCapacity;
+        }
+
+        /**
+         * Whether commodity is decisive on the seller.
+         *
+         * @return true if commodity is decisive on the seller.
+         */
+        public boolean isCommodityDecisiveOnSeller() {
+            return isDecisive;
         }
     }
 }
