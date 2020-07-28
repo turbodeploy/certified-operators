@@ -56,6 +56,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -660,7 +661,11 @@ public class CloudMigrationPlanHelper {
         if (!migrationChange.getRemoveNonMigratingWorkloads()) {
             return graph;
         }
+
+        context.setSourceEntities(removeInactiveEntities(graph, context.getSourceEntities()));
+
         final Set<Long> sourceEntities = context.getSourceEntities();
+
         // We look at the workload entities being migrated, and skip any workload not in that set.
         // Also look for attached volumes to migrating workloads, and skip any other volumes.
         final Map<EntityType, Set<TopologyEntity>> filteredEntityByType = new HashMap<>();
@@ -1064,6 +1069,25 @@ public class CloudMigrationPlanHelper {
     private boolean isCloudEntity(@Nonnull final TopologyEntity entity) {
         return entity.getOwner().isPresent() && entity.getOwner().get().getEntityType()
                 == BUSINESS_ACCOUNT_VALUE;
+    }
+
+    /**
+     * Given a set of oids, return the subset which are in an active state and thus
+     * allowed to migrate.
+     *
+     * @param graph Topology graph
+     * @param entityOids the set of oids to consider migrating
+     * @return the set of oids whose status allows migration
+     */
+    @VisibleForTesting
+    @Nonnull
+    Set<Long> removeInactiveEntities(@Nonnull final TopologyGraph<TopologyEntity> graph,
+                                     @Nonnull final Set<Long> entityOids) {
+        return entityOids.stream()
+            .filter(oid -> graph.getEntity(oid)
+                .map(entity -> entity.getEntityState() == EntityState.POWERED_ON)
+                .orElse(false))
+            .collect(Collectors.toSet());
     }
 
     /**

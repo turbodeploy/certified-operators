@@ -37,12 +37,16 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
@@ -463,6 +467,49 @@ public class CloudMigrationPlanHelperTest {
             .setSettingPolicyType(Type.DISCOVERED)
             .setInfo(info)
             .build();
+    }
+
+    /**
+     * Test that removeInactiveEntities correctly handles all entity states, returning
+     * only entities whose state is POWERED_ON.
+     */
+    @Test
+    public void testRemoveInactiveEntities() {
+        final long activeVmOid = 1L;
+
+        final TopologyGraphCreator<TopologyEntity.Builder, TopologyEntity> graphCreator =
+            new TopologyGraphCreator<>(EntityState.values().length);
+
+        // Create an active entity (POWERED_ON)
+        graphCreator.addEntity(TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setEntityType(VIRTUAL_MACHINE_VALUE)
+                .setEntityState(EntityState.POWERED_ON)
+                .setOid(activeVmOid)));
+
+        // Create entities in every other state
+        for (EntityState state : EntityState.values()) {
+            if (state != EntityState.POWERED_ON) {
+                graphCreator.addEntity(TopologyEntity.newBuilder(
+                    TopologyEntityDTO.newBuilder()
+                        .setEntityType(VIRTUAL_MACHINE_VALUE)
+                        .setEntityState(state)
+                        .setOid(state.getNumber() + 1000L)));
+            }
+        }
+
+        TopologyGraph<TopologyEntity> graph = graphCreator.build();
+        Set<Long> entityOids = graph.entitiesOfType(VIRTUAL_MACHINE_VALUE)
+            .map(TopologyEntity::getOid).collect(Collectors.toSet());
+
+        assertEquals(EntityState.values().length, entityOids.size());
+
+        final Set<Long> activeOids = cloudMigrationPlanHelper
+            .removeInactiveEntities(graph, entityOids);
+
+        // Only the active entity's oid should be returned
+
+        assertTrue(activeOids.equals(Collections.singleton(activeVmOid)));
     }
 }
 
