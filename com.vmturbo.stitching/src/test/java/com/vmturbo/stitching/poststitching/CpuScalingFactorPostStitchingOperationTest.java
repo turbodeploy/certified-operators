@@ -10,6 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -179,6 +180,109 @@ public class CpuScalingFactorPostStitchingOperationTest {
         final List<CommodityBoughtDTO> boughtAppCommodities = boughtAppCommoditiesFrom
                 .iterator().next().getCommodityBoughtList();
         assertThat(boughtAppCommodities, containsInAnyOrder(expectedvCpuBoughtCommodity));
+    }
+
+    /**
+     * Test updateScalingFactorForEntity on a container. Only container VCPU commodity has CPU_SCALE_FACTOR,
+     * while the commodity of the provider of the container, which is a pod, doesn't have CPU_SCALE_FACTOR
+     * propagated.
+     */
+    @Test
+    public void testUpdateScalingFactorForEntityWithoutProviderUpdated() {
+        final CommoditySoldDTO vcpuComm = makeCommoditySold(CommodityType.VCPU, CPU_CAPACITY);
+
+        final TopologyEntity.Builder container = makeTopologyEntityBuilder(1L,
+            EntityType.CONTAINER_VALUE,
+            Collections.singletonList(vcpuComm),
+            Collections.emptyList());
+        final TopologyEntity.Builder pod = makeTopologyEntityBuilder(2L,
+            EntityType.CONTAINER_POD_VALUE,
+            Collections.singletonList(vcpuComm),
+            Collections.emptyList());
+        container.addProvider(pod);
+        pod.addConsumer(container);
+
+        final CommoditySoldDTO expectedContainerVcpuComm = vcpuComm.toBuilder()
+            .setScalingFactor(CPU_SCALE_FACTOR)
+            .build();
+        final CommoditySoldDTO expectedPodVcpuComm = vcpuComm.toBuilder()
+            .build();
+
+        operation.updateScalingFactorForEntity(container.build(), CPU_SCALE_FACTOR, new HashSet<>());
+
+        List<CommoditySoldDTO> containerCommSoldList = container.getEntityBuilder().getCommoditySoldListList();
+        assertEquals(1, containerCommSoldList.size());
+        assertThat(containerCommSoldList, containsInAnyOrder(expectedContainerVcpuComm));
+
+        // Here pod VCPU comm doesn't have CPU_SCALE_FACTOR propagate from container
+        List<CommoditySoldDTO> podCommSoldList = pod.getEntityBuilder().getCommoditySoldListList();
+        assertEquals(1, podCommSoldList.size());
+        assertThat(podCommSoldList, containsInAnyOrder(expectedPodVcpuComm));
+    }
+
+    /**
+     * Test updateScalingFactorForEntity on a pod. We'll propagate the CPU_SCALE_FACTOR to its consumer
+     * -- container, and to its provider -- WorkloadController, and recursively update to the provider of
+     * WorkloadController -- Namespace.
+     *
+     */
+    @Test
+    public void testUpdateScalingFactorForEntityWithProvidersUpdated() {
+        final CommoditySoldDTO vcpuComm = makeCommoditySold(CommodityType.VCPU, CPU_CAPACITY);
+        final CommoditySoldDTO vcpuLimitQuotaComm = makeCommoditySold(CommodityType.VCPU_LIMIT_QUOTA,
+            CPU_CAPACITY);
+
+        final TopologyEntity.Builder container = makeTopologyEntityBuilder(1L,
+            EntityType.CONTAINER_VALUE,
+            Collections.singletonList(vcpuComm),
+            Collections.emptyList());
+        final TopologyEntity.Builder pod = makeTopologyEntityBuilder(2L,
+            EntityType.CONTAINER_POD_VALUE,
+            Collections.singletonList(vcpuComm),
+            Collections.emptyList());
+        final TopologyEntity.Builder wc = makeTopologyEntityBuilder(3L,
+            EntityType.WORKLOAD_CONTROLLER_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            Collections.emptyList());
+        final TopologyEntity.Builder ns = makeTopologyEntityBuilder(4L,
+            EntityType.NAMESPACE_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            Collections.emptyList());
+
+        container.addProvider(pod);
+
+        pod.addConsumer(container);
+        pod.addProvider(wc);
+
+        wc.addConsumer(pod);
+        wc.addProvider(ns);
+
+        ns.addConsumer(wc);
+
+        final CommoditySoldDTO expectedVcpuComm = vcpuComm.toBuilder()
+            .setScalingFactor(CPU_SCALE_FACTOR)
+            .build();
+        final CommoditySoldDTO expectedCcpuLimitQuotaComm = vcpuLimitQuotaComm.toBuilder()
+            .setScalingFactor(CPU_SCALE_FACTOR)
+            .build();
+
+        operation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new HashSet<>());
+
+        List<CommoditySoldDTO> containerCommSoldList = container.getEntityBuilder().getCommoditySoldListList();
+        assertEquals(1, containerCommSoldList.size());
+        assertThat(containerCommSoldList, containsInAnyOrder(expectedVcpuComm));
+
+        List<CommoditySoldDTO> podCommSoldList = pod.getEntityBuilder().getCommoditySoldListList();
+        assertEquals(1, podCommSoldList.size());
+        assertThat(podCommSoldList, containsInAnyOrder(expectedVcpuComm));
+
+        List<CommoditySoldDTO> wcCommSoldList = wc.getEntityBuilder().getCommoditySoldListList();
+        assertEquals(1, wcCommSoldList .size());
+        assertThat(wcCommSoldList, containsInAnyOrder(expectedCcpuLimitQuotaComm));
+
+        List<CommoditySoldDTO> nsCommSoldList = wc.getEntityBuilder().getCommoditySoldListList();
+        assertEquals(1, nsCommSoldList .size());
+        assertThat(nsCommSoldList, containsInAnyOrder(expectedCcpuLimitQuotaComm));
     }
 
 }
