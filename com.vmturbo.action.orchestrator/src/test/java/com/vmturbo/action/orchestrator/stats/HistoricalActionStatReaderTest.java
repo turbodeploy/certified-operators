@@ -432,6 +432,54 @@ public class HistoricalActionStatReaderTest {
                 .setBusinessAccountId(ba2Id)))));
     }
 
+    /**
+     * Test grouping by action risk.
+     */
+    @Test
+    public void testBucketsGroupByActionRisk() {
+        // GIVEN
+        final RolledUpActionGroupStat readyStat1 = increasingGroupStat();
+        final RolledUpActionGroupStat readyStat2 = increasingGroupStat();
+        final RolledUpActionGroupStat queuedStat = increasingGroupStat();
+        final int mgmtUnitSubgroup = 1;
+
+        final ActionGroup readyAg1 = mock(ActionGroup.class);
+        final ActionGroupKey key1 = mock(ActionGroupKey.class);
+        when(key1.getActionRelatedRisk()).thenReturn("Mem congestion");
+        when(readyAg1.key()).thenReturn(key1);
+
+        final ActionGroup readyAg2 = mock(ActionGroup.class);
+        final ActionGroupKey key2 = mock(ActionGroupKey.class);
+        when(key2.getActionRelatedRisk()).thenReturn("Mem congestion");
+        when(readyAg2.key()).thenReturn(key2);
+
+        final ActionGroup queuedAg = mock(ActionGroup.class);
+        final ActionGroupKey key3 = mock(ActionGroupKey.class);
+        when(key3.getActionRelatedRisk()).thenReturn("CPU congestion");
+        when(queuedAg.key()).thenReturn(key3);
+
+        final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroup = ImmutableMap.of(
+                readyAg1, ImmutableMap.of(mgmtUnitSubgroup, readyStat1),
+                readyAg2, ImmutableMap.of(mgmtUnitSubgroup, readyStat2),
+                queuedAg, ImmutableMap.of(mgmtUnitSubgroup, queuedStat));
+
+        // WHEN
+        final CombinedStatsBuckets buckets =
+                new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.ACTION_RELATED_RISK, 1, statsByGroup, Collections.emptyMap());
+        final List<ActionDTO.ActionStat> stats = buckets.toActionStats()
+                .collect(Collectors.toList());
+
+        // THEN
+        assertThat(stats.size(), is(2));
+        assertThat(stats, containsInAnyOrder(
+                combinedIncreasingStats(2, ActionDTO.ActionStat.newBuilder()
+                        .setStatGroup(ActionDTO.ActionStat.StatGroup.newBuilder()
+                                .setActionRelatedRisk("Mem congestion"))),
+                combinedIncreasingStats(1, ActionDTO.ActionStat.newBuilder()
+                        .setStatGroup(ActionDTO.ActionStat.StatGroup.newBuilder()
+                                .setActionRelatedRisk("CPU congestion")))));
+    }
+
     @Test
     public void testBucketsCombineMgmtUnitSubgroups() {
         final ActionGroup ag1 = mock(ActionGroup.class);

@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.stats.groups;
 
 import static com.vmturbo.action.orchestrator.db.tables.ActionGroup.ACTION_GROUP;
+import static com.vmturbo.action.orchestrator.db.tables.RelatedRiskForAction.RELATED_RISK_FOR_ACTION;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,23 +16,25 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Maps;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Record2;
+import org.jooq.Record6;
 import org.jooq.impl.DSL;
 
-import com.google.common.collect.Maps;
-
 import com.vmturbo.action.orchestrator.db.tables.records.ActionGroupRecord;
+import com.vmturbo.action.orchestrator.db.tables.records.RelatedRiskForActionRecord;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.ActionGroupFilter;
-import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -71,10 +74,14 @@ public class ActionGroupStore {
 
         return dsl.transactionResult(transactionContext -> {
             final DSLContext transactionDsl = DSL.using(transactionContext);
+            // ensure all related risks exist and get the mapping from risk string to id
+            final Map<String, Integer> riskToId = ensureRelatedRisksExist(keys.stream()
+                    .map(ActionGroupKey::getActionRelatedRisk)
+                    .collect(Collectors.toSet()), transactionDsl);
 
             final int[] inserted = transactionDsl.batch(keys.stream()
                     .map(key -> transactionDsl.insertInto(ACTION_GROUP)
-                        .set(keyToRecord(key))
+                        .set(keyToRecord(key, riskToId))
                         .onDuplicateKeyIgnore())
                     .collect(Collectors.toList()))
                 .execute();
@@ -83,12 +90,19 @@ public class ActionGroupStore {
                 logger.info("Inserted {} action groups.", insertedSum);
             }
 
-            final Map<ActionGroupKey, ActionGroup> allExistingActionGroups =
-                transactionDsl.selectFrom(ACTION_GROUP)
+            // join with risk table and get string value of risk
+            final Map<ActionGroupKey, ActionGroup> allExistingActionGroups = transactionDsl.select(
+                    ACTION_GROUP.ID, ACTION_GROUP.ACTION_TYPE, ACTION_GROUP.ACTION_CATEGORY,
+                    ACTION_GROUP.ACTION_MODE, ACTION_GROUP.ACTION_STATE,
+                    RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION)
+                    .from(ACTION_GROUP)
+                    .innerJoin(RELATED_RISK_FOR_ACTION)
+                    .on(ACTION_GROUP.ACTION_RELATED_RISK.eq(RELATED_RISK_FOR_ACTION.ID))
                     .fetch()
                     .stream()
                     .map(this::recordToGroup)
-                    .filter(Optional::isPresent).map(Optional::get)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
                     .collect(Collectors.toMap(ActionGroup::key, Function.identity()));
 
             logger.debug("A total of {} action groups now exist.", allExistingActionGroups);
@@ -97,40 +111,90 @@ public class ActionGroupStore {
         });
     }
 
+    /**
+     * Ensures that the related risk description provided exists in the related_risk_for_action
+     * table in the database, and returns the id of the corresponding record. If there is no such
+     * string in the table, it creates a new record.
+     *
+     * <p>The records are in the form <id, String>. We store the risk descriptions in a different
+     * table since they might be repeated many times in the action_group table, so we save space by
+     * moving them to a separate table and storing just integers in action_group records.
+     *
+     * @param relatedRisks a set of strings representing the risk description
+     * @param transactionDsl the transactional dsl to use for inserting
+     * @return map from risk string to the id automatically assigned by db
+     */
+    private Map<String, Integer> ensureRelatedRisksExist(@Nonnull Set<String> relatedRisks,
+            @Nonnull DSLContext transactionDsl) {
+        int[] inserted = transactionDsl.batch(relatedRisks.stream()
+                .map(risk -> {
+                    RelatedRiskForActionRecord record = new RelatedRiskForActionRecord();
+                    record.setRiskDescription(risk);
+                    return record;
+                })
+                .map(riskRecord -> transactionDsl.insertInto(RELATED_RISK_FOR_ACTION)
+                        .set(riskRecord)
+                        .onDuplicateKeyIgnore())
+                .collect(Collectors.toList()))
+                .execute();
+        if (inserted.length > 0) {
+            logger.info("Inserted {} action risks", inserted.length);
+        }
+        return transactionDsl.select(RELATED_RISK_FOR_ACTION.ID, RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION)
+                .from(RELATED_RISK_FOR_ACTION)
+                .where(RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION.in(relatedRisks))
+                .fetch()
+                .stream()
+                .collect(Collectors.toMap(Record2::value2, Record2::value1));
+    }
+
+    /**
+     * Convert db record to {@link ActionGroup}.
+     *
+     * @param record db record containing following in order: id, action_type, action_category,
+     *               action_mode, action_state, risk_description
+     * @return optional {@link ActionGroup}
+     */
     @Nonnull
-    private Optional<ActionGroup> recordToGroup(@Nonnull final ActionGroupRecord record) {
+    private Optional<ActionGroup> recordToGroup(
+            @Nonnull final Record6<Integer, Short, Short, Short, Short, String> record) {
         final ImmutableActionGroupKey.Builder keyBuilder = ImmutableActionGroupKey.builder();
-        final ActionCategory actionCategory = ActionCategory.forNumber(record.getActionCategory());
+        final ActionCategory actionCategory = ActionCategory.forNumber(record.value3());
         if (actionCategory != null) {
             keyBuilder.category(actionCategory);
         } else {
-            logger.error("Invalid action category {} in database record.", record.getActionCategory());
+            logger.error("Invalid action category {} in database record.", record.value3());
         }
 
-        final ActionMode actionMode = ActionMode.forNumber(record.getActionMode());
+        final ActionMode actionMode = ActionMode.forNumber(record.value4());
         if (actionMode != null) {
             keyBuilder.actionMode(actionMode);
         } else {
-            logger.error("Invalid action mode {} in database record.", record.getActionMode());
+            logger.error("Invalid action mode {} in database record.", record.value4());
         }
 
-        final ActionType actionType = ActionType.forNumber(record.getActionType());
+        final ActionType actionType = ActionType.forNumber(record.value2());
         if (actionType != null) {
             keyBuilder.actionType(actionType);
         } else {
-            logger.error("Invalid action type {} in database record.", record.getActionType());
+            logger.error("Invalid action type {} in database record.", record.value2());
         }
 
-        final ActionState actionState = ActionState.forNumber(record.getActionState());
+        final ActionState actionState = ActionState.forNumber(record.value5());
         if (actionState != null) {
             keyBuilder.actionState(actionState);
         } else {
-            logger.error("Invalid action state {} in database record.", record.getActionState());
+            logger.error("Invalid action state {} in database record.", record.value5());
         }
+
+        // if risk is null, it means it's an action group record that existed before the
+        // action_risk column is added. It's only used for historical action stats before the
+        // action_risk column is added; all new actions stats will use new ActionGroupKey.
+        keyBuilder.actionRelatedRisk(record.value6() != null ? record.value6() : "");
 
         try {
             return Optional.of(ImmutableActionGroup.builder()
-                .id(record.getId())
+                .id(record.value1())
                 .key(keyBuilder.build())
                 .build());
         } catch (IllegalStateException e) {
@@ -141,7 +205,8 @@ public class ActionGroupStore {
     }
 
     @Nonnull
-    private ActionGroupRecord keyToRecord(@Nonnull final ActionGroupKey key) {
+    private ActionGroupRecord keyToRecord(@Nonnull final ActionGroupKey key,
+                                          @Nonnull Map<String, Integer> riskToId) {
         ActionGroupRecord record = new ActionGroupRecord();
         // Leave record ID unset - database auto-increment takes care of ID assignment.
 
@@ -149,6 +214,7 @@ public class ActionGroupStore {
         record.setActionMode((short)key.getActionMode().getNumber());
         record.setActionCategory((short)key.getCategory().getNumber());
         record.setActionState((short)key.getActionState().getNumber());
+        record.setActionRelatedRisk(riskToId.get(key.getActionRelatedRisk()));
         return record;
     }
 
@@ -191,9 +257,23 @@ public class ActionGroupStore {
                     .toArray(Short[]::new)));
         }
 
+        if (actionGroupFilter.getActionRelatedRiskCount() > 0) {
+            conditions.add(RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION.in(
+                    actionGroupFilter.getActionRelatedRiskList().toArray(new String[0]))
+            );
+        }
+
         try (DataMetricTimer timer = Metrics.QUERY_HISTOGRAM.startTimer()) {
-            final Map<Integer, ActionGroup> matchedActionGroups =
-                dsl.selectFrom(ACTION_GROUP).where(conditions).fetch().stream()
+            final Map<Integer, ActionGroup> matchedActionGroups = dsl.select(
+                    ACTION_GROUP.ID, ACTION_GROUP.ACTION_TYPE, ACTION_GROUP.ACTION_CATEGORY,
+                    ACTION_GROUP.ACTION_MODE, ACTION_GROUP.ACTION_STATE,
+                    RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION)
+                    .from(ACTION_GROUP)
+                    // left join since groups with null risk are also valid for those stats before
+                    // adding risk column
+                    .leftJoin(RELATED_RISK_FOR_ACTION)
+                    .on(ACTION_GROUP.ACTION_RELATED_RISK.eq(RELATED_RISK_FOR_ACTION.ID))
+                    .where(conditions).fetch().stream()
                     .map(this::recordToGroup)
                     .filter(Optional::isPresent)
                     .map(Optional::get)

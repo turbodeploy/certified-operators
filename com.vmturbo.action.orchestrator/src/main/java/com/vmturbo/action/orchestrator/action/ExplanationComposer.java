@@ -111,7 +111,7 @@ public class ExplanationComposer {
     private ExplanationComposer() {}
 
     /**
-     * Compose short explanations for an action. The short explanation does not contain commodity
+     * Compose risks (short explanations) for an action. The short explanation does not contain commodity
      * keys or entity names/ids, and does not require translation. The short explanation can be
      * used where we don't want entity-specific information in the explanation (e.g. as a group
      * criteria for action stats), or in other places where full details are not necessary.
@@ -121,7 +121,7 @@ public class ExplanationComposer {
      */
     @Nonnull
     @VisibleForTesting
-    public static Set<String> composeShortExplanation(@Nonnull ActionDTO.Action action) {
+    public static Set<String> composeRelatedRisks(@Nonnull ActionDTO.Action action) {
         return internalComposeExplanation(action, true, Collections.emptyMap());
     }
 

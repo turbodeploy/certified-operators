@@ -1533,8 +1533,9 @@ message CurrentActionStatsQuery {
         // Entity type of the primary entity for the action.
         TARGET_ENTITY_TYPE = 5;
 
-        // Explanation for the action (e.g. "CPU congestion", "Mem Provisioned congestion", etc.)
-        ACTION_EXPLANATION = 6;
+        // Explanation of the risk that led to the recommendation of the action (e.g. "CPU
+        // congestion", "Mem Provisioned congestion", etc.)
+        ACTION_RELATED_RISK = 6;
 
         // Id of the target entity for the action.
         TARGET_ENTITY_ID = 7;
@@ -1583,6 +1584,10 @@ message HistoricalActionStatsQuery {
         // Match action groups with any of these action states.
         // An empty list means match all action states.
         repeated ActionState action_state = 4;
+
+        // Match action groups with any of these action related risks.
+        // An empty list means match all action risks.
+        repeated string action_related_risk = 5;
     }
 
     // A "management unit" is an object in the system that is often interacted with by the user.
@@ -1647,6 +1652,10 @@ message HistoricalActionStatsQuery {
         // compliance, the returned action count will be 2 for the "performance" category and
         // 1 for the "compliance" category.
         ACTION_CATEGORY = 2;
+
+        // The risk that led to the recommendation of the action (e.g. "CPU congestion",
+        // "Underutilized VMem", etc.)
+        ACTION_RELATED_RISK = 3;
 
         // The ID of the business account associated with the action.
         // Only actions that have associated business accounts will be returned. Unlike the
@@ -1739,10 +1748,9 @@ message CurrentActionStat {
         // the "group_by" in the query contained "REASON_COMMODITY".
         optional int32 reason_commodity_base_type = 5;
 
-        // Explanation for the action (e.g. "CPU congestion", "Mem congestion", etc.)
-        // Todo(OM-45690): currently for some cases the explanation is partially composed in the AO,
-        // for example: "(^_^)~Mem Provisioned congestion", we should compose it fully in AO
-        optional string action_explanation = 6;
+        // Explanation of the risk that led to the recommendation of the action (e.g. "CPU
+        // congestion", "Mem congestion", etc.)
+        optional string action_related_risk = 6;
 
         // Id of the target entity for the action. Only present if the "group_by" in the query
         // contained "TARGET_ENTITY_ID".
@@ -1813,6 +1821,11 @@ message ActionStat {
         // The business account for this action stat. Only present if the "group_by" in the query was
         // "BUSINESS_ACCOUNT_ID".
         optional int64 business_account_id = 3;
+
+        // The risk for this action stat, only present if the "group_by" in the query is
+        // "ACTION_RELATED_RISK". This is similar to the action explanation, but without entity
+        // details, and more general
+        optional string action_related_risk = 4;
     }
 
     // The stat group for this particular stat. Only set if the group_by in the request was

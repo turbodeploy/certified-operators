@@ -51,7 +51,9 @@ public class GlobalActionAggregatorTest {
         .actionType(ActionType.MOVE)
         .actionMode(ActionMode.RECOMMEND)
         .category(ActionCategory.PERFORMANCE_ASSURANCE)
-        .actionState(ActionState.READY).build();
+        .actionState(ActionState.READY)
+        .actionRelatedRisk("Mem congestion")
+        .build();
 
     @Test
     public void testOnPremGlobalAndPerEntityRecords() {
