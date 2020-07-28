@@ -702,13 +702,22 @@ public class Placement {
             }
             // move.internaltake will reset context to be the one associated with bestMinimizer
             // when we generate each move actions in compoundMove
-            trader.getSettings().setContext(origContext.isPresent() ? origContext.get() : null);
-            logger.info("Buying trader {} has best sellers {} with context {}",
-                    trader.getDebugInfoNeverUseInCode(), (bestMinimizer == null || bestMinimizer
-                    .getBestSellers() == null) ? "N/A" : bestMinimizer.getBestSellers().stream()
-                    .map(Trader::getDebugInfoNeverUseInCode).collect(Collectors.toList()),
-                    bestMinimizer == null ? "N/A" : bestMinimizer.getShoppingListContextMap()
-                    .values().iterator().next().get());
+            trader.getSettings().setContext(origContext.orElse(null));
+            if (logger.isDebugEnabled()) {
+                boolean noBestMinimizer = bestMinimizer == null
+                        || bestMinimizer.getBestSellers() == null;
+                logger.debug("Buying trader {} has best sellers {} with context {}",
+                        trader.getDebugInfoNeverUseInCode(),
+                        noBestMinimizer ? "N/A" : bestMinimizer.getBestSellers()
+                                .stream()
+                                .map(Trader::getDebugInfoNeverUseInCode)
+                                .collect(Collectors.toList()),
+                        noBestMinimizer ? "N/A" : bestMinimizer.getShoppingListContextMap()
+                                .values()
+                                .iterator()
+                                .next()
+                                .get());
+            }
             return bestMinimizer;
         } else {
             final QuoteCache cache = economy.getSettings().getUseQuoteCacheDuringSNM() && commonCliques.size() > 1
