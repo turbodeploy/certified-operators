@@ -76,7 +76,7 @@ public enum EntitySettingSpecs {
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER,
                             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.DATABASE_SERVER),
+                    EntityType.DATABASE_SERVER, EntityType.DATABASE),
             actionExecutionModeSetToManual(), true),
 
     /**
@@ -766,7 +766,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                     EntityType.APPLICATION_COMPONENT,
-                    EntityType.DATABASE_SERVER),
+                    EntityType.DATABASE_SERVER, EntityType.DATABASE),
             string(), true),
 
     /**
