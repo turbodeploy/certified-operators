@@ -60,6 +60,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -286,6 +288,29 @@ public class CloudMigrationPlanHelper {
 
             // Add license access commodities for VMs being migrated.
             updateLicenseAccessCommodities(entity, licenseCommodityKeyByOS);
+        }
+
+        // Remove redundancy type of volumes
+        graph.entitiesOfType(EntityType.VIRTUAL_VOLUME).forEach(volumeEntity ->
+                removeRedundancyType(volumeEntity.getTopologyEntityDtoBuilder()));
+    }
+
+    /**
+     * Volume redundancy type is relevant for Azure volumes only. Remove the redundancy type
+     * indicator if it is present because it will affect cost calculation when the volume is placed
+     * on an AWS storage tier.
+     *
+     * @param volumeBuilder builder of the volume Entity
+     */
+    @VisibleForTesting
+    static void removeRedundancyType(@Nonnull TopologyEntityDTO.Builder volumeBuilder) {
+        if (volumeBuilder.hasTypeSpecificInfo() && volumeBuilder.getTypeSpecificInfo().hasVirtualVolume()
+                && volumeBuilder.getTypeSpecificInfo().getVirtualVolume().hasRedundancyType()) {
+            TypeSpecificInfo.Builder typeSpecificInfoBuilder = volumeBuilder.getTypeSpecificInfo().toBuilder();
+            VirtualVolumeInfo.Builder virtualVolumeInfoBuilder =
+                    volumeBuilder.getTypeSpecificInfo().getVirtualVolume().toBuilder().clearRedundancyType();
+            typeSpecificInfoBuilder.setVirtualVolume(virtualVolumeInfoBuilder);
+            volumeBuilder.setTypeSpecificInfo(typeSpecificInfoBuilder);
         }
     }
 
