@@ -1524,6 +1524,28 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_MYSQL_MEM_LIMIT_MB}M
 
+  mediation-tomcat:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.tomcat.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_TOMCAT_PORT}"
+      - "${MEDIATION_TOMCAT_DEBUG_PORT}"
+    environment:
+      component_type: mediation-tomcat
+      instance_id: mediation-tomcat-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_TOMCAT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_TOMCAT_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_TOMCAT_MEM_LIMIT_MB}M
+
   mediation-actionscript:
     extends:
       file: common-services.yml

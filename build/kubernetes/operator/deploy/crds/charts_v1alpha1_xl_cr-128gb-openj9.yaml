@@ -82,6 +82,8 @@ spec:
     enabled: true
   udt:
     enabled: true
+  tomcat:
+    enabled: false
 
   # Resource limits - Core Services
   action-orchestrator:
@@ -249,6 +251,10 @@ spec:
       limits:
         memory: 30Gi
   mediation-mysql:
+    resources:
+      limits:
+        memory: 30Gi
+  mediation-tomcat:
     resources:
       limits:
         memory: 30Gi

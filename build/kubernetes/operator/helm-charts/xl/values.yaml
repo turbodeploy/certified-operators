@@ -178,6 +178,8 @@ mssql:
   enabled: false
 mysql:
   enabled: false
+tomcat:
+  enabled: false
 netapp:
   enabled: false
 netflow:

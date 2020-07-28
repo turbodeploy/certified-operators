@@ -83,6 +83,8 @@ spec:
     enabled: false
   mysql:
     enabled: false
+  tomcat:
+    enabled: false
   netapp:
     enabled: false
   netflow:
@@ -290,6 +292,10 @@ spec:
       limits:
         memory: 512Mi
   mediation-mysql:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-tomcat:
     resources:
       limits:
         memory: 512Mi

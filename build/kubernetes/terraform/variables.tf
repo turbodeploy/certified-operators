@@ -125,6 +125,10 @@ variable "mysql" {
   default = false
 }
 
+variable "tomcat" {
+  default = false
+}
+
 variable "netapp" {
   default = false
 }
