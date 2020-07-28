@@ -126,14 +126,13 @@ public class CloudStorageMigrationHelper {
      * Get the historical max IOPS. If it is not available, fallback to use peak value.
      *
      * @param commodityBoughtDTO the storage access commodity DTO
+     * @param maxHistoricalIopsBoughtValue the maximum StorageAccess bought value of the last 30 days
      * @return the updated storage access commodity DTO
      */
-    static CommodityBoughtDTO.Builder getHistoricalMaxIOPS(@Nonnull CommodityBoughtDTO commodityBoughtDTO) {
-        float histMaxIOPS = (float)(commodityBoughtDTO.hasHistoricalPeak()
-                && commodityBoughtDTO.getHistoricalPeak().hasMaxQuantity()
-                ? commodityBoughtDTO.getHistoricalPeak().getMaxQuantity()
-                : commodityBoughtDTO.getPeak());
-
+    static CommodityBoughtDTO.Builder getHistoricalMaxIOPS(
+            @Nonnull CommodityBoughtDTO commodityBoughtDTO,
+            @Nonnull double maxHistoricalIopsBoughtValue) {
+        double histMaxIOPS = Math.max(maxHistoricalIopsBoughtValue, commodityBoughtDTO.getPeak());
         CommodityBoughtDTO.Builder commodityBoughtBuilder = commodityBoughtDTO.toBuilder();
         commodityBoughtBuilder.setPeak(histMaxIOPS);
         commodityBoughtBuilder.setUsed(histMaxIOPS);

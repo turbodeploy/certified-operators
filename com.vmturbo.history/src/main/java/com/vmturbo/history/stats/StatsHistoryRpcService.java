@@ -1239,8 +1239,14 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 responseObserver.onCompleted();
                 return;
             }
-            historydbIO.getEntityCommoditiesMaxValues(request.getEntityType(),
-                request.getCommodityTypesList()).forEach(responseObserver::onNext);
+            historydbIO.getEntityCommoditiesMaxValues(
+                    request.getEntityType(),
+                    request.getCommodityTypesList(),
+                    request.hasIsBought() && request.getIsBought(),
+                    request.getUuidsList(),
+                    request.hasUseHistoricalCommBoughtLookbackDays()
+                            && request.getUseHistoricalCommBoughtLookbackDays()
+            ).forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (VmtDbException | SQLException e) {
             responseObserver.onError(

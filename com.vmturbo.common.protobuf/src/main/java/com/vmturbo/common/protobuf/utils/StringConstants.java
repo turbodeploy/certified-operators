@@ -165,6 +165,10 @@ public class StringConstants {
     public static final String USED_CAPACITY = "used_capacity";
     public static final String UTILIZATION = "utilization";
     public static final String UUID = "uuid";
+    /**
+     * UUID column name in HistorydbIO-created temp tables.
+     */
+    public static final String TARGET_OBJECT_UUID = "target_object_uuid";
     public static final String PEAK = "peak";
 
     public static final String VAL = "val";

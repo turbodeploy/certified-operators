@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -79,6 +80,11 @@ public class CloudMigrationPlanHelperTest {
     private final GroupServiceBlockingStub groupServiceClient;
 
     /**
+     * Stats History service dependency.
+     */
+    private final StatsHistoryServiceBlockingStub statsHistoryServiceBlockingStub;
+
+    /**
      * On-prem source VM DTO data read from file.
      */
     private TopologyEntityDTO.Builder vm1OnPrem;
@@ -114,7 +120,8 @@ public class CloudMigrationPlanHelperTest {
     public CloudMigrationPlanHelperTest() {
         context = mock(TopologyPipelineContext.class);
         groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
-        cloudMigrationPlanHelper = new CloudMigrationPlanHelper(groupServiceClient);
+        statsHistoryServiceBlockingStub = mock(TopologyConfig.class).historyClient();
+        cloudMigrationPlanHelper = new CloudMigrationPlanHelper(groupServiceClient, statsHistoryServiceBlockingStub);
     }
 
     /**
@@ -209,7 +216,7 @@ public class CloudMigrationPlanHelperTest {
 
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1OnPrem, allocationTopologyInfo, true);
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1OnPrem, allocationTopologyInfo, Collections.emptyMap(), true);
 
         settings.movable = true;
         settings.totalSkipped = 0;
@@ -255,7 +262,7 @@ public class CloudMigrationPlanHelperTest {
 
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Azure, allocationTopologyInfo, true);
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Azure, allocationTopologyInfo, Collections.emptyMap(), true);
 
         settings.movable = true;
         settings.totalSkipped = 0;
@@ -300,7 +307,7 @@ public class CloudMigrationPlanHelperTest {
 
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Aws, allocationTopologyInfo, true);
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Aws, allocationTopologyInfo, Collections.emptyMap(), true);
 
         settings.movable = true;
         settings.totalSkipped = 0;

@@ -225,7 +225,9 @@ public class TopologyConfig {
      */
     @Bean
     public CloudMigrationPlanHelper cloudMigrationPlanHelper() {
-        return new CloudMigrationPlanHelper(groupConfig.groupServiceBlockingStub());
+        return new CloudMigrationPlanHelper(
+                groupConfig.groupServiceBlockingStub(),
+                historyClient());
     }
 
     /**

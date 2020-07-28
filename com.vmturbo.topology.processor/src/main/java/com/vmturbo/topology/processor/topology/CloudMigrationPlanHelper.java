@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -46,6 +48,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.DestinationEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.OSMigration;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
@@ -53,6 +56,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
+import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -98,6 +105,11 @@ public class CloudMigrationPlanHelper {
      * Service for group resolution requests.
      */
     final GroupServiceBlockingStub groupServiceBlockingStub;
+
+    /**
+     * Service for historical stat requests.
+     */
+    final StatsHistoryServiceBlockingStub statsHistoryServiceBlockingStub;
 
     /**
      * For Cloud migration allocation (Lift_n_Shift) plan, we only support GP2 & managed_premium.
@@ -172,9 +184,13 @@ public class CloudMigrationPlanHelper {
      * Constructor called by migration stage.
      *
      * @param groupServiceBlockingStub For group resolution source entities.
+     * @param statsHistoryServiceBlockingStub For resolving historical stats of source entities.
      */
-    CloudMigrationPlanHelper(@Nonnull final GroupServiceBlockingStub groupServiceBlockingStub) {
+    CloudMigrationPlanHelper(
+            @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
+            @Nonnull final StatsHistoryServiceBlockingStub statsHistoryServiceBlockingStub) {
         this.groupServiceBlockingStub = groupServiceBlockingStub;
+        this.statsHistoryServiceBlockingStub = statsHistoryServiceBlockingStub;
     }
 
     /**
@@ -206,10 +222,16 @@ public class CloudMigrationPlanHelper {
         TopologyGraph<TopologyEntity> outputGraph = removeNonMigratingWorkloads(context, inputGraph,
                 migrationChange);
 
+        final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess =
+                getHistoricalStorageAccessPeak(
+                        migrationChange.getDestinationEntityType() == DestinationEntityType.VIRTUAL_MACHINE
+                                ? EntityType.VIRTUAL_MACHINE.getNumber()
+                                : EntityType.DATABASE_SERVER.getNumber(),
+                        context.getSourceEntities());
         // Prepare source entities for migration.
         iopsToStorageRatios = CloudStorageMigrationHelper.populateMaxIopsRatioAndCapacity(inputGraph);
-        prepareEntities(context, outputGraph, migrationChange);
-        prepareProviders(outputGraph, context.getTopologyInfo());
+        prepareEntities(context, outputGraph, migrationChange, sourceToProducerToMaxStorageAccess);
+        prepareProviders(outputGraph, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess);
         savePolicyGroups(context, outputGraph, migrationChange);
 
         if (migrationChange.getDestinationEntityType()
@@ -244,18 +266,21 @@ public class CloudMigrationPlanHelper {
      * @param context Plan pipeline context containing source entities being migrated.
      * @param graph Topology graph.
      * @param migrationChange User specified migration scenario change.
+     * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
+     * StorageAccess bought
      * @throws PipelineStageException Thrown when entity lookup by oid fails.
      */
     private void prepareEntities(@Nonnull final TopologyPipelineContext context,
                                 @Nonnull final TopologyGraph<TopologyEntity> graph,
-                                @Nonnull final TopologyMigration migrationChange)
+                                @Nonnull final TopologyMigration migrationChange,
+                                @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess)
             throws PipelineStageException {
         Set<Long> sourceEntities = context.getSourceEntities();
 
         final Map<OSType, OsType> licenseCommodityKeyByOS = computeLicenseCommodityKeysByOS(
                 migrationChange);
 
-        for (Long oid : sourceEntities) {
+        for (long oid: sourceEntities) {
             Optional<TopologyEntity> optionalEntity = graph.getEntity(oid);
             if (!optionalEntity.isPresent()) {
                 throw new PipelineStageException("Could not look up source entity " + oid
@@ -281,7 +306,7 @@ public class CloudMigrationPlanHelper {
 
             // Remove non-applicable commodities first here, before other stages add some bought
             // commodities like segmentation.
-            prepareBoughtCommodities(builder, context.getTopologyInfo(), true);
+            prepareBoughtCommodities(builder, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess, true);
 
             // Add coupon commodity to allow existing RIs to be utilized
             addCouponCommodity(entity);
@@ -312,6 +337,47 @@ public class CloudMigrationPlanHelper {
             typeSpecificInfoBuilder.setVirtualVolume(virtualVolumeInfoBuilder);
             volumeBuilder.setTypeSpecificInfo(typeSpecificInfoBuilder);
         }
+    }
+
+    /**
+     * Retrieves the historical max StorageAccess commodity bought value over the last 30 days, and
+     * updates the StorageAccess commodityBought used and peak values to that maximum.
+     *
+     * @param entityType the migration source type
+     * @param sourceEntities a set of all OIDs being migrated
+     * @return a map of migration source -> producer -> maxHistoricalStorageAccessPeak
+     */
+    private Map<Long, Map<Long, Double>> getHistoricalStorageAccessPeak(
+            @Nonnull final int entityType,
+            @Nonnull final Set<Long> sourceEntities) {
+        if (CollectionUtils.isEmpty(sourceEntities)) {
+            return Collections.emptyMap();
+        }
+
+        final Iterator<EntityCommoditiesMaxValues> commMaxValues = statsHistoryServiceBlockingStub
+                .getEntityCommoditiesMaxValues(GetEntityCommoditiesMaxValuesRequest.newBuilder()
+                        .setEntityType(entityType)
+                        .addAllCommodityTypes(ImmutableSet.of(CommodityType.STORAGE_ACCESS_VALUE))
+                        .setIsBought(true)
+                        .addAllUuids(sourceEntities)
+                        .setUseHistoricalCommBoughtLookbackDays(true)
+                        .build());
+
+        final Map<Long, Map<Long, Double>> toReturn = Maps.newHashMap();
+        commMaxValues.forEachRemaining(entityCommoditiesMaxValues -> {
+            long migratingEntityOid = entityCommoditiesMaxValues.getOid();
+            final Map<Long, Double> producerToMaxValue =
+                    entityCommoditiesMaxValues.getCommodityMaxValuesList().stream()
+                            .collect(Collectors.toMap(
+                                    CommodityMaxValue::getProducerOid,
+                                    CommodityMaxValue::getMaxValue));
+            if (toReturn.containsKey(migratingEntityOid)) {
+                toReturn.get(migratingEntityOid).putAll(producerToMaxValue);
+            } else {
+                toReturn.put(migratingEntityOid, producerToMaxValue);
+            }
+        });
+        return toReturn;
     }
 
     /**
@@ -485,9 +551,12 @@ public class CloudMigrationPlanHelper {
      *
      * @param graph Topology graph to look for provider types.
      * @param topologyInfo Plan topology info.
+     * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
+     * StorageAccess bought
      */
     private void prepareProviders(@Nonnull final TopologyGraph<TopologyEntity> graph,
-                                         @Nonnull final TopologyInfo topologyInfo) {
+                                @Nonnull final TopologyInfo topologyInfo,
+                                @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess) {
         PROVIDER_TYPES
                 .stream()
                 .flatMap(graph::entitiesOfType)
@@ -498,7 +567,8 @@ public class CloudMigrationPlanHelper {
                     providerDtoBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
 
                     // Need to set movable/scalable true for provider commBought.
-                    prepareBoughtCommodities(providerDtoBuilder, topologyInfo, true);
+                    prepareBoughtCommodities(providerDtoBuilder, topologyInfo,
+                            sourceToProducerToMaxStorageAccess, true);
                     prepareSoldCommodities(providerDtoBuilder);
                 });
     }
@@ -542,12 +612,15 @@ public class CloudMigrationPlanHelper {
      *
      * @param dtoBuilder Source entity or provider DTO being updated.
      * @param topologyInfo Info about plan topology.
+     * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
+     * StorageAccess bought
      * @param isConsumer true if updating commBought of the consumer (i.e. VM) false if updating the
      *                   provider of the VM.
      */
     @VisibleForTesting
     void prepareBoughtCommodities(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
                                   @Nonnull final TopologyInfo topologyInfo,
+                                  @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
                                   boolean isConsumer) {
         List<CommoditiesBoughtFromProvider> newCommoditiesByProvider = new ArrayList<>();
         // Go over grouping of comm bought along with their providers.
@@ -556,7 +629,7 @@ public class CloudMigrationPlanHelper {
 
             // We need to skip some on-prem specific commodities bought to allow cloud migration.
             List<CommodityBoughtDTO> commoditiesToInclude = getUpdatedCommBought(
-                    commBoughtGrouping, topologyInfo, dtoBuilder.getOid(), isConsumer);
+                    commBoughtGrouping, topologyInfo, dtoBuilder.getOid(), sourceToProducerToMaxStorageAccess, isConsumer);
             if (commoditiesToInclude.size() == 0) {
                 // Don't keep this group if there are no valid bought commodities from it.
                 continue;
@@ -588,6 +661,8 @@ public class CloudMigrationPlanHelper {
      * @param commBoughtGrouping Grouping to look for commBoughtDTO in.
      * @param topologyInfo Plan topology info.
      * @param entityOid entity OID
+     * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
+     * StorageAccess bought
      * @param isConsumer true if updating commBought of the consumer (i.e. VM) false if updating the
      *                   provider of the VM.
      * @return Updated list of only applicable CommBoughtDTOs.
@@ -597,6 +672,7 @@ public class CloudMigrationPlanHelper {
             @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping,
             @Nonnull final TopologyInfo topologyInfo,
             final long entityOid,
+            @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
             boolean isConsumer) {
         List<CommodityBoughtDTO> commoditiesToInclude = new ArrayList<>();
         for (CommodityBoughtDTO dtoBought : commBoughtGrouping.getCommodityBoughtList()) {
@@ -619,7 +695,16 @@ public class CloudMigrationPlanHelper {
                 commoditiesToInclude.add(dtoBoughtUpdated);
             } else if (isConsumer && commodityType == CommodityType.STORAGE_ACCESS) {
                 // Use historical max value for storage access.
-                CommodityBoughtDTO.Builder commodityBoughtDTO = CloudStorageMigrationHelper.getHistoricalMaxIOPS(dtoBought);
+                double maxHistoricalIopsBoughtValue = 0;
+                final Map<Long, Double> producerToMaxHistoricalIops = sourceToProducerToMaxStorageAccess.get(entityOid);
+                if (producerToMaxHistoricalIops != null) {
+                    Double maxHistoricalIopsBought = producerToMaxHistoricalIops.get(commBoughtGrouping.getProviderId());
+                    if (maxHistoricalIopsBought != null) {
+                        maxHistoricalIopsBoughtValue = maxHistoricalIopsBought;
+                    }
+                }
+                final CommodityBoughtDTO.Builder commodityBoughtDTO = CloudStorageMigrationHelper.getHistoricalMaxIOPS(
+                        dtoBought, maxHistoricalIopsBoughtValue);
                 if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
                     // Disable Storage Access commodity for Lift and Shift plan so it can always
                     // fit in GP2 or Azure Managed Premium.

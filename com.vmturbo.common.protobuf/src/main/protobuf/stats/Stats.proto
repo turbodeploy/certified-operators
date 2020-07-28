@@ -466,15 +466,17 @@ message SetAuditLogDataRetentionSettingResponse {
 // The max value of a commodity over the whole stats
 // retention period.
 message CommodityMaxValue {
-
     // The type of commodity.
     optional topology.CommodityType commodityType = 1;
 
     // The max value for the commodity.
     optional double maxValue = 2;
+
+    // The uuid of the producer
+    optional uint64 producer_oid = 3;
 }
 
-// Return the max stats of the commodities sold by the entity.
+// Return the max stats of commodities by entity.
 message EntityCommoditiesMaxValues {
     // entity id
     optional uint64 oid = 1;
@@ -491,6 +493,15 @@ message GetEntityCommoditiesMaxValuesRequest {
 
     // List of commodity types whose max used value will be fetched.
     repeated int32 commodityTypes = 2;
+
+    // If this request pertains to commodities bought - false by default
+    optional bool is_bought = 3;
+
+    // If uuids are not specified, get values for all entities
+    repeated int64 uuids = 4;
+
+    // number of days to look-back
+    optional bool use_historical_comm_bought_lookback_days = 5;
 }
 
 // Request for commodity capacity values
