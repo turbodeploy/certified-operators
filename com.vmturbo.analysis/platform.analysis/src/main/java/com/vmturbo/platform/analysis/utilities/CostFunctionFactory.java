@@ -661,6 +661,11 @@ public class CostFunctionFactory {
                             totalCost += (endRange - prevEndRange) * price;
                         }
                     }
+                    /*
+                    The bought quantity is less than the maximum endRange because
+                    insufficientCommodityWithinSellerCapacityQuote takes care of checking
+                    for bought quantity less than the sold commodity max.
+                     */
                     long selectedAmount = prevEndRange;
                     // Add the increment in the current option to satisfy the demand.
                     while (selectedAmount < dependentResourceQuantity) {
