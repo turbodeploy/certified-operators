@@ -3,11 +3,9 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.function.Function;
 
 import com.google.common.collect.ImmutableList;
-
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,9 +14,10 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.Deactivate;
+import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
@@ -39,10 +38,6 @@ public class ReplayActions {
     private final @NonNull ImmutableList<@NonNull Action> actions_;
     // The deactivate actions to be replayed during the 1st analysis sub-cycle.
     private final @NonNull ImmutableList<@NonNull Deactivate> deactivateActions_;
-    // The topology that contains the above traders and targets of above actions.
-    // It is needed to map traders from old economy to new using OIDs.
-    private final @NonNull Topology topology_;
-
     // Constructors
 
     /**
@@ -51,7 +46,6 @@ public class ReplayActions {
     public ReplayActions() {
         actions_ = ImmutableList.of();
         deactivateActions_ = ImmutableList.of();
-        topology_ = new Topology();
     }
 
     /**
@@ -69,7 +63,14 @@ public class ReplayActions {
                          @NonNull Topology topology) {
         actions_ = ImmutableList.copyOf(actions);
         deactivateActions_ = ImmutableList.copyOf(deactivateActions);
-        topology_ = topology;
+
+        // TODO: Support actions with shoppingLists that have to be translated.
+        for (Action action : actions) {
+            if (!(action instanceof ProvisionBySupply || action instanceof Activate)) {
+                logger.error("Action {} may require shopping list translation but shopping list "
+                    + "translation is not supported in XL.", action.getClass().getSimpleName());
+            }
+        }
     }
 
     // Methods
@@ -93,19 +94,6 @@ public class ReplayActions {
     }
 
     /**
-     * Returns the topology associated with the {@link #getActions() actions} {@code this} object is
-     * responsible for replaying.
-     *
-     * <p>It should not be modified.</p>
-     *
-     * @see #getActions()
-     */
-    @Pure
-    public @NonNull Topology getTopology(@ReadOnly ReplayActions this) {
-        return topology_;
-    }
-
-    /**
      * Replays encapsulated {@link #getActions() actions} on the given {@link Economy}.
      *
      * @param economy The {@link Economy} on which the actions are to be replayed.
@@ -117,8 +105,8 @@ public class ReplayActions {
         for (Action action : getActions()) {
             try {
                 Action ported = action.port(economy,
-                    oldTrader -> mapTrader(oldTrader, getTopology(), economy.getTopology()),
-                    oldSl -> mapShoppingList(oldSl, getTopology(), economy.getTopology())
+                    oldTrader -> mapTrader(oldTrader, economy.getTopology()),
+                    Function.identity() // TODO: Once XL actually supports shoppingList IDs, map the shopping list.
                 );
 
                 if (ported.isValid()) {
@@ -161,8 +149,8 @@ public class ReplayActions {
         for (Deactivate deactivateAction : getDeactivateActions()) {
             try {
                 @NonNull Deactivate ported = deactivateAction.port(economy,
-                    oldTrader -> mapTrader(oldTrader, getTopology(), economy.getTopology()),
-                    oldSl -> mapShoppingList(oldSl, getTopology(), economy.getTopology())
+                    oldTrader -> mapTrader(oldTrader, economy.getTopology()),
+                    Function.identity() // Deactivate actions do not have a shpping list
                 );
                 @NonNull Trader newTrader = ported.getTarget();
                 if (ported.isValid() && isEligibleforSuspensionReplay(newTrader, economy)) {
@@ -213,7 +201,6 @@ public class ReplayActions {
      * Maps a {@link Trader} to another one with the same OID in another topology.
      *
      * @param oldTrader The trader that is going to be mapped.
-     * @param oldTopology The topology that contains <b>oldTrader</b>.
      * @param newTopology The topology in which to search for a trader with OID equal to the
      *                    <b>oldTrader</b>'s one.
      * @return The trader in <b>newTopology</b> that has the same OID as <b>oldTrader</b> had in
@@ -221,9 +208,9 @@ public class ReplayActions {
      * @throws NoSuchElementException Iff no such trader exists in <b>newTopology</b>.
      */
     static @NonNull Trader mapTrader(@NonNull Trader oldTrader,
-                                    @NonNull Topology oldTopology, @NonNull Topology newTopology) {
-        Long oid = oldTopology.getTraderOids().get(oldTrader);
-        Trader newTrader = newTopology.getTraderOids().inverse().get(oid);
+                                     @NonNull Topology newTopology) {
+        Long oid = oldTrader.getOid();
+        Trader newTrader = newTopology.getTradersByOid().get(oid);
 
         if (newTrader == null) {
             throw new NoSuchElementException("Could not find trader with oid " + oid
@@ -232,29 +219,4 @@ public class ReplayActions {
 
         return newTrader;
     }
-
-    /**
-     * Maps a {@link ShoppingList} to another one with the same OID in another topology.
-     *
-     * @param oldShoppingList The shopping list that is going to be mapped.
-     * @param oldTopology The topology that contains <b>oldShoppingList</b>.
-     * @param newTopology The topology in which to search for a shopping list with OID equal to the
-     *                    <b>oldShoppingList</b>'s one.
-     * @return The shopping list in <b>newTopology</b> that has the same OID as
-     *         <b>oldShoppingList</b> had in <b>oldTopology</b> iff one exists.
-     * @throws NoSuchElementException Iff no such shopping list exists in <b>newTopology</b>.
-     */
-    static @NonNull ShoppingList mapShoppingList(@NonNull ShoppingList oldShoppingList,
-                                    @NonNull Topology oldTopology, @NonNull Topology newTopology) {
-        Long oid = oldTopology.getShoppingListOids().get(oldShoppingList);
-        ShoppingList newShoppingList = newTopology.getShoppingListOids().inverse().get(oid);
-
-        if (newShoppingList == null) {
-            throw new NoSuchElementException("Could not find shopping list with oid "
-                + oid + " " + oldShoppingList.getDebugInfoNeverUseInCode() + " in new topology");
-        }
-
-        return newShoppingList;
-    }
-
 }

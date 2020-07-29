@@ -40,7 +40,7 @@ public class TopologyTest {
         @NonNull Topology topology = new Topology();
         assertTrue(topology.getEconomy().getTraders().isEmpty());
         assertTrue(topology.getEconomy().getMarkets().isEmpty());
-        assertTrue(topology.getTraderOids().isEmpty());
+        assertTrue(topology.getTradersByOid().isEmpty());
         assertTrue(topology.getShoppingListOids().isEmpty());
         assertTrue(topology.getDanglingShoppingLists().isEmpty());
     }
@@ -74,10 +74,8 @@ public class TopologyTest {
     public final void testGetTraderOids() {
         @NonNull Trader trader = new Economy().addTrader(0, TraderState.ACTIVE, new Basket());
 
-        MapTests.verifyUnmodifiableValidOperations(fixture_.getTraderOids(), trader, 0L); // TODO: test bimap operations instead
-        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getTraderOids(), trader, 0L);
-        MapTests.verifyUnmodifiableValidOperations(fixture_.getTraderOids().inverse(), 0L, trader); // TODO: test bimap operations instead
-        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getTraderOids().inverse(), 0L, trader);
+        MapTests.verifyUnmodifiableValidOperations(fixture_.getTradersByOid(), 0L, trader); // TODO: test bimap operations instead
+        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getTradersByOid(), 0L, trader);
     }
 
     @Test

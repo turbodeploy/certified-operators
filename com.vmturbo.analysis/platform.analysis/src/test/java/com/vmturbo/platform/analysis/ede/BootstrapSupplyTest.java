@@ -372,18 +372,22 @@ public class BootstrapSupplyTest {
         Economy economy = new Economy();
         Trader pm1 = TestUtils.createTrader(economy, PM_TYPE, Arrays.asList(0l),
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM, TestUtils.ST_AMT, TestUtils.ST_PROV),
-                        new double[]{5000, 5000, 1000, 2000}, true, false);
+                        new double[]{5000, 5000, 350, 2000}, true, false);
         pm1.setDebugInfoNeverUseInCode("PM1");
         Trader st1 = TestUtils.createTrader(economy, ST_TYPE, Arrays.asList(0l),
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.ST_PROV, TestUtils.IOPS,
                                         TestUtils.ST_LATENCY),
-                        new double[]{500, 5000, 5000, 5000}, false, true);
+                        new double[]{800, 5000, 5000, 5000}, false, true);
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
                         .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
-                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY))
+                                        .setUtilizationUpperBound(0.5)
+                                        .setOrigUtilizationUpperBound(0.5);
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
                         .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
-                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
+                                        .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY))
+                                        .setUtilizationUpperBound(0.5)
+                                        .setOrigUtilizationUpperBound(0.5);
         st1.getSettings().setResizeThroughSupplier(true);
         st1.setDebugInfoNeverUseInCode("DS1");
         ShoppingList stSl = economy.addBasketBought(st1, new Basket(TestUtils.ST_AMT, TestUtils.ST_PROV));
@@ -409,7 +413,7 @@ public class BootstrapSupplyTest {
         economy.getModifiableShopTogetherTraders().add(vm2);
 
         List<Action> bootStrapActionList = BootstrapSupply.nonShopTogetherBootstrap(economy);
-        assertTrue(bootStrapActionList.size() == 3);
+        assertTrue(bootStrapActionList.size() == 6);
         Action a0 = bootStrapActionList.get(0);
         Action a1 = bootStrapActionList.get(1);
         Action a2 = bootStrapActionList.get(2);
@@ -425,6 +429,7 @@ public class BootstrapSupplyTest {
         Resize r2 = (Resize) a2;
         assertEquals(TestUtils.ST_PROV, r2.getResizedCommoditySpec());
         assertEquals(st1, r2.getSellingTrader());
+        assertTrue(st1.getCommoditiesSold().get(0).getUtilization() < 0.5);
     }
 
     /**

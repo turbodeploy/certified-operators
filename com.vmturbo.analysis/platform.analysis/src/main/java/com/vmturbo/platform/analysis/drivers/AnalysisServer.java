@@ -375,9 +375,8 @@ public class AnalysisServer implements AutoCloseable {
         if (!economy.getTradersForHeadroom().isEmpty()) {
             actions = new Ede().generateHeadroomActions(economy, false, false, false, true);
             long stop = System.nanoTime();
-            results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
-                            lastComplete.getShoppingListOids(), stop - start, lastComplete,
-                            startPriceStatement, true);
+            results = AnalysisToProtobuf.analysisResults(actions,
+                lastComplete.getShoppingListOids(), stop - start, lastComplete, startPriceStatement, true);
         } else {
             // if there are no templates to be added this is not a headroom plan
             Ede ede = new Ede();
@@ -410,7 +409,7 @@ public class AnalysisServer implements AutoCloseable {
                 }
             }
             long stop = System.nanoTime();
-            results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
+            results = AnalysisToProtobuf.analysisResults(actions,
                             lastComplete.getShoppingListOids(), stop - start, lastComplete,
                             startPriceStatement, true);
             if (instInfo.isRealTime() && instInfo.isProvisionEnabled()) {
@@ -439,7 +438,6 @@ public class AnalysisServer implements AutoCloseable {
                         .collect(Collectors.toList()));
                 for (Action action : secondRoundActions) {
                     ActionTO actionTO = AnalysisToProtobuf.actionTO(action,
-                                    lastComplete.getTraderOids(),
                                     lastComplete.getShoppingListOids(), lastComplete);
                     if (actionTO != null) {
                         builder.addActions(actionTO);
@@ -458,7 +456,6 @@ public class AnalysisServer implements AutoCloseable {
                     if (!trader.isClone()) {
                         builder.setProjectedTopoEntityTO(trader.getEconomyIndex(),
                                         AnalysisToProtobuf.traderTO(economy, trader,
-                                                        lastComplete.getTraderOids(),
                                                         lastComplete.getShoppingListOids(),
                                                         preferentialTraders));
                     }

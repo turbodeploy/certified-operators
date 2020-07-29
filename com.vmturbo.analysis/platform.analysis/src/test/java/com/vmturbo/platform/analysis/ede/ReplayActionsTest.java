@@ -16,6 +16,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.actions.Action;
@@ -127,19 +128,20 @@ public class ReplayActionsTest {
 
     @Test
     public void testTranslateTrader() {
-        Trader newVm = ReplayActions.mapTrader(vm, firstTopology, second.getTopology());
+        Trader newVm = ReplayActions.mapTrader(vm, second.getTopology());
         assertEquals(vm.getEconomyIndex(), newVm.getEconomyIndex());
     }
 
     @Test
     public void testTranslateMarket() {
-        Trader newVm = ReplayActions.mapTrader(vm, firstTopology, second.getTopology());
+        Trader newVm = ReplayActions.mapTrader(vm, second.getTopology());
         Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
         Map<ShoppingList,Market> newBuying = first.getMarketsAsBuyer(newVm);
         assertEquals(buying.keySet().size(), newBuying.keySet().size());
     }
 
     @Test
+    @Ignore("Replay of move actions not yet supported in XL")
     public void testReplayMove() {
         ShoppingList pmShoppingList =
             first.getMarketsAsBuyer(vm).keySet().toArray(new ShoppingList[3])[0];
@@ -152,6 +154,7 @@ public class ReplayActionsTest {
     }
 
     @Test
+    @Ignore("Replay of move actions not yet supported in XL")
     public void testReplayMoveAlreadyTaken() {
         // simulate move happening in main market
         ShoppingList pmShoppingList =
