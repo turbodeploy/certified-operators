@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -298,7 +299,7 @@ public class TopologyEntitiesHandler {
                         || action instanceof Resize && action.isExtractAction())
                     .collect(Collectors.toList());
                 List<Trader> provisionedTraders = Lists.newArrayList();
-
+                Set<Trader> resizeThroughSuppliers = Sets.newHashSet();
                 for (Action action : secondRoundActions) {
                     final ActionTO actionTO = AnalysisToProtobuf.actionTO(
                         action, topology.getShoppingListOids(), topology);
@@ -319,6 +320,9 @@ public class TopologyEntitiesHandler {
                             builder.getProjectedTopoEntityTOBuilder(
                                 action.getActionTarget().getEconomyIndex())
                                 .setState(TraderStateTO.ACTIVE);
+                        } else if (action instanceof Resize && action.getActionTarget().getSettings()
+                            .isResizeThroughSupplier()) {
+                            resizeThroughSuppliers.add(action.getActionTarget());
                         }
                     }
                 }
@@ -326,6 +330,15 @@ public class TopologyEntitiesHandler {
                 // Before building the results, generate traderTOs for provisioned traders from second round
                 // If Action DTO is added, check if we need to add provisioned traderTO as well
                 addProvisionedTraderToBuilder(builder, provisionedTraders, economy, topology);
+
+                // Recreate Resize Through Supplier Trader in order to have the updated impact from the
+                // Second round of analysis actions.
+                resizeThroughSuppliers.forEach(t -> {
+                    builder.setProjectedTopoEntityTO(t.getEconomyIndex(),
+                        AnalysisToProtobuf.traderTO(economy, t, topology.getShoppingListOids(),
+                            economy.getPreferentialShoppingLists()
+                                .stream().map(sl -> sl.getBuyer()).collect(Collectors.toSet())));
+                });
                 results = builder.build();
 
                 // Update replay actions
