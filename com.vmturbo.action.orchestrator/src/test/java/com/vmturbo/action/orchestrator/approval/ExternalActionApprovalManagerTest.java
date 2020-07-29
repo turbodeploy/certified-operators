@@ -106,6 +106,9 @@ public class ExternalActionApprovalManagerTest {
                         Mockito.mock(ActionModeCalculator.class), RECOMMENDATION_ID));
         final Action acceptedAction = Mockito.mock(Action.class);
         final Action readyAction = Mockito.mock(Action.class);
+        Mockito.when(rejectedAction.getMode()).thenReturn(ActionDTO.ActionMode.EXTERNAL_APPROVAL);
+        Mockito.when(acceptedAction.getMode()).thenReturn(ActionDTO.ActionMode.EXTERNAL_APPROVAL);
+        Mockito.when(readyAction.getMode()).thenReturn(ActionDTO.ActionMode.EXTERNAL_APPROVAL);
 
         Mockito.when(rejectedAction.getState()).thenReturn(ActionState.READY);
         Mockito.when(rejectedAction.getId()).thenReturn(ACTION3);
@@ -136,6 +139,29 @@ public class ExternalActionApprovalManagerTest {
                 .persistRejectedAction(Mockito.eq(RECOMMENDATION_ID), Mockito.any(String.class),
                         Mockito.any(LocalDateTime.class), Mockito.any(String.class),
                         Mockito.anyCollectionOf(Long.class));
+        Mockito.verify(commit).run();
+    }
+
+    /**
+     * Tests the case that the action update is accepted but the action is not in external
+     * approval state.
+     *
+     */
+    @Test
+    public void testAcceptedActionInUnexpectedModeFlow() {
+        final Runnable commit = Mockito.mock(Runnable.class);
+        final Action readyAction = Mockito.mock(Action.class);
+        Mockito.when(readyAction.getMode()).thenReturn(ActionDTO.ActionMode.MANUAL);
+
+        Mockito.when(actionStore.getActionByRecommendationId(ACTION1))
+            .thenReturn(Optional.of(readyAction));
+
+        getActionStateResponseConsumer.accept(GetActionStateResponse.newBuilder()
+            .putActionState(ACTION1, ActionResponseState.ACCEPTED)
+            .build(), commit, Mockito.mock(SpanContext.class));
+
+        Mockito.verify(mgr, Mockito.never())
+            .attemptAndExecute(Mockito.any(), Mockito.anyString(), Mockito.eq(readyAction));
         Mockito.verify(commit).run();
     }
 
