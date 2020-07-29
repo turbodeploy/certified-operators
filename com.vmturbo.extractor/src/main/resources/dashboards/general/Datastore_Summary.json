@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1595508957398,
+  "iteration": 1596047214564,
   "links": [],
   "panels": [
     {
@@ -446,6 +446,106 @@
       "title": "Virtual Machine Summary",
       "transform": "table",
       "type": "table-old"
+    },
+    {
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": null
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "File Size"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "kbytes"
+              },
+              {
+                "id": "custom.width",
+                "value": 102
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "File Path"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 547
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "id": 23,
+      "options": {
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "7.0.1",
+      "targets": [
+        {
+          "format": "table",
+          "group": [],
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "SELECT path as \"File Path\",\n       file_size_kb as \"File Size\",\n       modification_time as \"Last Modified Time\"\n  FROM wasted_file\n WHERE storage_oid = $Datastore\n ORDER BY 2 DESC",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "current"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "metric",
+          "timeColumn": "\"time\"",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Wasted Files on Datastore",
+      "type": "table"
     }
   ],
   "refresh": false,
