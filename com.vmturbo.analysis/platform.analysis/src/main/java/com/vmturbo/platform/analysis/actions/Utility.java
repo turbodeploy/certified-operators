@@ -336,7 +336,8 @@ public final class Utility {
             int neededClones = (int) Math.ceil(((commSold.getQuantity()
                                 + (sellerIsSupplier ? 0 : sl.getQuantities()[sl.getBasket().indexOf(cs)])
                                     - commSold.getEffectiveCapacity())
-                        / provisionableProvider.getCommoditySold(cs).getEffectiveCapacity()));
+                        / (provisionableProvider.getCommoditySold(cs).getEffectiveCapacity()
+                            * commSold.getSettings().getUtilizationUpperBound())));
             if (logger.isDebugEnabled()) {
                 logger.debug("CommoditySpecification: {}" + "\nNeededClones: {}"
                     + "\nCommSold Quantity: {}" + "\nSellerIsSupplier: {}"
