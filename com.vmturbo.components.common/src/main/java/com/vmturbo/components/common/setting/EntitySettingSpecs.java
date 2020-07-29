@@ -413,7 +413,7 @@ public enum EntitySettingSpecs {
         "Min Observation Period",
         Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
         SettingTiebreaker.BIGGER, EnumSet.of(EntityType.CONTAINER_SPEC),
-        numeric(0.0f, 7.0f, 1.0f), true),
+        numeric(0.0f, 90.0f, 1.0f), true),
 
     /**
      * Min observation period for business user.
@@ -422,7 +422,7 @@ public enum EntitySettingSpecs {
             "Min Observation Period",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            numeric(0.0f, 7.0f, 0.0f), true),
+            numeric(0.0f, 90.0f, 0.0f), true),
 
     /**
      * Max observation period for business user.
