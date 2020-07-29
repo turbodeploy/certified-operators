@@ -2,6 +2,7 @@ package com.vmturbo.components.common.setting;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -39,6 +40,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Utilities for dealing with messages defined in {@link SettingProto} (Setting.proto).
@@ -47,6 +49,12 @@ public final class SettingDTOUtil {
 
     private static final Logger logger = LogManager.getLogger();
 
+    public static final Set<EntityType> entityTypesWithSLOSettings = EnumSet.of(
+            EntityType.BUSINESS_APPLICATION,
+            EntityType.BUSINESS_TRANSACTION,
+            EntityType.SERVICE,
+            EntityType.APPLICATION_COMPONENT,
+            EntityType.DATABASE_SERVER);
 
     private SettingDTOUtil() {
     }

@@ -93,8 +93,11 @@ public class DTOFieldAndPropertyHandler {
     public static Object getFieldFromMessageOrBuilder(@Nonnull final MessageOrBuilder message,
                                                       @Nonnull final String fieldName)
             throws NoSuchFieldException {
-        FieldDescriptor fieldDescriptor = getFieldDescriptor(message, fieldName);
-        return message.getAllFields().getOrDefault(fieldDescriptor, null);
+        final FieldDescriptor fieldDescriptor = getFieldDescriptor(message, fieldName);
+        if (fieldDescriptor.isRepeated() || message.hasField(fieldDescriptor)) {
+            return message.getField(fieldDescriptor);
+        }
+        return null;
     }
 
     /**

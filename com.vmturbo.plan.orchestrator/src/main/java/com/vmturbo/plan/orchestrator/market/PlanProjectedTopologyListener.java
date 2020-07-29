@@ -7,6 +7,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,6 +20,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.RemoteIteratorDrain;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 
 /**
@@ -52,7 +56,8 @@ public class PlanProjectedTopologyListener implements ProjectedTopologyListener 
     @Override
     public void onProjectedTopologyReceived(final long projectedTopologyId,
                                             @Nonnull final TopologyDTO.TopologyInfo sourceTopologyInfo,
-                                            @Nonnull final RemoteIterator<ProjectedTopologyEntity> topology) {
+                                            @Nonnull final RemoteIterator<ProjectedTopologyEntity> topology,
+                                            @Nonnull final SpanContext tracingContext) {
         final Set<ProjectedTopologyProcessor> appliesTo = registeredProcessors.stream()
             .filter(processor -> processor.appliesTo(sourceTopologyInfo))
             .collect(Collectors.toSet());
@@ -74,7 +79,7 @@ public class PlanProjectedTopologyListener implements ProjectedTopologyListener 
                         .collect(Collectors.joining(",")), sourceTopologyInfo);
             }
             final ProjectedTopologyProcessor processor = appliesTo.iterator().next();
-            try {
+            try (TracingScope tracingScope = Tracing.trace("plan_handle_projected_topology", tracingContext)) {
                 processor.handleProjectedTopology(projectedTopologyId, sourceTopologyInfo, topology);
             } catch (RuntimeException e) {
                 logger.error("Projected topology processing by processor " +

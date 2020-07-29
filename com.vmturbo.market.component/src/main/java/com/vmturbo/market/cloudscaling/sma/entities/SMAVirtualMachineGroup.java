@@ -1,11 +1,9 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -37,36 +35,41 @@ public class SMAVirtualMachineGroup {
      *
      * @param groupName the group name
      * @param virtualMachines the virtual machines that belong to this group.
+     * @param groupProviderList the intersection of providers of all members
      */
     public SMAVirtualMachineGroup(@Nonnull final String groupName,
-                                  List<SMAVirtualMachine> virtualMachines) {
+                                  List<SMAVirtualMachine> virtualMachines,
+                                  List<SMATemplate> groupProviderList) {
         this.name = Objects.requireNonNull(groupName, "groupName is null!");
         this.virtualMachines = virtualMachines;
         Collections.sort(getVirtualMachines(), new SortByRiCoverageAndVmOID());
         // The first vm is set as groupLeader.
         this.groupLeader = getVirtualMachines().get(0);
         this.groupLeader.setGroupSize(getVirtualMachines().size());
+        this.groupLeader.setGroupProviders(groupProviderList);
         this.zonalDiscountable = true;
-        for (SMAVirtualMachine vm : getVirtualMachines()) {
-            if (vm != groupLeader) {
-                update(vm);
-            }
-        }
-        groupLeader.updateNaturalTemplateAndMinCostProviderPerFamily();
-        updateNaturalTemplateOfAllMembers();
-
+        updateAllMembers();
     }
 
     /**
-     * update the natural template of all members with the natural template of the leader.
+     * The group leader providers is the intersection of all providers in the group.
+     * non leaders will have no provider and the group size 0.
+     * if the virtual machines have different zone from the leader the group
+     * is set zonalDiscountable false.
      */
-    private void updateNaturalTemplateOfAllMembers() {
-        // this has to be set here because the providers of the non leader is empty.
-        for (SMAVirtualMachine groupMember : getVirtualMachines()) {
-            if (groupLeader.getGroupProviders().size() > 0) {
-                groupMember.setNaturalTemplate(groupLeader.getNaturalTemplate());
-            } else {
-                groupMember.setNaturalTemplate(groupMember.getCurrentTemplate());
+    public void updateAllMembers() {
+        for (SMAVirtualMachine virtualMachine : getVirtualMachines()) {
+            if (virtualMachine != groupLeader) {
+                // the non leaders have empty providers
+                virtualMachine.setGroupProviders(Collections.emptyList());
+                //non leaders have group size 0
+                virtualMachine.setGroupSize(0);
+                // update the group size of the leader with the size of the group.
+                if (groupLeader.getZoneId() != virtualMachine.getZoneId()) {
+                    this.zonalDiscountable = false;
+                }
+                virtualMachine.setNaturalTemplate(groupLeader.getNaturalTemplate());
+                virtualMachine.setMinCostProviderPerFamily(groupLeader.getMinCostProviderPerFamily());
             }
         }
     }
@@ -85,29 +88,6 @@ public class SMAVirtualMachineGroup {
 
     public SMAVirtualMachine getGroupLeader() {
         return groupLeader;
-    }
-
-    /**
-     * The group leader providers is the intersection of all providers in the group.
-     * non leaders will have no provider and the group size 0.
-     * if the virtual machines have different zone from the leader the group
-     * is set zonalDiscountable false.
-     *
-     * @param virtualMachine the virtual machine updated
-     */
-    public void update(SMAVirtualMachine virtualMachine) {
-        // update the groupLeader provider with the intersection of all member providers.
-        groupLeader.setGroupProviders(groupLeader.getGroupProviders().stream()
-                .filter(a -> virtualMachine.getGroupProviders().contains(a))
-                .collect(Collectors.toList()));
-        // the non leaders have empty providers
-        virtualMachine.setGroupProviders(new ArrayList<>());
-        //non leaders have group size 0
-        virtualMachine.setGroupSize(0);
-        // update the group size of the leader with the size of the group.
-        if (groupLeader.getZoneId() != virtualMachine.getZoneId()) {
-            this.zonalDiscountable = false;
-        }
     }
 
     /**

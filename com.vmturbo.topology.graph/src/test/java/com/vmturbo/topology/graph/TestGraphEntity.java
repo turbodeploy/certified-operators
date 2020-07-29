@@ -2,17 +2,12 @@ package com.vmturbo.topology.graph;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -31,20 +26,16 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
 import com.vmturbo.topology.graph.ThinSearchableProps.CommodityValueFetcher;
+import com.vmturbo.topology.graph.util.BaseGraphEntity;
 
 /**
  * An implementation of a {@link TopologyGraphSearchableEntity} used for tests in lieu of a complicated
  * mock object.
  */
-public class TestGraphEntity implements TopologyGraphSearchableEntity<TestGraphEntity>, CommodityValueFetcher {
-    private final long oid;
+public class TestGraphEntity extends BaseGraphEntity<TestGraphEntity> implements TopologyGraphSearchableEntity<TestGraphEntity>, CommodityValueFetcher {
 
-    private final ApiEntityType entityType;
-
-    private EntityState state = EntityState.POWERED_ON;
-
-    private String displayName;
-
+    private String displayNameOverride = null;
+    private EntityState stateOverride = null;
     private SearchableProps searchableProps;
 
     private EnvironmentType envType = EnvironmentType.ON_PREM;
@@ -59,57 +50,29 @@ public class TestGraphEntity implements TopologyGraphSearchableEntity<TestGraphE
 
     private AnalysisSettings analysisSettings = AnalysisSettings.getDefaultInstance();
 
-    /**
-     * Relationships to other entities.
-     */
-    private final List<TestGraphEntity> providers = new ArrayList<>();
-    private final List<TestGraphEntity> consumers = new ArrayList<>();
-    private final List<TestGraphEntity> outboundAssociatedEntities = new ArrayList<>();
-    private final List<TestGraphEntity> inboundAssociatedEntities = new ArrayList<>();
-    private final List<TestGraphEntity> aggregatedEntities = new ArrayList<>();
-    private final List<TestGraphEntity> aggregators = new ArrayList<>();
-    private final List<TestGraphEntity> ownedEntities = new ArrayList<>();
-    private final AtomicReference<TestGraphEntity> owner = new AtomicReference<>();
-    private final List<TestGraphEntity> controlledEntities = new ArrayList<>();
-    private final List<TestGraphEntity> controllers = new ArrayList<>();
-
     private TestGraphEntity(final long oid, final ApiEntityType type) {
-        this.oid = oid;
-        this.entityType = type;
-        this.displayName = Long.toString(oid);
+        super(TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setEntityType(type.typeNumber())
+                .setDisplayName(Long.toString(oid))
+                .build());
         refreshSearchableProps();
     }
 
     @Override
-    public long getOid() {
-        return oid;
+    public String getDisplayName() {
+        return displayNameOverride == null ? super.getDisplayName() : displayNameOverride;
     }
 
-    @Override
-    public int getEntityType() {
-        return entityType.typeNumber();
-    }
-
-    @Nonnull
     @Override
     public EntityState getEntityState() {
-        return state;
+        return stateOverride == null ? super.getEntityState() : stateOverride;
     }
 
     @Nonnull
     @Override
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    @Nullable
-    @Override
-    public <T extends SearchableProps> T getSearchableProps(@Nonnull Class<T> clazz) {
-        if (clazz.isInstance(searchableProps)) {
-            return (T)searchableProps;
-        } else {
-            return null;
-        }
+    public SearchableProps getSearchableProps() {
+        return searchableProps;
     }
 
     @Nonnull
@@ -133,66 +96,6 @@ public class TestGraphEntity implements TopologyGraphSearchableEntity<TestGraphE
     @Override
     public Stream<String> getAllVendorIds() {
         return discoveringTargetIds.values().stream();
-    }
-
-    @Nonnull
-    @Override
-    public List<TestGraphEntity> getConsumers() {
-        return consumers;
-    }
-
-    @Nonnull
-    @Override
-    public List<TestGraphEntity> getProviders() {
-        return providers;
-    }
-
-    @Nonnull
-    @Override
-    public List<TestGraphEntity> getOutboundAssociatedEntities() {
-        return outboundAssociatedEntities;
-    }
-
-    @Nonnull
-    @Override
-    public List<TestGraphEntity> getInboundAssociatedEntities() {
-        return inboundAssociatedEntities;
-    }
-
-    @Nonnull
-    @Override
-    public Optional<TestGraphEntity> getOwner() {
-        return Optional.ofNullable(owner.get());
-    }
-
-    @Nonnull
-    @Override
-    public List<TestGraphEntity> getOwnedEntities() {
-        return ownedEntities;
-    }
-
-    @Nonnull
-    @Override
-    public List<TestGraphEntity> getAggregators() {
-        return aggregators;
-    }
-
-    @Nonnull
-    @Override
-    public List<TestGraphEntity> getAggregatedEntities() {
-        return aggregatedEntities;
-    }
-
-    @Nonnull
-    @Override
-    public List<TestGraphEntity> getControllers() {
-        return controllers;
-    }
-
-    @Nonnull
-    @Override
-    public List<TestGraphEntity> getControlledEntities() {
-        return controlledEntities;
     }
 
     /**
@@ -285,9 +188,9 @@ public class TestGraphEntity implements TopologyGraphSearchableEntity<TestGraphE
         TagIndex tags = DefaultTagIndex.singleEntity(getOid(), t.build());
         searchableProps = ThinSearchableProps.newProps(tags, this,
                 TopologyEntityDTO.newBuilder()
-                        .setOid(oid)
-                        .setDisplayName(displayName)
-                        .setEntityType(entityType.typeNumber())
+                        .setOid(getOid())
+                        .setDisplayName(getDisplayName())
+                        .setEntityType(getEntityType())
                         .setTypeSpecificInfo(typeSpecificInfo)
                         .setAnalysisSettings(analysisSettings)
                         .build());
@@ -296,14 +199,29 @@ public class TestGraphEntity implements TopologyGraphSearchableEntity<TestGraphE
     /**
      * Builder class for topology graphs of {@link TestGraphEntity}s.
      */
-    public static class Builder implements TopologyGraphEntity.Builder<Builder, TestGraphEntity> {
-        private final TestGraphEntity entity;
+    public static class Builder extends BaseGraphEntity.Builder<Builder, TestGraphEntity> {
 
-        private final Set<ConnectedEntity> connectedEntities = new HashSet<>();
-        private final Set<Long> providerIds = new HashSet<>();
+        /**
+         * New builder.
+         *
+         * @param oid OID.
+         * @param entityType Entity type.
+         */
+        public Builder(final long oid, final ApiEntityType entityType) {
+            super(TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setDisplayName(Long.toString(oid))
+                .setEntityType(entityType.typeNumber())
+                .build(), new TestGraphEntity(oid, entityType));
+        }
 
-        private Builder(final long oid, final ApiEntityType entityType) {
-            this.entity = new TestGraphEntity(oid, entityType);
+        /**
+         * New builder.
+         *
+         * @param dto The entity DTO.
+         */
+        public Builder(TopologyEntityDTO dto) {
+            super(dto, new TestGraphEntity(dto.getOid(), ApiEntityType.fromType(dto.getEntityType())));
         }
 
         public Builder addConnectedEntity(long connectedEntityId, ConnectionType connectionType) {
@@ -320,37 +238,37 @@ public class TestGraphEntity implements TopologyGraphSearchableEntity<TestGraphE
         }
 
         public Builder addTag(final String key, final List<String> values) {
-            entity.tags.put(key, values);
+            graphEntity.tags.put(key, values);
             return this;
         }
 
         public Builder addCommSold(final CommoditySoldDTO commSold) {
-            entity.commsSoldByType.add(commSold);
+            graphEntity.commsSoldByType.add(commSold);
             return this;
         }
 
         public Builder setTypeSpecificInfo(@Nonnull final TypeSpecificInfo typeSpecificInfo) {
-            entity.typeSpecificInfo = typeSpecificInfo;
+            graphEntity.typeSpecificInfo = typeSpecificInfo;
             return this;
         }
 
         public Builder setName(@Nonnull final String name) {
-            entity.displayName = name;
+            graphEntity.displayNameOverride = name;
             return this;
         }
 
         public Builder setState(@Nonnull final EntityState newState) {
-            entity.state = newState;
+            graphEntity.stateOverride = newState;
             return this;
         }
 
         public Builder setEnvironmentType(@Nonnull final EnvironmentType envType) {
-            entity.envType = envType;
+            graphEntity.envType = envType;
             return this;
         }
 
         public Builder setDeletable(boolean deletable) {
-            entity.analysisSettings = entity.analysisSettings.toBuilder()
+            graphEntity.analysisSettings = graphEntity.analysisSettings.toBuilder()
                     .setDeletable(deletable)
                     .build();
             return this;
@@ -364,99 +282,14 @@ public class TestGraphEntity implements TopologyGraphSearchableEntity<TestGraphE
          * @return {@code this} for chaining
          */
         public Builder addTargetIdentity(final long target, String localName) {
-            entity.discoveringTargetIds.put(target, localName);
-            return this;
-        }
-
-        @Override
-        public void clearConsumersAndProviders() {
-            entity.outboundAssociatedEntities.clear();
-            entity.inboundAssociatedEntities.clear();
-            entity.providers.clear();
-            entity.consumers.clear();
-        }
-
-        @Nonnull
-        @Override
-        public Set<Long> getProviderIds() {
-            return providerIds;
-        }
-
-        @Nonnull
-        @Override
-        public Set<ConnectedEntity> getConnectionIds() {
-            return connectedEntities;
-        }
-
-        @Override
-        public long getOid() {
-            return entity.getOid();
-        }
-
-        @Override
-        public Builder addConsumer(final Builder consumer) {
-            entity.consumers.add(consumer.entity);
-            return this;
-        }
-
-        @Override
-        public Builder addProvider(final Builder provider) {
-            entity.providers.add(provider.entity);
-            return this;
-        }
-
-        @Override
-        public Builder addOutboundAssociation(final Builder connectedTo) {
-            entity.outboundAssociatedEntities.add(connectedTo.entity);
-            return this;
-        }
-
-        @Override
-        public Builder addInboundAssociation(final Builder connectedFrom) {
-            entity.inboundAssociatedEntities.add(connectedFrom.entity);
-            return this;
-        }
-
-        @Override
-        public Builder addOwner(final Builder owner) {
-            entity.owner.set(owner.entity);
-            return this;
-        }
-
-        @Override
-        public Builder addOwnedEntity(final Builder ownedEntity) {
-            entity.ownedEntities.add(ownedEntity.entity);
-            return this;
-        }
-
-        @Override
-        public Builder addAggregator(final Builder aggregator) {
-            entity.aggregators.add(aggregator.entity);
-            return this;
-        }
-
-        @Override
-        public Builder addAggregatedEntity(final Builder aggregatedEntity) {
-            entity.aggregatedEntities.add(aggregatedEntity.entity);
-            return this;
-        }
-
-        @Override
-        public Builder addController(final Builder controller) {
-            entity.controllers.add(controller.entity);
-            return this;
-        }
-
-        @Override
-        public Builder addControlledEntity(final Builder controlledEntity) {
-            entity.controlledEntities.add(controlledEntity.entity);
+            graphEntity.discoveringTargetIds.put(target, localName);
             return this;
         }
 
         @Override
         public TestGraphEntity build() {
-            entity.refreshSearchableProps();
-            return entity;
+            graphEntity.refreshSearchableProps();
+            return super.build();
         }
     }
 

@@ -40,7 +40,7 @@ public class IntersightLicenseSyncServiceTest {
 
     private IntersightLicenseClient intersightLicenseClient = mock(IntersightLicenseClient.class);
 
-    private IntersightLicenseSyncService syncService = new IntersightLicenseSyncService(true, false, intersightLicenseClient, 0, 0, 0, licenseManagerClient);
+    private IntersightLicenseSyncService syncService = new IntersightLicenseSyncService(true, false, intersightLicenseClient, 0, 0, 0, 0, licenseManagerClient);
 
     /**
      * set up the license manager client.

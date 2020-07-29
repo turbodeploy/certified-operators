@@ -12,7 +12,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -188,7 +190,9 @@ public class ReservationManagerTest {
                             .setCount(1L)
                             .setTemplateId(234L)
                             .addReservationInstance(ReservationInstance.newBuilder()
-                                    .addPlacementInfo(PlacementInfo.newBuilder()))))
+                                    .addPlacementInfo(PlacementInfo.newBuilder())
+                                    .addFailureInfo(InitialPlacementFailureInfo
+                                            .getDefaultInstance()))))
             .build();
 
     private Reservation inProgressReservation3 = Reservation.newBuilder()
@@ -270,11 +274,15 @@ public class ReservationManagerTest {
      */
     @Test
     public void testIntializeFutureReservationStatus() {
-        ReservationManager reservationManagerSpy = spy(reservationManager);
-        Mockito.doReturn(testFutureReservation).when(reservationManagerSpy).addEntityToReservation(Matchers.any());
-        Reservation queuedReservation =
-                reservationManagerSpy.intializeReservationStatus(testFutureReservation);
-        assert (queuedReservation.getStatus().equals(ReservationStatus.FUTURE));
+        try {
+            ReservationManager reservationManagerSpy = spy(reservationManager);
+            Mockito.doReturn(testFutureReservation).when(reservationManagerSpy).addEntityToReservation(Matchers.any());
+            Reservation queuedReservation =
+                    reservationManagerSpy.intializeReservationStatus(testFutureReservation);
+            assert (queuedReservation.getStatus().equals(ReservationStatus.FUTURE));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -282,11 +290,15 @@ public class ReservationManagerTest {
      */
     @Test
     public void testIntializeTodayReservationStatus() {
-        ReservationManager reservationManagerSpy = spy(reservationManager);
-        Mockito.doReturn(testReservation).when(reservationManagerSpy).addEntityToReservation(Matchers.any());
-        Reservation queuedReservation =
-                reservationManagerSpy.intializeReservationStatus(testReservation);
-        assert (queuedReservation.getStatus().equals(ReservationStatus.UNFULFILLED));
+        try {
+            ReservationManager reservationManagerSpy = spy(reservationManager);
+            Mockito.doReturn(testReservation).when(reservationManagerSpy).addEntityToReservation(Matchers.any());
+            Reservation queuedReservation =
+                    reservationManagerSpy.intializeReservationStatus(testReservation);
+            assert (queuedReservation.getStatus().equals(ReservationStatus.UNFULFILLED));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -353,70 +365,77 @@ public class ReservationManagerTest {
      */
     @Test
     public void testConstraintInfo() {
-        IdentityGenerator.initPrefix(0);
-        ReservationManager reservationManagerSpy = spy(reservationManager);
-        when(templatesDao.getTemplate(234L)).thenReturn(java.util.Optional.ofNullable(template));
-        ReservationConstraintInfo reservationConstraintInfo1 = ReservationConstraintInfo.newBuilder()
-                .setConstraintId(1111L)
-                .setType(Type.CLUSTER)
-                .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
-                .setKey("KEY001").build();
-        ReservationConstraintInfo reservationConstraintInfo2 = ReservationConstraintInfo.newBuilder()
-                .setConstraintId(1112L)
-                .setType(Type.STORAGE_CLUSTER)
-                .setProviderType(EntityType.STORAGE_VALUE)
-                .setKey("KEY002").build();
-        ReservationConstraintInfo reservationConstraintInfo3 = ReservationConstraintInfo.newBuilder()
-                .setConstraintId(1113L)
-                .setType(Type.DATA_CENTER)
-                .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
-                .setKey("KEY003").build();
-        ReservationConstraintInfo reservationConstraintInfo4 = ReservationConstraintInfo.newBuilder()
-                .setConstraintId(1114L)
-                .setType(Type.POLICY)
-                .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
-                .setKey("KEY004").build();
-        ReservationConstraintInfo reservationConstraintInfo5 = ReservationConstraintInfo.newBuilder()
-                .setConstraintId(1115L)
-                .setType(Type.POLICY)
-                .setProviderType(EntityType.STORAGE_VALUE)
-                .setKey("KEY005").build();
-        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1111L, reservationConstraintInfo1);
-        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1112L, reservationConstraintInfo2);
-        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1113L, reservationConstraintInfo3);
-        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1114L, reservationConstraintInfo4);
-        reservationManagerSpy.addToConstraintIDToCommodityTypeMap(1115L, reservationConstraintInfo5);
-        Reservation updateReservation = reservationManagerSpy.addConstraintInfoDetails(fastReservationWithConstraints);
-        updateReservation = reservationManagerSpy.addEntityToReservation(updateReservation);
-        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
-                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
-                .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
-                .findAny().get().getCommodityBoughtList().stream().filter(a -> a.getCommodityType().getType() == CommodityDTO
-                        .CommodityType.CLUSTER_VALUE).findFirst().get().getCommodityType().getKey().equals("KEY001"));
-        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
-                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
-                .filter(pInfo -> pInfo.getProviderType() == EntityType.STORAGE_VALUE)
-                .findAny().get().getCommodityBoughtList().stream()
-                .filter(a -> a.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE)
-                .findFirst().get().getCommodityType().getKey().equals("KEY002"));
-        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
-                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
-                .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
-                .findAny().get().getCommodityBoughtList().stream()
-                .filter(a -> a.getCommodityType().getType() == CommodityType.DATACENTER_VALUE)
-                .findFirst().get().getCommodityType().getKey().equals("KEY003"));
-        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
-                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
-                .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
-                .findAny().get().getCommodityBoughtList().stream()
-                .filter(a -> a.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE)
-                .findFirst().get().getCommodityType().getKey().equals("KEY004"));
-        assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
-                .getReservationInstanceList().get(0).getPlacementInfoList().stream()
-                .filter(pInfo -> pInfo.getProviderType() == EntityType.STORAGE_VALUE)
-                .findAny().get().getCommodityBoughtList().stream()
-                .filter(a -> a.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE)
-                .findFirst().get().getCommodityType().getKey().equals("KEY005"));
+        try {
+            IdentityGenerator.initPrefix(0);
+            when(templatesDao.getTemplate(234L)).thenReturn(java.util.Optional.ofNullable(template));
+            ReservationConstraintInfo reservationConstraintInfo1 = ReservationConstraintInfo.newBuilder()
+                    .setConstraintId(1111L)
+                    .setType(Type.CLUSTER)
+                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setKey("KEY001").build();
+            ReservationConstraintInfo reservationConstraintInfo2 = ReservationConstraintInfo.newBuilder()
+                    .setConstraintId(1112L)
+                    .setType(Type.STORAGE_CLUSTER)
+                    .setProviderType(EntityType.STORAGE_VALUE)
+                    .setKey("KEY002").build();
+            ReservationConstraintInfo reservationConstraintInfo3 = ReservationConstraintInfo.newBuilder()
+                    .setConstraintId(1113L)
+                    .setType(Type.DATA_CENTER)
+                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setKey("KEY003").build();
+            ReservationConstraintInfo reservationConstraintInfo4 = ReservationConstraintInfo.newBuilder()
+                    .setConstraintId(1114L)
+                    .setType(Type.POLICY)
+                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setKey("KEY004").build();
+            ReservationConstraintInfo reservationConstraintInfo5 = ReservationConstraintInfo.newBuilder()
+                    .setConstraintId(1115L)
+                    .setType(Type.POLICY)
+                    .setProviderType(EntityType.STORAGE_VALUE)
+                    .setKey("KEY005").build();
+            Map<Long, ReservationConstraintInfo>
+                    constraintIDToCommodityTypeMap = new HashMap<>();
+            constraintIDToCommodityTypeMap.put(1111L, reservationConstraintInfo1);
+            constraintIDToCommodityTypeMap.put(1112L, reservationConstraintInfo2);
+            constraintIDToCommodityTypeMap.put(1113L, reservationConstraintInfo3);
+            constraintIDToCommodityTypeMap.put(1114L, reservationConstraintInfo4);
+            constraintIDToCommodityTypeMap.put(1115L, reservationConstraintInfo5);
+            ReservationManager reservationManagerSpy = spy(reservationManager);
+            reservationManagerSpy.addToConstraintIDToCommodityTypeMap(constraintIDToCommodityTypeMap);
+            Reservation updateReservation = reservationManagerSpy.addConstraintInfoDetails(fastReservationWithConstraints);
+            updateReservation = reservationManagerSpy.addEntityToReservation(updateReservation);
+            assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                    .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                    .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                    .findAny().get().getCommodityBoughtList().stream().filter(a -> a.getCommodityType().getType() == CommodityDTO
+                            .CommodityType.CLUSTER_VALUE).findFirst().get().getCommodityType().getKey().equals("KEY001"));
+            assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                    .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                    .filter(pInfo -> pInfo.getProviderType() == EntityType.STORAGE_VALUE)
+                    .findAny().get().getCommodityBoughtList().stream()
+                    .filter(a -> a.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE)
+                    .findFirst().get().getCommodityType().getKey().equals("KEY002"));
+            assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                    .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                    .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                    .findAny().get().getCommodityBoughtList().stream()
+                    .filter(a -> a.getCommodityType().getType() == CommodityType.DATACENTER_VALUE)
+                    .findFirst().get().getCommodityType().getKey().equals("KEY003"));
+            assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                    .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                    .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                    .findAny().get().getCommodityBoughtList().stream()
+                    .filter(a -> a.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE)
+                    .findFirst().get().getCommodityType().getKey().equals("KEY004"));
+            assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                    .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                    .filter(pInfo -> pInfo.getProviderType() == EntityType.STORAGE_VALUE)
+                    .findAny().get().getCommodityBoughtList().stream()
+                    .filter(a -> a.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE)
+                    .findFirst().get().getCommodityType().getKey().equals("KEY005"));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -430,41 +449,41 @@ public class ReservationManagerTest {
      */
     @Test
     public void testFastReservationSuccess() {
-        IdentityGenerator.initPrefix(0);
-        ReservationManager reservationManagerSpy = spy(reservationManager);
-        when(templatesDao.getTemplate(234L)).thenReturn(java.util.Optional.ofNullable(template));
-        Reservation updateReservation = reservationManagerSpy.addEntityToReservation(fastReservation);
-        Set<Reservation> reservations = new HashSet<>();
-        reservations.add(updateReservation);
-        FindInitialPlacementRequest findInitialPlacementRequest =
-                reservationManagerSpy.buildIntialPlacementRequest(reservations);
-        FindInitialPlacementResponse.Builder findInitialPlacementResponseBuilder =
-                FindInitialPlacementResponse.newBuilder();
-        for (ReservationTemplate reservationTemplate : updateReservation.getReservationTemplateCollection().getReservationTemplateList()) {
-            for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
-                for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
-                    findInitialPlacementResponseBuilder.addInitialPlacementBuyerPlacementInfo(
-                            InitialPlacementBuyerPlacementInfo.newBuilder()
-                                    .setBuyerId(reservationInstance.getEntityId())
-                                    .setCommoditiesBoughtFromProviderId(placementInfo.getPlacementInfoId())
-                                    .setInitialPlacementSuccess(InitialPlacementSuccess
-                                            .newBuilder().setProviderOid(100L)));
+        try {
+            IdentityGenerator.initPrefix(0);
+            ReservationManager reservationManagerSpy = spy(reservationManager);
+            when(templatesDao.getTemplate(234L)).thenReturn(java.util.Optional.ofNullable(template));
+            Reservation updateReservation = reservationManagerSpy.addEntityToReservation(fastReservation);
+            Set<Reservation> reservations = new HashSet<>();
+            reservations.add(updateReservation);
+            FindInitialPlacementRequest findInitialPlacementRequest =
+                    reservationManagerSpy.buildIntialPlacementRequest(reservations);
+            FindInitialPlacementResponse.Builder findInitialPlacementResponseBuilder =
+                    FindInitialPlacementResponse.newBuilder();
+            for (ReservationTemplate reservationTemplate : updateReservation.getReservationTemplateCollection().getReservationTemplateList()) {
+                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                        findInitialPlacementResponseBuilder.addInitialPlacementBuyerPlacementInfo(
+                                InitialPlacementBuyerPlacementInfo.newBuilder()
+                                        .setBuyerId(reservationInstance.getEntityId())
+                                        .setCommoditiesBoughtFromProviderId(placementInfo.getPlacementInfoId())
+                                        .setInitialPlacementSuccess(InitialPlacementSuccess
+                                                .newBuilder().setProviderOid(100L)));
+                    }
                 }
             }
-        }
 
-        when(reservationDao.getAllReservations())
-                .thenReturn(Sets.newHashSet(updateReservation));
-        FindInitialPlacementResponse findInitialPlacementResponse =
-                findInitialPlacementResponseBuilder.build();
-        Set<Reservation> updatedReservations = reservationManagerSpy
-                .updateProviderInfoForReservations(findInitialPlacementResponse,
-                        reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
-        ArgumentCaptor<HashSet<Reservation>> captor =
-                ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
-                        .class);
-        reservationManagerSpy.updateReservationResult(updatedReservations);
-        try {
+            when(reservationDao.getAllReservations())
+                    .thenReturn(Sets.newHashSet(updateReservation));
+            FindInitialPlacementResponse findInitialPlacementResponse =
+                    findInitialPlacementResponseBuilder.build();
+            Set<Reservation> updatedReservations = reservationManagerSpy
+                    .updateProviderInfoForReservations(findInitialPlacementResponse,
+                            reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
+            ArgumentCaptor<HashSet<Reservation>> captor =
+                    ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
+                            .class);
+            reservationManagerSpy.updateReservationResult(updatedReservations);
             verify(reservationDao, times(1))
                     .updateReservationBatch(captor.capture());
             Set<Long> reservedReservations =
@@ -474,7 +493,7 @@ public class ReservationManagerTest {
                             .collect(Collectors.toSet());
             assert (reservedReservations.contains(10000L));
             // assert the provider is updated
-        } catch (NoSuchObjectException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -491,65 +510,65 @@ public class ReservationManagerTest {
      */
     @Test
     public void testFastReservationFailure() {
-        IdentityGenerator.initPrefix(0);
-        ReservationManager reservationManagerSpy = spy(reservationManager);
-        when(templatesDao.getTemplate(234L)).thenReturn(java.util.Optional.ofNullable(template));
-        Reservation updateReservation =
-                reservationManagerSpy.addEntityToReservation(fastReservation);
-        Set<Reservation> reservations = new HashSet<>();
-        reservations.add(updateReservation);
-        FindInitialPlacementRequest findInitialPlacementRequest =
-                reservationManagerSpy.buildIntialPlacementRequest(reservations);
-        FindInitialPlacementResponse.Builder findInitialPlacementResponseBuilder =
-                FindInitialPlacementResponse.newBuilder();
-        when(reservationDao.getAllReservations())
-                .thenReturn(Sets.newHashSet(updateReservation));
-        Long buyerid = updateReservation.getReservationTemplateCollection()
-                .getReservationTemplate(0)
-                .getReservationInstance(0).getEntityId();
-        for (ReservationTemplate reservationTemplate : updateReservation.getReservationTemplateCollection().getReservationTemplateList()) {
-            for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
-                if (reservationInstance.getEntityId() == buyerid) {
-                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
-                        findInitialPlacementResponseBuilder.addInitialPlacementBuyerPlacementInfo(
-                                InitialPlacementBuyerPlacementInfo.newBuilder()
-                                        .setBuyerId(buyerid).setCommoditiesBoughtFromProviderId(placementInfo
-                                        .getPlacementInfoId())
-                                        .setInitialPlacementSuccess(InitialPlacementSuccess
-                                                .newBuilder().setProviderOid(100L)));
-                    }
-                }
-            }
-        }
-        long failedBuyerId = updateReservation.getReservationTemplateCollection()
-                .getReservationTemplate(0)
-                .getReservationInstance(1).getEntityId();
-        InitialPlacementFailure initialPlacementFailure = InitialPlacementFailure.newBuilder()
-                .addFailureInfo(InitialPlacementFailureInfo.newBuilder()).build();
-        for (ReservationTemplate reservationTemplate : updateReservation.getReservationTemplateCollection().getReservationTemplateList()) {
-            for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
-                if (reservationInstance.getEntityId() == failedBuyerId) {
-                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
-                        findInitialPlacementResponseBuilder.addInitialPlacementBuyerPlacementInfo(
-                                InitialPlacementBuyerPlacementInfo.newBuilder()
-                                        .setBuyerId(failedBuyerId).setCommoditiesBoughtFromProviderId(placementInfo
-                                        .getPlacementInfoId())
-                                        .setInitialPlacementFailure(initialPlacementFailure));
-                    }
-                }
-            }
-        }
-
-        FindInitialPlacementResponse findInitialPlacementResponse =
-                findInitialPlacementResponseBuilder.build();
-        Set<Reservation> updatedReservations = reservationManagerSpy
-                .updateProviderInfoForReservations(findInitialPlacementResponse,
-                        reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
-        ArgumentCaptor<HashSet<Reservation>> captor =
-                ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
-                        .class);
-        reservationManagerSpy.updateReservationResult(updatedReservations);
         try {
+            IdentityGenerator.initPrefix(0);
+            ReservationManager reservationManagerSpy = spy(reservationManager);
+            when(templatesDao.getTemplate(234L)).thenReturn(java.util.Optional.ofNullable(template));
+            Reservation updateReservation =
+                    reservationManagerSpy.addEntityToReservation(fastReservation);
+            Set<Reservation> reservations = new HashSet<>();
+            reservations.add(updateReservation);
+            FindInitialPlacementRequest findInitialPlacementRequest =
+                    reservationManagerSpy.buildIntialPlacementRequest(reservations);
+            FindInitialPlacementResponse.Builder findInitialPlacementResponseBuilder =
+                    FindInitialPlacementResponse.newBuilder();
+            when(reservationDao.getAllReservations())
+                    .thenReturn(Sets.newHashSet(updateReservation));
+            Long buyerid = updateReservation.getReservationTemplateCollection()
+                    .getReservationTemplate(0)
+                    .getReservationInstance(0).getEntityId();
+            for (ReservationTemplate reservationTemplate : updateReservation.getReservationTemplateCollection().getReservationTemplateList()) {
+                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                    if (reservationInstance.getEntityId() == buyerid) {
+                        for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                            findInitialPlacementResponseBuilder.addInitialPlacementBuyerPlacementInfo(
+                                    InitialPlacementBuyerPlacementInfo.newBuilder()
+                                            .setBuyerId(buyerid).setCommoditiesBoughtFromProviderId(placementInfo
+                                            .getPlacementInfoId())
+                                            .setInitialPlacementSuccess(InitialPlacementSuccess
+                                                    .newBuilder().setProviderOid(100L)));
+                        }
+                    }
+                }
+            }
+            long failedBuyerId = updateReservation.getReservationTemplateCollection()
+                    .getReservationTemplate(0)
+                    .getReservationInstance(1).getEntityId();
+            InitialPlacementFailure initialPlacementFailure = InitialPlacementFailure.newBuilder()
+                    .addFailureInfo(InitialPlacementFailureInfo.newBuilder()).build();
+            for (ReservationTemplate reservationTemplate : updateReservation.getReservationTemplateCollection().getReservationTemplateList()) {
+                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                    if (reservationInstance.getEntityId() == failedBuyerId) {
+                        for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                            findInitialPlacementResponseBuilder.addInitialPlacementBuyerPlacementInfo(
+                                    InitialPlacementBuyerPlacementInfo.newBuilder()
+                                            .setBuyerId(failedBuyerId).setCommoditiesBoughtFromProviderId(placementInfo
+                                            .getPlacementInfoId())
+                                            .setInitialPlacementFailure(initialPlacementFailure));
+                        }
+                    }
+                }
+            }
+
+            FindInitialPlacementResponse findInitialPlacementResponse =
+                    findInitialPlacementResponseBuilder.build();
+            Set<Reservation> updatedReservations = reservationManagerSpy
+                    .updateProviderInfoForReservations(findInitialPlacementResponse,
+                            reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
+            ArgumentCaptor<HashSet<Reservation>> captor =
+                    ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
+                            .class);
+            reservationManagerSpy.updateReservationResult(updatedReservations);
             verify(reservationDao, times(1))
                     .updateReservationBatch(captor.capture());
             Reservation failedReservation =
@@ -564,7 +583,7 @@ public class ReservationManagerTest {
                     .getReservationTemplate(0).getReservationInstanceList().stream().filter(a -> a.getFailureInfoList().size() == 4)
                     .map(a -> a.getFailureInfo(0)).findFirst().get());
             // assert the provider is updated
-        } catch (NoSuchObjectException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -610,17 +629,21 @@ public class ReservationManagerTest {
                             .filter(a -> a.getStatus() == ReservationStatus.RESERVED)
                             .map(a -> a.getId())
                             .collect(Collectors.toSet());
+            // We should call the updateReservationBatch for all reservations including the ones
+            // whose status didn't change..Because the provider could have changed.
+            assert (reservedReservations.contains(1005L));
+            assert (reservedReservations.contains(1010L));
+            Set<Long> invalidReservations =
+                    captor.getValue().stream()
+                            .filter(a -> a.getStatus() == ReservationStatus.INVALID)
+                            .map(a -> a.getId())
+                            .collect(Collectors.toSet());
+            assert (invalidReservations.contains(1003L));
             Set<Long> failedReservations =
                     captor.getValue().stream()
                             .filter(a -> a.getStatus() == ReservationStatus.PLACEMENT_FAILED)
                             .map(a -> a.getId())
                             .collect(Collectors.toSet());
-
-            // We should call the updateReservationBatch for all reservations including the ones
-            // whose status didn't change..Because the provider could have changed.
-            assert (reservedReservations.contains(1005L));
-            assert (reservedReservations.contains(1010L));
-            assert (failedReservations.contains(1003L));
             assert (failedReservations.contains(1004L));
             // assert the provider is updated
         } catch (NoSuchObjectException e) {

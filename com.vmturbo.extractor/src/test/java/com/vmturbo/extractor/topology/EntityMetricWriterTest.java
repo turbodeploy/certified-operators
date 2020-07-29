@@ -6,6 +6,7 @@ import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CURRENT;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PROVIDER;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_PATH;
@@ -13,14 +14,21 @@ import static com.vmturbo.extractor.models.ModelDefinitions.FILE_SIZE;
 import static com.vmturbo.extractor.models.ModelDefinitions.MODIFICATION_TIME;
 import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_OID;
+import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
 import static com.vmturbo.extractor.topology.EntityMetricWriter.VM_QX_VCPU_NAME;
+import static com.vmturbo.extractor.util.RecordTestUtil.MapMatchesLaxly.mapMatchesLaxly;
 import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
-import static com.vmturbo.extractor.util.TopologyTestUtil.boughtCommodityFromProvider;
+import static com.vmturbo.extractor.util.RecordTestUtil.createMetricRecordMap;
+import static com.vmturbo.extractor.util.TopologyTestUtil.boughtCommoditiesFromProvider;
 import static com.vmturbo.extractor.util.TopologyTestUtil.cloudVolume;
 import static com.vmturbo.extractor.util.TopologyTestUtil.file;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkEntity;
 import static com.vmturbo.extractor.util.TopologyTestUtil.onPremVolume;
-import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodity;
+import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodities;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.MEM;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.MEM_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.APPLICATION;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_USER;
@@ -59,6 +67,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -68,11 +77,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSetMultimap;
+import com.google.common.collect.Multimap;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.MessageOrBuilder;
 
 import org.hamcrest.Matcher;
+import org.javatuples.Quartet;
+import org.javatuples.Triplet;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Test;
@@ -94,7 +108,10 @@ import com.vmturbo.extractor.models.DslUpdateRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
+import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.topology.ImmutableWriterConfig.Builder;
 import com.vmturbo.extractor.util.ExtractorTestUtil;
+import com.vmturbo.extractor.util.ExtractorTestUtil.EntitiesProcessor;
 import com.vmturbo.extractor.util.TopologyTestUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -122,6 +139,7 @@ public class EntityMetricWriterTest {
     private List<Record> entitiesUpdateCapture;
     private List<Record> metricInsertCapture;
     private List<Record> wastedFileReplacerCapture;
+    private WriterConfig config;
 
     /**
      * Set up for tests.
@@ -136,10 +154,25 @@ public class EntityMetricWriterTest {
      */
     @Before
     public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
+        // any test method can safely call this method with customized commodity configs needed
+        // for that test. Otherwise the built-in production defaults will be used.
+        setupWriterAndSinks(null, (Multimap<CommodityType, EntityType>)null);
+    }
+
+    private void setupWriterAndSinks(
+            List<Integer> commodityWhitelist,
+            Map<CommodityType, EntityType> unaggregatedCommodityTypeMap)
+            throws UnsupportedDialectException, InterruptedException, SQLException {
+        setupWriterAndSinks(commodityWhitelist,
+                ImmutableSetMultimap.copyOf(unaggregatedCommodityTypeMap.entrySet()));
+    }
+
+    private void setupWriterAndSinks(
+            List<Integer> commodityWhitelist,
+            Multimap<CommodityType, EntityType> unaggregatedCommodityTypes)
+            throws UnsupportedDialectException, InterruptedException, SQLException {
+        config = getWriteConfig(commodityWhitelist, unaggregatedCommodityTypes);
         final DbEndpoint endpoint = spy(dbConfig.ingesterEndpoint());
-        this.writer = spy(new EntityMetricWriter(endpoint,
-                new EntityHashManager(ExtractorTestUtil.config),
-                Executors.newSingleThreadScheduledExecutor()));
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
         DslRecordSink entitiesUpserterSink = mock(DslUpsertRecordSink.class);
         this.entitiesUpsertCapture = captureSink(entitiesUpserterSink, false);
@@ -149,6 +182,8 @@ public class EntityMetricWriterTest {
         this.metricInsertCapture = captureSink(metricInserterSink, false);
         DslRecordSink wastedFileReplacerSink = mock(DslRecordSink.class);
         this.wastedFileReplacerCapture = captureSink(wastedFileReplacerSink, false);
+        this.writer = spy(new EntityMetricWriter(endpoint, new EntityHashManager(config),
+                Executors.newSingleThreadScheduledExecutor()));
         doReturn(entitiesUpserterSink).when(writer).getEntityUpsertSink(
                 any(DSLContext.class), any(), any());
         doReturn(entitiesUpdaterSink).when(writer).getEntityUpdaterSink(
@@ -156,6 +191,18 @@ public class EntityMetricWriterTest {
         doReturn(metricInserterSink).when(writer).getMetricInserterSink(any(DSLContext.class));
         doReturn(Stream.empty()).when(dataProvider).getAllGroups();
         doReturn(wastedFileReplacerSink).when(writer).getWastedFileReplacerSink(any(DSLContext.class));
+    }
+
+    private WriterConfig getWriteConfig(final List<Integer> commodityWhitelist,
+            final Multimap<CommodityType, EntityType> unaggregatedCommodities) {
+        final Builder builder = ImmutableWriterConfig.builder().from(ExtractorTestUtil.config);
+        if (commodityWhitelist != null) {
+            builder.addAllReportingCommodityWhitelist(commodityWhitelist);
+        }
+        if (unaggregatedCommodities != null) {
+            builder.unaggregatedCommodities(unaggregatedCommodities);
+        }
+        return builder.build();
     }
 
     /**
@@ -284,46 +331,124 @@ public class EntityMetricWriterTest {
     }
 
     /**
+     * Check that bought commodities result in correct metric records.
+     *
+     * @throws UnsupportedDialectException if endpoint is misconfigured
+     * @throws InterruptedException        if interrupted
+     * @throws SQLException                if there's a db problem
+     * @throws IOException                 if an IO error
+     */
+    @Test
+    public void testBoughtCommodityMetrics()
+            throws UnsupportedDialectException, InterruptedException, SQLException, IOException {
+        // set up for CPU and MEM, with the latter unaggregated when sold by a PM
+        setupWriterAndSinks(ImmutableList.of(CPU_VALUE, MEM_VALUE),
+                Collections.singletonMap(MEM, PHYSICAL_MACHINE));
+
+        // process a vm buying CPU and MEM from a pm, each with multiple commodity keys
+        final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE);
+        final TopologyEntityDTO vm = mkEntity(VIRTUAL_MACHINE).toBuilder()
+                .addCommoditiesBoughtFromProviders(boughtCommoditiesFromProvider(pm,
+                        Triplet.with(CPU, "a", 1.0), Triplet.with(CPU, "b", 2.0),
+                        Triplet.with(MEM, "a", 1.0), Triplet.with(MEM, "b", 2.0)
+                )).build();
+        int n = EntitiesProcessor.of(writer, info, config).process(vm).finish(dataProvider);
+        // processed one entity
+        assertThat(n, is(1));
+        // we should have a single aggregated CPU metric, and two MEM metrics
+        assertThat(metricInsertCapture.size(), is(3));
+        Iterator<Record> records = metricInsertCapture.iterator();
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                createMetricRecordMap(null, vm.getOid(), null, MetricType.CPU, null, null, null, null, 3.0, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                createMetricRecordMap(null, vm.getOid(), null, MetricType.MEM, "a", null, null, null, 1.0, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                createMetricRecordMap(null, vm.getOid(), null, MetricType.MEM, "b", null, null, null, 2.0, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
+    }
+
+    /**
+     * Check that sold commodities result in correct metric records.
+     *
+     * @throws UnsupportedDialectException if endpoint is misconfigured
+     * @throws InterruptedException        if interrupted
+     * @throws SQLException                if there's a db problem
+     * @throws IOException                 if an IO error
+     */
+    @Test
+    public void testSoldCommodityMetrics()
+            throws UnsupportedDialectException, InterruptedException, SQLException, IOException {
+        // set up for CPU and MEM, with the latter unaggregated when sold by a PM
+        setupWriterAndSinks(ImmutableList.of(CPU_VALUE, MEM_VALUE),
+                Collections.singletonMap(MEM, PHYSICAL_MACHINE));
+
+        // process a pm selling CPU and MEM, each with multiple commodity keys
+        final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
+                .addAllCommoditySoldList(soldCommodities(
+                        Quartet.with(CPU, "a", 1.0, 10.0), Quartet.with(CPU, "b", 2.0, 20.0),
+                        Quartet.with(MEM, "a", 1.0, 10.0), Quartet.with(MEM, "b", 2.0, 20.0)
+                )).build();
+        int n = EntitiesProcessor.of(writer, info, config).process(pm).finish(dataProvider);
+        // processed one entity
+        assertThat(n, is(1));
+        // we should have a single aggregated CPU metric, and two MEM metrics
+        assertThat(metricInsertCapture.size(), is(3));
+        Iterator<Record> records = metricInsertCapture.iterator();
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                createMetricRecordMap(null, pm.getOid(), null, MetricType.CPU, null, 3.0, 30.0, 0.1, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "a", 1.0, 10.0, 0.1, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "b", 2.0, 20.0, 0.1, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
+    }
+
+    /**
      * Test that all VMs' ready queue commodities are renamed to same commodity name, and converted
      * to sold commodity with capacity and utilization.
      *
-     * @throws InterruptedException        if interrupted
      * @throws SQLException                if there's a DB problem
-     * @throws UnsupportedDialectException if the db endpint is misconfigured
+     * @throws UnsupportedDialectException if the db endpoint is misconfigured
      * @throws IOException                 if there's an IO related issue
+     * @throws InterruptedException        if interrupted
      */
     @Test
     public void testQxVCPUMetric() throws InterruptedException, SQLException, UnsupportedDialectException, IOException {
-        final Consumer<TopologyEntityDTO> entityConsumer = writer.startTopology(
-                info, ExtractorTestUtil.config, timer);
+        // create a PM and some VMs buying from it
         final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
-                .addCommoditySoldList(soldCommodity(CommodityDTO.CommodityType.Q64_VCPU, 0, 20000))
+                .addAllCommoditySoldList(soldCommodities(
+                        Quartet.with(CommodityDTO.CommodityType.Q64_VCPU, null, 0.0, 20000.0)))
                 .build();
-
         final Map<Long, TopologyEntityDTO> vmsById = Stream.of(
                 CommodityType.Q1_VCPU, CommodityType.Q2_VCPU, CommodityType.Q3_VCPU,
                 CommodityType.Q4_VCPU, CommodityType.Q5_VCPU, CommodityType.Q6_VCPU,
                 CommodityType.Q7_VCPU, CommodityType.Q8_VCPU, CommodityType.Q16_VCPU,
                 CommodityType.Q32_VCPU, CommodityType.Q64_VCPU, CommodityType.QN_VCPU)
                 .map(commodityType -> mkEntity(VIRTUAL_MACHINE).toBuilder()
-                        .addCommoditiesBoughtFromProviders(
-                                boughtCommodityFromProvider(commodityType, 50, pm.getOid()))
+                        .addCommoditiesBoughtFromProviders(boughtCommoditiesFromProvider(pm,
+                                Triplet.with(commodityType, null, 50.0)))
                         .build())
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
-        vmsById.values().forEach(entityConsumer::accept);
-        entityConsumer.accept(pm);
-        // write
-        writer.finish(dataProvider);
-        // check there are two records
-        assertThat(metricInsertCapture.size(), is(vmsById.size() + 1));
+        // process our entities
+        int n = EntitiesProcessor.of(writer, info, config)
+                .process(pm)
+                .process(vmsById.values())
+                .finish(dataProvider);
+        // we processed 1 pm and all the vms, and each produced a single metric record
+        assertThat(n, is(vmsById.size() + 1));
+        assertThat(metricInsertCapture.size(), is(n));
         final Map<Long, Record> records = metricInsertCapture.stream()
                 .collect(Collectors.toMap(r -> r.get(ENTITY_OID), r -> r));
         records.forEach((oid, record) -> {
             if (oid == pm.getOid()) {
                 // verify that pm's Q64_VCPU is not changed
-                assertThat(record.get(COMMODITY_TYPE), is(CommodityType.forNumber(
-                        pm.getCommoditySoldList(0).getCommodityType().getType()).name()));
+                assertThat(record.get(COMMODITY_TYPE), is(MetricType.valueOf(CommodityType.forNumber(
+                        pm.getCommoditySoldList(0).getCommodityType().getType()).name())));
             } else {
                 final TopologyEntityDTO vm = vmsById.get(oid);
                 final double boughtUsed =
@@ -401,7 +526,7 @@ public class EntityMetricWriterTest {
                 storageTier1);
         // shuffle so the order of receiving entity is randomized each time
         Collections.shuffle(entities);
-        entities.forEach(entityConsumer::accept);
+        entities.forEach(entityConsumer);
         writer.finish(dataProvider);
 
         // verify that the files on volume2 and volume4 are persisted

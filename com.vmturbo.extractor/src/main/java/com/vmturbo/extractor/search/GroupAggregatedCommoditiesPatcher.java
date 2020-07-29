@@ -38,22 +38,24 @@ public class GroupAggregatedCommoditiesPatcher implements EntityRecordPatcher<Da
             final int commodityType = EnumUtils.commodityTypeFromApiToProtoInt(metadata.getCommodityType());
             final CommodityAttribute commodityAttribute = metadata.getCommodityAttribute();
             final Aggregation commodityAggregation = metadata.getCommodityAggregation();
-            Stream<Long> entities = dataProvider.getGroupLeafEntitiesOfType(groupId,
+            Stream<Long> entityIdStream = dataProvider.getGroupLeafEntitiesOfType(groupId,
                     EnumUtils.entityTypeFromApiToProto(metadata.getMemberType()));
 
             switch (commodityAttribute) {
                 case USED:
-                    getUsed(entities, commodityType, commodityAggregation, dataProvider)
+                    getUsed(entityIdStream, commodityType, commodityAggregation, dataProvider)
                             .ifPresent(used -> attrs.put(jsonKey, used));
                     break;
                 case CAPACITY:
-                    getCapacity(entities, commodityType, commodityAggregation, dataProvider)
+                    getCapacity(entityIdStream, commodityType, commodityAggregation, dataProvider)
                             .ifPresent(capacity -> attrs.put(jsonKey, capacity));
                     break;
-                case UTILIZATION:
-                    getUtilization(groupId, entities, commodityType, commodityAggregation, dataProvider)
+                case CURRENT_UTILIZATION:
+                    getCurrentUtilization(groupId, entityIdStream, commodityType, commodityAggregation, dataProvider)
                             .ifPresent(utilization -> attrs.put(jsonKey, utilization));
                     break;
+                case WEIGHTED_HISTORICAL_UTILIZATION:
+                case PERCENTILE_HISTORICAL_UTILIZATION:
                 default:
                     logger.error("Unsupported group commodity attribute {}", commodityAttribute);
             }
@@ -94,17 +96,33 @@ public class GroupAggregatedCommoditiesPatcher implements EntityRecordPatcher<Da
         }
     }
 
-    public OptionalDouble getUtilization(long groupId, Stream<Long> entities, int commodityType,
-            Aggregation aggregation, DataProvider dataProvider) {
+    /**
+     * Get the current utilization of a group, either by averaging or total.
+     *
+     * <p>The average utilization is the average of the utilization of all the members.
+     * The total utilization is the sum of the members' commodity (e.g. used) amount divided by the
+     * sum of the members' capacity.
+     * Whether these two values are different largely depends on whether all members have the same
+     * capacity.</p>
+     *
+     * @param groupId the ID of the group
+     * @param entityIdStream a stream of entity IDs of group members
+     * @param commodityType the type of commodity
+     * @param aggregation how to aggregate the commodity across the group
+     * @param dataProvider a provider of topology-wide data
+     * @return a double representing the utilization as a percentage, or Optional empty
+     */
+    public OptionalDouble getCurrentUtilization(long groupId, Stream<Long> entityIdStream, int commodityType,
+                                                Aggregation aggregation, DataProvider dataProvider) {
         switch (aggregation) {
             case AVERAGE:
-                return entities.map(entity -> dataProvider.getCommodityUtilization(entity, commodityType))
+                return entityIdStream.map(entity -> dataProvider.getCommodityUtilization(entity, commodityType))
                         .filter(OptionalDouble::isPresent)
                         .mapToDouble(OptionalDouble::getAsDouble)
                         .average();
             case TOTAL:
                 // materialize the stream to list then use it twice
-                final List<Long> entityIds = entities.collect(Collectors.toList());
+                final List<Long> entityIds = entityIdStream.collect(Collectors.toList());
                 final OptionalDouble totalUsed = getUsed(entityIds.stream(), commodityType,
                         Aggregation.TOTAL, dataProvider);
                 if (totalUsed.isPresent()) {

@@ -1,12 +1,17 @@
 package com.vmturbo.topology.processor.history.histutil;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.List;
+
+import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.history.AbstractCachingHistoricalEditor;
 import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
@@ -60,4 +65,14 @@ public class HistUtilizationEditor extends
         return true;
     }
 
+    @Override
+    protected void exportState(@Nonnull OutputStream appender)
+                    throws DiagnosticsException, IOException {
+        // TODO Alexander Vasin
+    }
+
+    @Override
+    protected void restoreState(@Nonnull byte[] bytes) throws DiagnosticsException {
+        // TODO Alexander Vasin
+    }
 }

@@ -1,9 +1,11 @@
 package com.vmturbo.stitching.poststitching;
 
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,16 +21,22 @@ import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * This post-stitching operation propagates the power state from VirtualMachine to its consumers,
- * except for GuestLoad application. For example: Application discovered by ACM probe and then
+ * except for Services, BusinessTransactions and BusinessApplications.
+ * For example: Application discovered by ACM probe and then
  * stitched to the VM discovered by VC target. If VM's state is POWERED_OFF or SUSPENDED, we should
  * set its consumers' state to UNKNOWN, so they will not participate in market analysis.
- *
- * Note: GuestLoad application is discovered from the same target as the VM, so it holds the same
- * state as VM and should not be touched.
  */
 public class PropagatePowerStatePostStitchingOperation implements PostStitchingOperation {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * A set of entity types which should be excluded from power state propagation.
+     * The entities of these types can be consumers of VMs but they have nothing with a power state.
+     */
+    private static final Set<Integer> IMMUTABLE_STATE_TYPES = Sets.newHashSet(
+            EntityType.BUSINESS_APPLICATION_VALUE, EntityType.BUSINESS_TRANSACTION_VALUE,
+            EntityType.SERVICE_VALUE);
 
     @Nonnull
     @Override
@@ -62,13 +70,13 @@ public class PropagatePowerStatePostStitchingOperation implements PostStitchingO
 
     /**
      * Propagate the power state of the given entity to its consumers. Currently, we set VM's
-     * consumers' state to UNKNOWN except GuestLoad applications.
+     * consumers' state to UNKNOWN except Services, BusinessTransactions and BusinessApplications.
      *
      * @param topologyEntity the entity to propagate state from
      */
     private void propagate(@Nonnull TopologyEntity topologyEntity) {
         topologyEntity.getConsumers().stream()
-            .filter(consumer -> !GuestLoadAppPostStitchingOperation.isGuestLoadApplication(consumer))
+            .filter(consumer -> !IMMUTABLE_STATE_TYPES.contains(consumer.getEntityType()))
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(consumer -> {
                 logger.debug("Changing state of entity {} from {} to UNKNOWN since state of its " +

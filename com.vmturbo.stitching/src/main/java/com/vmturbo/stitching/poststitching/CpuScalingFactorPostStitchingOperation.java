@@ -2,16 +2,19 @@ package com.vmturbo.stitching.poststitching;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -45,7 +48,13 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
      * Update the 'CPU' sold
      */
     private static final Collection<Integer> COMMODITIES_TO_SCALE =
-            ImmutableSet.of(CPU_VALUE, CPU_PROVISIONED_VALUE, VCPU_VALUE);
+            ImmutableSet.of(CPU_VALUE, CPU_PROVISIONED_VALUE, VCPU_VALUE, VCPU_LIMIT_QUOTA_VALUE);
+    /**
+     * Set of EntityTypes whose providers we need to propagate the update for CPU scalingFactor to.
+     */
+    private static final Set<Integer> ENTITIES_TO_UPDATE_PROVIDERS =
+        ImmutableSet.of(EntityType.CONTAINER_POD_VALUE, EntityType.WORKLOAD_CONTROLLER_VALUE);
+
     private final CpuCapacityStore cpuCapacityStore;
 
     public CpuScalingFactorPostStitchingOperation(final CpuCapacityStore cpuCapacityStore) {
@@ -89,7 +98,8 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
      * @param scalingFactor the scalingFactor to set on the entity.
      * @param updatedSet A set of oids of entities that have already been updated.
      */
-    private void updateScalingFactorForEntity(@Nonnull final TopologyEntity entityToUpdate,
+    @VisibleForTesting
+    void updateScalingFactorForEntity(@Nonnull final TopologyEntity entityToUpdate,
                                           @Nonnull final Double scalingFactor,
                                           @Nonnull HashSet<Long> updatedSet) {
         // Avoid potential for infinite recursion.
@@ -103,6 +113,16 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
         entityToUpdate.getConsumers().forEach(
                 consumer -> updateScalingFactorForEntity(consumer, scalingFactor, updatedSet)
         );
+        // We need to propagate the scalingFactor update to the providers of certain entities to make
+        // sure the changes of sold and bought commodities are consistent.
+        // For example, for ContainerPod and WorkloadController, propagating scalingFactor is to
+        // respect reseller logic so that VCPULimitQuota commodity sold by WorkloadController and
+        // Namespace is consistent with VCPU commodity bought by ContainerPod.
+        if (ENTITIES_TO_UPDATE_PROVIDERS.contains(entityToUpdate.getEntityType())) {
+            entityToUpdate.getProviders().forEach(
+                provider -> updateScalingFactorForEntity(provider, scalingFactor, updatedSet)
+            );
+        }
     }
 
     /**

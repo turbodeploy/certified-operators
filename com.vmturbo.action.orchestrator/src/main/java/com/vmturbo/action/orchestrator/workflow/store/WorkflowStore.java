@@ -7,6 +7,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.action.orchestrator.workflow.rpc.WorkflowFilter;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.OrchestratorType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
@@ -38,18 +39,15 @@ public interface WorkflowStore {
             throws WorkflowStoreException;
 
     /**
-     * Return the workflows that match the given 'orchestratorTypeFilter'. If the filter == null then
-     * all workflows will be returned.
+     * Return the workflows that match the given filter. If there are no restrictions in the filter
+     * then all workflows will be returned.
      *
-     * Note that the filter is not yet implemented, and not used by the UI. It should probably be
-     * removed from the request.
-     *
-     * @param orchestratorTypeFilter what type of OrchestrationTarget to include; or 'all' if null
-     * @return all the {@link Workflow} protobufs whose type matches the 'orchestratorTypeFilter'
+     * @param workflowFilter workflow filter contains different restrictions
+     * @return all the {@link Workflow} protobufs matches the filter's conditions
      * @throws WorkflowStoreException if there is any error fetching from the backing store
      */
     @Nonnull
-    Set<Workflow> fetchWorkflows(@Nullable OrchestratorType orchestratorTypeFilter)
+    Set<Workflow> fetchWorkflows(@Nonnull WorkflowFilter workflowFilter)
             throws WorkflowStoreException;
 
     /**

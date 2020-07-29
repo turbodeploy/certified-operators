@@ -10,20 +10,26 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
+import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
  * Config class that defines DB endpoints used by extractor component.
  */
 @Configuration
+@Import(SQLDatabaseConfig2.class)
 public class ExtractorDbConfig {
     private static final Logger logger = LogManager.getLogger();
 
     @Autowired
     private ExtractorDbBaseConfig dbBaseConfig;
+
+    @Autowired
+    private SQLDatabaseConfig2 dbConfig;
 
     /**
      * DB endpoint to use for topology ingestion.
@@ -32,7 +38,7 @@ public class ExtractorDbConfig {
      */
     @Bean
     public DbEndpoint ingesterEndpoint() {
-        return DbEndpoint.primaryDbEndpoint(SQLDialect.POSTGRES)
+        return dbConfig.primaryDbEndpoint(SQLDialect.POSTGRES)
                 .like(dbBaseConfig.ingesterEndpointBase())
                 .withDbAccess(DbEndpointAccess.ALL)
                 .withDbDestructiveProvisioningEnabled(true)
@@ -46,8 +52,8 @@ public class ExtractorDbConfig {
      * @return read-only endpoint
      */
     @Bean
-    DbEndpoint queryEndpoint() {
-        return DbEndpoint.secondaryDbEndpoint(ExtractorDbBaseConfig.QUERY_ENDPOINT_TAG, SQLDialect.POSTGRES)
+    public DbEndpoint queryEndpoint() {
+        return dbConfig.secondaryDbEndpoint(ExtractorDbBaseConfig.QUERY_ENDPOINT_TAG, SQLDialect.POSTGRES)
                 .like(dbBaseConfig.ingesterEndpointBase())
                 .withDbAccess(DbEndpointAccess.READ_ONLY)
                 .withDbShouldProvisionUser(true)
@@ -95,12 +101,13 @@ public class ExtractorDbConfig {
         if (!StringUtils.isAnyEmpty(grafanaDataDbName, grafanaDataPassword, grafanaDataUsername)) {
             logger.info("Creating database endpoint for Grafana. Database {}, user {}",
                     grafanaDataDbName, grafanaDataUsername);
-            return Optional.of(DbEndpoint.secondaryDbEndpoint("grafana_writer", SQLDialect.POSTGRES)
+            return Optional.of(dbConfig.secondaryDbEndpoint("grafana_writer", SQLDialect.POSTGRES)
                     .withDbAccess(DbEndpointAccess.ALL)
                     .withDbUserName(grafanaDataUsername)
                     .withDbPassword(grafanaDataPassword)
                     .withDbDatabaseName(grafanaDataDbName)
                     .withNoDbMigrations()
+                    .withDbShouldProvision(true)
                     .build());
         } else {
             logger.info("Skipping database endpoint creation for Grafana.");
@@ -116,11 +123,11 @@ public class ExtractorDbConfig {
      */
     @Bean
     public DbEndpoint grafanaQueryEndpoint() {
-        return DbEndpoint.secondaryDbEndpoint("grafana_reader", SQLDialect.POSTGRES)
+        return dbConfig.secondaryDbEndpoint("grafana_reader", SQLDialect.POSTGRES)
                 .like(dbBaseConfig.ingesterEndpointBase())
                 .withDbAccess(DbEndpointAccess.READ_ONLY)
                 .withDbUserName(grafanaReaderUsername)
-                .withDbShouldProvision(true)
+                .withDbShouldProvisionUser(true)
                 .withNoDbMigrations()
                 .build();
     }

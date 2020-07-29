@@ -16,6 +16,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Collections2;
 
+import io.opentracing.SpanContext;
+
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
@@ -175,7 +177,7 @@ public class ActionUpdateStateService extends AbstractActionApprovalService {
     }
 
     private void actionStateUpdateReceived(@Nonnull ActionResponse request,
-            @Nonnull Runnable commitCommand) {
+            @Nonnull Runnable commitCommand, @Nonnull SpanContext tracingContext) {
         // We store the commit command. Message will be committed only after it will reach
         // action approval probe.
         if (stateUpdatesQueue.size() >= maxElementsInQueue) {

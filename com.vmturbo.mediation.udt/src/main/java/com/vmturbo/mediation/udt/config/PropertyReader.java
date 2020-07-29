@@ -40,6 +40,7 @@ public class PropertyReader {
         return new ConnectionProperties(
                 env.getProperty("groupHost"),
                 env.getProperty("repositoryHost"),
+                env.getProperty("topologyProcessorHost"),
                 env.getProperty("serverGrpcPort", Integer.class),
                 env.getProperty("grpcPingIntervalSeconds", Integer.class));
     }

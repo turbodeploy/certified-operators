@@ -2,7 +2,7 @@ package com.vmturbo.history.db;
 
 import static com.github.npathai.hamcrestopt.OptionalMatchers.isEmpty;
 import static com.github.npathai.hamcrestopt.OptionalMatchers.isPresent;
-import static com.vmturbo.common.protobuf.utils.StringConstants.APPLICATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.APPLICATION_COMPONENT;
 import static com.vmturbo.common.protobuf.utils.StringConstants.DATA_CENTER;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NETWORK;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE;
@@ -42,7 +42,7 @@ public class EntityTypeTest extends Assert {
     private static final EntityType VIRTUAL_MACHINE_ENTITY_TYPE = NAME_TO_ENTITY_TYPE_MAP.get(VIRTUAL_MACHINE);
     private static final EntityType PHYSICAL_MACHINE_ENTITY_TYPE = NAME_TO_ENTITY_TYPE_MAP.get(PHYSICAL_MACHINE);
     private static final EntityType DATA_CENTER_ENTITY_TYPE = NAME_TO_ENTITY_TYPE_MAP.get(DATA_CENTER);
-    private static final EntityType APPLICATION_ENTITY_TYPE = NAME_TO_ENTITY_TYPE_MAP.get(APPLICATION);
+    private static final EntityType APPLICATION_ENTITY_TYPE = NAME_TO_ENTITY_TYPE_MAP.get(APPLICATION_COMPONENT);
     private static final EntityType NETWORK_ENTITY_TYPE = NAME_TO_ENTITY_TYPE_MAP.get(NETWORK);
 
     /**
@@ -133,7 +133,8 @@ public class EntityTypeTest extends Assert {
         assertThat(VIRTUAL_MACHINE_ENTITY_TYPE, sameInstance(EntityType.fromSdkEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE).get()));
         assertThat(VIRTUAL_MACHINE_ENTITY_TYPE, sameInstance(EntityType.fromSdkEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber()).get()));
         // special cases
-        assertThat(EntityType.fromSdkEntityType(EntityDTO.EntityType.APPLICATION).get(), is(APPLICATION_ENTITY_TYPE));
+        assertThat(EntityType.fromSdkEntityType(EntityDTO.EntityType.APPLICATION_COMPONENT).get(),
+                is(APPLICATION_ENTITY_TYPE));
     }
 
     /**

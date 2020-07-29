@@ -557,6 +557,9 @@ message ListSettingPoliciesRequest {
     // The ids of the setting policies to fetch. If not set, all setting policies are fetched.
     // It is used in conjunction with other filters here like the type filter.
     repeated int64 id_filter = 3;
+    // The ids of the workflows. If set than fetch setting policies which have settings with
+    // value equal these workflow ids, otherwise all policies will be returned.
+    repeated int64 workflow_id = 4;
 }
 
 message GetSettingPoliciesUsingScheduleRequest {

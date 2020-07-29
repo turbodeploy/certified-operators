@@ -20,6 +20,8 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
 import com.vmturbo.action.orchestrator.store.ActionStore;
+import com.vmturbo.action.orchestrator.store.LiveActionStore;
+import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -62,7 +64,7 @@ public class ActionApprovalSenderTest {
             final long actionOid = invocation.getArgumentAt(0, Long.class);
             return storeActions.get(actionOid);
         });
-        Mockito.when(actionStore.allowsExecution()).thenReturn(true);
+        Mockito.when(actionStore.getStoreTypeName()).thenReturn(LiveActionStore.STORE_TYPE_NAME);
         this.aas = new ActionApprovalSender(workflowStore, requestSender);
     }
 
@@ -106,8 +108,7 @@ public class ActionApprovalSenderTest {
      */
     @Test
     public void testActionNotExecutable() throws Exception {
-        Mockito.when(actionStore.allowsExecution())
-                .thenReturn(false);
+        Mockito.when(actionStore.getStoreTypeName()).thenReturn(PlanActionStore.STORE_TYPE_NAME);
         createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL, ActionState.READY);
         aas.sendApprovalRequests(actionStore);
         Mockito.verifyZeroInteractions(requestSender);
@@ -120,7 +121,7 @@ public class ActionApprovalSenderTest {
      */
     @Test
     public void testRejectedAction() throws Exception {
-        Mockito.when(actionStore.allowsExecution()).thenReturn(true);
+        Mockito.when(actionStore.getStoreTypeName()).thenReturn(LiveActionStore.STORE_TYPE_NAME);
         createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL, ActionState.REJECTED);
         aas.sendApprovalRequests(actionStore);
         Mockito.verifyZeroInteractions(requestSender);

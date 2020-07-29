@@ -21,6 +21,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -60,7 +61,6 @@ import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
@@ -161,29 +161,27 @@ public class TargetsService implements ITargetsService {
 
     private final ActionSpecMapper actionSpecMapper;
 
-    private final ActionsServiceBlockingStub actionOrchestratorRpc;
-
     private final ActionSearchUtil actionSearchUtil;
-
-    private final long realtimeTopologyContextId;
 
     private final ApiWebsocketHandler apiWebsocketHandler;
 
     private final RepositoryApi repositoryApi;
 
+    private final boolean allowTargetManagement;
+
     public TargetsService(@Nonnull final TopologyProcessor topologyProcessor,
-                          @Nonnull final Duration targetValidationTimeout,
-                          @Nonnull final Duration targetValidationPollInterval,
-                          @Nonnull final Duration targetDiscoveryTimeout,
-                          @Nonnull final Duration targetDiscoveryPollInterval,
-                          @Nullable final LicenseCheckClient licenseCheckClient,
-                          @Nonnull final ApiComponentTargetListener apiComponentTargetListener,
-                          @Nonnull final RepositoryApi repositoryApi,
-                          @Nonnull final ActionSpecMapper actionSpecMapper,
-                          @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
-                          @Nonnull final ActionSearchUtil actionSearchUtil,
-                          final long realtimeTopologyContextId,
-                          @Nonnull final ApiWebsocketHandler apiWebsocketHandler) {
+            @Nonnull final Duration targetValidationTimeout,
+            @Nonnull final Duration targetValidationPollInterval,
+            @Nonnull final Duration targetDiscoveryTimeout,
+            @Nonnull final Duration targetDiscoveryPollInterval,
+            @Nullable final LicenseCheckClient licenseCheckClient,
+            @Nonnull final ApiComponentTargetListener apiComponentTargetListener,
+            @Nonnull final RepositoryApi repositoryApi,
+            @Nonnull final ActionSpecMapper actionSpecMapper,
+            @Nonnull final ActionSearchUtil actionSearchUtil,
+            final long realtimeTopologyContextId,
+            @Nonnull final ApiWebsocketHandler apiWebsocketHandler,
+            final boolean allowTargetManagement) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.targetValidationTimeout = Objects.requireNonNull(targetValidationTimeout);
         this.targetValidationPollInterval = Objects.requireNonNull(targetValidationPollInterval);
@@ -193,12 +191,11 @@ public class TargetsService implements ITargetsService {
         this.apiComponentTargetListener = Objects.requireNonNull(apiComponentTargetListener);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
-        this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
+        this.allowTargetManagement = allowTargetManagement;
         logger.debug("Created TargetsService with topology processor instance {}",
-                        topologyProcessor);
+                topologyProcessor);
     }
 
     /**
@@ -408,6 +405,9 @@ public class TargetsService implements ITargetsService {
         logger.debug("Add target {}", probeType);
         Objects.requireNonNull(probeType);
         Objects.requireNonNull(inputFields);
+        Preconditions.checkState(allowTargetManagement,
+                "Targets management public APIs are not allowed in integration mode");
+
         // create a target
         try {
             final Collection<ProbeInfo> probes = topologyProcessor.getAllProbes();
@@ -546,6 +546,8 @@ public class TargetsService implements ITargetsService {
             @Nonnull Collection<InputFieldApiDTO> inputFields)
             throws OperationFailedException, UnauthorizedObjectException, InterruptedException {
         logger.debug("Edit target {}", uuid);
+        Preconditions.checkState(allowTargetManagement,
+                "Targets management public APIs are not allowed in integration mode");
         long targetId = Long.valueOf(uuid);
         final TargetData updatedTargetData = new NewTargetData(inputFields);
         try {
@@ -572,6 +574,8 @@ public class TargetsService implements ITargetsService {
     public void deleteTarget(@Nonnull String uuid) throws UnknownObjectException {
         logger.debug("Delete target {}", uuid);
         long targetId = Long.valueOf(uuid);
+        Preconditions.checkState(allowTargetManagement,
+                "Targets management public APIs are not allowed in integration mode");
         try {
             topologyProcessor.removeTarget(targetId);
         } catch (CommunicationException e) {

@@ -88,11 +88,16 @@ grafana:
   #   adminPassword: somePassword
   grafana.ini:
     users:
+      # Disallow explicit user creation.
       allow_sign_up: false
       auto_assign_org_role: Editor
       default_theme: light
     server:
+      # This needs to be in sync with the UI, and the NGINX configuration.
       root_url: "https://%(domain)s/reports"
+      serve_from_sub_path: true
+    auth.proxy:
+      enabled: true
     database:
       # SQLite by default, overridable to postgres.
       type: sqlite3
@@ -110,14 +115,15 @@ grafana:
       user: grafana_backend
 chronograf:
   enabled: false
-jaeger:
+jaeger-operator:
   enabled: false
-  provisionDataStore:
-    cassandra: true
-    elasticsearch: false
-  cassandra:
-    config:
-      dc_name: dc1
+  jaeger:
+    create: true
+    spec:
+      storage:
+        options:
+          memory:
+            max-traces: 100000
 datacloud:
   enabled: false
 intersight-integration:
@@ -171,6 +177,8 @@ istio:
 mssql:
   enabled: false
 mysql:
+  enabled: false
+tomcat:
   enabled: false
 netapp:
   enabled: false

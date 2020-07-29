@@ -2,6 +2,8 @@ package com.vmturbo.topology.processor.api;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -42,7 +44,9 @@ public interface EntitiesListener {
      *                     during the method
      *                     call. it will throw {@link IllegalStateException} if called after the
      *                     method exists.
+     * @param tracingContext Distributed tracing context.
      */
     void onTopologyNotification(@Nonnull TopologyInfo topologyInfo,
-                                @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs);
+                                @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs,
+                                @Nonnull SpanContext tracingContext);
 }

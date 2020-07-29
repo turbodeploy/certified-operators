@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -13,11 +12,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.base.Stopwatch;
 import com.google.gson.Gson;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -34,8 +29,8 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity.Builder;
 import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
+import com.vmturbo.topology.graph.util.BaseSearchableTopology;
 
 /**
  * Represents an in-memory "source" topology for the realtime (live) context.
@@ -45,13 +40,7 @@ import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
  */
 @Immutable
 @ThreadSafe
-public class SourceRealtimeTopology {
-    private final TopologyInfo topologyInfo;
-
-    /**
-     * The graph for the entities in the topology.
-     */
-    private final TopologyGraph<RepoGraphEntity> entityGraph;
+public class SourceRealtimeTopology extends BaseSearchableTopology<RepoGraphEntity> {
 
     /**
      * A calculator of the global chain.
@@ -78,26 +67,9 @@ public class SourceRealtimeTopology {
                                    @Nonnull final TopologyGraph<RepoGraphEntity> entityGraph,
                                    @Nonnull final DefaultTagIndex tags,
                                    @Nonnull final GlobalSupplyChainCalculator globalSupplyChainCalculator) {
-        this.topologyInfo = topologyInfo;
-        this.entityGraph = entityGraph;
+        super(topologyInfo, entityGraph);
         this.tags = tags;
         this.globalSupplyChainCalculator = globalSupplyChainCalculator;
-    }
-
-    /**
-     * @return The {@link TopologyInfo} for the topology this object represents.
-     */
-    @Nonnull
-    public TopologyInfo topologyInfo() {
-        return topologyInfo;
-    }
-
-    /**
-     * @return The {@link TopologyGraph} for the entities in the topology.
-     */
-    @Nonnull
-    public TopologyGraph<RepoGraphEntity> entityGraph() {
-        return entityGraph;
     }
 
     /**
@@ -108,15 +80,6 @@ public class SourceRealtimeTopology {
     @Nonnull
     public DefaultTagIndex globalTags() {
         return tags;
-    }
-
-    /**
-     * Get the number of entities in the topology.
-     *
-     * @return the size of the topology.
-     */
-    public int size() {
-        return entityGraph.size();
     }
 
     /**
@@ -143,7 +106,7 @@ public class SourceRealtimeTopology {
             // Can't use a cached supply chain because there is a custom predicate on the entities.
             Predicate<RepoGraphEntity> combinedPredicate  = e -> entityPredicate.get().test(e)
                 && environmentTypePredicate.test(e.getEnvironmentType());
-            return globalSupplyChainCalculator.getSupplyChainNodes(entityGraph,
+            return globalSupplyChainCalculator.getSupplyChainNodes(entityGraph(),
                     combinedPredicate,
                     entityTypesToSkip);
         } else {
@@ -151,17 +114,15 @@ public class SourceRealtimeTopology {
             final SetOnce<Map<ApiEntityType, SupplyChainNode>> envTypeNodes =
                     globalSupplyChain.computeIfAbsent(environmentType, k -> new SetOnce<>());
             return envTypeNodes.ensureSet(() ->
-                    globalSupplyChainCalculator.getSupplyChainNodes(entityGraph,
+                    globalSupplyChainCalculator.getSupplyChainNodes(entityGraph(),
                             e -> environmentTypePredicate.test(e.getEnvironmentType()),
                             entityTypesToSkip));
         }
-
-
     }
 
     public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
-        for (RepoGraphEntity entity: entityGraph.entities().collect(Collectors.toList())) {
+        for (RepoGraphEntity entity: entityGraph().entities().collect(Collectors.toList())) {
             final String string = gson.toJson(entity.getTopologyEntity());
             appender.appendString(string);
         }
@@ -173,79 +134,30 @@ public class SourceRealtimeTopology {
      * Use: {@link SourceRealtimeTopologyBuilder#addEntities(Collection)} to add entities,
      * and {@link SourceRealtimeTopologyBuilder#finish()} when done.
      */
-    public static class SourceRealtimeTopologyBuilder {
-        private static final Logger logger = LogManager.getLogger();
+    public static class SourceRealtimeTopologyBuilder extends
+            BaseSearchableTopologyBuilder<SourceRealtimeTopology, RepoGraphEntity, Builder> {
 
-        private final TopologyInfo topologyInfo;
-        private final Consumer<SourceRealtimeTopology> onFinish;
         private final GlobalSupplyChainCalculator globalSupplyChainCalculator;
-        private final TopologyGraphCreator<Builder, RepoGraphEntity> graphCreator =
-            new TopologyGraphCreator<>();
-
-        /**
-         * The size of the compression buffer in the most recently completed projected topology
-         * builder. We assume that (in general) topologies stay roughly the same size once targets
-         * are added, so we can use the last topology's buffer size to avoid unnecessary allocations
-         * on the next one.
-         *
-         * Note - the buffer will be relavitely small - it is bounded by the largest
-         * entity in the topology.
-         */
-        private static volatile int sharedBufferSize = 0;
-
-        /**
-         * Reuse the same intermediate compression buffer for the full topology.
-         */
-        private final SharedByteBuffer compressionBuffer;
-
-        private final DefaultTagIndex defaultTagIndex = new DefaultTagIndex();
-
-        private final Stopwatch builderStopwatch = Stopwatch.createUnstarted();
 
         SourceRealtimeTopologyBuilder(
                 @Nonnull final TopologyInfo topologyInfo,
                 @Nonnull final Consumer<SourceRealtimeTopology> onFinish,
                 @Nonnull final GlobalSupplyChainCalculator globalSupplyChainCalculator) {
-            this.topologyInfo = topologyInfo;
-            this.onFinish = onFinish;
-            this.compressionBuffer = new SharedByteBuffer(sharedBufferSize);
+            super(Metrics.CONSTRUCTION_TIME_SUMMARY, topologyInfo, onFinish);
             this.globalSupplyChainCalculator = globalSupplyChainCalculator;
         }
 
-        public void addEntities(@Nonnull final Collection<TopologyEntityDTO> entities) {
-            builderStopwatch.start();
-            for (TopologyEntityDTO entity : entities) {
-                graphCreator.addEntity(RepoGraphEntity.newBuilder(entity, defaultTagIndex, compressionBuffer));
-                defaultTagIndex.addTags(entity.getOid(), entity.getTags());
-            }
-            builderStopwatch.stop();
+        @Override
+        protected Builder newBuilder(TopologyEntityDTO entity, DefaultTagIndex tagIndex,
+                SharedByteBuffer compressionBuffer) {
+            return new RepoGraphEntity.Builder(entity, tagIndex, compressionBuffer);
         }
 
-        @Nonnull
-        public SourceRealtimeTopology finish() {
-            builderStopwatch.start();
-            final TopologyGraph<RepoGraphEntity> graph = graphCreator.build();
-
-            final SourceRealtimeTopology sourceRealtimeTopology =
-                new SourceRealtimeTopology(topologyInfo, graph, defaultTagIndex,  globalSupplyChainCalculator);
-            onFinish.accept(sourceRealtimeTopology);
-            builderStopwatch.stop();
-
-            final long elapsedSec = builderStopwatch.elapsed(TimeUnit.SECONDS);
-            Metrics.CONSTRUCTION_TIME_SUMMARY.observe((double)elapsedSec);
-
-            // Update the shared buffer size, so the next projected topology can use it
-            // as a starting point.
-            sharedBufferSize = compressionBuffer.getSize();
-
-            // Trim the tags now that we're done.
-            defaultTagIndex.finish();
-
-            logger.info("Spent total of {}s to construct source realtime topology.", elapsedSec);
-
-            return sourceRealtimeTopology;
+        @Override
+        protected SourceRealtimeTopology newTopology(TopologyInfo topologyInfo,
+                TopologyGraph<RepoGraphEntity> graph) {
+            return new SourceRealtimeTopology(topologyInfo, graph, getTagIndex(), globalSupplyChainCalculator);
         }
-
     }
 
     private static class Metrics {

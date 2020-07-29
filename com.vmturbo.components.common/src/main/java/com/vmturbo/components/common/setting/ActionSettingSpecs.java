@@ -7,6 +7,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -100,6 +101,45 @@ public class ActionSettingSpecs {
                 .map(BiMap::values)
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Get all the action workflow settings as {@link SettingSpec} objects.
+     *
+     * @return all all the action workflow settings as {@link SettingSpec} objects.
+     */
+    @Nonnull
+    public static Set<SettingSpec> getActionWorkflowSettingSpecs() {
+        final Set<SettingSpec> actionWorkflowSettings = SETTING_SPECS.entrySet()
+                .stream()
+                .filter(entry -> (entry.getKey() == ActionSettingType.EXTERNAL_APPROVAL
+                        || entry.getKey() == ActionSettingType.ON_GEN
+                        || entry.getKey() == ActionSettingType.AFTER_EXEC))
+                .map(entry -> entry.getValue().values())
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+        // hardcoded other action workflow settings from EntitySettingSpecs
+        actionWorkflowSettings.addAll(
+                Arrays.asList(EntitySettingSpecs.ActivateActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PreActivateActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostActivateActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.MoveActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.MoveActionWorkflowWithNativeAsDefault.getSettingSpec(),
+                        EntitySettingSpecs.PreMoveActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostMoveActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.ProvisionActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PreProvisionActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostProvisionActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.ResizeActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PreResizeActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostResizeActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.SuspendActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PreSuspendActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostSuspendActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.DeleteActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PreDeleteActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostDeleteActionWorkflow.getSettingSpec()));
+        return actionWorkflowSettings;
     }
 
     /**

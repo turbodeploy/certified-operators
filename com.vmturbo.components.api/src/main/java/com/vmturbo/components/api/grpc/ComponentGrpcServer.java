@@ -98,10 +98,13 @@ public class ComponentGrpcServer implements ServerStartedListener {
     private static final String LOCAL_SERVER_NAME = "localServer";
 
     /**
-     * The default max message size - 4MB - which can be overriden by setting the
-     * {@link ComponentGrpcServer#PROP_GRPC_MAX_MESSAGE_BYTES} property.
+     * The default max message size, which can be overriden by setting the
+     * {@link ComponentGrpcServer#PROP_GRPC_MAX_MESSAGE_BYTES} property. The grpc default is 4mb,
+     * but we are using a larger number since some of our use cases can involve larger-than-normal
+     * message sizes. Most notably, any RPC involving entity information can vary greatly in size
+     * based on the contents of the entities.
      */
-    private static final int DEFAULT_GRPC_MAX_MESSAGE_BYTES = 4194304;
+    private static final int DEFAULT_GRPC_MAX_MESSAGE_BYTES = 10000000;
 
     /**
      * The singleton instance.
@@ -209,9 +212,12 @@ public class ComponentGrpcServer implements ServerStartedListener {
                 environment.getProperty(PROP_GRPC_MAX_MESSAGE_BYTES,
                 Integer.toString(DEFAULT_GRPC_MAX_MESSAGE_BYTES)));
             final ServerBuilder serverBuilder;
+            logger.info("Configuring gRPC server...");
             if (useInProcess()) {
                 serverBuilder = InProcessServerBuilder.forName(LOCAL_SERVER_NAME);
+                logger.info("    in-Process Server: true");
             } else {
+                logger.info("   maxInboundMessageSize: {} bytes", grpcMaxMessageBytes);
                 serverBuilder = NettyServerBuilder.forPort(serverPort)
                     // Allow keepalives even when there are no existing calls, because we want
                     // to send intermittent keepalives to keep the http2 connections open.
@@ -276,7 +282,7 @@ public class ComponentGrpcServer implements ServerStartedListener {
     @Nonnull
     public static ManagedChannelBuilder newChannelBuilder(@Nonnull final String host,
                                                           final int port) {
-        return newChannelBuilder(host, port, GrpcUtil.DEFAULT_MAX_MESSAGE_SIZE);
+        return newChannelBuilder(host, port, DEFAULT_GRPC_MAX_MESSAGE_BYTES);
     }
 
     /**
@@ -298,12 +304,15 @@ public class ComponentGrpcServer implements ServerStartedListener {
             .build();
 
         if (useInProcess()) {
+            logger.info("Creating in-process channel to {} maxInboundMessageSize:{} bytes", maxMessageSize);
             return InProcessChannelBuilder.forName(LOCAL_SERVER_NAME)
                 .maxInboundMessageSize(maxMessageSize)
                 .intercept(clientTracingInterceptor);
         } else {
             Preconditions.checkArgument(!StringUtils.isEmpty(host), "Host must be provided.");
             Preconditions.checkArgument(port > 0, "Port must be a positive integer!");
+            logger.info("Creating channel to {}:{} maxInboundMessageSize:{} bytes",
+                    host, port, maxMessageSize);
             return NettyChannelBuilder.forAddress(host, port)
                 .keepAliveWithoutCalls(true)
                 .keepAliveTime(DEFAULT_CHANNEL_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES)

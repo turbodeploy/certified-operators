@@ -1,6 +1,7 @@
 package com.vmturbo.group.setting;
 
 import static com.vmturbo.group.db.Tables.SETTING_POLICY;
+import static com.vmturbo.group.db.Tables.SETTING_POLICY_SETTING;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_SETTING_SCHEDULE_IDS;
 import static org.jooq.impl.DSL.select;
 
@@ -40,6 +41,7 @@ public class SettingPolicyFilter {
     private final Set<Integer> desiredEntityTypes;
     private final Set<Long> activationSchedules;
     private final Set<Long> executionSchedules;
+    private final Set<Long> workflowIds;
 
     /**
      * The pre-computed jOOQ conditions representing the filter.
@@ -52,7 +54,8 @@ public class SettingPolicyFilter {
                                 @Nonnull final Set<Long> targetIds,
                                 @Nonnull final Set<Integer> entityTypes,
                                 @Nonnull final Set<Long> activationSchedules,
-                                @Nonnull final Set<Long> executionSchedules) {
+                                @Nonnull final Set<Long> executionSchedules,
+                                @Nonnull final Set<Long> workflowIds) {
         this.desiredTypes = Objects.requireNonNull(type);
         this.desiredNames = Objects.requireNonNull(name);
         this.desiredIds = Objects.requireNonNull(ids);
@@ -60,6 +63,7 @@ public class SettingPolicyFilter {
         this.desiredEntityTypes = Objects.requireNonNull(entityTypes);
         this.activationSchedules = Objects.requireNonNull(activationSchedules);
         this.executionSchedules = Objects.requireNonNull(executionSchedules);
+        this.workflowIds = Objects.requireNonNull(workflowIds);
 
         final ImmutableList.Builder<Condition> condBuilder = ImmutableList.builder();
         if (!type.isEmpty()) {
@@ -93,6 +97,13 @@ public class SettingPolicyFilter {
                             .where(SETTING_POLICY_SETTING_SCHEDULE_IDS.EXECUTION_SCHEDULE_ID.in(
                                     executionSchedules))));
         }
+        if (!workflowIds.isEmpty()) {
+            condBuilder.add(SETTING_POLICY.ID.in(
+                    select(SETTING_POLICY_SETTING.POLICY_ID).from(SETTING_POLICY_SETTING)
+                            .where(SETTING_POLICY_SETTING.SETTING_VALUE.in(workflowIds)
+                                    .and(SETTING_POLICY_SETTING.SETTING_NAME.in(
+                                            SettingStore.getActionWorkflowSettingNames())))));
+        }
         conditions = condBuilder.build();
     }
 
@@ -119,7 +130,7 @@ public class SettingPolicyFilter {
     @Override
     public int hashCode() {
         return Objects.hash(desiredTypes, desiredNames, desiredIds, desiredTargetIds,
-                desiredEntityTypes, activationSchedules, executionSchedules);
+                desiredEntityTypes, activationSchedules, executionSchedules, workflowIds);
     }
 
     @Override
@@ -132,7 +143,8 @@ public class SettingPolicyFilter {
                 && otherFilter.desiredTargetIds.equals(desiredTargetIds)
                 && otherFilter.desiredEntityTypes.equals(desiredEntityTypes)
                 && otherFilter.activationSchedules.equals(activationSchedules)
-                && otherFilter.executionSchedules.equals(executionSchedules);
+                && otherFilter.executionSchedules.equals(executionSchedules)
+                && otherFilter.workflowIds.equals(workflowIds);
         } else {
             return false;
         }
@@ -202,6 +214,7 @@ public class SettingPolicyFilter {
         private Set<Integer> entityTypes = new HashSet<>();
         private Set<Long> activationSchedules = new HashSet<>();
         private Set<Long> executionSchedules = new HashSet<>();
+        private Set<Long> workflowIds = new HashSet<>();
 
         /**
          * Add a type that the filter will match. This method can be called
@@ -289,13 +302,25 @@ public class SettingPolicyFilter {
         }
 
         /**
+         * Add a workflow id which is used as setting_value in one of the settings in a
+         * setting policy. This method can be called multiple times with different entity types.
+         *
+         * @param workflowId the id of a workflow which is used as setting value
+         * @return The builder, for chaining.
+         */
+        public Builder withWorkflowId(final long workflowId) {
+            this.workflowIds.add(workflowId);
+            return this;
+        }
+
+        /**
          * Creates a filter based on the builder.
          *
          * @return a filter suitable for {@link ISettingPolicyStore}
          */
         public SettingPolicyFilter build() {
             return new SettingPolicyFilter(type, names, ids, targetIds, entityTypes,
-                    activationSchedules, executionSchedules);
+                    activationSchedules, executionSchedules, workflowIds);
         }
     }
 }

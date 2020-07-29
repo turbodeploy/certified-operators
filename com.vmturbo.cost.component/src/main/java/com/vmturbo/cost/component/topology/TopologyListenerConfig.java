@@ -122,6 +122,7 @@ public class TopologyListenerConfig {
                         cloudTopologyFactory(), topologyCostCalculatorFactory(),
                         entityCostConfig.entityCostStore(),
                         reservedInstanceConfig.reservedInstanceCoverageUpload(),
+                        reservedInstanceConfig.accountRIMappingStore(),
                         costConfig.businessAccountHelper(),
                         costJournalRecorder(),
                         buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(),

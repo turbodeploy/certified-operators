@@ -71,13 +71,13 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         .property("IP", "service-10.2.1.31,service-10.2.1.31-1")
         .build();
 
-    private final EntityDTO app1 = EntityBuilders.application("app1")
+    private final EntityDTO app1 = EntityBuilders.applicationComponent("app1")
         .selling(CommodityBuilders.transactionsPerSecond().sold().key("10.2.1.31"))
         .selling(CommodityBuilders.responseTimeMillis().sold().key("10.2.1.31"))
         .property("IP", "10.2.1.31")
         .build();
 
-    private final EntityDTO app1_1 = EntityBuilders.application("app1-1")
+    private final EntityDTO app1_1 = EntityBuilders.applicationComponent("app1-1")
         .selling(CommodityBuilders.transactionsPerSecond().sold().key("10.2.1.31-1"))
         .selling(CommodityBuilders.responseTimeMillis().sold().key("10.2.1.31-1"))
         .property("IP", "10.2.1.31-1")
@@ -91,7 +91,7 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         .proxy()
         .build();
 
-    private final EntityDTO app1_proxy = EntityBuilders.application("app1-proxy")
+    private final EntityDTO app1_proxy = EntityBuilders.applicationComponent("app1-proxy")
         .selling(CommodityBuilders.transactionsPerSecond().sold().key("10.2.1.31").used(12d))
         .selling(CommodityBuilders.responseTimeMillis().sold().key("10.2.1.31").used(10d))
         .property("IP", "10.2.1.31")
@@ -105,7 +105,7 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         .proxy()
         .build();
 
-    private final EntityDTO app1_1_proxy = EntityBuilders.application("app1-1-proxy")
+    private final EntityDTO app1_1_proxy = EntityBuilders.applicationComponent("app1-1-proxy")
         .selling(CommodityBuilders.transactionsPerSecond().sold().key("10.2.1.31-1").used(15d))
         .selling(CommodityBuilders.responseTimeMillis().sold().key("10.2.1.31-1").used(8d))
         .property("IP", "10.2.1.31-1")
@@ -313,7 +313,7 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         final MergedEntityMetadata serviceMergedEntityMetadata = new MergedEntityMetadataBuilder()
             .internalMatchingProperty("IP")
             .externalMatchingProperty("IP", ",")
-            .mergedBoughtCommodity(EntityType.APPLICATION, ImmutableList.of(
+            .mergedBoughtCommodity(EntityType.APPLICATION_COMPONENT, ImmutableList.of(
                 CommodityType.TRANSACTION, CommodityType.RESPONSE_TIME))
             .build();
 
@@ -327,14 +327,14 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         return ImmutableList.of(createDataDrivenStitchingOperation(serviceMergedEntityMetadata,
                 EntityType.SERVICE, ProbeCategory.CLOUD_NATIVE),
                 createDataDrivenStitchingOperation(appMergedEntityMetadata,
-                        EntityType.APPLICATION, ProbeCategory.CLOUD_NATIVE));
+                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE));
     }
 
     private List<StitchingOperation<?, ?>> getDataDrivenStitchingOperationsFuture() {
         final MergedEntityMetadata serviceMergedEntityMetadata = new MergedEntityMetadataBuilder()
             .internalMatchingProperty("IP",",")
             .externalMatchingProperty("IP", ",")
-            .mergedBoughtCommodity(EntityType.APPLICATION, ImmutableList.of(
+            .mergedBoughtCommodity(EntityType.APPLICATION_COMPONENT, ImmutableList.of(
                 CommodityType.TRANSACTION, CommodityType.RESPONSE_TIME))
             .build();
 
@@ -348,6 +348,6 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         return ImmutableList.of(createDataDrivenStitchingOperation(serviceMergedEntityMetadata,
                 EntityType.SERVICE, ProbeCategory.CLOUD_NATIVE),
                 createDataDrivenStitchingOperation(appMergedEntityMetadata,
-                        EntityType.APPLICATION, ProbeCategory.CLOUD_NATIVE));
+                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE));
     }
 }

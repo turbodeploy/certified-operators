@@ -868,7 +868,9 @@ public class EntitiesService implements IEntitiesService {
             .map(targetId -> thinTargetCache.getTargetInfo(targetId))
             .filter(Optional::isPresent)
             .map(Optional::get)
+            .filter(thinTargetInfo -> !thinTargetInfo.isHidden())
             .map(thinTargetInfo -> thinTargetInfo.probeInfo().type())
+            .distinct()
             .collect(Collectors.joining(", "));
 
         final List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>(response.getEntityConstraintCount());
@@ -987,7 +989,7 @@ public class EntitiesService implements IEntitiesService {
         if (inputDto.getEntityTypeFilter() != null) {
             // TODO: Add a mapper for API EntityType enum (OM-60615)
             request.addPotentialEntityTypes(ApiEntityType.fromString(
-                inputDto.getEntityTypeFilter().getDisplayName()).typeNumber());
+                inputDto.getEntityTypeFilter().name()).typeNumber());
         }
 
         final PotentialPlacementsResponse response =

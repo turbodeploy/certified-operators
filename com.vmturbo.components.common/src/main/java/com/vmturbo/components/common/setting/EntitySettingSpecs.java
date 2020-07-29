@@ -17,8 +17,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -40,10 +38,16 @@ public enum EntitySettingSpecs {
     /**
      * Move action automation mode.
      */
-    Move("move", "Move / Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    Move("move", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_VOLUME,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER, EntityType.DISK_ARRAY,
                     EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Cloud compute scale action automation mode.
+     */
+    CloudComputeScale("cloudComputeScale", "Cloud Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
 
     /**
      * Move action automation mode for business user.
@@ -54,7 +58,7 @@ public enum EntitySettingSpecs {
     /**
      * Storage Move action automation mode.
      */
-    StorageMove("storageMove", "Storage Move / Storage Scale", Collections.emptyList(),
+    StorageMove("storageMove", "Storage Move", Collections.emptyList(),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             actionExecutionModeSetToRecommend(), true),
 
@@ -206,7 +210,7 @@ public enum EntitySettingSpecs {
      * Suspend action automation mode.
      */
     Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
+        EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
             EntityType.CONTAINER_POD, EntityType.CONTAINER,
             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
             EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
@@ -215,7 +219,7 @@ public enum EntitySettingSpecs {
      * For some types of entities Suspend actions are disabled by default.
      */
     DisabledSuspend("suspendIsDisabled", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.IO_MODULE, EntityType.STORAGE), actionExecutionModeSetToDisabled(), true),
+            EnumSet.of(EntityType.IO_MODULE), actionExecutionModeSetToDisabled(), true),
 
     /**
      * Delete action automation mode.
@@ -409,7 +413,7 @@ public enum EntitySettingSpecs {
         "Min Observation Period",
         Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
         SettingTiebreaker.BIGGER, EnumSet.of(EntityType.CONTAINER_SPEC),
-        numeric(0.0f, 7.0f, 1.0f), true),
+        numeric(0.0f, 90.0f, 1.0f), true),
 
     /**
      * Min observation period for business user.
@@ -418,7 +422,7 @@ public enum EntitySettingSpecs {
             "Min Observation Period",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            numeric(0.0f, 7.0f, 0.0f), true),
+            numeric(0.0f, 90.0f, 0.0f), true),
 
     /**
      * Max observation period for business user.
@@ -842,7 +846,10 @@ public enum EntitySettingSpecs {
 
     /**
      * Response Time SLO used by Application and Database.
+     * @deprecated since ResponseTimeSLO was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     ResponseTimeCapacity("responseTimeCapacity", "Response Time SLO [ms]",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
@@ -857,7 +864,10 @@ public enum EntitySettingSpecs {
      * of the ResponseTimeCapacity setting or to calculate it as the max of the commodity's capacity,
      * used value, and the ResponseTimeCapacity setting.
      * Used by Application and Database.
+     * @deprecated since ResponseTimeSLOEnabled was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     AutoSetResponseTimeCapacity("autoSetResponseTimeCapacity", "Disable Response Time SLO",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
@@ -869,7 +879,10 @@ public enum EntitySettingSpecs {
 
     /**
      * Transaction SLO used by Application and Database.
+     * @deprecated since TransactionSLO was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     TransactionsCapacity("transactionsCapacity", "Transaction SLO",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
@@ -884,13 +897,70 @@ public enum EntitySettingSpecs {
      * of the TransactionsCapacity setting or to calculate it as the max of the commodity's capacity,
      * used value, and the TransactionsCapacity setting.
      * Used by Application and Database.
+     * @deprecated since TransactionSLOEnabled was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Disable Transaction SLO",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
                     EntityType.BUSINESS_TRANSACTION, EntityType.DATABASE_SERVER,
                     EntityType.APPLICATION_COMPONENT),
+            new BooleanSettingDataType(false),
+            true),
+
+    /**
+     * Response Time SLO for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     * This value will be set only if the ResponseTimeSLOEnabled setting is "true".
+     * The default value is 2 seconds, and the user can set it to anything between 1 millisecond
+     * and a 1000 years.
+     */
+    ResponseTimeSLO("responseTimeSLO", "Response Time SLO [ms]",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
+            numeric(1.0f, 31536000000000.0f, 2000.0f),
+            true),
+
+    /**
+     * Indicates whether to use the ResponseTimeSLO setting value as the Response Time capacity for
+     * the entity.
+     * This setting is used for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     */
+    ResponseTimeSLOEnabled("responseTimeSLOEnabled", "Enable Response Time SLO",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
+            new BooleanSettingDataType(false),
+            true),
+
+    /**
+     * Transaction SLO for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     * This value will be set only if the TransactionSLOEnabled setting is "true".
+     * The default value is 10 (transactions per minute), and the user can set it to anything between
+     * 1 transaction and 31536000000000 transactions.
+     */
+    TransactionSLO("transactionSLO", "Transaction SLO",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
+            numeric(1.0f, 31536000000000.0f, 10.0f),
+            true),
+
+    /**
+     * Indicates whether to use the TransactionSLO setting value as the Transaction capacity for
+     * the entity.
+     * This setting is used for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     */
+    TransactionSLOEnabled("transactionSLOEnabled", "Enable Transaction SLO",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
             new BooleanSettingDataType(false),
             true),
 
@@ -1184,6 +1254,7 @@ public enum EntitySettingSpecs {
                     EntitySettingSpecs.Move.name,
                     EntitySettingSpecs.BusinessUserMove.name,
                     EntitySettingSpecs.StorageMove.name,
+                    EntitySettingSpecs.CloudComputeScale.name,
                     EntitySettingSpecs.Provision.name,
                     EntitySettingSpecs.DisabledProvision.name,
                     EntitySettingSpecs.Reconfigure.name,
@@ -1320,6 +1391,24 @@ public enum EntitySettingSpecs {
     @Nonnull
     public SettingSpec getSettingSpec() {
         return settingSpec;
+    }
+
+    /**
+     * A shortcut to get the numeric default value.
+     *
+     * @return numeric default value
+     */
+    public double getNumericDefault() {
+        return settingSpec.getNumericSettingValueType().getDefault();
+    }
+
+    /**
+     * A shortcut to get the boolean default value.
+     *
+     * @return boolean default value
+     */
+    public boolean getBooleanDefault() {
+        return settingSpec.getBooleanSettingValueType().getDefault();
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -42,15 +45,19 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
+import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
@@ -77,11 +84,14 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private static final int MAINTENANCE_WINDOW_HOURS = 12;
     private static final long MAINTENANCE_WINDOW_MS = MAINTENANCE_WINDOW_HOURS * TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
     private static final String PERCENTILE_BUCKETS_SPEC = "0,1,5,99,100";
+    private static final KVConfig KV_CONFIG = createKvConfig();
     private static final PercentileHistoricalEditorConfig PERCENTILE_HISTORICAL_EDITOR_CONFIG =
-            new PercentileHistoricalEditorConfig(1, MAINTENANCE_WINDOW_HOURS, 10, 100,
-                            ImmutableMap.of(CommodityType.VCPU, PERCENTILE_BUCKETS_SPEC,
-                                            CommodityType.IMAGE_CPU, PERCENTILE_BUCKETS_SPEC), null,
-                            Clock.systemUTC());
+                    new PercentileHistoricalEditorConfig(1, MAINTENANCE_WINDOW_HOURS, 777777L, 10,
+                                    100,
+                                    ImmutableMap.of(CommodityType.VCPU, PERCENTILE_BUCKETS_SPEC,
+                                                    CommodityType.IMAGE_CPU,
+                                                    PERCENTILE_BUCKETS_SPEC), KV_CONFIG,
+                                    Clock.systemUTC());
 
     private static final long VIRTUAL_MACHINE_OID = 1;
     private static final long VIRTUAL_MACHINE_OID_2 = 2;
@@ -650,6 +660,59 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                             .load(Mockito.any(),
                                             Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
         }
+    }
+
+    /**
+     * Checks that exporting and loading of percentile diagnostics is working as expected.
+     *
+     * @throws DiagnosticsException in case of error during diagnostics
+     *                 export/import
+     * @throws InterruptedException in case test has been interrupted.
+     * @throws HistoryCalculationException in case context initialization failed.
+     * @throws IOException diagnostics collection could not write state into stream.
+     */
+    @Test
+    public void checkRestoreDiags()
+                    throws DiagnosticsException, InterruptedException, HistoryCalculationException,
+                    IOException {
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
+        // First initializing history from db.
+        percentileEditor.initContext(new HistoryAggregationContext(topologyInfo, graphWithSettings,
+                        false), Collections.emptyList());
+        createKvConfig();
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            percentileEditor.collectDiags(output);
+            percentileEditor.restoreDiags(output.toByteArray());
+        }
+        // LATEST(1, 2, 3, 4, 5) + TOTAL(42, 44, 46, 48, 50) = FULL(43, 46, 49, 52, 55)
+        Assert.assertEquals(Arrays.asList(43, 46, 49, 52, 55),
+                        percentileEditor.getCacheEntry(VCPU_COMMODITY_REFERENCE)
+                                        .getUtilizationCountStore()
+                                        .checkpoint(Collections.emptySet())
+                                        .build()
+                                        .getUtilizationList());
+        // LATEST(46, 47, 48, 49, 50) + TOTAL(132, 134, 136, 138, 140) = FULL(178, 181, 184, 187, 190)
+        Assert.assertEquals(Arrays.asList(178, 181, 184, 187, 190),
+                        percentileEditor.getCacheEntry(IMAGE_CPU_COMMODITY_REFERENCE)
+                                        .getUtilizationCountStore()
+                                        .checkpoint(Collections.emptySet())
+                                        .build()
+                                        .getUtilizationList());
+    }
+
+    private static KVConfig createKvConfig() {
+        final KVConfig result = Mockito.mock(KVConfig.class);
+        final KeyValueStore kvStore = Mockito.mock(KeyValueStore.class);
+        Mockito.when(result.keyValueStore()).thenReturn(kvStore);
+        Mockito.when(kvStore.get(Mockito.any())).thenAnswer(invocation -> {
+            final String parameter = invocation.getArgumentAt(0, String.class);
+            if (parameter.equals(
+                            CachingHistoricalEditorConfig.STORE_CACHE_TO_DIAGNOSTICS_PROPERTY)) {
+                return Optional.of("true");
+            }
+            return Optional.empty();
+        });
+        return result;
     }
 
     /**

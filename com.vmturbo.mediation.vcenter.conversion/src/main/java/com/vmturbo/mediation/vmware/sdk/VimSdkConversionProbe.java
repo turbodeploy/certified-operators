@@ -22,25 +22,9 @@ public class VimSdkConversionProbe extends VimSdkProbe {
     private final Logger logger = LogManager.getLogger();
 
     @Override
-    public Class getAccountDefinitionClass() {
-        return VimAccountWithStorageBrowsingFlag.class;
-    }
-
-    @Override
     public DiscoveryResponse discoverTarget(@Nonnull final VimAccount accountValues) throws InterruptedException {
-        final DiscoveryResponse newDiscoveryResponse = new AddVirtualVolumeDiscoveryConverter(
+        return new AddVirtualVolumeDiscoveryConverter(
             getRawDiscoveryResponse(accountValues), false).convert();
-
-        if (accountValues instanceof VimAccountWithStorageBrowsingFlag) {
-            if (!((VimAccountWithStorageBrowsingFlag) accountValues).isStorageBrowsingEnabled()) {
-                return ConverterUtils.removeDerivedTargets(newDiscoveryResponse,
-                    SDKProbeType.VC_STORAGE_BROWSE);
-            }
-        } else {
-            logger.error("Unexpected class of AccountValue in discoverTarget {}",
-                accountValues.getClass());
-        }
-        return newDiscoveryResponse;
     }
 
     /**

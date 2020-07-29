@@ -3,16 +3,19 @@ package com.vmturbo.sql.utils;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 
 import javax.annotation.Nonnull;
 import javax.sql.DataSource;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -27,7 +30,6 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.DataSourceConnectionProvider;
 import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultExecuteListenerProvider;
-import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
@@ -130,68 +132,12 @@ public class DbEndpoint {
     private DbAdapter adapter;
     private boolean retriesCompleted = false;
     private Throwable failureCause;
+    private DbEndpointCompleter endpointCompleter;
 
-    /**
-     * Create a new {@link DbEndpoint primary database endpoint}, without a tag.
-     *
-     * <p>Properties for this endpoint should be configured with out tag prefixes. A component
-     * may compare at most one primary endpoint.</p>
-     *
-     * @param dialect the SQL dialect (i.e. DB server type - MySQL, Postgres, etc.) for this
-     *                endpoint
-     * @return an endpoint that can provide access to the database
-     */
-    public static DbEndpointBuilder primaryDbEndpoint(SQLDialect dialect) {
-        return secondaryDbEndpoint("", dialect);
-    }
-
-    /**
-     * Create a new {@link DbEndpoint secondary database endpoint} with a given tag.
-     *
-     * <p>Properties for this endpoint should be configured with property names that include the
-     * given tag as a prefix, e.g. "xxx_dbPort" to configure the port number for an endpoint with
-     * "xxx" as the tag.</p>,
-     *
-     * <p>A component may define any number of secondary endpoints (all with distinct tags), in
-     * addition to a single primary endpoint, if the latter is required.</p>
-     *
-     * @param tag     the tag for this endpoint
-     * @param dialect the SQL dialect (i.e. DB server type - MySQL, Postgres, etc.) for this
-     *                endpoint
-     * @return an endpoint that can provide access to the database
-     */
-    public static DbEndpointBuilder secondaryDbEndpoint(@Nonnull final String tag, SQLDialect dialect) {
-        return new DbEndpointBuilder(tag, dialect);
-    }
-
-    /**
-     * Create a new abstract endpoint.
-     *
-     * <p>An abstract DB endpoint will never be operationalized. It is a means of creating a
-     * template that can be shared across components that need to access the same database objects.
-     * Each such component should create its own endpoint(s) derived from the shared abstract
-     * endpoint.</p>
-     *
-     * <p>Typically, an abstract endpoint will specify database name, and schema name, but
-     * any of the properties can be specified in the builder. Any such property values will be
-     * used instead of the normal built-in defaults in derived components.</p>
-     *
-     * <p>Abstract components are not affected by external configuration, but derived endpoints
-     * can have their properties set or changed through external configuration, including
-     * properties that are set in the abstract endpoint.</p>
-     *
-     * <p>An abstract endpoint also has no dialect, since it is neither resolved (hence no need to
-     * access dialect-dependent property defaults), nor operational (so no need for an adapter).</p>
-     *
-     * @return a new abstract endpoint
-     */
-    public static DbEndpointBuilder abstractDbEndpoint() {
-        return new DbEndpointBuilder("", null).setAbstract();
-    }
-
-    private DbEndpoint(DbEndpointConfig config) {
+    private DbEndpoint(DbEndpointConfig config, DbEndpointCompleter endpointCompleter) {
         this.config = config;
         this.future = new CompletableFuture<>();
+        this.endpointCompleter = endpointCompleter;
     }
 
     public DbEndpointConfig getConfig() {
@@ -299,6 +245,17 @@ public class DbEndpoint {
     }
 
     /**
+     * Return the {@link DbEndpointCompleter} responsible for initializing this endpoint when
+     * the component starts. ONLY FOR TESTING.
+     *
+     * @return The {@link DbEndpointCompleter}.
+     */
+    @VisibleForTesting
+    public DbEndpointCompleter getEndpointCompleter() {
+        return endpointCompleter;
+    }
+
+    /**
      * Wait for the endpoint to become ready for use.
      *
      * <p>This is invoked other public methods of this class that would provide access to the
@@ -356,7 +313,7 @@ public class DbEndpoint {
                     } catch (ExecutionException e) {
                         // prior attempt failed... try again with a fresh future
                         this.future = new CompletableFuture<>();
-                        DbEndpointCompleter.get().completeEndpoint(this);
+                        endpointCompleter.completeEndpoint(this);
                         // we'll get the last of these handed back to us if we ultimately give up
                         throw new RetriableOperationFailedException(e);
                     } catch (InterruptedException e) {
@@ -398,20 +355,6 @@ public class DbEndpoint {
         }
     }
 
-    /**
-     * Reset the internal endpoint registry to its initial state, as if no endpoints have been
-     * created since startup.
-     *
-     * <p>This never happens during normal operations, where endpoints never undo their
-     * provisioning and typically remain available (in the Spring context) until the component
-     * terminates. In tests, where isolation between test classes is important, we use this method
-     * to reset all endpoint configuration when DbEndpointRule processes the end of a test class in
-     * which it appears.</p>
-     */
-    static void resetAll() {
-        DbEndpointCompleter.get().resetAll();
-    }
-
     @Override
     public String toString() {
         // "tag"
@@ -434,37 +377,54 @@ public class DbEndpoint {
      * Future}s created during endpoint registration.
      */
     public static class DbEndpointCompleter implements ServerStartedListener {
-        private static final DbEndpointCompleter INSTANCE = new DbEndpointCompleter();
 
-        private DbEndpointCompleter() {
+        final List<DbEndpoint> pendingEndpoints = new ArrayList<>();
+
+        private final AtomicBoolean serverStarted = new AtomicBoolean(false);
+        private final AtomicReference<UnaryOperator<String>> resolver;
+        private final AtomicReference<DBPasswordUtil> passwordUtil;
+
+        /**
+         * Create a new {@link DbEndpointCompleter}.
+         *
+         * @param resolver Resolves property values in the environment.
+         * @param passwordUtil The {@link DBPasswordUtil} used to retrieve passwords from the
+         *                     auth component.
+         */
+        public DbEndpointCompleter(@Nonnull final UnaryOperator<String> resolver,
+                @Nonnull final DBPasswordUtil passwordUtil) {
+            this.resolver = new AtomicReference<>(resolver);
+            this.passwordUtil = new AtomicReference<>(passwordUtil);
             ServerStartedNotifier.get().registerListener(this);
         }
 
-        final List<DbEndpoint> pendingEndpoints = new ArrayList<>();
-        static UnaryOperator<String> resolver;
-        private static DBPasswordUtil dbPasswordUtil;
-
         /**
-         * Get the singleton instance of the {@link DbEndpointCompleter}.
+         * Create a new {@link DbEndpointBuilder}, which can be used to configure and create a
+         * {@link DbEndpoint}. That endpoint will register itself with this {@link DbEndpointCompleter},
+         * and will be available for use once this {@link DbEndpointCompleter} receives the
+         * server start notification.
          *
-         * @return The {@link DbEndpointCompleter} instance.
+         * @param tag The tag for the endpoint.
+         * @param sqlDialect The SQL dialect for the endpoint.
+         * @return The {@link DbEndpointBuilder}.
          */
-        public static DbEndpointCompleter get() {
-            return INSTANCE;
+        @Nonnull
+        public DbEndpointBuilder newEndpointBuilder(String tag, SQLDialect sqlDialect) {
+            return new DbEndpointBuilder(tag, sqlDialect, this);
         }
 
         DbEndpoint register(DbEndpointConfig config) {
             if (config.dbIsAbstract()) {
                 // no need to register abstract endpoints, since there's no completion processing
                 // involved - just wrap the config in an abstract endpoint and we're done
-                return new AbstractDbEndpoint(config);
+                return new AbstractDbEndpoint(config, this);
             }
-            final DbEndpoint endpoint = new DbEndpoint(config);
+            final DbEndpoint endpoint = new DbEndpoint(config, this);
             synchronized (pendingEndpoints) {
-                if (resolver == null) {
-                    pendingEndpoints.add(endpoint);
-                } else {
+                if (serverStarted.get()) {
                     completeEndpoint(endpoint);
+                } else {
+                    pendingEndpoints.add(endpoint);
                 }
             }
             return endpoint;
@@ -472,27 +432,22 @@ public class DbEndpoint {
 
         @Override
         public void onServerStarted(ConfigurableWebApplicationContext serverContext) {
-            ConfigurableEnvironment environment = serverContext.getEnvironment();
-            String authHost = Objects.requireNonNull(environment.getProperty("authHost"));
-            String authRoute = Objects.requireNonNull(environment.getProperty("authRoute", ""));
-            int serverHttpPort = Integer.parseInt(
-                    Objects.requireNonNull(environment.getProperty("serverHttpPort")));
-            int authRetryDelaySec = Integer.parseInt(
-                    Objects.requireNonNull(environment.getProperty("authRetryDelaySecs")));
-            DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, serverHttpPort, authRoute, authRetryDelaySec);
-            setResolver(environment::getProperty, dbPasswordUtil, true);
-
+            this.serverStarted.set(true);
+            synchronized (pendingEndpoints) {
+                completePendingEndpoints();
+            }
         }
 
-        void setResolver(UnaryOperator<String> resolver, DBPasswordUtil dbPasswordUtil,
-                boolean completePending) {
-            synchronized (pendingEndpoints) {
-                DbEndpointCompleter.resolver = resolver;
-                DbEndpointCompleter.dbPasswordUtil = dbPasswordUtil;
-                if (completePending) {
-                    completePendingEndpoints();
-                }
-            }
+        /**
+         * Override the property resolver and password utility for tests.
+         *
+         * @param resolver The new property resolver.
+         * @param dbPasswordUtil The new {@link DBPasswordUtil}.
+         */
+        @VisibleForTesting
+        public void setResolver(UnaryOperator<String> resolver, DBPasswordUtil dbPasswordUtil) {
+            this.resolver.set(resolver);
+            this.passwordUtil.set(dbPasswordUtil);
         }
 
         private void completePendingEndpoints() {
@@ -502,6 +457,11 @@ public class DbEndpoint {
             }
         }
 
+        /**
+         * Only used for tests.
+         *
+         * @param endpoint db endpoint
+         */
         void completePendingEndpoint(DbEndpoint endpoint) {
             if (endpoint.config.dbIsAbstract() || endpoint.future.isDone()) {
                 return;
@@ -540,14 +500,16 @@ public class DbEndpoint {
 
         private void resolveConfig(DbEndpointConfig config)
                 throws UnsupportedDialectException {
-            new DbEndpointResolver(config, resolver, dbPasswordUtil).resolve();
+            new DbEndpointResolver(config, resolver.get(), passwordUtil.get()).resolve();
         }
 
-        private void resetAll() {
+        @VisibleForTesting
+        void resetAll() {
             synchronized (pendingEndpoints) {
                 pendingEndpoints.clear();
-                resolver = null;
-                dbPasswordUtil = null;
+                this.serverStarted.set(false);
+                this.resolver.set(null);
+                this.passwordUtil.set(null);
             }
         }
     }
@@ -591,8 +553,8 @@ public class DbEndpoint {
      */
     private static class AbstractDbEndpoint extends DbEndpoint {
 
-        AbstractDbEndpoint(final DbEndpointConfig config) {
-            super(config);
+        AbstractDbEndpoint(final DbEndpointConfig config, DbEndpointCompleter endpointCompleter) {
+            super(config, endpointCompleter);
         }
 
         @Override
@@ -627,23 +589,34 @@ public class DbEndpoint {
     public enum DbEndpointAccess {
 
         /** Full access to the configured schema. */
-        ALL(true),
+        ALL(true, true),
         /** Ability to read and write to all objects in the database, but not to create new objects. */
-        READ_WRITE_DATA(true),
+        READ_WRITE_DATA(true, false),
         /**
          * Ability to read all objects in the database, but not to alter any data or create new
          * objects.
          */
-        READ_ONLY(false);
+        READ_ONLY(false, false);
 
         private final boolean writeAccess;
+        private final boolean createNewTable;
 
-        DbEndpointAccess(boolean writeAccess) {
+        DbEndpointAccess(boolean writeAccess, boolean createNewTable) {
             this.writeAccess = writeAccess;
+            this.createNewTable = createNewTable;
         }
 
         public boolean isWriteAccess() {
             return writeAccess;
+        }
+
+        /**
+         * Whether this endpoint can create new tables.
+         *
+         * @return true if it can create new table, otherwise false
+         */
+        public boolean canCreateNewTable() {
+            return createNewTable;
         }
     }
 }

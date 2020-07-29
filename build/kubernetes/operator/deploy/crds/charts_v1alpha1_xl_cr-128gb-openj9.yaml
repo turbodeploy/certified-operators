@@ -18,7 +18,7 @@ spec:
   #  imageUsername: turbouser
   #  imagePassword: turbopassword
     repository: turbonomic
-    tag: 7.22.5-SNAPSHOT
+    tag: 7.22.6-SNAPSHOT
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
     externalTimescaleDBIP: 10.0.2.15
@@ -77,11 +77,13 @@ spec:
   mssql:
     enabled: true
   mysql:
-    enabled: false
+    enabled: true
   newrelic:
     enabled: true
   udt:
     enabled: true
+  tomcat:
+    enabled: false
 
   # Resource limits - Core Services
   action-orchestrator:
@@ -249,6 +251,10 @@ spec:
       limits:
         memory: 30Gi
   mediation-mysql:
+    resources:
+      limits:
+        memory: 30Gi
+  mediation-tomcat:
     resources:
       limits:
         memory: 30Gi

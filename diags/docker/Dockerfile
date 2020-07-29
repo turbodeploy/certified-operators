@@ -26,12 +26,13 @@ RUN dnf install -y rsyslog procps-ng python2 net-tools java-11-openjdk-devel xz 
     rm -rf /var/cache/dnf && \
     mkdir /root/.ssh
 # Install OpenJ9
-RUN curl -k -s -O -L https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.6%2B10_openj9-0.18.0/OpenJDK11U-jdk_x64_linux_openj9_11.0.6_10_openj9-0.18.0.tar.gz && \
+# https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.8%2B10_openj9-0.21.0/OpenJDK11U-jdk_x64_linux_openj9_11.0.8_10_openj9-0.21.0.tar.gz
+RUN curl -k -s -O -L https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.8%2B10_openj9-0.21.0/OpenJDK11U-jdk_x64_linux_openj9_11.0.8_10_openj9-0.21.0.tar.gz && \
     mkdir -p /usr/lib/jvm && \
-    tar -xf OpenJDK11U-jdk_x64_linux_openj9_11.0.6_10_openj9-0.18.0.tar.gz --directory /usr/lib/jvm/ && \
+    tar -xf OpenJDK11U-jdk_x64_linux_openj9_11.0.8_10_openj9-0.21.0.tar.gz --directory /usr/lib/jvm/ && \
     rm OpenJDK*.tar.gz
 # set a path variable if we want to use J9 instead of HotSpot
-ENV J9PATH="/usr/lib/jvm/jdk-11.0.6+10/bin:${PATH}"
+ENV J9PATH="/usr/lib/jvm/jdk-11.0.8+10/bin:${PATH}"
 
 COPY entrypoint.sh collect_diags.sh diags.py dump_histogram.sh wait_for_full_gc.sh terminate.sh run.sh /
 RUN chmod 755 /entrypoint.sh && chmod 755 /collect_diags.sh && chmod 755 /terminate.sh && \

@@ -1,5 +1,7 @@
 package com.vmturbo.mediation.udt.component;
 
+import static com.vmturbo.platform.sdk.common.util.SDKProbeType.UDT;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -27,7 +29,6 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
 class TargetRegistration {
 
     private static final Logger LOGGER = LogManager.getLogger();
-    private static final String UDT_PROBE_TYPE = "User-defined entities";
     private static final String UDT_TARGET_FIELD_NAME = "targetName";
     private static final String UDT_TARGET_FIELD_VALUE = "User-defined entities";
 
@@ -69,7 +70,7 @@ class TargetRegistration {
     @Nullable
     private ProbeInfo findUdtProbe() throws CommunicationException {
         return topologyProcessor.getAllProbes()
-                .stream().filter(probe -> probe.getType().equals(UDT_PROBE_TYPE))
+                .stream().filter(probe -> probe.getType().equals(UDT.getProbeType()))
                 .findFirst().orElse(null);
     }
 

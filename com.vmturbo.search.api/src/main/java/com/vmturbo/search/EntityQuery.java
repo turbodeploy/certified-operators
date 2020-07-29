@@ -1,6 +1,5 @@
 package com.vmturbo.search;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -14,13 +13,11 @@ import org.jooq.Field;
 
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO;
-import com.vmturbo.api.dto.searchquery.OrderByApiDTO;
 import com.vmturbo.api.dto.searchquery.PaginationApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SelectEntityApiDTO;
 import com.vmturbo.api.dto.searchquery.WhereApiDTO;
 import com.vmturbo.api.enums.EntityType;
-import com.vmturbo.common.api.mappers.EnumMapper;
 import com.vmturbo.extractor.schema.tables.SearchEntity;
 import com.vmturbo.search.mappers.EntityTypeMapper;
 import com.vmturbo.search.metadata.SearchEntityMetadata;
@@ -31,12 +28,6 @@ import com.vmturbo.search.metadata.SearchMetadataMapping;
  */
 public class EntityQuery extends AbstractSearchQuery {
 
-    /**
-     * Provides a mapping from EntityType(string) -> SearchEntityMetadata.
-     */
-    public static final EnumMapper<SearchEntityMetadata> SEARCH_ENTITY_METADATA_ENUM_MAPPER =
-        new EnumMapper<>(SearchEntityMetadata.class);
-
     private final EntityQueryApiDTO request;
 
     /**
@@ -44,10 +35,14 @@ public class EntityQuery extends AbstractSearchQuery {
      *
      * @param entityQueryApiDTO the API input payload
      * @param readOnlyDSLContext a context for creating database connections
+     * @param apiPaginationDefaultLimit default limit of results to return
+     * @param apiPaginationMaxLimit max number of results to return
      */
     public EntityQuery(@NonNull final EntityQueryApiDTO entityQueryApiDTO,
-            @NonNull final DSLContext readOnlyDSLContext) {
-        super(entityQueryApiDTO.getSelect().getEntityType().name(), readOnlyDSLContext);
+            @NonNull final DSLContext readOnlyDSLContext, final int apiPaginationDefaultLimit,
+            final int apiPaginationMaxLimit
+    ) {
+        super(readOnlyDSLContext, apiPaginationDefaultLimit, apiPaginationMaxLimit);
         this.request = entityQueryApiDTO;
     }
 
@@ -68,11 +63,6 @@ public class EntityQuery extends AbstractSearchQuery {
             return this.getRequest().getWhere();
     }
 
-    @Override
-    protected List<OrderByApiDTO> getOrderBy() {
-        PaginationApiDTO pag = getPaginationApiDto();
-        return pag == null ? Collections.emptyList() : pag.getOrderBy();
-    }
 
     @Override
     protected PaginationApiDTO getPaginationApiDto() {
@@ -88,7 +78,8 @@ public class EntityQuery extends AbstractSearchQuery {
     }
 
     @Override
-    protected Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping(final String entityType) {
+    protected Map<FieldApiDTO, SearchMetadataMapping> lookupMetadataMapping() {
+        String entityType = this.request.getSelect().getEntityType().name();
         return SEARCH_ENTITY_METADATA_ENUM_MAPPER.valueOf(entityType)
             .map(SearchEntityMetadata::getMetadataMappingMap)
             .orElseThrow(() -> new IllegalArgumentException(

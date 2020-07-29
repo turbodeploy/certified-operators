@@ -409,9 +409,9 @@ class LiveActions implements QueryableActionViews {
     private void updateStateForActionsWithRemovedAcceptance(
             @Nonnull final Collection<Action> allMarketActions) {
         final List<Action> actionsWithRemovedAcceptance = allMarketActions.stream()
-                .filter(action -> action.getSchedule().isPresent()
-                        && action.getSchedule().get().getAcceptingUser() == null
-                        && action.getState() == ActionState.ACCEPTED)
+                .filter(action ->  action.getState() == ActionState.ACCEPTED)
+                .filter(action -> !action.getSchedule().isPresent()
+                        || action.getSchedule().get().getAcceptingUser() == null)
                 .collect(Collectors.toList());
 
         actionsWithRemovedAcceptance.forEach(action -> action.receive(new AcceptanceRemovalEvent()));

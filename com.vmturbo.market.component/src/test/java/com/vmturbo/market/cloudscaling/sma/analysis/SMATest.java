@@ -1,5 +1,7 @@
 package com.vmturbo.market.cloudscaling.sma.analysis;
 
+import static org.junit.Assert.assertEquals;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -50,7 +52,7 @@ public class SMATest {
             SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
             List<SMAMatch> actualMatches = outputContext.getMatches().stream()
                     .filter(a -> (a.getReservedInstance() != null)).collect(Collectors.toList());
-            Assert.assertEquals(count, actualMatches.size());
+            assertEquals(count, actualMatches.size());
         }
     }
 
@@ -67,7 +69,38 @@ public class SMATest {
      * wrapper method to run the SMA for various scenarios.
      */
     @Test
+    public void testPostProcessing() {
+        String filename = "2vm1rinorioptimisation.json";
+        JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
+        SMAInputContext inputContext = jsonToSMAInputTranslator
+                .parseInput(dirPath + filename).getContexts().get(0);
+        SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
+        StableMarriageAlgorithm.postProcessing(outputContext);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
+                .findFirst().get().getProjectedRICoverage(), 2.8f, 0.001);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000002L)
+                .findFirst().get().getProjectedRICoverage(), 1.2f, 0.001);
+
+    }
+
+
+    /**
+     * wrapper method to run the SMA for various scenarios.
+     */
+    @Test
     public void testAwsSMA() {
+
+        /*
+         * 2 vms. both belong to ASG. no common provider. THey should keep using the RI. Increase in
+         * coverage is allowed.
+         */
+        testExactResult("2vm2riasgnocommonprovider.json");
+        /*
+         * 2 vms partially covered. the coupons will be redistributed. Post processing will solve it.
+         */
+        testExactResult("2vm1rireconfigure.json");
         /*
          * VM and RI are the same except zone, then no match.
          */

@@ -208,7 +208,10 @@ public class LiveActionsTest {
 
         final Action acceptedAction = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         acceptedAction.getActionTranslation().setPassthroughTranslationSuccess();
-        final Action actionWithRemovedAcceptance = createActionWithCertainState(ActionState.ACCEPTED);
+        final Action actionWithRemovedAcceptance =
+            createActionWithCertainState(ActionState.ACCEPTED, 2);
+        final Action acceptedActionWithRemovedSchedule =
+            createActionWithCertainState(ActionState.ACCEPTED, 3);
 
         final EntitiesAndSettingsSnapshot entityCacheSnapshot =
                 mock(EntitiesAndSettingsSnapshot.class);
@@ -220,15 +223,23 @@ public class LiveActionsTest {
         final Map<String, Setting> settingMap =
                 ActionOrchestratorTestUtils.makeActionModeAndExecutionScheduleSetting(
                         ActionMode.MANUAL, Collections.singleton(scheduleId));
+        final Map<String, Setting> settingMapNoSchedule =
+            ActionOrchestratorTestUtils.makeActionModeAndExecutionScheduleSetting(
+                ActionMode.MANUAL, Collections.emptyList());
         final ActionEntity acceptedActionEntity =
                 ActionDTOUtil.getPrimaryEntity(acceptedAction.getRecommendation());
         final ActionEntity actionWithRemovedAcceptanceEntity =
                 ActionDTOUtil.getPrimaryEntity(actionWithRemovedAcceptance.getRecommendation());
+        final ActionEntity acceptedActionWithRemovedScheduleEntity =
+            ActionDTOUtil.getPrimaryEntity(acceptedActionWithRemovedSchedule.getRecommendation());
         Mockito.when(entityCacheSnapshot.getSettingsForEntity(acceptedActionEntity.getId()))
                 .thenReturn(settingMap);
         Mockito.when(
                 entityCacheSnapshot.getSettingsForEntity(actionWithRemovedAcceptanceEntity.getId()))
                 .thenReturn(settingMap);
+        Mockito.when(
+            entityCacheSnapshot.getSettingsForEntity(acceptedActionWithRemovedScheduleEntity.getId()))
+            .thenReturn(settingMapNoSchedule);
 
         Mockito.when(entityCacheSnapshot.getScheduleMap())
                 .thenReturn(ImmutableMap.of(scheduleId, actionSchedule1));
@@ -236,11 +247,15 @@ public class LiveActionsTest {
                 acceptedAction.getRecommendationOid())).thenReturn(Optional.of("admin"));
         Mockito.when(entityCacheSnapshot.getAcceptingUserForAction(
                 actionWithRemovedAcceptance.getRecommendationOid())).thenReturn(Optional.empty());
+        Mockito.when(entityCacheSnapshot.getAcceptingUserForAction(
+            acceptedActionWithRemovedSchedule.getRecommendationOid())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,
                 acceptedAction);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,
                 actionWithRemovedAcceptance);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,
+            acceptedActionWithRemovedSchedule);
 
         Mockito.when(actionTargetSelector.getTargetsForActions(any(), any()))
                 .thenAnswer(invocation -> {
@@ -254,16 +269,19 @@ public class LiveActionsTest {
 
         Assert.assertEquals(ActionState.READY, acceptedAction.getState());
         Assert.assertEquals(ActionState.ACCEPTED, actionWithRemovedAcceptance.getState());
+        Assert.assertEquals(ActionState.ACCEPTED, acceptedActionWithRemovedSchedule.getState());
 
         // ACT
         liveActions.updateMarketActions(Collections.emptyList(),
-                Arrays.asList(acceptedAction, actionWithRemovedAcceptance), entityCacheSnapshot,
+                Arrays.asList(acceptedAction, actionWithRemovedAcceptance, acceptedActionWithRemovedSchedule),
+                entityCacheSnapshot,
                 actionTargetSelector);
 
         Assert.assertThat(liveActions.getAll().collect(Collectors.toList()),
-                containsInAnyOrder(acceptedAction, actionWithRemovedAcceptance));
+                containsInAnyOrder(acceptedAction, actionWithRemovedAcceptance, acceptedActionWithRemovedSchedule));
         Assert.assertEquals(ActionState.ACCEPTED, acceptedAction.getState());
         Assert.assertEquals(ActionState.READY, actionWithRemovedAcceptance.getState());
+        Assert.assertEquals(ActionState.READY, acceptedActionWithRemovedSchedule.getState());
     }
 
     /**
@@ -276,7 +294,7 @@ public class LiveActionsTest {
         final Action rejectedAction = ActionOrchestratorTestUtils.createMoveAction(1, 2);
         rejectedAction.getActionTranslation().setPassthroughTranslationSuccess();
         final Action actionWithRemovedRejection =
-                createActionWithCertainState(ActionState.REJECTED);
+                createActionWithCertainState(ActionState.REJECTED, 2);
 
         final EntitiesAndSettingsSnapshot entityCacheSnapshot =
                 mock(EntitiesAndSettingsSnapshot.class);
@@ -843,9 +861,9 @@ public class LiveActionsTest {
         assertThat(liveActions.getAction(move13Action.getId()).get(), is(move13Action));
     }
 
-    private Action createActionWithCertainState(@Nonnull ActionState actionState) {
+    private Action createActionWithCertainState(@Nonnull ActionState actionState, long actionOid) {
         final ActionDTO.Action recommendation =
-                ActionOrchestratorTestUtils.createMoveRecommendation(2);
+                ActionOrchestratorTestUtils.createMoveRecommendation(actionOid);
 
         final SerializationState actionSerializedState =
                 new SerializationState(2L, recommendation, LocalDateTime.now(),

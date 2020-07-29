@@ -97,8 +97,11 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
     @Nonnull
     private static ActionInfoModel getProvision(@Nonnull ActionInfo action) {
         final Provision provision = action.getProvision();
+        final ProvisionModel model = new ProvisionModel(
+            provision.getEntityToClone().getId(),
+            provision.hasProvisionIndex() ? provision.getProvisionIndex() : null);
         return new ActionInfoModel(ActionTypeCase.PROVISION, provision.getEntityToClone().getId(),
-                Long.toString(provision.getProvisionedSeller()), null);
+                gson.toJson(model), null);
     }
 
     @Nonnull
@@ -269,6 +272,20 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
             this.computeTier = computeTier;
             this.masterAccount = masterAccount;
             this.region = region;
+        }
+    }
+
+    /**
+     * Model for Provision action details.
+     */
+    private static class ProvisionModel {
+        private final long sourceEntityId;
+        private final Integer provisionIndex;
+
+
+        private ProvisionModel(long sourceEntityId, Integer provisionIndex) {
+            this.sourceEntityId = sourceEntityId;
+            this.provisionIndex = provisionIndex;
         }
     }
 }

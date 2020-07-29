@@ -1,6 +1,6 @@
 package com.vmturbo.extractor.search;
 
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_SEVERITY_ENUM;
+import static com.vmturbo.extractor.models.ModelDefinitions.SEVERITY_ENUM;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -32,7 +32,7 @@ public class PrimitiveFieldsNotOnTEDPatcher implements EntityRecordPatcher<DataP
         metadataList.forEach(metadata -> {
             switch (metadata) {
                 case PRIMITIVE_SEVERITY:
-                    recordInfo.record.set(ENTITY_SEVERITY_ENUM,
+                    recordInfo.record.set(SEVERITY_ENUM,
                             dataProvider.getSeverity(recordInfo.oid));
                     break;
                 default:

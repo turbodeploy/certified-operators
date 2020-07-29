@@ -44,22 +44,22 @@ public enum SearchMetadataMapping {
     PRIMITIVE_OID("oid", Type.INTEGER, null,
             entity -> Optional.of(entity.getOid())),
 
-    PRIMITIVE_ENTITY_TYPE("type", Type.TEXT, EntityType.class,
+    PRIMITIVE_ENTITY_TYPE("type", Type.ENUM, EntityType.class,
             entity -> Optional.of(entity.getEntityType())),
 
     PRIMITIVE_NAME("name", Type.TEXT, null,
             entity -> Optional.of(entity.getDisplayName())),
 
-    PRIMITIVE_STATE("state", Type.TEXT, EntityState.class,
+    PRIMITIVE_STATE("state", Type.ENUM, EntityState.class,
             entity -> Optional.of(entity.getEntityState())),
 
-    PRIMITIVE_ENVIRONMENT_TYPE("environment", Type.TEXT, EnvironmentType.class,
+    PRIMITIVE_ENVIRONMENT_TYPE("environment", Type.ENUM, EnvironmentType.class,
             entity -> Optional.of(entity.getEnvironmentType())),
 
     /**
      * Severity. Used for both entity and group.
      */
-    PRIMITIVE_SEVERITY("severity", Type.TEXT, EntitySeverity.class),
+    PRIMITIVE_SEVERITY("severity", Type.ENUM, EntitySeverity.class),
 
     /**
      * Related action count. Used for both entity and group.
@@ -71,23 +71,23 @@ public enum SearchMetadataMapping {
      * to help finding the related group for an entity. For example, for a VM, it will find related
      * host, then find cluster which contains the host.
      */
-    RELATED_COMPUTE_HOST_CLUSTER_NAME("attrs", "related_cluster", GroupType.COMPUTE_HOST_CLUSTER,
-            EntityType.PHYSICAL_MACHINE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_COMPUTE_HOST_CLUSTER_NAME("attrs", "related_cluster", GroupType.Cluster,
+            EntityType.PhysicalMachine, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
-    RELATED_STORAGE_CLUSTER_NAME("attrs", "related_storage_cluster", GroupType.STORAGE_CLUSTER,
-            EntityType.STORAGE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_STORAGE_CLUSTER_NAME("attrs", "related_storage_cluster", GroupType.StorageCluster,
+            EntityType.Storage, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
-    RELATED_BILLING_FAMILY_NAME("attrs", "related_billing_family", GroupType.BILLING_FAMILY,
-            EntityType.BUSINESS_ACCOUNT, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_BILLING_FAMILY_NAME("attrs", "related_billing_family", GroupType.BillingFamily,
+            EntityType.BusinessAccount, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
-    RELATED_RESOURCE_GROUP_NAME_FOR_VM("attrs", "related_resource_group", GroupType.RESOURCE,
-            EntityType.VIRTUAL_MACHINE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_RESOURCE_GROUP_NAME_FOR_VM("attrs", "related_resource_group", GroupType.Resource,
+            EntityType.VirtualMachine, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
-    RELATED_RESOURCE_GROUP_NAME_FOR_VV("attrs", "related_resource_group", GroupType.RESOURCE,
-            EntityType.VIRTUAL_VOLUME, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_RESOURCE_GROUP_NAME_FOR_VV("attrs", "related_resource_group", GroupType.Resource,
+            EntityType.VirtualVolume, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
-    RELATED_RESOURCE_GROUP_NAME_FOR_DB("attrs", "related_resource_group", GroupType.RESOURCE,
-            EntityType.DATABASE, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
+    RELATED_RESOURCE_GROUP_NAME_FOR_DB("attrs", "related_resource_group", GroupType.Resource,
+            EntityType.Database, RelatedGroupFieldName.NAMES, Type.MULTI_TEXT),
 
     /**
      * Entity type specific fields.
@@ -122,227 +122,323 @@ public enum SearchMetadataMapping {
     /**
      * Commodities for entity.
      */
-    COMMODITY_ACTIVE_SESSIONS_USED("attrs", "active_sessions_used", CommodityType.ACTIVE_SESSIONS, CommodityAttribute.USED,
-            CommodityTypeUnits.ACTIVE_SESSIONS, Type.NUMBER),
 
-    COMMODITY_ACTIVE_SESSIONS_UTILIZATION("attrs", "active_sessions_utilization", CommodityType.ACTIVE_SESSIONS, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** active sessions used. */
+    COMMODITY_ACTIVE_SESSIONS_USED("attrs", "active_sessions_used",
+        CommodityType.ACTIVE_SESSIONS, CommodityAttribute.USED,
+        CommodityTypeUnits.ACTIVE_SESSIONS, Type.NUMBER),
 
-    COMMODITY_BALLOONING_PERCENTILE("attrs", "ballooning_percentile", CommodityType.BALLOONING, CommodityAttribute.PERCENTILE,
-            CommodityTypeUnits.BALLOONING, Type.NUMBER),
+    /** active sessions historical utilization. */
+    COMMODITY_ACTIVE_SESSIONS_HISTORICAL_UTILIZATION("attrs", "active_sessions_hist_utilization",
+        CommodityType.ACTIVE_SESSIONS, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_BALLOONING_UTILIZATION("attrs", "ballooning_utilization", CommodityType.BALLOONING, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** ballooning historical utilization. */
+    COMMODITY_BALLOONING_HISTORICAL_UTILIZATION("attrs", "ballooning_hist_utilization",
+        CommodityType.BALLOONING, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_CONNECTION_USED("attrs", "connection_used", CommodityType.CONNECTION, CommodityAttribute.USED,
-            CommodityTypeUnits.CONNECTION, Type.NUMBER),
+    /** connections used. */
+    COMMODITY_CONNECTION_USED("attrs", "connection_used",
+        CommodityType.CONNECTION, CommodityAttribute.USED,
+        CommodityTypeUnits.CONNECTION, Type.NUMBER),
 
-    COMMODITY_CONNECTION_UTILIZATION("attrs", "connection_utilization", CommodityType.CONNECTION, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** connections historical utilization. */
+    COMMODITY_CONNECTION_HISTORICAL_UTILIZATION("attrs", "connection_hist_utilization",
+        CommodityType.CONNECTION, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_COOLING_UTILIZATION("attrs", "cooling_utilization", CommodityType.COOLING, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** cooling historical utilization. */
+    COMMODITY_COOLING_HISTORICAL_UTILIZATION("attrs", "cooling_hist_utilization",
+        CommodityType.COOLING, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_CPU_USED("attrs", "cpu_used", CommodityType.CPU, CommodityAttribute.USED,
-            CommodityTypeUnits.CPU, Type.NUMBER),
+    /** CPU used. */
+    COMMODITY_CPU_USED("attrs", "cpu_used",
+        CommodityType.CPU, CommodityAttribute.USED,
+        CommodityTypeUnits.CPU, Type.NUMBER),
 
-    COMMODITY_CPU_UTILIZATION("attrs", "cpu_utilization", CommodityType.CPU, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** CPU historical utilization. */
+    COMMODITY_CPU_HISTORICAL_UTILIZATION("attrs", "cpu_hist_utilization",
+        CommodityType.CPU, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_DB_HIT_RATE_USED("attrs", "db_hit_rate_used", CommodityType.DB_CACHE_HIT_RATE, CommodityAttribute.USED,
-            CommodityTypeUnits.DB_CACHE_HIT_RATE, Type.NUMBER),
+    /** DB hit rate used. */
+    COMMODITY_DB_HIT_RATE_USED("attrs", "db_hit_rate_used",
+        CommodityType.DB_CACHE_HIT_RATE, CommodityAttribute.USED,
+        CommodityTypeUnits.DB_CACHE_HIT_RATE, Type.NUMBER),
 
-    COMMODITY_DB_HIT_RATE_UTILIZATION("attrs", "db_hit_rate_utilization", CommodityType.DB_CACHE_HIT_RATE, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** DB hit rate historical utilization. */
+    COMMODITY_DB_HIT_RATE_HISTORICAL_UTILIZATION("attrs", "db_hit_rate_hist_utilization",
+        CommodityType.DB_CACHE_HIT_RATE, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_DB_MEM_CAPACITY("attrs", "db_mem_capacity", CommodityType.DB_MEM, CommodityAttribute.CAPACITY,
-            CommodityTypeUnits.MEM, Type.NUMBER),
+    /** DB mem capacity. */
+    COMMODITY_DB_MEM_CAPACITY("attrs", "db_mem_capacity",
+        CommodityType.DB_MEM, CommodityAttribute.CAPACITY,
+        CommodityTypeUnits.MEM, Type.NUMBER),
 
-    COMMODITY_DB_MEM_USED("attrs", "db_mem_used", CommodityType.DB_MEM, CommodityAttribute.USED,
-            CommodityTypeUnits.MEM, Type.NUMBER),
+    /** DB mem used. */
+    COMMODITY_DB_MEM_USED("attrs", "db_mem_used",
+        CommodityType.DB_MEM, CommodityAttribute.USED,
+        CommodityTypeUnits.MEM, Type.NUMBER),
 
-    COMMODITY_DB_MEM_UTILIZATION("attrs", "db_mem_utilization", CommodityType.DB_MEM, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** DB mem historical utilization. */
+    COMMODITY_DB_MEM_HISTORICAL_UTILIZATION("attrs", "db_mem_hist_utilization",
+        CommodityType.DB_MEM, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_IMAGE_CPU_USED("attrs", "image_cpu_used", CommodityType.IMAGE_CPU, CommodityAttribute.USED,
-            CommodityTypeUnits.IMAGE_CPU, Type.NUMBER),
+    /** image CPU used. */
+    COMMODITY_IMAGE_CPU_USED("attrs", "image_cpu_used",
+        CommodityType.IMAGE_CPU, CommodityAttribute.USED,
+        CommodityTypeUnits.IMAGE_CPU, Type.NUMBER),
 
-    COMMODITY_IMAGE_CPU_UTILIZATION("attrs", "image_cpu_utilization", CommodityType.IMAGE_CPU, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** image CPU percentile historical utilization. */
+    COMMODITY_IMAGE_CPU_PERCENTILE_UTILIZATION("attrs", "image_cpu_percentile_utilization",
+        CommodityType.IMAGE_CPU, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_IMAGE_MEM_USED("attrs", "image_mem_used", CommodityType.IMAGE_MEM, CommodityAttribute.USED,
-            CommodityTypeUnits.IMAGE_MEM, Type.NUMBER),
+    /** image mem used. */
+    COMMODITY_IMAGE_MEM_USED("attrs", "image_mem_used",
+        CommodityType.IMAGE_MEM, CommodityAttribute.USED,
+        CommodityTypeUnits.IMAGE_MEM, Type.NUMBER),
 
-    COMMODITY_IMAGE_MEM_UTILIZATION("attrs", "image_mem_utilization", CommodityType.IMAGE_MEM, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** image mem percentile historical utilization. */
+    COMMODITY_IMAGE_MEM_PERCENTILE_UTILIZATION("attrs", "image_mem_percentile_utilization",
+        CommodityType.IMAGE_MEM, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_IMAGE_STORAGE_USED("attrs", "image_storage_used", CommodityType.IMAGE_STORAGE, CommodityAttribute.USED,
-            CommodityTypeUnits.IMAGE_STORAGE, Type.NUMBER),
+    /** image storage used. */
+    COMMODITY_IMAGE_STORAGE_USED("attrs", "image_storage_used",
+        CommodityType.IMAGE_STORAGE, CommodityAttribute.USED,
+        CommodityTypeUnits.IMAGE_STORAGE, Type.NUMBER),
 
-    COMMODITY_IMAGE_STORAGE_UTILIZATION("attrs", "image_storage_utilization", CommodityType.IMAGE_STORAGE, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** image storage percentile historical utilization. */
+    COMMODITY_IMAGE_STORAGE_PERCENTILE_UTILIZATION("attrs", "image_storage_percentile_utilization",
+        CommodityType.IMAGE_STORAGE, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_IO_THROUGHPUT_USED("attrs", "io_throughput_used", CommodityType.IO_THROUGHPUT, CommodityAttribute.USED,
-            CommodityTypeUnits.IO_THROUGHPUT, Type.NUMBER),
+    /** IO throughput used. */
+    COMMODITY_IO_THROUGHPUT_USED("attrs", "io_throughput_used",
+        CommodityType.IO_THROUGHPUT, CommodityAttribute.USED,
+        CommodityTypeUnits.IO_THROUGHPUT, Type.NUMBER),
 
-    COMMODITY_IO_THROUGHPUT_UTILIZATION("attrs", "io_throughput_utilization", CommodityType.IO_THROUGHPUT, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** IO throughput historical utilization. */
+    COMMODITY_IO_THROUGHPUT_HISTORICAL_UTILIZATION("attrs", "io_throughput_hist_utilization",
+        CommodityType.IO_THROUGHPUT, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_MEM_CAPACITY("attrs", "mem_capacity", CommodityType.MEM, CommodityAttribute.CAPACITY,
-            CommodityTypeUnits.MEM, Type.NUMBER),
+    /** mem capacity. */
+    COMMODITY_MEM_CAPACITY("attrs", "mem_capacity",
+        CommodityType.MEM, CommodityAttribute.CAPACITY,
+        CommodityTypeUnits.MEM, Type.NUMBER),
 
-    COMMODITY_MEM_USED("attrs", "mem_used", CommodityType.MEM, CommodityAttribute.USED,
-            CommodityTypeUnits.MEM, Type.NUMBER),
+    /** mem used. */
+    COMMODITY_MEM_USED("attrs", "mem_used",
+        CommodityType.MEM, CommodityAttribute.USED,
+        CommodityTypeUnits.MEM, Type.NUMBER),
 
-    COMMODITY_MEM_UTILIZATION("attrs", "mem_utilization", CommodityType.MEM, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** mem historical utilization. */
+    COMMODITY_MEM_HISTORICAL_UTILIZATION("attrs", "mem_hist_utilization",
+        CommodityType.MEM, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_NET_THROUGHPUT_USED("attrs", "net_throughput_used", CommodityType.NET_THROUGHPUT, CommodityAttribute.USED,
-            CommodityTypeUnits.NET_THROUGHPUT, Type.NUMBER),
+    /** net throughput amount used. */
+    COMMODITY_NET_THROUGHPUT_USED("attrs", "net_throughput_used",
+        CommodityType.NET_THROUGHPUT, CommodityAttribute.USED,
+        CommodityTypeUnits.NET_THROUGHPUT, Type.NUMBER),
 
-    COMMODITY_NET_THROUGHPUT_UTILIZATION("attrs", "net_throughput_utilization", CommodityType.NET_THROUGHPUT, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** net throughput historical utilization. */
+    COMMODITY_NET_THROUGHPUT_HISTORICAL_UTILIZATION("attrs", "net_throughput_hist_utilization",
+        CommodityType.NET_THROUGHPUT, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_POOL_CPU_UTILIZATION("attrs", "pool_cpu_utilization", CommodityType.POOL_CPU, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** pool CPU historical utilization. */
+    COMMODITY_POOL_CPU_HISTORICAL_UTILIZATION("attrs", "pool_cpu_hist_utilization",
+        CommodityType.POOL_CPU, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_POOL_MEM_UTILIZATION("attrs", "pool_mem_utilization", CommodityType.POOL_MEM, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** pool mem historical utilization. */
+    COMMODITY_POOL_MEM_HISTORICAL_UTILIZATION("attrs", "pool_mem_hist_utilization",
+        CommodityType.POOL_MEM, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_POOL_STORAGE_UTILIZATION("attrs", "pool_storage_utilization", CommodityType.POOL_STORAGE, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** pool storage historical utilization. */
+    COMMODITY_POOL_STORAGE_HISTORICAL_UTILIZATION("attrs", "pool_storage_hist_utilization",
+        CommodityType.POOL_STORAGE, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_PORT_CHANNEL_UTILIZATION("attrs", "port_channel_utilization", CommodityType.PORT_CHANNEL, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** port channel historical utilization. */
+    COMMODITY_PORT_CHANNEL_HISTORICAL_UTILIZATION("attrs", "port_channel_hist_utilization",
+        CommodityType.PORT_CHANNEL, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_POWER_UTILIZATION("attrs", "power_utilization", CommodityType.POWER, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** power historical utilization. */
+    COMMODITY_POWER_HISTORICAL_UTILIZATION("attrs", "power_hist_utilization",
+        CommodityType.POWER, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_RESPONSE_TIME_USED("attrs", "response_time_used", CommodityType.RESPONSE_TIME, CommodityAttribute.USED,
-            CommodityTypeUnits.RESPONSE_TIME, Type.NUMBER),
+    /** response time used. */
+    COMMODITY_RESPONSE_TIME_USED("attrs", "response_time_used",
+        CommodityType.RESPONSE_TIME, CommodityAttribute.USED,
+        CommodityTypeUnits.RESPONSE_TIME, Type.NUMBER),
 
-    COMMODITY_RESPONSE_TIME_UTILIZATION("attrs", "response_time_utilization", CommodityType.RESPONSE_TIME, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** space historical utilization. */
+    COMMODITY_SPACE_HISTORICAL_UTILIZATION("attrs", "space_hist_utilization",
+        CommodityType.SPACE, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_SPACE_UTILIZATION("attrs", "space_utilization", CommodityType.SPACE, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** storage access used. */
+    COMMODITY_STORAGE_ACCESS_USED("attrs", "storage_access_used",
+        CommodityType.STORAGE_ACCESS, CommodityAttribute.USED,
+        CommodityTypeUnits.STORAGE_ACCESS, Type.NUMBER),
 
-    COMMODITY_STORAGE_ACCESS_USED("attrs", "storage_access_used", CommodityType.STORAGE_ACCESS, CommodityAttribute.USED,
-            CommodityTypeUnits.STORAGE_ACCESS, Type.NUMBER),
+    /** storage access historical utilization. */
+    COMMODITY_STORAGE_ACCESS_HISTORICAL_UTILIZATION("attrs", "storage_access_hist_utilization",
+        CommodityType.STORAGE_ACCESS, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_STORAGE_ACCESS_UTILIZATION("attrs", "storage_access_utilization", CommodityType.STORAGE_ACCESS, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** storage amount capacity. */
+    COMMODITY_STORAGE_AMOUNT_CAPACITY("attrs", "storage_amount_capacity",
+        CommodityType.STORAGE_AMOUNT, CommodityAttribute.CAPACITY,
+        CommodityTypeUnits.STORAGE_AMOUNT, Type.NUMBER),
 
-    COMMODITY_STORAGE_AMOUNT_CAPACITY("attrs", "storage_amount_capacity", CommodityType.STORAGE_AMOUNT, CommodityAttribute.CAPACITY,
-            CommodityTypeUnits.STORAGE_AMOUNT, Type.NUMBER),
+    /** storage amount used. */
+    COMMODITY_STORAGE_AMOUNT_USED("attrs", "storage_amount_used",
+        CommodityType.STORAGE_AMOUNT, CommodityAttribute.USED,
+        CommodityTypeUnits.STORAGE_AMOUNT, Type.NUMBER),
 
-    COMMODITY_STORAGE_AMOUNT_USED("attrs", "storage_amount_used", CommodityType.STORAGE_AMOUNT, CommodityAttribute.USED,
-            CommodityTypeUnits.STORAGE_AMOUNT, Type.NUMBER),
+    /** storage amount historical utilization. */
+    COMMODITY_STORAGE_AMOUNT_HISTORICAL_UTILIZATION("attrs", "storage_amount_hist_utilization",
+        CommodityType.STORAGE_AMOUNT, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_STORAGE_AMOUNT_UTILIZATION("attrs", "storage_amount_utilization", CommodityType.STORAGE_AMOUNT, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** storage latency used. */
+    COMMODITY_STORAGE_LATENCY_USED("attrs", "storage_latency_used",
+        CommodityType.STORAGE_LATENCY, CommodityAttribute.USED,
+        CommodityTypeUnits.STORAGE_LATENCY, Type.NUMBER),
 
-    COMMODITY_STORAGE_LATENCY_USED("attrs", "storage_latency_used", CommodityType.STORAGE_LATENCY, CommodityAttribute.USED,
-            CommodityTypeUnits.STORAGE_LATENCY, Type.NUMBER),
+    /** storage latency historical utilization. */
+    COMMODITY_STORAGE_LATENCY_HISTORICAL_UTILIZATION("attrs", "storage_latency_hist_utilization",
+        CommodityType.STORAGE_LATENCY, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_STORAGE_LATENCY_UTILIZATION("attrs", "storage_latency_utilization", CommodityType.STORAGE_LATENCY, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** storage provisioned used. */
+    COMMODITY_STORAGE_PROVISIONED_USED("attrs", "storage_provisioned_used",
+        CommodityType.STORAGE_PROVISIONED, CommodityAttribute.USED,
+        CommodityTypeUnits.STORAGE_PROVISIONED, Type.NUMBER),
 
-    COMMODITY_STORAGE_PROVISIONED_USED("attrs", "storage_provisioned_used", CommodityType.STORAGE_PROVISIONED, CommodityAttribute.USED,
-            CommodityTypeUnits.STORAGE_PROVISIONED, Type.NUMBER),
+    /** storage provisioned historical utilization. */
+    COMMODITY_STORAGE_PROVISIONED_HISTORICAL_UTILIZATION("attrs", "storage_provisioned_hist_utilization",
+        CommodityType.STORAGE_PROVISIONED, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_STORAGE_PROVISIONED_UTILIZATION("attrs", "storage_provisioned_utilization", CommodityType.STORAGE_PROVISIONED, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** swapping historical utilization. */
+    COMMODITY_SWAPPING_HISTORICAL_UTILIZATION("attrs", "swapping_hist_utilization",
+        CommodityType.SWAPPING, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+        CommodityTypeUnits.SWAPPING, Type.NUMBER),
 
-    COMMODITY_SWAPPING_PERCENTILE("attrs", "swapping_percentile", CommodityType.SWAPPING, CommodityAttribute.PERCENTILE,
-            CommodityTypeUnits.SWAPPING, Type.NUMBER),
+    /** swapping current utilization. */
+    COMMODITY_SWAPPING_CURRENT_UTILIZATION("attrs", "swapping_current_utilization",
+        CommodityType.SWAPPING, CommodityAttribute.CURRENT_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_SWAPPING_UTILIZATION("attrs", "swapping_utilization", CommodityType.SWAPPING, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** transactions used. */
+    COMMODITY_TRANSACTION_USED("attrs", "transaction_used",
+        CommodityType.TRANSACTION, CommodityAttribute.USED,
+        CommodityTypeUnits.TRANSACTION, Type.NUMBER),
 
-    COMMODITY_TRANSACTION_USED("attrs", "transaction_used", CommodityType.TRANSACTION, CommodityAttribute.USED,
-            CommodityTypeUnits.TRANSACTION, Type.NUMBER),
+    /** vCPU used. */
+    COMMODITY_VCPU_USED("attrs", "vcpu_used",
+        CommodityType.VCPU, CommodityAttribute.USED,
+        CommodityTypeUnits.VCPU, Type.NUMBER),
 
-    COMMODITY_TRANSACTION_UTILIZATION("attrs", "transaction_utilization", CommodityType.TRANSACTION, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** vCPU percentile historical utilization. */
+    COMMODITY_VCPU_PERCENTILE_UTILIZATION("attrs", "vcpu_percentile_utilization",
+        CommodityType.VCPU, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_VCPU_USED("attrs", "vcpu_used", CommodityType.VCPU, CommodityAttribute.USED,
-            CommodityTypeUnits.VCPU, Type.NUMBER),
+    /** vMem capacity. */
+    COMMODITY_VMEM_CAPACITY("attrs", "vmem_capacity",
+        CommodityType.VMEM, CommodityAttribute.CAPACITY,
+        CommodityTypeUnits.VMEM, Type.NUMBER),
 
-    COMMODITY_VCPU_UTILIZATION("attrs", "vcpu_utilization", CommodityType.VCPU, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** vMem used. */
+    COMMODITY_VMEM_USED("attrs", "vmem_used",
+        CommodityType.VMEM, CommodityAttribute.USED,
+        CommodityTypeUnits.VMEM, Type.NUMBER),
 
-    COMMODITY_VMEM_CAPACITY("attrs", "vmem_capacity", CommodityType.VMEM, CommodityAttribute.CAPACITY,
-            CommodityTypeUnits.VMEM, Type.NUMBER),
+    /** vMem percentile historical utilization. */
+    COMMODITY_VMEM_PERCENTILE_UTILIZATION("attrs", "vmem_percentile_utilization",
+        CommodityType.VMEM, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
-    COMMODITY_VMEM_USED("attrs", "vmem_used", CommodityType.VMEM, CommodityAttribute.USED,
-            CommodityTypeUnits.VMEM, Type.NUMBER),
+    /** vStorage used. */
+    COMMODITY_VSTORAGE_USED("attrs", "vstorage_used",
+        CommodityType.VSTORAGE, CommodityAttribute.USED,
+        CommodityTypeUnits.VSTORAGE, Type.NUMBER),
 
-    COMMODITY_VMEM_UTILIZATION("attrs", "vmem_utilization", CommodityType.VMEM, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
-
-    COMMODITY_VSTORAGE_USED("attrs", "vstorage_used", CommodityType.VSTORAGE, CommodityAttribute.USED,
-            CommodityTypeUnits.VSTORAGE, Type.NUMBER),
-
-    COMMODITY_VSTORAGE_UTILIZATION("attrs", "vstorage_utilization", CommodityType.VSTORAGE, CommodityAttribute.UTILIZATION,
-            null, Type.NUMBER),
+    /** vStorage percentile historical utilization. */
+    COMMODITY_VSTORAGE_PERCENTILE_UTILIZATION("attrs", "vstorage_percentile_utilization",
+        CommodityType.VSTORAGE, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
+        null, Type.NUMBER),
 
     /**
      * Related entities.
      */
-    RELATED_ACCOUNT("attrs", "related_account", Collections.singleton(EntityType.BUSINESS_ACCOUNT),
+    RELATED_ACCOUNT("attrs", "related_account", Collections.singleton(EntityType.BusinessAccount),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_APPLICATION_COMPONENT("attrs", "related_application_component", Collections.singleton(EntityType.APPLICATION_COMPONENT),
+    RELATED_APPLICATION_COMPONENT("attrs", "related_application_component", Collections.singleton(EntityType.ApplicationComponent),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_BUSINESS_APPLICATION("attrs", "related_business_application", Collections.singleton(EntityType.BUSINESS_APPLICATION),
+    RELATED_BUSINESS_APPLICATION("attrs", "related_business_application", Collections.singleton(EntityType.BusinessApplication),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_BUSINESS_TRANSACTION("attrs", "related_business_transaction", Collections.singleton(EntityType.BUSINESS_TRANSACTION),
+    RELATED_BUSINESS_TRANSACTION("attrs", "related_business_transaction", Collections.singleton(EntityType.BusinessTransaction),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_CONTAINER_POD("attrs", "related_container_pod", Collections.singleton(EntityType.CONTAINER_POD),
+    RELATED_CONTAINER_POD("attrs", "related_container_pod", Collections.singleton(EntityType.ContainerPod),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_DISKARRAY("attrs", "related_diskarray", Collections.singleton(EntityType.DISKARRAY),
+    RELATED_DISKARRAY("attrs", "related_diskarray", Collections.singleton(EntityType.DiskArray),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_HOST("attrs", "related_host", Collections.singleton(EntityType.PHYSICAL_MACHINE),
+    RELATED_HOST("attrs", "related_host", Collections.singleton(EntityType.PhysicalMachine),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_DATA_CENTER("attrs", "related_dc", Collections.singleton(EntityType.DATACENTER),
+    RELATED_DATA_CENTER("attrs", "related_dc", Collections.singleton(EntityType.DataCenter),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_NAMESPACE("attrs", "related_namespace", Collections.singleton(EntityType.NAMESPACE),
+    RELATED_NAMESPACE("attrs", "related_namespace", Collections.singleton(EntityType.Namespace),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_REGION("attrs", "related_region", Collections.singleton(EntityType.REGION),
+    RELATED_REGION("attrs", "related_region", Collections.singleton(EntityType.Region),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_SERVICE("attrs", "related_service", Collections.singleton(EntityType.SERVICE),
+    RELATED_SERVICE("attrs", "related_service", Collections.singleton(EntityType.Service),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_STORAGE("attrs", "related_storage", Collections.singleton(EntityType.STORAGE),
+    RELATED_STORAGE("attrs", "related_storage", Collections.singleton(EntityType.Storage),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_STORAGE_TIER("attrs", "related_storage_tier", Collections.singleton(EntityType.STORAGE_TIER),
+    RELATED_STORAGE_TIER("attrs", "related_storage_tier", Collections.singleton(EntityType.StorageTier),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_SWITCH("attrs", "related_switch", Collections.singleton(EntityType.SWITCH),
+    RELATED_SWITCH("attrs", "related_switch", Collections.singleton(EntityType.Switch),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_TRANSACTION("attrs", "related_transaction", Collections.singleton(EntityType.BUSINESS_TRANSACTION),
+    RELATED_TRANSACTION("attrs", "related_transaction", Collections.singleton(EntityType.BusinessTransaction),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    RELATED_VM("attrs", "related_vm", Collections.singleton(EntityType.VIRTUAL_MACHINE),
+    RELATED_VM("attrs", "related_vm", Collections.singleton(EntityType.VirtualMachine),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
-    NUM_VMS("attrs", "num_vms", Collections.singleton(EntityType.VIRTUAL_MACHINE),
+    NUM_VMS("attrs", "num_vms", Collections.singleton(EntityType.VirtualMachine),
             RelatedEntitiesProperty.COUNT, Type.INTEGER),
 
     NUM_WORKLOADS("attrs", "num_workloads",
-            ImmutableSet.of(EntityType.VIRTUAL_MACHINE, EntityType.APPLICATION, EntityType.DATABASE),
+            ImmutableSet.of(EntityType.VirtualMachine, EntityType.Application, EntityType.Database),
             RelatedEntitiesProperty.COUNT, Type.INTEGER),
 
     /**
@@ -351,7 +447,7 @@ public enum SearchMetadataMapping {
     PRIMITIVE_GROUP_OID("oid", group -> Optional.of(group.getId()), Type.INTEGER, null),
 
     PRIMITIVE_GROUP_TYPE("type", group -> Optional.of(group.getDefinition().getType()),
-            Type.TEXT, EntityType.class),
+            Type.TEXT, GroupType.class),
 
     PRIMITIVE_GROUP_NAME("name", group -> Optional.of(group.getDefinition().getDisplayName()),
             Type.TEXT, null),
@@ -378,27 +474,34 @@ public enum SearchMetadataMapping {
      */
     DIRECT_MEMBER_COUNT("attrs", "member_count", null, Property.COUNT, true, Type.INTEGER),
 
-    // member hosts count, different from related entities count below (only used by cluster for now)
-    DIRECT_MEMBER_COUNT_PM("attrs", "host_count", EntityType.PHYSICAL_MACHINE, Property.COUNT, true,
+    /** Member hosts count, different from related entities count below (only used by cluster for now). */
+    DIRECT_MEMBER_COUNT_PM("attrs", "host_count", EntityType.PhysicalMachine, Property.COUNT, true,
             Type.INTEGER),
-    // related vms count (only used by cluster for now)
-    RELATED_MEMBER_COUNT_VM("attrs", "vm_count", ImmutableSet.of(EntityType.VIRTUAL_MACHINE),
+    /** Related vms count (only used by cluster for now). */
+    RELATED_MEMBER_COUNT_VM("attrs", "vm_count", ImmutableSet.of(EntityType.VirtualMachine),
             RelatedEntitiesProperty.COUNT, Type.INTEGER),
-    // related storages count (only used by cluster for now)
-    RELATED_MEMBER_COUNT_ST("attrs", "st_count", ImmutableSet.of(EntityType.STORAGE),
+    /** related storages count (only used by cluster for now). */
+    RELATED_MEMBER_COUNT_ST("attrs", "st_count", ImmutableSet.of(EntityType.Storage),
             RelatedEntitiesProperty.COUNT, Type.INTEGER),
 
     /**
-     * Commodities for group. For now, this is only used by cluster, and is only for leaf entities
+     * CPU commodity for groups. For now, this is only used by cluster, and is only for leaf entities
      * in the group (not related entities, like vms related to a cluster).
      */
-    GROUP_COMMODITY_CPU_UTILIZATION_TOTAL("attrs", "cpu_utilization", EntityType.PHYSICAL_MACHINE,
-            CommodityType.CPU, CommodityAttribute.UTILIZATION, Aggregation.TOTAL,
-            CommodityTypeUnits.CPU, Type.NUMBER),
+    GROUP_COMMODITY_CPU_HISTORICAL_UTILIZATION_TOTAL("attrs", "cpu_hist_utilization",
+        EntityType.PhysicalMachine,
+        //TODO: Update this and the mem one below to PERCENTILE when available
+        CommodityType.CPU, CommodityAttribute.CURRENT_UTILIZATION, Aggregation.TOTAL,
+        CommodityTypeUnits.CPU, Type.NUMBER),
 
-    GROUP_COMMODITY_MEM_UTILIZATION_TOTAL("attrs", "mem_utilization", EntityType.PHYSICAL_MACHINE,
-            CommodityType.MEM, CommodityAttribute.UTILIZATION, Aggregation.TOTAL,
-            CommodityTypeUnits.MEM, Type.NUMBER);
+    /**
+     * MEM commodity for groups. For now, this is only used by cluster, and is only for leaf entities
+     * in the group (not related entities, like vms related to a cluster).
+     */
+    GROUP_COMMODITY_MEM_HISTORICAL_UTILIZATION_TOTAL("attrs", "mem_hist_utilization",
+        EntityType.PhysicalMachine,
+        CommodityType.MEM, CommodityAttribute.CURRENT_UTILIZATION, Aggregation.TOTAL,
+        CommodityTypeUnits.MEM, Type.NUMBER);
 
 
     // name of the column in db table

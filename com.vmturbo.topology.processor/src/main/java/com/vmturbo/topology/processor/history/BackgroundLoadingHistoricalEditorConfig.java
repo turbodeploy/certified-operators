@@ -24,11 +24,13 @@ public class BackgroundLoadingHistoricalEditorConfig extends CachingHistoricalEd
      * @param backgroundLoadTimeoutMin how much time to give to a single loading attempt
      * @param clock provides information about current time
      * @param kvConfig the config to access the topology processor key value store.
+     * @param realtimeTopologyContextId identifier of the realtime topology.
      */
     public BackgroundLoadingHistoricalEditorConfig(int loadingChunkSize, int calculationChunkSize,
-                    int backgroundLoadThreshold, int backgroundLoadRetries, int backgroundLoadTimeoutMin,
-                    @Nonnull Clock clock, @Nonnull KVConfig kvConfig) {
-        super(loadingChunkSize, calculationChunkSize, clock, kvConfig);
+                    long realtimeTopologyContextId, int backgroundLoadThreshold,
+                    int backgroundLoadRetries, int backgroundLoadTimeoutMin, @Nonnull Clock clock,
+                    @Nonnull KVConfig kvConfig) {
+        super(loadingChunkSize, calculationChunkSize, realtimeTopologyContextId, clock, kvConfig);
         this.backgroundLoadThreshold = backgroundLoadThreshold;
         this.backgroundLoadRetries = backgroundLoadRetries;
         this.backgroundLoadTimeoutMin = backgroundLoadTimeoutMin;

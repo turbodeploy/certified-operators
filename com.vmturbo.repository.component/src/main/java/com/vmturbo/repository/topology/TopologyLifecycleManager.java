@@ -368,7 +368,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
     public TopologyCreator<TopologyEntityDTO> newSourceTopologyCreator(@Nonnull final TopologyID topologyID,
                                                                        @Nonnull final TopologyInfo topologyInfo) {
         if (topologyID.getContextId() == realtimeTopologyContextId) {
-            return new InMemorySourceTopologyCreator(liveTopologyStore.newRealtimeTopology(topologyInfo));
+            return new InMemorySourceTopologyCreator(liveTopologyStore.newRealtimeSourceTopology(topologyInfo));
         } else {
             return new ArangoSourceTopologyCreator(
                 topologyID,

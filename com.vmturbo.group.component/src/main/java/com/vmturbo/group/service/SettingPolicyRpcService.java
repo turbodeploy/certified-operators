@@ -72,6 +72,7 @@ import com.vmturbo.group.setting.EntitySettingStore;
 import com.vmturbo.group.setting.EntitySettingStore.NoSettingsForTopologyException;
 import com.vmturbo.group.setting.ISettingPolicyStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
+import com.vmturbo.group.setting.SettingPolicyFilter.Builder;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -376,37 +377,40 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     private void listSettingPolicies(@Nonnull ListSettingPoliciesRequest request,
             @Nonnull StreamObserver<SettingPolicy> responseObserver,
             @Nonnull ISettingPolicyStore settingPolicyStore) throws StoreOperationException {
-        final SettingPolicyFilter.Builder filterBuilder = SettingPolicyFilter.newBuilder();
-        if (request.hasTypeFilter()) {
-            filterBuilder.withType(request.getTypeFilter());
-        }
-        if (!request.getIdFilterList().isEmpty()) {
-            request.getIdFilterList().forEach(filterBuilder::withId);
-        }
         final Collection<SettingPolicy> settingPolicies =
-                settingPolicyStore.getPolicies(filterBuilder.build());
+                settingPolicyStore.getPolicies(buildFilter(request));
         if (request.hasContextId() && request.getContextId() != realtimeTopologyContextId) {
             // we need to create new policies for plan, because plan has a different set of action settings
             // as default. we assume all actions are in automatic mode in plan.
             settingPolicies.forEach(p -> {
                 if (p.hasInfo()) {
                     SettingPolicy.Builder newPolicyBuilder = p.toBuilder();
-                    for (Setting.Builder setting : newPolicyBuilder.getInfoBuilder().getSettingsBuilderList()) {
+                    for (Setting.Builder setting : newPolicyBuilder.getInfoBuilder()
+                            .getSettingsBuilderList()) {
                         if (IMMUTABLE_ACTION_SETTINGS.contains(setting.getSettingSpecName())) {
                             setting.setEnumSettingValue(EnumSettingValue.newBuilder()
                                     .setValue(ActionMode.AUTOMATIC.toString())
-                                    .build())
-                                    .build();
+                                    .build()).build();
                         }
                     }
                     responseObserver.onNext(newPolicyBuilder.build());
                 }
             });
-            responseObserver.onCompleted();
         } else {
             settingPolicies.forEach(responseObserver::onNext);
-            responseObserver.onCompleted();
         }
+        responseObserver.onCompleted();
+    }
+
+    @Nonnull
+    private SettingPolicyFilter buildFilter(@Nonnull ListSettingPoliciesRequest request) {
+        final Builder filterBuilder = SettingPolicyFilter.newBuilder();
+        if (request.hasTypeFilter()) {
+            filterBuilder.withType(request.getTypeFilter());
+        }
+        request.getIdFilterList().forEach(filterBuilder::withId);
+        request.getWorkflowIdList().forEach(filterBuilder::withWorkflowId);
+        return filterBuilder.build();
     }
 
     /**

@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpen
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -40,6 +41,28 @@ public class AccountExpensesUploader {
     private static final int AZURE_CS_NAME_INDEX = 2;
     private static final int AWS_CS_NAME_INDEX = 3;
     private static final int NUMBER_OF_CS_SPECS = 4;
+
+    /**
+     * Add cloud service spent metric ratios to topology processor metrics end point.
+     * This should be updated during broadcast hourly based on shouldSkipProcessingExpenses()
+     * or if there is new cost data information.
+     */
+    public static final DataMetricGauge CLOUD_SPENT_BREAKDOWN_GAUGE = DataMetricGauge.builder()
+            .withName("turbonomic_cloud_spent_breakdown")
+            .withHelp("Cloud Spent Ratio.")
+            .withLabelNames("cloud_type", "cloud_service")
+            .build()
+            .register();
+
+    /**
+     * Tracks the amount of Business Accounts.
+     */
+    public static final DataMetricGauge BUSINESS_ACCOUNTS_GAUGE = DataMetricGauge.builder()
+            .withName("turbonomic_business_accounts")
+            .withHelp("Business Account Quantity.")
+            .withLabelNames("business_accounts")
+            .build()
+            .register();
 
     private final RIAndExpenseUploadServiceBlockingStub costServiceClient;
 
@@ -282,11 +305,11 @@ public class AccountExpensesUploader {
                         stitchingEntity.getTargetId());
                 return;
             }
-
             expensesByAccountOid.put(stitchingEntity.getOid(), AccountExpenses.newBuilder()
                     .setAssociatedAccountId(stitchingEntity.getOid()));
         });
 
+        Map<String, Double> cloudServiceSpentMap = new HashMap<>();
         // Find the service expenses from the cost data objects, and assign them to the
         // account expenses created above.
         costDataByTargetIdSnapshot.forEach((targetId, targetCostData) -> {
@@ -338,6 +361,8 @@ public class AccountExpensesUploader {
                         logger.warn("Couldn't find a cloud service oid for service {}", sharedCloudServiceLocalId);
                         cloudServiceOid = 0L;
                     }
+                    cloudServiceSpentMap.compute(sharedCloudServiceLocalId, (k, v) -> v == null
+                        ? (costData.getCost()) : v + (costData.getCost()));
                     serviceExpensesBuilder.setAssociatedServiceId(cloudServiceOid);
                     serviceExpensesBuilder.setExpenses(CurrencyAmount.newBuilder()
                             .setAmount(costData.getCost()).build());
@@ -367,7 +392,8 @@ public class AccountExpensesUploader {
 
             });
         });
-
+        pushCloudServiceSpentMetrics(cloudServiceSpentMap);
+        BUSINESS_ACCOUNTS_GAUGE.labels("Count").setData((double)(expensesByAccountOid.size()));
         return expensesByAccountOid;
     }
 
@@ -401,6 +427,26 @@ public class AccountExpensesUploader {
         return cspName.equals("azure")
             ? String.format(CSP_OUTPUT_FORMAT, cspName, csIdSpecs[AZURE_CS_NAME_INDEX])
             : String.format(CSP_OUTPUT_FORMAT, cspName, csIdSpecs[AWS_CS_NAME_INDEX]);
+    }
+
+    // Expose the ratio spent per cloud service.
+    private void pushCloudServiceSpentMetrics(Map<String, Double> cloudServiceSpentMap) {
+        CLOUD_SPENT_BREAKDOWN_GAUGE.getLabeledMetrics().clear();
+        double totalAccountCloudServiceExpenses = cloudServiceSpentMap.values().stream().mapToDouble(v -> v).sum();
+        if (totalAccountCloudServiceExpenses > 0.0) {
+            cloudServiceSpentMap.forEach((serviceId, spent) -> {
+                String[] csIdSpecs = serviceId.split("::");
+                // Ids included in the cloudServiceSpentMap are already sanitized and will have
+                // 3 partitions around the "::". cspName::"CS"::cloudServiceName.
+                if (csIdSpecs.length == 3) {
+                    final String cspName = csIdSpecs[0];
+                    final String cloudServiceName = csIdSpecs[csIdSpecs.length - 1];
+                    CLOUD_SPENT_BREAKDOWN_GAUGE.labels(cspName, cloudServiceName).setData(spent / totalAccountCloudServiceExpenses);
+                } else {
+                    CLOUD_SPENT_BREAKDOWN_GAUGE.labels(serviceId, serviceId).setData(spent / totalAccountCloudServiceExpenses);
+                }
+            });
+        }
     }
 }
 

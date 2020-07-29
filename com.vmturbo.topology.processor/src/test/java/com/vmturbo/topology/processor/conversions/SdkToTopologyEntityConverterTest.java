@@ -483,7 +483,7 @@ public class SdkToTopologyEntityConverterTest {
         final double vmVStorageCapacity = 10000;
 
         EntityDTO.Builder appBuilder = EntityDTO.newBuilder()
-            .setEntityType(EntityType.APPLICATION)
+            .setEntityType(EntityType.APPLICATION_COMPONENT)
             .setId("app1")
             .addCommoditiesBought(CommodityBought.newBuilder()
                 .setProviderId("vm1")
@@ -909,7 +909,7 @@ public class SdkToTopologyEntityConverterTest {
         final String value = "value";
 
         CommonDTO.EntityDTO.Builder builder = CommonDTO.EntityDTO.newBuilder()
-            .setEntityType(EntityType.APPLICATION)
+            .setEntityType(EntityType.APPLICATION_COMPONENT)
             .setApplicationData(ApplicationData.newBuilder().setType("GuestLoad"))
             .setId("id");
         TopologyDTO.TopologyEntityDTO.Builder topologyEntityDTO =

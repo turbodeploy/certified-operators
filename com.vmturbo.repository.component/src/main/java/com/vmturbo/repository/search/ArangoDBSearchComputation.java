@@ -14,12 +14,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.arangodb.ArangoCursor;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javaslang.collection.Iterator;
 import javaslang.collection.Seq;
@@ -64,7 +64,7 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
     private Future<Collection<String>> executeAQL(final SearchComputationContext context,
                                                   final Collection<String> inputs) {
         return Future.of(context.executorService(), () -> {
-            try (OptScope scope = Tracing.addOpToTrace("Arango - " + context.traceID())) {
+            try (OptScope scope = Tracing.childOfActiveSpan("Arango - " + context.traceID())) {
                 final String queryString = AQLs.getQuery(aqlQuery);
                 final Collection<String> vars = AQLs.getBindVars(aqlQuery);
                 final Map<String, Object> bindVars = vars.stream()
@@ -167,7 +167,7 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
 
                 final Future<ArangoCursor<ToEntityQueryReturn>> cursor =
                         Future.of(ctx.executorService(), () -> {
-                            try (OptScope scope = Tracing.addOpToTrace("to entities")) {
+                            try (OptScope scope = Tracing.childOfActiveSpan("to entities")) {
                                 LOG.debug("pipeline ({}) converting to entities using {}", ctx.traceID(), query);
 
                                 return ctx.arangoDB()

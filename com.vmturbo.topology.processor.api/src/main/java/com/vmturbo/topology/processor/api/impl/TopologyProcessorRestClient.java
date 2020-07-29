@@ -8,11 +8,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.RequestEntity;
-
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.RequestEntity;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
@@ -78,7 +78,8 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
         updateTargetsClient = new SensitiveDataTargetRestClient(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND,
                         HttpStatus.SERVICE_UNAVAILABLE);
         remoteTargetsClient =
-                        new TargetRestClient(HttpStatus.NOT_FOUND, HttpStatus.SERVICE_UNAVAILABLE);
+                new TargetRestClient(HttpStatus.NOT_FOUND, HttpStatus.SERVICE_UNAVAILABLE,
+                        HttpStatus.FORBIDDEN);
         targetOperationClient = new OperationResultRestClient();
         validateAllClient = new NoExceptionsRestClient<>(ValidateAllResponse.class);
         discoverAllClient = new NoExceptionsRestClient<>(DiscoverAllResponse.class);

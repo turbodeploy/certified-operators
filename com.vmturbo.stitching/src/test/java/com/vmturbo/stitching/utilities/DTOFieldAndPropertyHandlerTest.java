@@ -9,6 +9,8 @@ import static org.junit.Assert.assertTrue;
 import java.util.Collections;
 import java.util.List;
 
+import javax.annotation.Nonnull;
+
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
@@ -72,11 +74,13 @@ public class DTOFieldAndPropertyHandlerTest {
         assertEquals(vmFoo.getConsumerPolicy().getControllable(),
                 (Boolean) DTOFieldAndPropertyHandler.getValueFromFieldSpec(vmFoo,
                         new DTOFieldSpec() {
+                            @Nonnull
                             @Override
                             public String getFieldName() {
                                 return "controllable";
                             }
 
+                            @Nonnull
                             @Override
                             public List<String> getMessagePath() {
                                 return Lists.newArrayList("consumerPolicy");
@@ -95,11 +99,13 @@ public class DTOFieldAndPropertyHandlerTest {
         assertFalse(vmFoo.getConsumerPolicy().getControllable());
         DTOFieldAndPropertyHandler.setValueToFieldSpec(vmFoo,
                 new DTOFieldSpec() {
+                    @Nonnull
                     @Override
                     public String getFieldName() {
                         return "controllable";
                     }
 
+                    @Nonnull
                     @Override
                     public List<String> getMessagePath() {
                         return Lists.newArrayList("consumerPolicy");
@@ -141,20 +147,26 @@ public class DTOFieldAndPropertyHandlerTest {
 
         List<DTOFieldSpec> dtoFieldSpecs = ImmutableList.of(
             new DTOFieldSpec() {
+                @Nonnull
                 @Override
                 public String getFieldName() {
                     return "used";
                 }
+
+                @Nonnull
                 @Override
                 public List<String> getMessagePath() {
                     return Collections.emptyList();
                 }
             },
             new DTOFieldSpec() {
+                @Nonnull
                 @Override
                 public String getFieldName() {
                     return "hotAddSupported";
                 }
+
+                @Nonnull
                 @Override
                 public List<String> getMessagePath() {
                     return ImmutableList.of("vcpu_data");

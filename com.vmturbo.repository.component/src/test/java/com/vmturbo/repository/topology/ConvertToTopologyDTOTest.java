@@ -48,10 +48,10 @@ public class ConvertToTopologyDTOTest {
             ImmutableMap.of(100L, 1000000L, 200L, 2000000L);
 
     @Test
-    public void testConvertApplicationInfoRepoDTO() {
+    public void testConvertApplicationComponentInfoRepoDTO() {
         // arrange
         final ServiceEntityRepoDTO serviceEntityRepoDTO =
-            buildTestServiceEntityRepoDTO(EntityType.APPLICATION_VALUE);
+            buildTestServiceEntityRepoDTO(EntityType.APPLICATION_COMPONENT_VALUE);
 
         final ApplicationInfoRepoDTO applicationInfoRepoDTO = new ApplicationInfoRepoDTO();
         final IpAddressRepoDTO repoIpAddressDTO = new IpAddressRepoDTO();

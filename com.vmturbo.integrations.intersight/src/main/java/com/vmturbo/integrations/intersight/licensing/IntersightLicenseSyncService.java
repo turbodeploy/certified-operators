@@ -1,24 +1,19 @@
 package com.vmturbo.integrations.intersight.licensing;
 
 import java.io.IOException;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
 import com.cisco.intersight.client.ApiException;
 import com.cisco.intersight.client.model.LicenseLicenseInfo;
-import com.cisco.intersight.client.model.LicenseLicenseInfoList;
 import com.google.protobuf.Empty;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -48,9 +43,6 @@ public class IntersightLicenseSyncService {
             "FALLBACK", ILicense.PERM_LIC, IntersightProxyLicenseEdition.IWO_FALLBACK
     );
 
-    // thread for scheduling the license sync
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-
     private boolean enabled;
 
     private final boolean useFallbackLicense;
@@ -63,7 +55,12 @@ public class IntersightLicenseSyncService {
 
     private final int licenseSyncIntervalSecs;
 
+    private final int licensePostSyncIntervalSecs;
+
     private final int licenseSyncRetrySeconds;
+
+    // the list of intersight licenses we are proxying
+    private volatile List<LicenseLicenseInfo> availableIntersightLicenses;
 
     /**
      * Construct an IntersightLicenseSyncService.
@@ -71,7 +68,10 @@ public class IntersightLicenseSyncService {
      * @param enabled if false, then the service will be disabled.
      * @param intersightLicenseClient intersight license client instance for making intersight api calls
      * @param licenseSyncInitialCheckSecs delay (in seconds) of initial license sync check
-     * @param licenseSyncIntervalSecs delay (in secs) between license sync checks
+     * @param licenseSyncIntervalSecs delay (in secs) between license sync checks when we have not
+     *                                detected a succesful sync yet
+     * @param licensePostSyncIntervalSecs delay (in secs) between license sync checks AFTER
+     *                                    a successful sync check
      * @param licenseSyncRetrySeconds max time allowed (in secs) to complete a license sync, including
      *                                retries.
      * @param licenseManagerClient a grpc client for accessing the LicenseManagerService.
@@ -79,12 +79,13 @@ public class IntersightLicenseSyncService {
     public IntersightLicenseSyncService(boolean enabled, boolean intersightLicenseSyncUseFallbackLicense,
                                         @Nonnull final IntersightLicenseClient intersightLicenseClient,
                                         int licenseSyncInitialCheckSecs, int licenseSyncIntervalSecs,
-                                        int licenseSyncRetrySeconds,
+                                        int licensePostSyncIntervalSecs, int licenseSyncRetrySeconds,
                                         @Nonnull LicenseManagerServiceBlockingStub licenseManagerClient) {
         this.enabled = enabled;
         this.useFallbackLicense = intersightLicenseSyncUseFallbackLicense;
         this.intersightLicenseClient = intersightLicenseClient;
         this.licenseSyncIntervalSecs = licenseSyncIntervalSecs;
+        this.licensePostSyncIntervalSecs = licensePostSyncIntervalSecs;
         this.licenseSyncInitialCheckSecs = licenseSyncInitialCheckSecs;
         this.licenseSyncRetrySeconds = licenseSyncRetrySeconds;
         this.licenseManagerClient = licenseManagerClient;
@@ -107,46 +108,68 @@ public class IntersightLicenseSyncService {
         AuditLog.newEntry(AuditAction.ENABLE_EXTERNAL_LICENSE_SYNC, "Intersight license sync service will be enabled.", true)
                 .targetName("Intersight License Sync Service")
                 .audit();
+
         // create a retryable operation for the license sync.
         RetriableOperation<Boolean> licenseSyncOperation = RetriableOperation.newOperation(this::syncIntersightLicenses)
                 .retryOnException(e -> e instanceof RetriableIntersightException)
                 .backoffStrategy(ConfigurableBackoffStrategy.newBuilder()
                         .withMaxDelay(licenseSyncIntervalSecs * 1000)
                         .build());
-        scheduler.scheduleWithFixedDelay(() -> runRetriableOperation("License Sync", licenseSyncOperation, licenseSyncRetrySeconds), licenseSyncInitialCheckSecs,
-                licenseSyncIntervalSecs, TimeUnit.SECONDS );
+
+        Runnable publisherTask = new Runnable() {
+            @Override
+            public void run() {
+                logger.info("Starting license sync thread w/{} sec delay.", licenseSyncInitialCheckSecs);
+                try {
+                    Thread.sleep(licenseSyncInitialCheckSecs * 1000);
+                    while(true) {
+                        Optional<Boolean> syncResult = IntersightLicenseUtils.runRetriableOperation("License Sync",
+                                licenseSyncOperation, licenseSyncRetrySeconds);
+                        // if sync successfully, use the lazy delay
+                        if (syncResult.isPresent() && syncResult.get()) {
+                            logger.info("Sync status: an active license was successfully proxied. Will wait {} secs before next check.", licensePostSyncIntervalSecs);
+                            Thread.sleep(licensePostSyncIntervalSecs * 1000);
+                        } else {
+                            logger.info("Sync status: no active license found. Will wait {} secs before next check.", licenseSyncIntervalSecs);
+                            Thread.sleep(licenseSyncIntervalSecs * 1000);
+                        }
+                    }
+                } catch (InterruptedException ie) {
+                    // propagate
+                    Thread.currentThread().interrupt();
+                }
+            }
+        };
+
+        Thread licenseSyncThread = new Thread(publisherTask, "intersight-license-sync-service");
+        licenseSyncThread.setDaemon(true);
+        licenseSyncThread.start();
     }
 
-    private void runRetriableOperation(String name, RetriableOperation operation, long timeout) {
-        Instant startTime = Instant.now();
-        try {
-            logger.info("Running operation {}", name);
-            operation.run(timeout, TimeUnit.SECONDS);
-        } catch (InterruptedException ie) {
-            logger.info("Retriable operation {} interrupted.", name, ie);
-        } catch (TimeoutException te) {
-            Duration timeoutTime = Duration.between(startTime, Instant.now());
-            logger.error("Retriable operation {} timed out after {} ms.", name,
-                    timeoutTime.toMillis());
-        } catch (RetriableOperationFailedException rofe) {
-            logger.error("Operation {} failed with exception.", name, rofe);
-        }
+    /**
+     * Get the last-fetched list of available Intersight licenses. These are sorted by priority, with the first
+     * item in the list considered the "best available" license. These licenses may not be
+     * active, so status should be checked, depending on the use case.
+     * @return the list of proxied intersight licenses.
+     */
+    public List<LicenseLicenseInfo> getAvailableIntersightLicenses() {
+        return availableIntersightLicenses;
     }
 
     /**
      * Synchronize the Intersight license info. This is in the direction of Intersight -> Local
      * XL Instance. We are polling the Intersight API for now, but hopefully in the future we can
      * get a push from Intersight -> XL instead.
-     * @return true if the sync was successful, false otherwise.
+     * @return true if the sync successfully installed a non-fallback proxy license, false otherwise.
      * @throws RetriableOperationFailedException if a retriable exception is caught within the method.
      */
     public Boolean syncIntersightLicenses() throws RetriableOperationFailedException {
 
-        // retrieve the list of licenses from Intersight
-        logger.info("Fetching intersight licenses...");
-        final LicenseLicenseInfoList licenseInfoList;
+        // retrieve the list of licenses from Intersight smart licensing
+        logger.debug("Fetching intersight licenses...");
+        final List<LicenseLicenseInfo> intersightLicenses;
         try {
-            licenseInfoList = intersightLicenseClient.getIntersightLicenses();
+            intersightLicenses = intersightLicenseClient.getIntersightLicenses();
         } catch (ApiException | IOException e) {
             if (IntersightLicenseClient.isRetryable(e)) {
                 throw new RetriableIntersightException(e);
@@ -154,7 +177,6 @@ public class IntersightLicenseSyncService {
                 throw new RetriableOperation.RetriableOperationFailedException(e);
             }
         }
-        final List<LicenseLicenseInfo> intersightLicenses = licenseInfoList.getResults();
         if (intersightLicenses.size() > 0) {
             // log some info. This would normally be debug output, but we may not get much to work with
             // when debugging issues from the intersight environment, so let's err on the side of
@@ -170,37 +192,46 @@ public class IntersightLicenseSyncService {
                 if (licenseInfo.getTrialAdmin()) {
                     sb.append("(trial-active)");
                 }
+                sb.append(" ").append(licenseInfo.getLicenseType().toString());
                 sb.append(" ").append(licenseInfo.getLicenseState().name());
+                sb.append(" count:").append(licenseInfo.getLicenseCount());
                 sb.append(" with ").append(licenseInfo.getDaysLeft()).append(" days left. ");
             }
-            logger.info(sb.toString());
+            logger.debug(sb.toString());
         }
         // build a list of the licenses we want to create proxy licenses for
-        final List<LicenseDTO> targetedIntersightLicenses = new ArrayList<>();
+        final List<LicenseLicenseInfo> targetedIntersightLicenses = new ArrayList<>();
         // sort the intersight licenses by "best available" so we can find the best ones.
         intersightLicenses.sort(new BestAvailableIntersightLicenseComparator());
         if (intersightLicenses.size() > 0) {
-            LicenseLicenseInfo bestAvailableLicense = intersightLicenses.get(intersightLicenses.size() - 1);
+            LicenseLicenseInfo bestAvailableLicense = intersightLicenses.get(0);
             // we will target this license, as long as it's active
             if (IntersightLicenseUtils.isActiveIntersightLicense(bestAvailableLicense)) {
-                targetedIntersightLicenses.add(IntersightLicenseUtils.toProxyLicense(bestAvailableLicense));
+                targetedIntersightLicenses.add(bestAvailableLicense);
             }
         }
+
+        // convert any targeted licenses to proxy licenses
+        final List<LicenseDTO> proxyLicenses = new ArrayList<>();
+        for (LicenseLicenseInfo targetedLicense : targetedIntersightLicenses) {
+            proxyLicenses.add(IntersightLicenseUtils.toProxyLicense(targetedLicense));
+        }
+
         // if "fallback license" is enabled and there are no discovered viable intersight licenses,
         // we will install the fallback license.
-        if (targetedIntersightLicenses.size() == 0 && useFallbackLicense) {
-            logger.info("No active intersight license found. Using fallback license.");
-            targetedIntersightLicenses.add(FALLBACK_LICENSE);
+        if (proxyLicenses.size() == 0 && useFallbackLicense) {
+            logger.debug("No active intersight license found. Using fallback license.");
+            proxyLicenses.add(FALLBACK_LICENSE);
         }
 
         // retrieve the list of licenses we have locally installed
-        logger.info("Fetching local licenses...");
+        logger.debug("Fetching local licenses...");
         final List<LicenseDTO> localLicenses = getLocalLicenses(licenseManagerClient);
 
         // get the set of changes we'd need to make to get in sync with the intersight licenses.
-        logger.info("Synchronizing {} local licenses with {} targetted intersight licenses...",
-                localLicenses.size(), targetedIntersightLicenses.size());
-        Pair<List<LicenseDTO>, List<LicenseDTO>> edits = discoverLicenseEdits(localLicenses, targetedIntersightLicenses);
+        logger.debug("Synchronizing {} local licenses with {} targetted intersight licenses...",
+                localLicenses.size(), proxyLicenses.size());
+        Pair<List<LicenseDTO>, List<LicenseDTO>> edits = discoverLicenseEdits(localLicenses, proxyLicenses);
 
         // delete any licenses that need to be deleted.
         List<LicenseDTO> licensesToDelete = edits.second;
@@ -245,8 +276,19 @@ public class IntersightLicenseSyncService {
             }
         }
 
-        return true;
-
+        // remember the licenses we targeted - this is provided to the license count updater, which
+        // runs as a separate thread.
+        this.availableIntersightLicenses = intersightLicenses;
+        // return true if we proxied a non-fallback license.
+        if (proxyLicenses.size() > 0) {
+            if (!StringUtils.equals(proxyLicenses.get(0).getEdition(),
+                    IntersightProxyLicenseEdition.IWO_FALLBACK.name())) {
+                logger.debug("LicenseSync happy: an active Intersight license is currently installed.");
+                return true;
+            }
+        }
+        logger.debug("LicenseSync not happy: could not find an active Intersight license to proxy.");
+        return false;
     }
 
     /**
@@ -302,7 +344,7 @@ public class IntersightLicenseSyncService {
                 LicenseDTO intersightLicense = mapping.first;
                 // are they the same?
                 if (IntersightLicenseUtils.areProxyLicensesEqual(localLicense, intersightLicense)) {
-                    logger.info("Intersight license {} has not changed -- will not update.", localLicense.getExternalLicenseKey());
+                    logger.debug("Intersight license {} has not changed -- will not update.", localLicense.getExternalLicenseKey());
                 } else {
                     logger.info("intersight license {} has changed, will update.", localLicense.getExternalLicenseKey());
                     // a changed license will be processed as an add of a new license + removal of

@@ -9,6 +9,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.Optional;
+
+import io.opentracing.SpanContext;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -50,7 +53,7 @@ public class MarketActionListenerTest {
         this.actionStorehouse = new ActionStorehouse(actionStoreFactory,
                 executor, actionStoreLoader, approvalSender);
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStore);
-        when(actionStore.getEntitySeverityCache()).thenReturn(severityCache);
+        when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(severityCache));
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStore.getStoreTypeName()).thenReturn("test");
     }
@@ -71,7 +74,7 @@ public class MarketActionListenerTest {
 
         MarketActionListener actionsListener =
                 new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
-        actionsListener.onActionsReceived(actionPlan);
+        actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
 
         verify(actionStore).populateRecommendedActions(actionPlan);
     }
@@ -92,7 +95,7 @@ public class MarketActionListenerTest {
 
         MarketActionListener actionsListener =
                 new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
-        actionsListener.onActionsReceived(actionPlan);
+        actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
 
         verify(severityCache).refresh(actionStore);
     }
@@ -113,7 +116,7 @@ public class MarketActionListenerTest {
 
         MarketActionListener actionsListener =
             new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
-        actionsListener.onActionsReceived(actionPlan);
+        actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
 
         verify(actionStore, never()).populateRecommendedActions(any(ActionPlan.class));
         verify(severityCache, never()).refresh(any(ActionStore.class));
@@ -144,7 +147,7 @@ public class MarketActionListenerTest {
                 .setTopologyType(TopologyType.REALTIME))
             .build());
 
-        actionsListener.onActionsReceived(actionPlan);
+        actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
 
         verify(actionStore, never()).populateRecommendedActions(any(ActionPlan.class));
         verify(severityCache, never()).refresh(any(ActionStore.class));
@@ -178,7 +181,7 @@ public class MarketActionListenerTest {
                 .setTopologyType(TopologyType.REALTIME))
             .build());
 
-        actionsListener.onActionsReceived(actionPlan);
+        actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
 
         // We should still have saved the plan action plan.
         verify(actionStore).populateRecommendedActions(actionPlan);
@@ -213,7 +216,7 @@ public class MarketActionListenerTest {
                 .setTopologyType(TopologyType.PLAN))
             .build());
 
-        actionsListener.onActionsReceived(actionPlan);
+        actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
 
         // We should still have saved the realtime plan.
         verify(actionStore).populateRecommendedActions(actionPlan);

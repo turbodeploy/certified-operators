@@ -62,12 +62,12 @@ public class LiveTopologyStoreMeasurementIT {
     @Ignore
     public void testRewriteAsBinary() throws Exception {
 
-        final String filePath = "/home/turbo/Work/topologies/bofa/live.realtime.source.entities";
+        final String filePath = "/home/turbo/work/topologies/pwc.live.realtime.source.entities";
 
         final BufferedReader reader =
                 new BufferedReader(new FileReader(filePath));
 
-        String outFile = "/home/turbo/Work/topologies/bofa/live.entities.binary";
+        String outFile = "/home/turbo/work/topologies/pwc.live.entities.binary";
 
         FileOutputStream fos = new FileOutputStream(outFile);
 
@@ -119,7 +119,7 @@ public class LiveTopologyStoreMeasurementIT {
     @Ignore
     public void testSize() throws IOException {
         final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(globalSupplyChainCalculator);
-        SourceRealtimeTopologyBuilder sourceRealtimeTopologyBuilder = liveTopologyStore.newRealtimeTopology(TopologyInfo.getDefaultInstance());
+        SourceRealtimeTopologyBuilder sourceRealtimeTopologyBuilder = liveTopologyStore.newRealtimeSourceTopology(TopologyInfo.getDefaultInstance());
 
         doForEntity("/home/turbo/work/saved-topology/citi.binary", entity -> {
             sourceRealtimeTopologyBuilder.addEntities(Collections.singletonList(entity));
@@ -138,7 +138,7 @@ public class LiveTopologyStoreMeasurementIT {
         final BufferedReader reader =
             new BufferedReader(new FileReader(filePath));
         final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(globalSupplyChainCalculator);
-        SourceRealtimeTopologyBuilder sourceRealtimeTopologyBuilder = liveTopologyStore.newRealtimeTopology(TopologyInfo.getDefaultInstance());
+        SourceRealtimeTopologyBuilder sourceRealtimeTopologyBuilder = liveTopologyStore.newRealtimeSourceTopology(TopologyInfo.getDefaultInstance());
         int lineCnt = 0;
         Map<EntityType, MutableLong> countsByType = new HashMap<>();
 

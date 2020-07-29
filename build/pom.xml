@@ -6,26 +6,26 @@
 
     <groupId>com.vmturbo</groupId>
     <artifactId>Turbonomic-XL</artifactId>
-    <version>7.22.5-SNAPSHOT</version>
+    <version>7.22.6-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
-        <market.version>3.22.5-SNAPSHOT</market.version>
+        <market.version>3.22.6-SNAPSHOT</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>7.22.5-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>7.22.6-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
-        <apm.probes.branch.version>7.22.5-SNAPSHOT</apm.probes.branch.version>
+        <apm.probes.branch.version>7.22.6-SNAPSHOT</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>7.22.5-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>7.22.6-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.15-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.22-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -58,6 +58,7 @@
         <jaeger.version>1.2.0</jaeger.version>
         <opentracing.concurrent.version>0.4.0</opentracing.concurrent.version>
         <opentracing.grpc.version>0.2.1</opentracing.grpc.version>
+        <opentracing.kafka.version>0.1.13</opentracing.kafka.version>
         <!-- END Versions for the various opentracing libraries -->
 
         <slf4j.version>1.7.25</slf4j.version>
@@ -400,6 +401,7 @@
                 <module>../com.vmturbo.mediation.custom.data.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.database.mysql.component</module>
+                <module>../com.vmturbo.mediation.tomcat.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
@@ -717,6 +719,13 @@
             <id>mediation-mysql</id>
             <modules>
                 <module>../com.vmturbo.mediation.database.mysql.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-tomcat</id>
+            <modules>
+                <module>../com.vmturbo.mediation.tomcat.component</module>
             </modules>
         </profile>
 
@@ -1181,6 +1190,7 @@
                 <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.database.mysql.component</module>
+                <module>../com.vmturbo.mediation.tomcat.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
                 <module>../com.vmturbo.mediation.gcp.component</module>
@@ -1347,9 +1357,14 @@
                     <version>${jacocoVersion}</version>
                     <executions>
                         <execution>
+                            <id>jacoco-initialize</id>
+                            <phase>initialize</phase>
                             <goals>
                                 <goal>prepare-agent</goal>
                             </goals>
+                            <configuration>
+                                <propertyName>jacoco.agent.argLine</propertyName>
+                            </configuration>
                         </execution>
                         <execution>
                             <id>report</id>
@@ -1638,7 +1653,7 @@
                         </excludes>
                         <trimStackTrace>false</trimStackTrace>
                         <!-- Required to deal properly with non-ASCII characters across platforms. -->
-                        <argLine>-Dfile.encoding=UTF-8</argLine>
+                        <argLine>${jacoco.agent.argLine} -Dfile.encoding=UTF-8</argLine>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -2789,6 +2804,11 @@
                 <groupId>io.opentracing.contrib</groupId>
                 <artifactId>opentracing-grpc</artifactId>
                 <version>${opentracing.grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opentracing.contrib</groupId>
+                <artifactId>opentracing-kafka-client</artifactId>
+                <version>${opentracing.kafka.version}</version>
             </dependency>
 
             <dependency>

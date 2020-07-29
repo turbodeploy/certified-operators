@@ -11,6 +11,8 @@ import javax.websocket.ContainerProvider;
 import javax.websocket.DeploymentException;
 import javax.websocket.WebSocketContainer;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.runner.RunWith;
@@ -126,7 +128,8 @@ public class SystemTestBase {
 
         @Override
         public void onTopologyNotification(TopologyInfo topologyInfo,
-                                           @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs) {
+                                           @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs,
+                                           @Nonnull SpanContext tracingContext) {
             int entityCount = 0;
             while (topologyDTOs.hasNext()) {
                 try {

@@ -1,10 +1,12 @@
 package com.vmturbo.components.common;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.core.env.Environment;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
@@ -13,6 +15,7 @@ import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceCo
 import com.vmturbo.common.protobuf.logging.LoggingREST.TracingConfigurationServiceController;
 import com.vmturbo.common.protobuf.logging.MemoryMetricsREST.MemoryMetricsServiceController;
 import com.vmturbo.common.protobuf.memory.HeapDumper;
+import com.vmturbo.components.common.config.SpringConfigSource;
 import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.diagnostics.FileFolderZipper;
 import com.vmturbo.components.common.health.DeadlockHealthMonitor;
@@ -36,15 +39,13 @@ import com.vmturbo.kvstore.KeyValueStoreConfig;
         ConsulRegistrationConfig.class})
 public class BaseVmtComponentConfig {
 
+    @Autowired
+    private Environment environment;
+
     @Value("${deadlockCheckIntervalSecs:900}")
     private int deadlockCheckIntervalSecs;
 
-
-    @Value("${maxHealthyUsedMemoryRatio:0.95}")
-    private double maxHealthyUsedMemoryRatio;
-
-
-    @Value("${enableMemoryMonitor:false}")
+    @Value("${enableMemoryMonitor:true}")
     private boolean enableMemoryMonitor;
 
     /**
@@ -59,6 +60,11 @@ public class BaseVmtComponentConfig {
     @Bean
     public static PropertySourcesPlaceholderConfigurer configurer() {
         return new PropertySourcesPlaceholderConfigurer();
+    }
+
+    @Bean
+    public SpringConfigSource configSource() {
+        return new SpringConfigSource(environment);
     }
 
     @Bean
@@ -99,7 +105,7 @@ public class BaseVmtComponentConfig {
     @Bean
     public MemoryMonitor memoryMonitor() {
         // creates a memory monitor that reports unhealthy when old gen seems to be full
-        return enableMemoryMonitor ? new MemoryMonitor(maxHealthyUsedMemoryRatio) : null;
+        return enableMemoryMonitor ? new MemoryMonitor(configSource()) : null;
     }
 
     @Bean

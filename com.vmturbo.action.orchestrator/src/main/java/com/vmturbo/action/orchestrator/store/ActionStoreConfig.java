@@ -34,8 +34,9 @@ import com.vmturbo.action.orchestrator.store.identity.ActionInfoModel;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.store.identity.RecommendationIdentityStore;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyListener;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
-import com.vmturbo.action.orchestrator.topology.TpEntitiesWithNewStateListener;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
@@ -238,6 +239,31 @@ public class ActionStoreConfig {
     }
 
     /**
+     * See: {@link ActionTopologyStore}.
+     *
+     * @return The {@link ActionTopologyStore}.
+     */
+    @Bean
+    public ActionTopologyStore actionTopologyStore() {
+        return new ActionTopologyStore();
+    }
+
+    /**
+     * Topology processor listener, which forwards topology and entity state updates.
+     *
+     * @return The {@link ActionTopologyListener}.
+     */
+    @Bean
+    public ActionTopologyListener tpListener() {
+        final ActionTopologyListener topologyListener = new ActionTopologyListener(actionStorehouse(),
+                actionTopologyStore(),
+                tpConfig.realtimeTopologyContextId());
+        tpConfig.topologyProcessor().addLiveTopologyListener(topologyListener);
+        tpConfig.topologyProcessor().addEntitiesWithNewStatesListener(topologyListener);
+        return topologyListener;
+    }
+
+    /**
      * Returns the {@link ActionStoreFactory} bean.
      *
      * @return the {@link ActionStoreFactory} bean.
@@ -245,6 +271,7 @@ public class ActionStoreConfig {
     @Bean
     public IActionStoreFactory actionStoreFactory() {
         return ActionStoreFactory.newBuilder()
+            .withTopologyStore(actionTopologyStore())
             .withActionFactory(actionFactory())
             .withRealtimeTopologyContextId(tpConfig.realtimeTopologyContextId())
             .withDatabaseDslContext(databaseConfig.dsl())
@@ -307,9 +334,6 @@ public class ActionStoreConfig {
                 automatedActionExecutor(),
                 actionStoreLoader(),
                 approvalCommunicationConfig.approvalRequester());
-        tpConfig.topologyProcessor()
-            .addEntitiesWithNewStatesListener(new TpEntitiesWithNewStateListener(actionStorehouse,
-                tpConfig.realtimeTopologyContextId()));
         return actionStorehouse;
     }
 

@@ -17,6 +17,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -58,6 +59,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.RecordHashManager.SnapshotManager;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslRecordSink;
@@ -67,10 +69,14 @@ import com.vmturbo.extractor.models.DslUpsertRecordSink;
 import com.vmturbo.extractor.models.ModelDefinitions;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
-import com.vmturbo.extractor.topology.EntityHashManager.SnapshotManager;
+import com.vmturbo.extractor.schema.enums.EntityState;
+import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.search.EnumUtils;
 import com.vmturbo.extractor.topology.mapper.GroupMappers;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -84,7 +90,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     /**
      * The name to persist in db for ready queue commodity bought by VM.
      */
-    public static final String VM_QX_VCPU_NAME = "CPU_READY";
+    public static final MetricType VM_QX_VCPU_NAME = MetricType.CPU_READY;
 
     /**
      * Matches ready queue commodity like: Q16_VCPU, QN_VCPU.
@@ -143,12 +149,22 @@ public class EntityMetricWriter extends TopologyWriterBase {
     @Override
     protected void writeEntity(final TopologyEntityDTO e) {
         final long oid = e.getOid();
+        EntityType entityType = EnumUtils.entityTypeFromProtoIntToDb(e.getEntityType(), null);
+        if (entityType == null) {
+            logger.error("Cannot map entity type {} for db storage for entity oid {}; skipping",
+                    e.getEntityType(), e.getOid());
+            return;
+        }
         Record entitiesRecord = new Record(ENTITY_TABLE);
         entitiesRecord.set(ENTITY_OID_AS_OID, oid);
-        entitiesRecord.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, EntityType.forNumber(e.getEntityType()).name());
+        entitiesRecord.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, entityType);
         entitiesRecord.set(ModelDefinitions.ENTITY_NAME, e.getDisplayName());
-        entitiesRecord.setIf(e.hasEnvironmentType(), ModelDefinitions.ENVIRONMENT_TYPE, () -> e.getEnvironmentType().name());
-        entitiesRecord.setIf(e.hasEntityState(), ModelDefinitions.ENTITY_STATE, () -> e.getEntityState().name());
+        entitiesRecord.setIf(e.hasEnvironmentType(), ModelDefinitions.ENVIRONMENT_TYPE,
+                () -> EnumUtils.environmentTypeFromProtoToDb(e.getEnvironmentType(),
+                        EnvironmentType.UNKNOWN_ENV));
+        entitiesRecord.setIf(e.hasEntityState(), ModelDefinitions.ENTITY_STATE,
+                () -> EnumUtils.entityStateFromProtoToDb(e.getEntityState(),
+                        EntityState.UNKNOWN));
         try {
             entitiesRecord.set(ModelDefinitions.ATTRS, getTypeSpecificInfoJson(e));
         } catch (InvalidProtocolBufferException invalidProtocolBufferException) {
@@ -161,56 +177,204 @@ public class EntityMetricWriter extends TopologyWriterBase {
         createWastedFileRecords(e);
     }
 
+    /**
+     * Record metric records for this entity, including records for bought and sold commodities.
+     *
+     * @param e   entity
+     * @param oid entity oid
+     */
     private void writeMetrics(final TopologyEntityDTO e, final long oid) {
         final List<Record> metricRecords = metricRecordsMap.computeIfAbsent(oid, k -> new ArrayList<>());
+        // write bought commodity records
         e.getCommoditiesBoughtFromProvidersList().forEach(cbfp -> {
             final long producer = cbfp.getProviderId();
+            final int producerType = cbfp.getProviderEntityType();
+            // group by commodity type because we may need to aggregate some of the groups
             Map<Integer, List<CommodityBoughtDTO>> cbByType = cbfp.getCommodityBoughtList().stream()
                     .filter(cb -> config.reportingCommodityWhitelist().contains(cb.getCommodityType().getType()))
-                    .collect(Collectors.groupingBy(cb -> cb.getCommodityType().getType()));
+                    // we insist on a linked hashmap so we have predictable ordering of generated
+                    // records. This solely to simplify some unit tests.
+                    .collect(Collectors.groupingBy(cb -> cb.getCommodityType().getType(), LinkedHashMap::new, Collectors.toList()));
             cbByType.forEach((typeNo, cbs) -> {
-                // sum across commodity keys in case same commodity type appears with multiple keys
-                // and same provider
-                final String type = CommodityType.forNumber(typeNo).name();
-                final Double sumUsed = cbs.stream().mapToDouble(CommodityBoughtDTO::getUsed).sum();
-
-                Record r = new Record(ModelDefinitions.METRIC_TABLE);
-                r.set(ModelDefinitions.ENTITY_OID, oid);
-                if (QX_VCPU_PATTERN.matcher(type).matches()) {
-                    // special handling for Qx_VCPU: VM should only buys one of them, to help with
-                    // reports, we change the name to a single name "CPU_READY", and convert it
-                    // from bought to sold commodity with used and utilization, the capacity
-                    // is hardcoded to 20000 as defined in VC standard
-                    r.set(ModelDefinitions.COMMODITY_TYPE, VM_QX_VCPU_NAME);
-                    r.set(ModelDefinitions.COMMODITY_CAPACITY, QX_VCPU_BASE_COEFFICIENT);
-                    r.set(ModelDefinitions.COMMODITY_CURRENT, sumUsed);
-                    r.set(ModelDefinitions.COMMODITY_UTILIZATION, sumUsed / QX_VCPU_BASE_COEFFICIENT);
+                if (CommodityType.forNumber(typeNo) == null) {
+                    logger.error("Skipping invalid bought commodity type {} for entity {}",
+                            typeNo, e.getOid());
+                } else if (isAggregateByKeys(typeNo, producerType)) {
+                    recordAggregatedBoughtCommodity(oid, typeNo, cbs, producer, metricRecords);
                 } else {
-                    r.set(ModelDefinitions.COMMODITY_TYPE, type);
-                    r.set(ModelDefinitions.COMMODITY_CONSUMED, sumUsed);
-                    r.set(ModelDefinitions.COMMODITY_PROVIDER, producer);
+                    recordUnaggregatedBoughtCommodity(oid, typeNo, cbs, producer, metricRecords);
                 }
-                metricRecords.add(r);
             });
         });
+        // write sold commodity records
         Map<Integer, List<CommoditySoldDTO>> csByType = e.getCommoditySoldListList().stream()
                 .filter(cs -> config.reportingCommodityWhitelist().contains(cs.getCommodityType().getType()))
-                .collect(Collectors.groupingBy(cs -> cs.getCommodityType().getType()));
+                .collect(Collectors.groupingBy(cs -> cs.getCommodityType().getType(),  LinkedHashMap::new, Collectors.toList()));
         csByType.forEach((typeNo, css) -> {
-            // sum across commodity keys in case same commodity type appears with multiple keys
-            final String type = CommodityType.forNumber(typeNo).name();
-            final double sumUsed = css.stream().mapToDouble(CommoditySoldDTO::getUsed).sum();
-            final double sumCap = css.stream().mapToDouble(CommoditySoldDTO::getCapacity).sum();
-
-            Record r = new Record(ModelDefinitions.METRIC_TABLE);
-            r.set(ModelDefinitions.ENTITY_OID, oid);
-            r.set(ModelDefinitions.COMMODITY_TYPE, type);
-            r.set(ModelDefinitions.COMMODITY_CAPACITY, sumCap);
-            r.set(ModelDefinitions.COMMODITY_CURRENT, sumUsed);
-            r.set(ModelDefinitions.COMMODITY_UTILIZATION, sumCap == 0 ? 0 : sumUsed / sumCap);
-            metricRecords.add(r);
+            MetricType type = EnumUtils.commodityTypeFromProtoIntToDb(typeNo, null);
+            if (CommodityType.forNumber(typeNo) == null) {
+                logger.error("Skipping invalid sold commodity type {} for entity {}",
+                        typeNo, e.getOid());
+            } else if (isAggregateByKeys(typeNo, e.getEntityType())) {
+                recordAggregatedSoldCommodity(oid, type, css, metricRecords);
+            } else {
+                recordUnaggregatedSoldCommodity(oid, type, css, metricRecords);
+            }
         });
     }
+
+    /**
+     * Check whether we should be aggregating metrics across commodity key, for a given commodity
+     * type and entity type.
+     *
+     * <p>N.B. When processing bought commodities, the passed entity type should be that of
+     * the provider, not that of the consumer</p>
+     *
+     * @param commodityTypeNo commodity type
+     * @param entityTypeNo    entity type
+     * @return true if commodity shoudl be aggregated across keys
+     */
+    private boolean isAggregateByKeys(int commodityTypeNo, int entityTypeNo) {
+        final CommodityType commodityType = CommodityType.forNumber(commodityTypeNo);
+        final EntityDTO.EntityType entityType = EntityDTO.EntityType.forNumber(entityTypeNo);
+        return !config.unaggregatedCommodities().containsEntry(commodityType, entityType);
+    }
+
+    /**
+     * Record a metric record for the given bought commodity structures, all of which are for the
+     * same commodity type and bought from the same producer, with different commodity keys.
+     *
+     * <p>We aggregate the used metric across all the bought commodity structures.</p>
+     *
+     * @param oid               consuming entity oid
+     * @param typeNo            commodity type
+     * @param boughtCommodities bought commodity structures
+     * @param producer          oid of producer entity
+     * @param metricRecords     where to add new metric record
+     */
+    private void recordAggregatedBoughtCommodity(final long oid, final Integer typeNo,
+            final List<CommodityBoughtDTO> boughtCommodities, final long producer,
+            final List<Record> metricRecords) {
+        // sum across commodity keys in case same commodity type appears with multiple keys
+        // and same provider
+        final String type = CommodityType.forNumber(typeNo).name();
+        final Double sumUsed = boughtCommodities.stream().mapToDouble(CommodityBoughtDTO::getUsed).sum();
+        metricRecords.add(getBoughtCommodityRecord(oid, type, null, sumUsed, producer));
+    }
+
+    /**
+     * Record a metric record for each of the given bought commodity structures, all of which are
+     * for the same commodity type and bought from the same producer, with different commodity
+     * keys.
+     *
+     * @param oid               consuming entity oid
+     * @param typeNo            commodity type
+     * @param boughtCommodities bought commodity structures
+     * @param producer          oid of producer entity
+     * @param metricRecords     where to add new metric records
+     */
+    private void recordUnaggregatedBoughtCommodity(final long oid, final Integer typeNo,
+            final List<CommodityBoughtDTO> boughtCommodities, final long producer,
+            final List<Record> metricRecords) {
+        // record individual records for this bought commodity
+        final String type = CommodityType.forNumber(typeNo).name();
+        boughtCommodities.stream()
+                .map(cb -> getBoughtCommodityRecord(oid, type, cb.getCommodityType().getKey(),
+                        cb.getUsed(), producer))
+                .forEach(metricRecords::add);
+    }
+
+    /**
+     * Create a new metric record for a bought commodity.
+     *
+     * @param oid      consuming entity oid
+     * @param type     commodity type
+     * @param key      commodity key
+     * @param used     used metric
+     * @param producer producer oid
+     * @return new metric record
+     */
+    private Record getBoughtCommodityRecord(final long oid, final String type, String key,
+            final Double used, final long producer) {
+        Record r = new Record(ModelDefinitions.METRIC_TABLE);
+        r.set(ModelDefinitions.ENTITY_OID, oid);
+        if (QX_VCPU_PATTERN.matcher(type).matches()) {
+            // special handling for Qx_VCPU: VM should only buy one of them, to help with
+            // reports, we change the name to a single name "CPU_READY", and convert it
+            // from bought to sold commodity with used and utilization, the capacity
+            // is hardcoded to 20000 as defined in VC standard
+            r.set(ModelDefinitions.COMMODITY_TYPE, VM_QX_VCPU_NAME);
+            r.set(ModelDefinitions.COMMODITY_KEY, key);
+            r.set(ModelDefinitions.COMMODITY_CAPACITY, QX_VCPU_BASE_COEFFICIENT);
+            r.set(ModelDefinitions.COMMODITY_CURRENT, used);
+            r.set(ModelDefinitions.COMMODITY_UTILIZATION, used / QX_VCPU_BASE_COEFFICIENT);
+        } else {
+            r.set(ModelDefinitions.COMMODITY_TYPE, MetricType.valueOf(type));
+            r.set(ModelDefinitions.COMMODITY_KEY, key);
+            r.set(ModelDefinitions.COMMODITY_CONSUMED, used);
+            r.set(ModelDefinitions.COMMODITY_PROVIDER, producer);
+        }
+        return r;
+    }
+
+    /**
+     * Record a metric record for the given sold commodity structures, all of which are for the same
+     * commodity type, with different commodity keys.
+     *
+     * <p>We aggregate the used and capacity metrics across all the sold commodity structures.</p>
+     *  @param oid             selling entity oid
+     * @param type          commodity type
+     * @param soldCommodities sold commodity structures
+     * @param metricRecords   where to save new record
+     */
+    private void recordAggregatedSoldCommodity(final long oid, final MetricType type,
+            final List<CommoditySoldDTO> soldCommodities, final List<Record> metricRecords) {
+        // sum across commodity keys in case same commodity type appears with multiple keys
+        final double sumUsed = soldCommodities.stream().mapToDouble(CommoditySoldDTO::getUsed).sum();
+        final double sumCap = soldCommodities.stream().mapToDouble(CommoditySoldDTO::getCapacity).sum();
+
+        metricRecords.add(getSoldCommodityRecord(oid, type.name(), null, sumUsed, sumCap));
+    }
+
+    /**
+     * Record a metric record for each of the given sold commodity structures, all of which are for
+     * the same commodity type, with different commodity keys.
+     *  @param oid             selling entity oid
+     * @param type          commodity type
+     * @param soldCommodities sold commodity structures
+     * @param metricRecords   where to save new records
+     */
+    private void recordUnaggregatedSoldCommodity(final long oid, final MetricType type,
+            final List<CommoditySoldDTO> soldCommodities, final List<Record> metricRecords) {
+        // sum across commodity keys in case same commodity type appears with multiple keys
+        soldCommodities.stream()
+                .map(cs -> getSoldCommodityRecord(oid, type.name(), cs.getCommodityType().getKey(),
+                        cs.getUsed(), cs.getCapacity()))
+                .forEach(metricRecords::add);
+    }
+
+    /**
+     * Create a new metric record for a sold commodity.
+     *
+     * @param oid      selling entity oid
+     * @param type     commodity type
+     * @param key      commodity key
+     * @param used     used metric value
+     * @param capacity capacity metric value
+     * @return new record
+     */
+    private Record getSoldCommodityRecord(final long oid, final String type, String key,
+            final double used, final double capacity) {
+        Record r = new Record(ModelDefinitions.METRIC_TABLE);
+        r.set(ModelDefinitions.ENTITY_OID, oid);
+        r.set(ModelDefinitions.COMMODITY_TYPE, MetricType.valueOf(type));
+        r.set(ModelDefinitions.COMMODITY_KEY, key);
+        r.set(ModelDefinitions.COMMODITY_CAPACITY, capacity);
+        r.set(ModelDefinitions.COMMODITY_CURRENT, used);
+        r.set(ModelDefinitions.COMMODITY_UTILIZATION, capacity == 0 ? 0 : used / capacity);
+        return r;
+    }
+
 
     /**
      * Create records for wasted files on the given entity.
@@ -219,7 +383,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
      */
     private void createWastedFileRecords(@Nonnull TopologyEntityDTO entity) {
         // not volume entity or no volume info
-        if (entity.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE
+        if (entity.getEntityType() != EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE
                 || !entity.getTypeSpecificInfo().hasVirtualVolume()) {
             return;
         }
@@ -329,11 +493,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
             record.set(ModelDefinitions.SCOPED_OIDS, scope);
 
             // only store entity if hash changes
-            Long newHash = snapshotManager.updateEntityHash(record);
+            Long newHash = snapshotManager.updateRecordHash(record);
             if (newHash != null) {
                 try (Record r = tableWriter.open(record)) {
                     r.set(ModelDefinitions.ENTITY_HASH_AS_HASH, newHash);
-                    snapshotManager.setEntityTimes(r);
+                    snapshotManager.setRecordTimes(r);
                 }
             }
         });
@@ -402,7 +566,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private JsonString getGroupJson(Grouping group) throws JsonProcessingException {
         final List<String> expectedTypes = group.getExpectedTypesList().stream()
                 .map(MemberType::getEntity)
-                .map(EntityType::forNumber)
+                .map(EntityDTO.EntityType::forNumber)
                 .map(Enum::name)
                 .collect(Collectors.toList());
 
@@ -476,5 +640,4 @@ public class EntityMetricWriter extends TopologyWriterBase {
                         + tsi.getTypeCase().name());
         }
     }
-
 }

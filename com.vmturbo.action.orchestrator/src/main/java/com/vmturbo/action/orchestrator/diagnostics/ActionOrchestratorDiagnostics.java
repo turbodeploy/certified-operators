@@ -101,7 +101,7 @@ public class ActionOrchestratorDiagnostics implements DiagsRestorable {
 
                 // Note that EntitySeverityCaches are not saved, but are rebuilt from the saved actions.
                 store.overwriteActions(actions);
-                store.getEntitySeverityCache().refresh(store);
+                store.getEntitySeverityCache().ifPresent(cache -> cache.refresh(store));
                 return store;
             }
         ));

@@ -630,6 +630,11 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
                     return;
                 } catch (RuntimeException e) {
                     logger.error("Pipeline worker hit runtime exception. Continuing.", e);
+                } catch (OutOfMemoryError oome) {
+                    // we aren't looking to handle this error, just log it.
+                    logger.error("Pipeline worker {} received OutOfMemoryError. This pipeline runner task will terminate.",
+                            Thread.currentThread().getName(), oome);
+                    throw oome;
                 }
             }
         }

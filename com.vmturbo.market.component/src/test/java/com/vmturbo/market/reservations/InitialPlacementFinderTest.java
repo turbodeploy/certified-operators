@@ -104,7 +104,7 @@ public class InitialPlacementFinderTest {
         Field economy = InitialPlacementFinder.class.getDeclaredField("cachedEconomy");
         economy.setAccessible(true);
         Economy cachedEconomy = (Economy)economy.get(pf);
-        Map<Long, Trader> traderOids = cachedEconomy.getTopology().getTraderOids().inverse();
+        Map<Long, Trader> traderOids = cachedEconomy.getTopology().getTradersByOid();
         Trader pm2 = traderOids.get(pm2Oid);
         assertTrue(pm2.getCommoditiesSold().get(0).getQuantity() == quantity + used);
     }
@@ -175,6 +175,7 @@ public class InitialPlacementFinderTest {
         Trader pm1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByPM, cliques);
         pm1.setDebugInfoNeverUseInCode("PM1");
         pm1.getSettings().setCanAcceptNewCustomers(true);
+        pm1.setOid(pm1Oid);
         CommoditySold commSold = pm1.getCommoditiesSold().get(0);
         commSold.setCapacity(100);
         commSold.setQuantity(quantity);
@@ -184,6 +185,7 @@ public class InitialPlacementFinderTest {
         Trader pm2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByPM, cliques);
         pm2.setDebugInfoNeverUseInCode("PM2");
         pm2.getSettings().setCanAcceptNewCustomers(true);
+        pm2.setOid(pm2Oid);
         CommoditySold commSold2 = pm2.getCommoditiesSold().get(0);
         commSold2.setCapacity(100);
         commSold2.setQuantity(quantity);
@@ -192,14 +194,15 @@ public class InitialPlacementFinderTest {
 
         Trader vm1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket());
         vm1.setDebugInfoNeverUseInCode("VM1");
+        vm1.setOid(vm1Oid);
         ShoppingList shoppingList = economy.addBasketBought(vm1, basketSoldByPM);
         shoppingList.setQuantity(0, 5);
         shoppingList.setPeakQuantity(0, 10);
         new Move(economy, shoppingList, pm1).take();
 
-        t.getModifiableTraderOids().put(pm1, pm1Oid);
-        t.getModifiableTraderOids().put(pm2, pm2Oid);
-        t.getModifiableTraderOids().put(vm1, vm1Oid);
+        t.getModifiableTraderOids().put(pm1Oid, pm1);
+        t.getModifiableTraderOids().put(pm2Oid, pm2);
+        t.getModifiableTraderOids().put(vm1Oid, vm1);
         return economy;
     }
 
@@ -233,13 +236,13 @@ public class InitialPlacementFinderTest {
         Field economy = InitialPlacementFinder.class.getDeclaredField("cachedEconomy");
         economy.setAccessible(true);
         Economy cachedEconomy = (Economy)economy.get(pf);
-        Trader pm1 = cachedEconomy.getTopology().getTraderOids().inverse().get(pm1Oid);
-        Trader pm2 = cachedEconomy.getTopology().getTraderOids().inverse().get(pm2Oid);
+        Trader pm1 = cachedEconomy.getTopology().getTradersByOid().get(pm1Oid);
+        Trader pm2 = cachedEconomy.getTopology().getTradersByOid().get(pm2Oid);
         assertTrue(pm1.getCommoditiesSold().get(0).getQuantity() == 25);
         assertTrue(pm2.getCommoditiesSold().get(0).getQuantity() == 20);
-        Trader vmTrader2 = cachedEconomy.getTopology().getTraderOids().inverse().get(vm2Oid);
+        Trader vmTrader2 = cachedEconomy.getTopology().getTradersByOid().get(vm2Oid);
         assertTrue(cachedEconomy.getMarketsAsBuyer(vmTrader2).keySet().stream().allMatch(sl -> sl.getSupplier() == null));
-        Trader vmTrader3 = cachedEconomy.getTopology().getTraderOids().inverse().get(vm3Oid);
+        Trader vmTrader3 = cachedEconomy.getTopology().getTradersByOid().get(vm3Oid);
         assertTrue(cachedEconomy.getMarketsAsBuyer(vmTrader3).keySet().stream().allMatch(sl -> sl.getSupplier() == null));
 
     }

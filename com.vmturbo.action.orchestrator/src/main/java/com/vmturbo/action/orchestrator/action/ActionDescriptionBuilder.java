@@ -67,8 +67,6 @@ public class ActionDescriptionBuilder {
     private static final String UP = "up";
     private static final String DOWN = "down";
     private static final String OF = " of ";
-    private static final String PROVISION = "Provision";
-    private static final String SUSPENSION = "Suspension";
     // pass in methodName, name of entity, and entity OID
     private static final String ENTITY_NOT_FOUND_WARN_MSG = "{} {} Entity {} doesn't exist in the entities snapshot";
 
@@ -95,10 +93,9 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_DELETE("Delete wasted file ''{0}'' from {1} to free up {2}"),
         ACTION_DESCRIPTION_DELETE_CLOUD_NO_ACCOUNT("Delete Unattached {0} Volume {1}"),
         ACTION_DESCRIPTION_DELETE_CLOUD("Delete Unattached {0} Volume {1} from {2}"),
-        ACTION_DESCRIPTION_ATOMIC_RESIZE("Resize on {0} for {1}"),
+        ACTION_DESCRIPTION_ATOMIC_RESIZE("Resize {0} for {1}"),
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
-        ACTION_DESCRIPTION_RESIZE_TRIGGER_TRADER("Resize {0} {1} for {2} from {3} to {4} due to {5} {6}"),
         ACTION_DESCRIPTION_RESIZE_RESERVATION("Resize {0} {1} reservation for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
@@ -222,13 +219,19 @@ public class ActionDescriptionBuilder {
             if (formattedCommodityTypes.length() > 0) {
                 formattedCommodityTypes.append(',');
             }
-            formattedCommodityTypes.append(beautifyCommodityType(commType));
+
+            if (commType.getType() == CommodityType.VCPU_VALUE
+                    || commType.getType() == CommodityType.VMEM_VALUE)    {
+                formattedCommodityTypes.append(beautifyCommodityType(commType)).append(" Limit");
+            } else {
+                formattedCommodityTypes.append(beautifyCommodityType(commType));
+            }
         }
 
         ActionMessageFormat messageFormat = ActionMessageFormat.ACTION_DESCRIPTION_ATOMIC_RESIZE;
         return messageFormat.format(
-                beautifyEntityTypeAndName(targetEntity),
-                formattedCommodityTypes.toString()
+                formattedCommodityTypes.toString(),
+                beautifyEntityTypeAndName(targetEntity)
         );
     }
 
@@ -242,24 +245,12 @@ public class ActionDescriptionBuilder {
      */
     private static String getResizeActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
                                               @Nonnull final ActionDTO.Action recommendation) {
-        ActionPartialEntity resizeTriggerTrader = null;
         Resize resize = recommendation.getInfo().getResize();
         long entityId = resize.getTarget().getId();
         Optional<ActionPartialEntity> optEntity = entitiesSnapshot.getEntityFromOid(entityId);
         if (!optEntity.isPresent()) {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getResizeActionDescription ", "entityId", entityId);
             return "";
-        }
-
-        if (resize.hasResizeTriggerTrader()) {
-            Optional<ActionPartialEntity> optTriggerTrader = entitiesSnapshot
-                    .getEntityFromOid(resize.getResizeTriggerTraderOrBuilder().getId());
-            if (!optTriggerTrader.isPresent()) {
-                logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getResizeActionDescription ", "entityId",
-                        resize.getResizeTriggerTraderOrBuilder().getId());
-            } else {
-                resizeTriggerTrader = optTriggerTrader.get();
-            }
         }
 
         ActionPartialEntity entity = optEntity.get();
@@ -274,29 +265,16 @@ public class ActionDescriptionBuilder {
 
         ActionMessageFormat messageFormat =
             resize.getCommodityAttribute() == CommodityAttribute.CAPACITY
-                ? (resizeTriggerTrader != null
-                        ? ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_TRIGGER_TRADER
-                            : ActionMessageFormat.ACTION_DESCRIPTION_RESIZE)
-                                : ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_RESERVATION;
-        return messageFormat != ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_TRIGGER_TRADER
-            ? messageFormat.format(
+                ? ActionMessageFormat.ACTION_DESCRIPTION_RESIZE
+                : ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_RESERVATION;
+        return messageFormat.format(
             resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
             beautifyCommodityType(resize.getCommodityType()),
             beautifyEntityTypeAndName(entity),
             formatResizeActionCommodityValue(
                 commodityType, entity.getEntityType(), resize.getOldCapacity()),
             formatResizeActionCommodityValue(
-                commodityType, entity.getEntityType(), resize.getNewCapacity()))
-                : messageFormat.format(
-                    resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
-                        beautifyCommodityType(resize.getCommodityType()),
-                        beautifyEntityTypeAndName(entity),
-                        formatResizeActionCommodityValue(
-                            commodityType, entity.getEntityType(), resize.getOldCapacity()),
-                        formatResizeActionCommodityValue(
-                            commodityType, entity.getEntityType(), resize.getNewCapacity()),
-                        beautifyEntityTypeAndName(resizeTriggerTrader),
-                        resize.getNewCapacity() > resize.getOldCapacity() ? PROVISION : SUSPENSION);
+                commodityType, entity.getEntityType(), resize.getNewCapacity()));
     }
 
     /**
@@ -714,7 +692,9 @@ public class ActionDescriptionBuilder {
         if (commodityTypeToDefaultUnits.containsKey(commodityType)) {
             long capacityInBytes = (long)(capacity * commodityTypeToDefaultUnits.get(commodityType) / Units.BYTE);
             return getHumanReadableSize(capacityInBytes);
-        } else if (entityType == EntityType.CONTAINER_VALUE) {
+        } else if (entityType == EntityType.CONTAINER_VALUE
+                || entityType == EntityType.WORKLOAD_CONTROLLER_VALUE
+                || entityType == EntityType.CONTAINER_SPEC_VALUE) {
             return ActionMessageFormat.CONTAINER_VCPU_MHZ.format(capacity);
         } else {
             return ActionMessageFormat.SIMPLE.format(capacity);

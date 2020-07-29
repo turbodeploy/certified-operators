@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.history;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.HashMap;
@@ -31,6 +33,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
@@ -43,12 +46,13 @@ public class AbstractCachingHistoricalEditorTest {
     private static final float DB_VALUE = 10f;
     private static final float ABOVE_DB_VALUE = 15f;
     private static double DELTA = 0.00001;
+    private static final long TOPOLOGY_ID = 777777L;
     private static final CachingHistoricalEditorConfig CONFIG1 =
-                    new CachingHistoricalEditorConfig(2, 3, Clock.systemUTC(), Mockito.any());
+                    new CachingHistoricalEditorConfig(2, 3, TOPOLOGY_ID, Clock.systemUTC(), Mockito.any());
     private static final CachingHistoricalEditorConfig CONFIG2 =
-                    new CachingHistoricalEditorConfig(10, 10, Clock.systemUTC(), Mockito.any());
+                    new CachingHistoricalEditorConfig(10, 10, TOPOLOGY_ID, Clock.systemUTC(), Mockito.any());
     private static final HistoryAggregationContext CONTEXT = new HistoryAggregationContext(
-                    TopologyInfo.newBuilder().setTopologyId(77777L).build(),
+                    TopologyInfo.newBuilder().setTopologyId(TOPOLOGY_ID).build(),
                     Mockito.mock(GraphWithSettings.class), false);
 
     private EntityCommodityReference cref1;
@@ -248,6 +252,15 @@ public class AbstractCachingHistoricalEditorTest {
         @Override
         public boolean isMandatory() {
             return true;
+        }
+
+        @Override
+        protected void exportState(@Nonnull OutputStream appender)
+                        throws DiagnosticsException, IOException {
+        }
+
+        @Override
+        protected void restoreState(@Nonnull byte[] bytes) throws DiagnosticsException {
         }
     }
 

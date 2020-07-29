@@ -73,7 +73,7 @@ public class GroupFetcherTest {
                 makeGroup(BILLING_FAMILY, 300L)
                         .withStaticEntityMembers(EntityType.BUSINESS_ACCOUNT, 21L, 22L),
                 makeGroup(RESOURCE, 400L)
-                        .withStaticEntityMembers(EntityType.APPLICATION, 31L, 32L),
+                        .withStaticEntityMembers(EntityType.APPLICATION_COMPONENT, 31L, 32L),
                 makeGroup(STORAGE_CLUSTER, 500L)
                         .withStaticEntityMembers(EntityType.STORAGE, 41L, 42L),
                 makeGroup(COMPUTE_VIRTUAL_MACHINE_CLUSTER, 600L)

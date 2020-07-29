@@ -51,7 +51,7 @@ public class TopologyGraphRepositoryRpcServiceTest {
     public void testRetrieveTopologyEntitiesWithScopedUser() {
         // test the retrieveTopologyEntities() method when called by a scoped user.
 
-        SourceRealtimeTopologyBuilder topologyBuilder = liveTopologyStore.newRealtimeTopology(TopologyInfo.getDefaultInstance());
+        SourceRealtimeTopologyBuilder topologyBuilder = liveTopologyStore.newRealtimeSourceTopology(TopologyInfo.getDefaultInstance());
         topologyBuilder.addEntities(createTestEntities(1L, 2L, 3L));
         topologyBuilder.finish();
 

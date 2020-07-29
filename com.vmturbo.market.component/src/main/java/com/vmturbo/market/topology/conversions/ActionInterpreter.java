@@ -5,11 +5,14 @@ import static com.vmturbo.trax.Trax.trax;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -103,6 +106,7 @@ public class ActionInterpreter {
     private static final Set<EntityState> evacuationEntityState =
         EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
     private final CommodityIndex commodityIndex;
+    private final Map<Long, AtomicInteger> provisionActionTracker = new HashMap<>();
 
     ActionInterpreter(@Nonnull final CommodityConverter commodityConverter,
                       @Nonnull final Map<Long, ShoppingListInfo> shoppingListOidToInfos,
@@ -110,7 +114,7 @@ public class ActionInterpreter {
                       @Nonnull final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
                       @Nonnull final ProjectedRICoverageCalculator projectedRICoverageCalculator,
                       @Nonnull final TierExcluder tierExcluder,
-                      @Nonnull final CommodityIndex commodityIndex) {
+                      @Nonnull final Supplier<CommodityIndex> commodityIndexSupplier) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
@@ -119,7 +123,7 @@ public class ActionInterpreter {
         this.cert = cert;
         this.projectedRICoverageCalculator = projectedRICoverageCalculator;
         this.tierExcluder = tierExcluder;
-        this.commodityIndex = commodityIndex;
+        this.commodityIndex = commodityIndexSupplier.get();
     }
 
     /**
@@ -442,10 +446,15 @@ public class ActionInterpreter {
     private ActionDTO.Provision interpretProvisionByDemand(
             @Nonnull final ProvisionByDemandTO provisionByDemandTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        AtomicInteger index =
+            provisionActionTracker.computeIfAbsent(provisionByDemandTO.getModelSeller(),
+                id -> new AtomicInteger());
+
         return ActionDTO.Provision.newBuilder()
                 .setEntityToClone(createActionEntity(
                     provisionByDemandTO.getModelSeller(), projectedTopology))
                 .setProvisionedSeller(provisionByDemandTO.getProvisionedSeller())
+                .setProvisionIndex(index.getAndIncrement())
                 .build();
     }
 
@@ -453,10 +462,15 @@ public class ActionInterpreter {
     private ActionDTO.Provision interpretProvisionBySupply(
             @Nonnull final ProvisionBySupplyTO provisionBySupplyTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        AtomicInteger index =
+            provisionActionTracker.computeIfAbsent(provisionBySupplyTO.getModelSeller(),
+                id -> new AtomicInteger());
+
         return ActionDTO.Provision.newBuilder()
                 .setEntityToClone(createActionEntity(
                         provisionBySupplyTO.getModelSeller(), projectedTopology))
                 .setProvisionedSeller(provisionBySupplyTO.getProvisionedSeller())
+                .setProvisionIndex(index.getAndIncrement())
                 .build();
     }
 
@@ -630,9 +644,6 @@ public class ActionInterpreter {
                         .contains(cs.getBaseType())).findFirst();
                 if (!resizeTriggerTraderTO.isPresent()) {
                     return Optional.empty();
-                } else {
-                    resizeBuilder.setResizeTriggerTrader(createActionEntity(resizeTriggerTraderTO.get()
-                            .getTrader(), projectedTopology));
                 }
             // Scale Down: Pick related vSan host being suspended that has no reason commodities
             // since it is suspension due to low roi.
@@ -642,9 +653,6 @@ public class ActionInterpreter {
                         .isEmpty()).findFirst();
                 if (!resizeTriggerTraderTO.isPresent()) {
                     return Optional.empty();
-                } else {
-                    resizeBuilder.setResizeTriggerTrader(createActionEntity(resizeTriggerTraderTO.get()
-                            .getTrader(), projectedTopology));
                 }
             }
         }
@@ -1361,6 +1369,7 @@ public class ActionInterpreter {
          *
          * @return false
          */
+        @Override
         public boolean hasSavings() {
             return false;
         }

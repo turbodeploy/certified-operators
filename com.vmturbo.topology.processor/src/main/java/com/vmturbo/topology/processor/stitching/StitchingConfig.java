@@ -69,7 +69,7 @@ public class StitchingConfig {
     @Value("${resizeDownWarmUpIntervalHours}")
     private double resizeDownWarmUpIntervalHours;
 
-    @Value("${stitchingJournalEnabled}")
+    @Value("${stitchingJournalEnabled:false}")
     private boolean stitchingJournalEnabled;
 
     @Value("${journalMaxChangesetsPerOperation}")

@@ -416,6 +416,7 @@ message Resize {
     optional string scaling_group_id = 8;
 
     // The supplier who triggers the resize
+    // This field is not used now. Should be removed if the tests show that diags for 7.22.3-7.22.5 are loaded correctly.
     optional ActionEntity resize_trigger_trader = 9;
 }
 
@@ -489,6 +490,10 @@ message Provision {
     // Since this is a special case, we will just use the EntityId. The entity
     // type will be the same as the entity_to_clone.
     optional sint64 provisioned_seller = 2;
+
+    // There could be more than one provision action on an entity, this field is the index
+    // (starting from zero) associated with each of those actions.
+    optional int32 provision_index = 3;
 }
 
 // An action to Buy a reserved instance
@@ -1029,6 +1034,11 @@ message ActionSpec {
     // The recommended steps to take in the environment.
     optional Action recommendation = 1;
 
+    // ID of the recommendation. This is the "stable" id shared by all action instances that
+    // represent the same logical action. For example, all moves of VM 1 from Host 2 to Host 3 will
+    // have the same recommendation ID.
+    optional int64 recommendation_id = 15;
+
     // The execution step associated with an action that is being executed.
     // If the action has not begun to be executed, will be empty.
     //
@@ -1106,6 +1116,12 @@ message ActionSpec {
         // The user that has accepted the action for execution window.
         optional string accepting_user = 7;
     }
+
+    // The name under which this action appears in third-party software or external approval backend.
+    optional string external_action_name = 16;
+
+    // URL to third-party software showing this action. Suitable for external action approval.
+    optional string external_action_url = 17;
 }
 
 // A filter to be supplied with action queries.
@@ -1521,8 +1537,9 @@ message CurrentActionStatsQuery {
         // Entity type of the primary entity for the action.
         TARGET_ENTITY_TYPE = 5;
 
-        // Explanation for the action (e.g. "CPU congestion", "Mem Provisioned congestion", etc.)
-        ACTION_EXPLANATION = 6;
+        // Explanation of the risk that led to the recommendation of the action (e.g. "CPU
+        // congestion", "Mem Provisioned congestion", etc.)
+        ACTION_RELATED_RISK = 6;
 
         // Id of the target entity for the action.
         TARGET_ENTITY_ID = 7;
@@ -1571,6 +1588,10 @@ message HistoricalActionStatsQuery {
         // Match action groups with any of these action states.
         // An empty list means match all action states.
         repeated ActionState action_state = 4;
+
+        // Match action groups with any of these action related risks.
+        // An empty list means match all action risks.
+        repeated string action_related_risk = 5;
     }
 
     // A "management unit" is an object in the system that is often interacted with by the user.
@@ -1635,6 +1656,10 @@ message HistoricalActionStatsQuery {
         // compliance, the returned action count will be 2 for the "performance" category and
         // 1 for the "compliance" category.
         ACTION_CATEGORY = 2;
+
+        // The risk that led to the recommendation of the action (e.g. "CPU congestion",
+        // "Underutilized VMem", etc.)
+        ACTION_RELATED_RISK = 3;
 
         // The ID of the business account associated with the action.
         // Only actions that have associated business accounts will be returned. Unlike the
@@ -1727,10 +1752,9 @@ message CurrentActionStat {
         // the "group_by" in the query contained "REASON_COMMODITY".
         optional int32 reason_commodity_base_type = 5;
 
-        // Explanation for the action (e.g. "CPU congestion", "Mem congestion", etc.)
-        // Todo(OM-45690): currently for some cases the explanation is partially composed in the AO,
-        // for example: "(^_^)~Mem Provisioned congestion", we should compose it fully in AO
-        optional string action_explanation = 6;
+        // Explanation of the risk that led to the recommendation of the action (e.g. "CPU
+        // congestion", "Mem congestion", etc.)
+        optional string action_related_risk = 6;
 
         // Id of the target entity for the action. Only present if the "group_by" in the query
         // contained "TARGET_ENTITY_ID".
@@ -1801,6 +1825,11 @@ message ActionStat {
         // The business account for this action stat. Only present if the "group_by" in the query was
         // "BUSINESS_ACCOUNT_ID".
         optional int64 business_account_id = 3;
+
+        // The risk for this action stat, only present if the "group_by" in the query is
+        // "ACTION_RELATED_RISK". This is similar to the action explanation, but without entity
+        // details, and more general
+        optional string action_related_risk = 4;
     }
 
     // The stat group for this particular stat. Only set if the group_by in the request was

@@ -1,5 +1,6 @@
 package com.vmturbo.search.metadata;
 
+import static com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.currentUtilization;
 import static com.vmturbo.search.metadata.SearchGroupMetadata.Constants.GROUP_COMMON_FIELDS;
 
 import java.util.Map;
@@ -9,7 +10,6 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.dto.searchquery.AggregateCommodityFieldApiDTO;
-import com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.MemberFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
@@ -27,12 +27,12 @@ public enum SearchGroupMetadata {
     /**
      * Mappings for different group types.
      */
-    GROUP(GroupType.GROUP, getRegularMetadata()),
-    COMPUTE_HOST_CLUSTER(GroupType.COMPUTE_HOST_CLUSTER, getComputeHostClusterMetadata()),
-    STORAGE_CLUSTER(GroupType.STORAGE_CLUSTER, GROUP_COMMON_FIELDS),
-    COMPUTE_VIRTUAL_MACHINE_CLUSTER(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, GROUP_COMMON_FIELDS),
-    RESOURCE(GroupType.RESOURCE, GROUP_COMMON_FIELDS),
-    BILLING_FAMILY(GroupType.BILLING_FAMILY, GROUP_COMMON_FIELDS);
+    BillingFamily(GroupType.BillingFamily, GROUP_COMMON_FIELDS),
+    Cluster(GroupType.Cluster, getComputeHostClusterMetadata()),
+    VMCluster(GroupType.VMCluster, GROUP_COMMON_FIELDS),
+    Group(GroupType.Group, getRegularMetadata()),
+    Resource(GroupType.Resource, GROUP_COMMON_FIELDS),
+    StorageCluster(GroupType.StorageCluster, GROUP_COMMON_FIELDS);
 
     private final GroupType groupType;
 
@@ -84,17 +84,18 @@ public enum SearchGroupMetadata {
                 // common fields
                 .putAll(GROUP_COMMON_FIELDS)
                 // member counts
-                .put(MemberFieldApiDTO.memberCount(EntityType.PHYSICAL_MACHINE),
+                .put(MemberFieldApiDTO.memberCount(EntityType.PhysicalMachine),
                         SearchMetadataMapping.DIRECT_MEMBER_COUNT_PM)
-                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.VIRTUAL_MACHINE),
+                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.VirtualMachine),
                         SearchMetadataMapping.RELATED_MEMBER_COUNT_VM)
-                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.STORAGE),
+                .put(RelatedEntityFieldApiDTO.entityCount(EntityType.Storage),
                         SearchMetadataMapping.RELATED_MEMBER_COUNT_ST)
                 // aggregated commodities
-                .put(AggregateCommodityFieldApiDTO.total(CommodityFieldApiDTO.utilization(CommodityType.CPU)),
-                        SearchMetadataMapping.GROUP_COMMODITY_CPU_UTILIZATION_TOTAL)
-                .put(AggregateCommodityFieldApiDTO.total(CommodityFieldApiDTO.utilization(CommodityType.MEM)),
-                        SearchMetadataMapping.GROUP_COMMODITY_MEM_UTILIZATION_TOTAL)
+                // TODO: (OM-60754) Change this to be average over last 24 hours, when that data is available
+                .put(AggregateCommodityFieldApiDTO.total(currentUtilization(CommodityType.CPU)),
+                        SearchMetadataMapping.GROUP_COMMODITY_CPU_HISTORICAL_UTILIZATION_TOTAL)
+                .put(AggregateCommodityFieldApiDTO.total(currentUtilization(CommodityType.MEM)),
+                        SearchMetadataMapping.GROUP_COMMODITY_MEM_HISTORICAL_UTILIZATION_TOTAL)
                 .build();
     }
 

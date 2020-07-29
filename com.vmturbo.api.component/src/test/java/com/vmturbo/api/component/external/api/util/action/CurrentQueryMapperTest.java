@@ -487,6 +487,7 @@ public class CurrentQueryMapperTest {
         inputDTO.setGroupBy(Arrays.asList( StringConstants.RISK_SUB_CATEGORY,
             StringConstants.ACTION_STATES,
             StringConstants.ACTION_TYPE,
+            StringConstants.RISK,
             StringConstants.TARGET_TYPE,
             StringConstants.REASON_COMMODITY));
         GroupByExtractor groupByExtractor = new GroupByExtractor();
@@ -498,6 +499,7 @@ public class CurrentQueryMapperTest {
             GroupBy.ACTION_CATEGORY,
             GroupBy.ACTION_STATE,
             GroupBy.ACTION_TYPE,
+            GroupBy.ACTION_RELATED_RISK,
             GroupBy.TARGET_ENTITY_TYPE,
             GroupBy.REASON_COMMODITY));
     }

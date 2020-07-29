@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.ACCOUNT_OID;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.USER_DEFINED_ENTITY;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -127,6 +128,7 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.search.UIBooleanFilter;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
@@ -1072,6 +1074,23 @@ public class SearchServiceTest {
             .collect(Collectors.toList());
         final List<String> actual = result.stream().map(CriteriaOptionApiDTO::getValue)
             .collect(Collectors.toList());
+        assertEquals(expected, actual);
+    }
+
+    /**
+     * All "Boolean" filter options should be present in criteria.
+     *
+     * @throws Exception if something is catastrophically wrong.
+     */
+    @Test
+    public void testBooleanFilterOptions() throws Exception {
+        final List<CriteriaOptionApiDTO> result =
+                searchService.getCriteriaOptions(USER_DEFINED_ENTITY, null, null, null);
+        final List<String> expected = Arrays.stream(UIBooleanFilter.values())
+                .map(UIBooleanFilter::apiStr)
+                .collect(Collectors.toList());
+        final List<String> actual = result.stream().map(CriteriaOptionApiDTO::getValue)
+                .collect(Collectors.toList());
         assertEquals(expected, actual);
     }
 

@@ -24,14 +24,15 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceImplBase;
+import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
-
 
 /**
  * This class is an uploader service for RIs and expenses.
@@ -57,24 +58,32 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
 
     private long lastProcessedAccountExpensesChecksum = 0;
 
+    private final boolean riSupportInPartialCloudEnvironment;
+
     /**
      * Constructor.
+     *
      * @param dsl database context
-     * @param accountExpensesStore  store for acount expenses
+     * @param accountExpensesStore store for acount expenses
      * @param reservedInstanceSpecStore store for reserved instance specs
      * @param reservedInstanceBoughtStore store for reserved instance bought
      * @param reservedInstanceCoverageUpdate reserved instance coverage update
+     * @param riSupportInPartialCloudEnvironment OM-58310: Improve handling partially
+     *         discovered cloud environment feature flag. Calculate hourly reservation usage during
+     *         upload if flag is set to {@code true}.
      */
     public RIAndExpenseUploadRpcService(@Nonnull final DSLContext dsl,
-                                        @Nonnull AccountExpensesStore accountExpensesStore,
-                                        @Nonnull ReservedInstanceSpecStore reservedInstanceSpecStore,
-                                        @Nonnull ReservedInstanceBoughtStore reservedInstanceBoughtStore,
-                                        @Nonnull ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate) {
+            @Nonnull final AccountExpensesStore accountExpensesStore,
+            @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
+            @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
+            @Nonnull final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate,
+            final boolean riSupportInPartialCloudEnvironment) {
         this.dsl = dsl;
         this.accountExpensesStore = accountExpensesStore;
         this.reservedInstanceSpecStore = reservedInstanceSpecStore;
         this.reservedInstanceBoughtStore = reservedInstanceBoughtStore;
         this.reservedInstanceCoverageUpdate = reservedInstanceCoverageUpdate;
+        this.riSupportInPartialCloudEnvironment = riSupportInPartialCloudEnvironment;
     }
 
     @Override
@@ -134,19 +143,15 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
                 .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER)
                 .stream()
                 .filter(ReservedInstanceBought::hasReservedInstanceBoughtInfo)
-                .collect(
-                        Collectors.toMap(
-                                ri -> ri.getReservedInstanceBoughtInfo()
-                                        .getProbeReservedInstanceId(),
-                                ReservedInstanceBought::getId
-                        ));
+                .collect(Collectors.toMap(ri -> ri.getReservedInstanceBoughtInfo()
+                        .getProbeReservedInstanceId(), ReservedInstanceBought::getId));
         final List<EntityRICoverageUpload> entityRiCoverageWithRIOid =
-                updateCoverageWithLocalRIBoughtIds(request.getReservedInstanceCoverageList(), riProbeIdToOid);
+                updateEntityRICoverages(request.getReservedInstanceCoverageList(), riProbeIdToOid);
         reservedInstanceCoverageUpdate.storeEntityRICoverageOnlyIntoCache(request.getTopologyContextId(),
                 entityRiCoverageWithRIOid);
         // Store the account coverage in cache
         final List<AccountRICoverageUpload> accountRiCoverageWithRIOid =
-                updateAccountCoverageWithLocalRIBoughtIds(request.getAccountLevelReservedInstanceCoverageList(),
+                updateAccountRICoverages(request.getAccountLevelReservedInstanceCoverageList(),
                         riProbeIdToOid);
         reservedInstanceCoverageUpdate.cacheAccountRICoverageData(request.getTopologyContextId(),
                 accountRiCoverageWithRIOid);
@@ -154,30 +159,6 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
         responseObserver.onNext(UploadRIDataResponse.getDefaultInstance());
         responseObserver.onCompleted();
     }
-
-    /**
-     * Updates the reserved instance id with the cost component generated id.
-     * @param accountLevelReservedInstanceCoverageList the account coverage list uploaded by TP
-     * @param riProbeIdToOid mapping of the probe id to the cost component generated oid.
-     * @return the list of account coverages with reference to the id from cost component
-     */
-    private List<AccountRICoverageUpload> updateAccountCoverageWithLocalRIBoughtIds(
-            final List<AccountRICoverageUpload> accountLevelReservedInstanceCoverageList,
-            @Nonnull final Map<String, Long> riProbeIdToOid) {
-
-        return accountLevelReservedInstanceCoverageList.stream()
-                .map(accountRICoverage -> AccountRICoverageUpload.newBuilder(accountRICoverage))
-                // update the ReservedInstanceId for each Coverage record, mapping through
-                // the ProbeReservedInstanceId
-                .peek(entityRiCoverageBuilder -> entityRiCoverageBuilder
-                        .getCoverageBuilderList().stream()
-                        .forEach(coverageBuilder -> coverageBuilder
-                                .setReservedInstanceId(riProbeIdToOid.getOrDefault(
-                                        coverageBuilder.getProbeReservedInstanceId(), 0L))))
-                .map(AccountRICoverageUpload.Builder::build)
-                .collect(Collectors.toList());
-    }
-
 
     /**
      * Store the received reserved instance bought and specs into database.
@@ -233,31 +214,60 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Generates a list of {@link EntityRICoverageUpload}, in which the contained Coverage entries
-     * from <code>entityRICoverageList</code> have been updated with a reserved instance ID matching
-     * the {@link ReservedInstanceBought} IDs contained/assigned within {@link ReservedInstanceBoughtStore}.
-     *
-     * @param entityRICoverageList a list of {@link EntityRICoverageUpload}, in which the underlying
-     *                             Coverage entries contain the ProbeReservedInstanceId attribute to map
-     *                             to a {@link ReservedInstanceBought}
-     * @param riProbeIdToOid mapping of the probe id to the cost component generated oid.
-     * @return a list of updated {@link EntityRICoverageUpload}
-     */
-    private List<EntityRICoverageUpload> updateCoverageWithLocalRIBoughtIds(
+    private List<EntityRICoverageUpload> updateEntityRICoverages(
             @Nonnull final List<EntityRICoverageUpload> entityRICoverageList,
             @Nonnull final Map<String, Long> riProbeIdToOid ) {
+        return entityRICoverageList.stream().map(EntityRICoverageUpload::newBuilder)
+                .peek(entityRICoverageUpload -> entityRICoverageUpload.getCoverageBuilderList()
+                        .forEach(coverage -> updateCoverage(coverage, riProbeIdToOid)))
+                .map(EntityRICoverageUpload.Builder::build).collect(Collectors.toList());
+    }
 
-        return entityRICoverageList.stream()
-                .map(entityRICoverage -> EntityRICoverageUpload.newBuilder(entityRICoverage))
-                // update the ReservedInstanceId for each Coverage record, mapping through
-                // the ProbeReservedInstanceId
-                .peek(entityRiCoverageBuilder -> entityRiCoverageBuilder
-                        .getCoverageBuilderList().stream()
-                        .forEach(coverageBuilder -> coverageBuilder
-                                .setReservedInstanceId(riProbeIdToOid.getOrDefault(
-                                        coverageBuilder.getProbeReservedInstanceId(), 0L))))
-                .map(EntityRICoverageUpload.Builder::build)
-                .collect(Collectors.toList());
+    private List<AccountRICoverageUpload> updateAccountRICoverages(
+            final List<AccountRICoverageUpload> accountLevelReservedInstanceCoverageList,
+            @Nonnull final Map<String, Long> riProbeIdToOid) {
+        return accountLevelReservedInstanceCoverageList.stream()
+                .map(AccountRICoverageUpload::newBuilder)
+                .peek(accountRICoverageUpload -> accountRICoverageUpload.getCoverageBuilderList()
+                        .forEach(coverage -> updateCoverage(coverage, riProbeIdToOid)))
+                .map(AccountRICoverageUpload.Builder::build).collect(Collectors.toList());
+    }
+
+    /**
+     * 1. Sets the reserved instance oid for {@code coverage} with oid generated by
+     * {@link ReservedInstanceBoughtStore}.
+     * 2. Calculates hourly reservation usage if {@link this#riSupportInPartialCloudEnvironment} flag
+     * is set to {@code true} .
+     *
+     * @param coverage the {@link Coverage.Builder} which needs to be updated
+     * @param riProbeIdToOid mapping of the probe id to the cost component generated oid
+     */
+    private void updateCoverage(@Nonnull final Coverage.Builder coverage,
+            @Nonnull final Map<String, Long> riProbeIdToOid) {
+        // Update the reserved instance id for coverage record,
+        // mapping through the probe reserved instance id.
+        if (coverage.hasProbeReservedInstanceId()) {
+            final Long oid = riProbeIdToOid.get(coverage.getProbeReservedInstanceId());
+            if (oid != null) {
+                coverage.setReservedInstanceId(oid);
+            } else {
+                logger.debug(
+                        "Could not find reserved instance oid by id {}, reserved instance oid will not be set for coverage {}.",
+                        coverage.getProbeReservedInstanceId(), coverage);
+                coverage.clearReservedInstanceId();
+            }
+        }
+        if (riSupportInPartialCloudEnvironment && coverage.hasCoveredCoupons()) {
+            if (coverage.hasUsageStartTimestamp() && coverage.hasUsageEndTimestamp()) {
+                final double hours = (double)Math.abs(
+                        coverage.getUsageEndTimestamp() - coverage.getUsageStartTimestamp())
+                        / TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+                coverage.setCoveredCoupons(coverage.getCoveredCoupons() / hours);
+            } else {
+                logger.warn(
+                        "Usage period for coverage {} is not specified, hourly reservation usage will not be calculated.",
+                        coverage);
+            }
+        }
     }
 }

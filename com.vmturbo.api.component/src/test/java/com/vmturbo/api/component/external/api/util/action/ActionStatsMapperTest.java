@@ -114,7 +114,7 @@ public class ActionStatsMapperTest {
                 .setActionType(ActionType.ACTIVATE)
                 .setCostType(ActionDTO.ActionCostType.SAVINGS)
                 .setSeverity(ActionDTO.Severity.CRITICAL)
-                .setActionExplanation("Mem congestion")
+                .setActionRelatedRisk("Mem congestion")
                 .setTargetEntityId(111))
             .setActionCount(3)
             .setEntityCount(4)
@@ -157,7 +157,7 @@ public class ActionStatsMapperTest {
         verify(stat1Filters).setTargetEntityId(111);
         verify(stat1Filters).setActionCostType(ActionDTO.ActionCostType.SAVINGS);
         verify(stat1Filters).setActionRiskSeverity(ActionDTO.Severity.CRITICAL);
-        verify(stat1Filters).setExplanation("Mem congestion");
+        verify(stat1Filters).setRelatedRisk("Mem congestion");
         // We get the filters for each StatApiDTO.
         verify(stat1Filters, times(2)).getFilters();
         verifyNoMoreInteractions(stat1Filters);
