@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
@@ -271,6 +272,22 @@ public class HistoricalActionStatReader {
                             buckets.addStatsForGroup(bucketKey, numSnapshots, stats.stream());
                         });
                         break;
+                    case ACTION_RELATED_RISK:
+                        final Map<String, List<Collection<RolledUpActionGroupStat>>> statsByRelatedRisk =
+                                statsByGroupAndMu.entrySet().stream()
+                                        // do not include those with empty risk, since they are old
+                                        // stats before risk column is added
+                                        .filter(entry -> StringUtils.isNotEmpty(entry.getKey().key().getActionRelatedRisk()))
+                                        .collect(Collectors.groupingBy(ag -> ag.getKey().key().getActionRelatedRisk(),
+                                                Collectors.mapping(e -> e.getValue().values(), Collectors.toList())));
+                        statsByRelatedRisk.forEach((distinctRisk, statsForAllMu) -> {
+                            final GroupByBucketKey bucketKey = ImmutableGroupByBucketKey.builder()
+                                    .relatedRisk(distinctRisk)
+                                    .build();
+                            buckets.addStatsForGroup(bucketKey, numSnapshots, statsForAllMu.stream()
+                                    .flatMap(Collection::stream));
+                        });
+                        break;
                     default:
                         logger.error("Unhandled split by: {}", groupBy);
                 }
@@ -425,6 +442,13 @@ public class HistoricalActionStatReader {
         Optional<Long> businessAccountId();
 
         /**
+         * The risk related to the actions for this bucket.
+         *
+         * @return action related risk, like "VMem congestion", "Underutilized VMem", etc.
+         */
+        Optional<String> relatedRisk();
+
+        /**
          * Convert to a protobuf stat group that can be returned to gRPC users.
          *
          * @return The {@link ActionDTO.ActionStat.StatGroup}.
@@ -434,6 +458,7 @@ public class HistoricalActionStatReader {
             state().ifPresent(bldr::setActionState);
             category().ifPresent(bldr::setActionCategory);
             businessAccountId().ifPresent(bldr::setBusinessAccountId);
+            relatedRisk().ifPresent(bldr::setActionRelatedRisk);
             return bldr.build();
         }
     }

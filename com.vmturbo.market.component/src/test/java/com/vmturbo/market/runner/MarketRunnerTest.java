@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
@@ -56,6 +57,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
@@ -124,12 +126,15 @@ public class MarketRunnerTest {
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
 
+    private InitialPlacementFinder initialPlacementFinder =
+            mock(InitialPlacementFinder.class);
+
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0);
         threadPool = Executors.newFixedThreadPool(2);
         runner = new MarketRunner(threadPool, serverApi,
-            analysisFactory, Optional.empty(), PASSTHROUGH_GATE);
+            analysisFactory, Optional.empty(), PASSTHROUGH_GATE, initialPlacementFinder);
 
         topologyContextId += 100;
 
@@ -163,8 +168,8 @@ public class MarketRunnerTest {
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                     wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
                     mock(AnalysisRICoverageListener.class),
-                    consistentScalingHelperFactory);
-        }).when(analysisFactory).newAnalysis(any(), any(), any());
+                    consistentScalingHelperFactory, initialPlacementFinder);
+        }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
     }
 
     @After
@@ -178,7 +183,8 @@ public class MarketRunnerTest {
      */
     @Test
     public void testGetRuns() throws Exception {
-        Analysis analysis = runner.scheduleAnalysis(topologyInfo, dtos(true), true,
+        Analysis analysis = runner.scheduleAnalysis(topologyInfo, dtos(true),
+            Tracing.trace("test").spanContext(), true,
             maxPlacementsOverride, USE_QUOTE_CACHE_DURING_SNM, REPLAY_PROVISIONS_FOR_REAL_TIME,
             rightsizeLowerWatermark, rightsizeUpperWatermark,
             discountedComputeCostFactor);
@@ -205,16 +211,18 @@ public class MarketRunnerTest {
     public void testContextIDs() {
         Set<TopologyEntityDTO> dtos = dtos(true);
         Analysis analysis1 =
-            runner.scheduleAnalysis(topologyInfo, dtos, true,  maxPlacementsOverride,
+            runner.scheduleAnalysis(topologyInfo, dtos, Tracing.trace("test1").spanContext(),
+                true,  maxPlacementsOverride,
                 USE_QUOTE_CACHE_DURING_SNM, REPLAY_PROVISIONS_FOR_REAL_TIME,
                 rightsizeLowerWatermark, rightsizeLowerWatermark, discountedComputeCostFactor);
         Analysis analysis2 =
-            runner.scheduleAnalysis(topologyInfo, dtos, true,  maxPlacementsOverride,
+            runner.scheduleAnalysis(topologyInfo, dtos, Tracing.trace("test2").spanContext(),
+                true, maxPlacementsOverride,
                 USE_QUOTE_CACHE_DURING_SNM, REPLAY_PROVISIONS_FOR_REAL_TIME,
                 rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor);
         Analysis analysis3 = runner.scheduleAnalysis(topologyInfo.toBuilder()
-                            .setTopologyContextId(topologyInfo.getTopologyContextId() + 1).build(),
-                        dtos, true, maxPlacementsOverride, USE_QUOTE_CACHE_DURING_SNM,
+                            .setTopologyContextId(topologyInfo.getTopologyContextId() + 1).build(), dtos,
+            Tracing.trace("test3").spanContext(), true, maxPlacementsOverride, USE_QUOTE_CACHE_DURING_SNM,
             REPLAY_PROVISIONS_FOR_REAL_TIME, rightsizeLowerWatermark, rightsizeUpperWatermark,
                         discountedComputeCostFactor);
         assertSame(analysis1, analysis2);
@@ -230,7 +238,7 @@ public class MarketRunnerTest {
     public void testBadPlan() throws InterruptedException {
         Set<TopologyEntityDTO> badDtos = dtos(false);
         Analysis badAnalysis = mock(Analysis.class);
-        doReturn(badAnalysis).when(analysisFactory).newAnalysis(any(), any(), any());
+        doReturn(badAnalysis).when(analysisFactory).newAnalysis(any(), any(), any(), any());
 
         when(badAnalysis.getContextId()).thenReturn(topologyInfo.getTopologyContextId());
         when(badAnalysis.isDone()).thenReturn(true);
@@ -238,7 +246,8 @@ public class MarketRunnerTest {
         when(badAnalysis.getState()).thenReturn(AnalysisState.FAILED);
 
         Analysis analysis =
-            runner.scheduleAnalysis(topologyInfo, badDtos, true, maxPlacementsOverride,
+            runner.scheduleAnalysis(topologyInfo, badDtos, Tracing.trace("test").spanContext(),
+                true, maxPlacementsOverride,
                 USE_QUOTE_CACHE_DURING_SNM, REPLAY_PROVISIONS_FOR_REAL_TIME,
                 rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor);
 
@@ -255,7 +264,8 @@ public class MarketRunnerTest {
      */
     @Test
     public void testMarketRunning() {
-        runner.scheduleAnalysis(rtTopologyInfo, dtos(true), true, maxPlacementsOverride,
+        runner.scheduleAnalysis(rtTopologyInfo, dtos(true), Tracing.trace("test").spanContext(),
+            true, maxPlacementsOverride,
             USE_QUOTE_CACHE_DURING_SNM, REPLAY_PROVISIONS_FOR_REAL_TIME,
             rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor);
         assertTrue(runner.isAnalysisRunningForRtTopology(rtTopologyInfo));

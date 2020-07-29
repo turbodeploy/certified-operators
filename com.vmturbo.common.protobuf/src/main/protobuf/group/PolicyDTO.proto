@@ -134,8 +134,12 @@ message PolicyInfo {
     }
 }
 
-message PolicyRequest {
+message SinglePolicyRequest {
     optional int64 policy_id = 1;
+}
+
+message PolicyRequest {
+    repeated int64 policy_ids = 1;
 }
 
 message PolicyResponse {
@@ -173,8 +177,8 @@ message PolicyDeleteResponse {
 }
 
 service PolicyService {
-    rpc GetPolicy(PolicyRequest) returns (PolicyResponse) {}
-    rpc GetAllPolicies(PolicyRequest) returns (stream PolicyResponse) {}
+    rpc GetPolicy(SinglePolicyRequest) returns (PolicyResponse) {}
+    rpc GetPolicies(PolicyRequest) returns (stream PolicyResponse) {}
     rpc CreatePolicy(PolicyCreateRequest) returns (PolicyCreateResponse) {}
     rpc EditPolicy(PolicyEditRequest) returns (PolicyEditResponse) {}
     rpc DeletePolicy(PolicyDeleteRequest) returns (PolicyDeleteResponse) {}

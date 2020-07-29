@@ -33,6 +33,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -64,6 +65,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -85,6 +90,7 @@ import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.dto.InputField;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Tests for {@link EntitiesService}.
@@ -109,8 +115,10 @@ public class EntitiesServiceTest {
     private final GroupServiceMole groupService = spy(new GroupServiceMole());
     private final StatsHistoryServiceMole historyService = spy(new StatsHistoryServiceMole());
     private final ReportingServiceMole reportingService = spy(new ReportingServiceMole());
+    private final RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
     private final SupplyChainFetcherFactory supplyChainFetcherFactory =
             mock(SupplyChainFetcherFactory.class);
+    private final PolicyServiceMole policyService = spy(new PolicyServiceMole());
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
@@ -118,10 +126,14 @@ public class EntitiesServiceTest {
 
     private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
 
+    private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
+
     // gRPC servers
     @Rule
     public final GrpcTestServer grpcServer =
-        GrpcTestServer.newServer( actionsService, groupService, historyService, reportingService);
+        GrpcTestServer.newServer(actionsService, groupService, historyService, reportingService,
+            repositoryService, policyService);
+    private final ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
 
     // a sample topology ST -> PM -> VM
     private static final long CONTEXT_ID = 777777L;
@@ -180,6 +192,7 @@ public class EntitiesServiceTest {
             .setEntityState(ST_STATE)
             .putDiscoveredTargetData(TARGET_ID, PER_TARGET_INFO)
             .build();
+
     /**
      * Set up a mock topology processor server and a {@link ProbesService} client and connects them.
      */
@@ -229,7 +242,12 @@ public class EntitiesServiceTest {
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(SettingsMapper.class),
                 actionSearchUtil,
-                repositoryApi, entitySettingQueryExecutor);
+                repositoryApi, entitySettingQueryExecutor,
+                EntityConstraintsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                thinTargetCache,
+                paginationMapper,
+                serviceEntityMapper);
     }
 
     /**

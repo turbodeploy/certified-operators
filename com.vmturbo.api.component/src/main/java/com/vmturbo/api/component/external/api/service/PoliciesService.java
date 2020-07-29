@@ -57,7 +57,7 @@ public class PoliciesService implements IPoliciesService {
     public PolicyApiDTO getPolicyByUuid(String uuid)
             throws UnknownObjectException, ConversionException, InterruptedException {
         try {
-            final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.newBuilder()
+            final PolicyDTO.SinglePolicyRequest request = PolicyDTO.SinglePolicyRequest.newBuilder()
                     .setPolicyId(Long.valueOf(uuid))
                     .build();
 

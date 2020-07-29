@@ -160,33 +160,4 @@ public class TemplateConverterFactoryTest {
                 .allMatch(entity -> entity.getAnalysisSettings().getShopTogether()));
     }
 
-    @Test
-    public void testTemplateAdditionForReservation() throws Exception {
-        final Map<Long, Long> templateAdditions = ImmutableMap.of(TEMPLATE_ID, 3L);
-        when(templateServiceMole.getTemplates(GetTemplatesRequest.newBuilder()
-                .setFilter(TemplatesFilter.newBuilder()
-                    .addTemplateIds(TEMPLATE_ID))
-                .build()))
-            .thenReturn(Lists.newArrayList(GetTemplatesResponse.newBuilder()
-                .addTemplates(SingleTemplateResponse.newBuilder()
-                    .setTemplate(Template.newBuilder()
-                        .setId(TEMPLATE_ID)
-                        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)))
-                .build()));
-        final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
-                templateConverterFactory.generateReservationEntityFromTemplates(templateAdditions, topology);
-        final List<TopologyEntityDTO> topologyEntityDTOList = topologyEntityForTemplates
-                .map(Builder::build)
-                .collect(Collectors.toList());
-        Assert.assertEquals(3, topologyEntityDTOList.size());
-        Assert.assertTrue(topologyEntityDTOList.get(0).getCommoditiesBoughtFromProvidersList().stream()
-                .allMatch(commoditiesBoughtFromProvider ->
-                        commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
-                                .filter(commodityBoughtDTO -> commodityBoughtDTO.getUsed() > 0)
-                                .allMatch(commodityBoughtDTO ->
-                                        provisionCommodityType.contains(commodityBoughtDTO
-                                                .getCommodityType().getType()))));
-        Assert.assertTrue(topologyEntityDTOList.stream()
-                .allMatch(entity -> entity.getAnalysisSettings().getShopTogether()));
-    }
 }

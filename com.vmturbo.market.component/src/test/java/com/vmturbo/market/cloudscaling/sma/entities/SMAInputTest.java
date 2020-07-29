@@ -294,8 +294,9 @@ public class SMAInputTest {
         final Optional<SMAVirtualMachine> vm1 = findVMByOid(smaContext, vm1Id);
         Assert.assertTrue(vm1.isPresent());
         // no provider templates, because VM is not movable
-        Assert.assertEquals(1, vm1.get().getProviders().size());
-        Assert.assertEquals(vm1.get().getCurrentTemplate(), vm1.get().getProviders().iterator().next());
+        Assert.assertEquals(0, vm1.get().getProviders().size());
+        Assert.assertEquals(1, vm1.get().getGroupProviders().size());
+        Assert.assertEquals(vm1.get().getCurrentTemplate(), vm1.get().getGroupProviders().iterator().next());
         //natural template == current template, because VM is not movable
         Assert.assertEquals(vm1.get().getCurrentTemplate(), vm1.get().getNaturalTemplate());
         Assert.assertEquals(vm1.get().getCurrentTemplate().getCoupons(),

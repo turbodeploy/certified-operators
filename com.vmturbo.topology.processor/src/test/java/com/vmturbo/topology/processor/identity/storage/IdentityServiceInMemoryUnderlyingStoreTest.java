@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
@@ -119,7 +120,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         index.setAccessible(true);
         oid2Dto.setAccessible(true);
         HashMap<?, ?> sizeIndex = (HashMap<?, ?>)index.get(store);
-        HashMap<?, ?> sizeoid2Dto = (HashMap<?, ?>)oid2Dto.get(store);
+        ConcurrentHashMap<?, ?> sizeoid2Dto = (ConcurrentHashMap<?, ?>)oid2Dto.get(store);
         int iSizeIndex = sizeIndex.size();
         int iSizeoid2Dto = sizeoid2Dto.size();
 
@@ -141,7 +142,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         index.setAccessible(true);
         oid2Dto.setAccessible(true);
         HashMap<?, ?> sizeIndex = (HashMap<?, ?>)index.get(store);
-        HashMap<?, ?> sizeoid2Dto = (HashMap<?, ?>)oid2Dto.get(store);
+        ConcurrentHashMap<?, ?> sizeoid2Dto = (ConcurrentHashMap<?, ?>)oid2Dto.get(store);
         final int iSizeIndex = sizeIndex.size();
         final int iSizeoid2Dto = sizeoid2Dto.size();
 
@@ -191,7 +192,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         index.setAccessible(true);
         oid2Dto.setAccessible(true);
         HashMap<?, ?> sizeIndex = (HashMap<?, ?>)index.get(store);
-        HashMap<?, ?> sizeoid2Dto = (HashMap<?, ?>)oid2Dto.get(store);
+        ConcurrentHashMap<?, ?> sizeoid2Dto = (ConcurrentHashMap<?, ?>)oid2Dto.get(store);
         // Size stays the same
         Assert.assertEquals(1, sizeIndex.size());
         Assert.assertEquals(1, sizeoid2Dto.size());
@@ -209,7 +210,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         index.setAccessible(true);
         oid2Dto.setAccessible(true);
         HashMap<?, ?> sizeIndex = (HashMap<?, ?>)index.get(store);
-        HashMap<?, ?> sizeoid2Dto = (HashMap<?, ?>)oid2Dto.get(store);
+        ConcurrentHashMap<?, ?> sizeoid2Dto = (ConcurrentHashMap<?, ?>)oid2Dto.get(store);
         int iSizeIndex = sizeIndex.size();
         int iSizeoid2Dto = sizeoid2Dto.size();
 
@@ -234,7 +235,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         index.setAccessible(true);
         oid2Dto.setAccessible(true);
         HashMap<?, ?> sizeIndex = (HashMap<?, ?>)index.get(store);
-        HashMap<?, ?> sizeoid2Dto = (HashMap<?, ?>)oid2Dto.get(store);
+        ConcurrentHashMap<?, ?> sizeoid2Dto = (ConcurrentHashMap<?, ?>)oid2Dto.get(store);
         int iSizeIndex = sizeIndex.size();
         int iSizeoid2Dto = sizeoid2Dto.size();
 

@@ -25,7 +25,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastFailure;
@@ -68,8 +67,6 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
 
     private final TopologyPipelineQueue planPipelineQueue;
 
-    private final boolean useReservationPipeline;
-
     private final TargetStore targetStore;
 
     /**
@@ -86,8 +83,6 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
      * @param notificationSender The {@link TopologyProcessorNotificationSender} used to broadcast
      *                           notifications about successful/failed topology broadcasts.
      * @param targetStore The {@link TargetStore} containing target information.
-     * @param useReservationPipeline Dynamically control whether we use the custom,
-     *                               slimmed down pipeline for reservations.
      * @param clock The system clock.
      * @param maxBroadcastWait The maximum block time for broadcasts at startup.
      * @param timeUnit The time unit for the broadcast wait time.
@@ -99,7 +94,6 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final EntityStore entityStore,
             @Nonnull final TopologyProcessorNotificationSender notificationSender,
             @Nonnull final TargetStore targetStore,
-            final boolean useReservationPipeline,
             @Nonnull final Clock clock,
             final long maxBroadcastWait,
             @Nonnull final TimeUnit timeUnit) {
@@ -112,7 +106,6 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             entityStore,
             notificationSender,
             targetStore,
-            useReservationPipeline,
             maxBroadcastWait,
             timeUnit);
     }
@@ -128,7 +121,6 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final EntityStore entityStore,
             @Nonnull final TopologyProcessorNotificationSender notificationSender,
             @Nonnull final TargetStore targetStore,
-            final boolean useReservationPipeline,
             final long maxBroadcastWait,
             @Nonnull final TimeUnit timeUnit) {
         this.planExecutorService = planExecutorService;
@@ -138,7 +130,6 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
         this.entityStore = entityStore;
         this.realtimePipelineQueue = realtimePipelineQueue;
         this.planPipelineQueue = planPipelineQueue;
-        this.useReservationPipeline = useReservationPipeline;
         this.targetStore = targetStore;
         for (int i = 0; i < concurrentPipelinesAllowed; ++i) {
             planExecutorService.submit(new TopologyPipelineWorker(planPipelineQueue, notificationSender));
@@ -252,12 +243,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope,
             @Nonnull final StitchingJournalFactory journalFactory) throws QueueCapacityExceededException {
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline;
-        if (useReservationPipeline && pendingTopologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN) {
-            pipeline = planPipelineFactory.reservationPipeline(pendingTopologyInfo, changes, scope, journalFactory);
-        } else {
-            pipeline = planPipelineFactory.planOverLiveTopology(pendingTopologyInfo, changes, scope, journalFactory);
-        }
+        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline =
+                planPipelineFactory.planOverLiveTopology(pendingTopologyInfo, changes, scope, journalFactory);
         return planPipelineQueue.queuePipeline(pipeline::getTopologyInfo,
             () -> pipeline.run(entityStore));
     }
@@ -608,24 +595,24 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             } catch (TopologyPipelineException e) {
                 // If the pipeline fails with an internal error, we send a notification
                 // over Kafka.
-                sendFailureNotification(pipelineRequest.getTopologyInfo(), e.getMessage());
+                sendFailureNotification(pipelineRequest.getTopologyInfo(), e.getCause());
                 pipelineRequest.future.completeExceptionally(e);
             } catch (InterruptedException e) {
-                sendFailureNotification(pipelineRequest.getTopologyInfo(), "Topology pipeline interrupted");
+                sendFailureNotification(pipelineRequest.getTopologyInfo(), e);
                 pipelineRequest.future.completeExceptionally(e);
                 throw e;
             }
         }
 
         private void sendFailureNotification(@Nonnull final TopologyInfo topologyInfo,
-                                             String errorDescription) {
+                                             Throwable throwable) {
             logger.error("Failed to complete topology pipeline "
-                    + "(context: {}, topology: {}) due to error: {}",
-                topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), errorDescription);
+                    + "(context: {}, topology: {}) due to error: ",
+                topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), throwable);
             notificationSender.broadcastTopologySummary(TopologySummary.newBuilder()
                 .setTopologyInfo(topologyInfo)
                 .setFailure(TopologyBroadcastFailure.newBuilder()
-                    .setErrorDescription(errorDescription))
+                    .setErrorDescription(throwable.getMessage() == null ? "" : throwable.getMessage()))
                 .build());
         }
 
@@ -643,6 +630,11 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
                     return;
                 } catch (RuntimeException e) {
                     logger.error("Pipeline worker hit runtime exception. Continuing.", e);
+                } catch (OutOfMemoryError oome) {
+                    // we aren't looking to handle this error, just log it.
+                    logger.error("Pipeline worker {} received OutOfMemoryError. This pipeline runner task will terminate.",
+                            Thread.currentThread().getName(), oome);
+                    throw oome;
                 }
             }
         }

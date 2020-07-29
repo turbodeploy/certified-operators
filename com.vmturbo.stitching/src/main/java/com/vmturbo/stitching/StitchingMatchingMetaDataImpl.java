@@ -44,18 +44,7 @@ public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXT
                 .map(EntityPropertyName::getPropertyName)
                 .collect(Collectors.toList());
         patchedAttributesList = mergedEntityMetadata.getPatchedFieldsList().stream()
-                .map(entityField -> new DTOFieldSpec() {
-                    @Override
-                    public String getFieldName() {
-                        return entityField.getFieldName();
-                    }
-
-                    @Override
-                    public List<String> getMessagePath() {
-                        // path may be empty since the field may be in EntityDTO directly, no nested layers
-                        return entityField.getMessagePathList();
-                    }
-                })
+                .map(DTOFieldSpecImpl::new)
                 .collect(Collectors.toList());
     }
 
@@ -135,5 +124,13 @@ public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXT
             }
         }
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(
+                        "%s [mergedEntityMetadata=%s, entityType=%s, patchedPropertiesList=%s, patchedAttributesList=%s]",
+                        getClass().getSimpleName(), this.mergedEntityMetadata, this.entityType,
+                        this.patchedPropertiesList, this.patchedAttributesList);
     }
 }

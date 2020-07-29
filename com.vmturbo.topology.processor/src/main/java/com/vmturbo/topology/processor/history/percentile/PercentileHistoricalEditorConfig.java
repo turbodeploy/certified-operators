@@ -28,7 +28,7 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     /**
      * Default value how often to checkpoint observation window.
      */
-    public static int defaultMaintenanceWindowHours = 24;
+    public static final int DEFAULT_MAINTENANCE_WINDOW_HOURS = 24;
 
     private static final Logger logger = LogManager.getLogger();
     private static final Map<EntityType, EntitySettingSpecs> TYPE_AGGRESSIVENESS = ImmutableMap
@@ -59,6 +59,7 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     /**
      * Initialize the percentile configuration values.
      * @param calculationChunkSize chunk size for percentile calculation
+     * @param realtimeTopologyContextId identifier of the realtime topology.
      * @param maintenanceWindowHours how often to checkpoint cache to persistent store
      * @param grpcStreamTimeoutSec the timeout for history access streaming operations
      * @param blobReadWriteChunkSizeKb the size of chunks for reading and writing from persistent store
@@ -67,15 +68,16 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      * @param clock provides information about current time.
      */
     public PercentileHistoricalEditorConfig(int calculationChunkSize, int maintenanceWindowHours,
-                    int grpcStreamTimeoutSec, int blobReadWriteChunkSizeKb,
+                    long realtimeTopologyContextId, int grpcStreamTimeoutSec,
+                    int blobReadWriteChunkSizeKb,
                     @Nonnull Map<CommodityType, String> commType2Buckets,
                     @Nullable KVConfig kvConfig, @Nonnull Clock clock) {
-        super(0, calculationChunkSize, clock, kvConfig);
+        super(0, calculationChunkSize, realtimeTopologyContextId, clock, kvConfig);
         // maintenance window cannot exceed minimum observation window
         final int minMaxObservationPeriod = (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine
                         .getSettingSpec().getNumericSettingValueType().getMin();
         this.maintenanceWindowHours = Math
-                        .min(maintenanceWindowHours <= 0 ? defaultMaintenanceWindowHours
+                        .min(maintenanceWindowHours <= 0 ? DEFAULT_MAINTENANCE_WINDOW_HOURS
                                         : maintenanceWindowHours,
                              minMaxObservationPeriod * 24);
         this.grpcStreamTimeoutSec = grpcStreamTimeoutSec;
@@ -162,7 +164,7 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         .getNumericSettingValueType().getDefault();
     }
 
-    private static int getDefaultObservationPeriod() {
+    public static int getDefaultObservationPeriod() {
         return (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingSpec()
                         .getNumericSettingValueType().getDefault();
     }
@@ -186,5 +188,4 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
             getClass().getSimpleName(), defaultValue, description, oid);
         return defaultValue;
     }
-
 }

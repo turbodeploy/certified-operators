@@ -414,6 +414,19 @@ public class SettingStoreTest {
             settingStore.getSettingPolicy(dbConfig.getDslContext(), updatedSavedPolicy.getId());
         assertTrue(refetchedUpdatedSavedPolicy.isPresent());
         assertEquals(scheduleId2, refetchedUpdatedSavedPolicy.get().getInfo().getScheduleId());
+
+        updatedInfoWithSchedule = refetchedUpdatedSavedPolicy.get().getInfo().toBuilder()
+            .clearScheduleId().build();
+        updatedPolicy = policy.toBuilder().setInfo(updatedInfoWithSchedule).build();
+        updatedSavedPolicy = settingStore.updateSettingPolicy(savedPolicy.get().getId(),
+            updatedInfoWithSchedule).getFirst();
+        assertEquals(updatedPolicy, updatedSavedPolicy);
+        assertFalse(updatedSavedPolicy.getInfo().hasScheduleId());
+        refetchedUpdatedSavedPolicy =
+            settingStore.getSettingPolicy(dbConfig.getDslContext(), updatedSavedPolicy.getId());
+        assertTrue(refetchedUpdatedSavedPolicy.isPresent());
+        assertFalse(refetchedUpdatedSavedPolicy.get().getInfo().hasScheduleId());
+
     }
 
     /**

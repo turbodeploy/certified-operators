@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.common.health.MessageProducerHealthMonitor;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.GlobalConfig;
@@ -48,7 +49,7 @@ public class TopologyProcessorApiConfig {
     public ExecutorService apiServerThreadPool() {
         final ThreadFactory threadFactory =
                 new ThreadFactoryBuilder().setNameFormat("tp-api-srv-%d").build();
-        return Executors.newCachedThreadPool(threadFactory);
+        return Tracing.traceAwareExecutor(Executors.newCachedThreadPool(threadFactory));
     }
 
     @Bean

@@ -77,10 +77,12 @@ public class ReservationsService implements IReservationsService {
     }
 
     @Override
-    public DemandReservationApiDTO getReservationByID(String reservationID) throws Exception {
+    public DemandReservationApiDTO getReservationByID(@Nonnull String reservationID,
+                                                      @Nonnull  Boolean apiCallBlock) throws Exception {
         try {
             final GetReservationByIdRequest request = GetReservationByIdRequest.newBuilder()
                     .setReservationId(Long.valueOf(reservationID))
+                    .setApiCallBlock(apiCallBlock)
                     .build();
             final Reservation reservation =
                     reservationService.getReservationById(request);
@@ -104,6 +106,7 @@ public class ReservationsService implements IReservationsService {
             case PLACEMENT:
                 return new DemandReservationApiDTO();
             case RESERVATION:
+                logger.info("Received Reservation: " + demandApiInputDTO.getDemandName());
                 validatePlacementCount(demandApiInputDTO);
                 final Reservation reservation = reservationMapper.convertToReservation(demandApiInputDTO);
                 final CreateReservationRequest request = CreateReservationRequest.newBuilder()

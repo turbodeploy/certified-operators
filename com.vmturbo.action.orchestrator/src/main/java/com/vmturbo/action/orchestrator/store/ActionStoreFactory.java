@@ -14,6 +14,7 @@ import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -70,6 +71,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final IdentityService<ActionInfo> actionIdentityService;
     private final ActionAuditSender externalAuditEventSender;
+    private final ActionTopologyStore actionTopologyStore;
 
     private final boolean riskPropagationEnabled;
 
@@ -83,6 +85,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.realtimeTopologyContextId = builder.realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(builder.databaseDslContext);
         this.actionHistoryDao = builder.actionHistoryDao;
+        actionTopologyStore = builder.actionTopologyStore;
         this.actionTargetSelector = builder.actionTargetSelector;
         this.entitySettingsCache = Objects.requireNonNull(builder.entitySettingsCache);
         this.actionsStatistician = Objects.requireNonNull(builder.actionsStatistician);
@@ -111,7 +114,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
     @Override
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
-            return new LiveActionStore(actionFactory, topologyContextId, repositoryService,
+            return new LiveActionStore(actionFactory, topologyContextId, actionTopologyStore,
                     actionTargetSelector, probeCapabilityCache, entitySettingsCache,
                     actionHistoryDao, actionsStatistician, actionTranslator, atomicActionFactory,
                     clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
@@ -119,7 +122,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
                     externalAuditEventSender, riskPropagationEnabled);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
-                supplyChainService, repositoryService,
                 entitySettingsCache, actionTranslator, realtimeTopologyContextId, actionTargetSelector,
                     licenseCheckClient);
         }
@@ -159,6 +161,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private UserSessionContext userSessionContext;
         private SupplyChainServiceBlockingStub supplyChainService;
         private RepositoryServiceBlockingStub repositoryService;
+        private ActionTopologyStore actionTopologyStore;
         private LicenseCheckClient licenseCheckClient;
         private AcceptedActionsDAO acceptedActionsDAO;
         private RejectedActionsDAO rejectedActionsDAO;
@@ -178,6 +181,17 @@ public class ActionStoreFactory implements IActionStoreFactory {
          */
         public Builder withActionFactory(@Nonnull IActionFactory actionFactory) {
             this.actionFactory = actionFactory;
+            return this;
+        }
+
+        /**
+         * Set the {@link ActionTopologyStore}.
+         *
+         * @param actionTopologyStore The {@link ActionTopologyStore}.
+         * @return The builder for method chaining.
+         */
+        public Builder withTopologyStore(@Nonnull ActionTopologyStore actionTopologyStore) {
+            this.actionTopologyStore = actionTopologyStore;
             return this;
         }
 

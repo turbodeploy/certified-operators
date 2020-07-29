@@ -1,29 +1,25 @@
 package com.vmturbo.extractor.util;
 
-import static org.mockito.AdditionalAnswers.delegatesTo;
-import static org.mockito.Mockito.mock;
-
 import java.io.IOException;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import io.grpc.ManagedChannel;
-import io.grpc.inprocess.InProcessChannelBuilder;
-import io.grpc.inprocess.InProcessServerBuilder;
-import io.grpc.stub.StreamObserver;
-import io.grpc.testing.GrpcCleanupRule;
-
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.models.ModelDefinitions;
+import com.vmturbo.extractor.topology.DataProvider;
+import com.vmturbo.extractor.topology.EntityMetricWriter;
+import com.vmturbo.extractor.topology.ITopologyWriter;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Utility class with stuff that's used both topology and model tests.
@@ -44,44 +40,76 @@ public class ExtractorTestUtil {
             .insertTimeoutSeconds(60)
             .lastSeenAdditionalFuzzMinutes(10)
             .lastSeenUpdateIntervalMinutes(20)
+            .unaggregatedCommodities(ModelDefinitions.UNAGGREGATED_KEYED_COMMODITY_TYPES)
             .build();
 
-    // TODO look into moles and use it instead of this
     /**
-     * Set up an in-process group service for use in tests.
-     *
-     * <p>This is a work in progress... it will have a parameter (or parameters) to specify
-     * the grouping structures that it should use in building service response, in some simple form
-     * like a Map&lt;Long, Collection&lt;Long&gt;&gt; linking group ids to member entity ids.</p>
-     *
-     * @param grpcCleanup a {@link GrpcCleanupRule} that will manage setup and teardown fo the grpc
-     *                    resources
-     * @return the client endpoint for the service
-     * @throws IOException if there's a problem
+     * Utility to run some entities through an an {@link ITopologyWriter}.
      */
-    public static GroupServiceBlockingStub groupService(GrpcCleanupRule grpcCleanup) throws IOException {
-        GroupServiceImplBase serviceImpl = mock(GroupServiceImplBase.class, delegatesTo(
-                new GroupServiceImplBase() {
-                    @Override
-                    public void getGroups(final GetGroupsRequest request, final StreamObserver<Grouping> responseObserver) {
-                        responseObserver.onNext(Grouping.newBuilder()
-                                .setDefinition(GroupDefinition.newBuilder()
-                                        .setDisplayName("myGroup").build())
-                                .build());
-                        responseObserver.onCompleted();
-                    }
+    public static class EntitiesProcessor {
+        private final ITopologyWriter writer;
+        private final TopologyInfo info;
+        private final WriterConfig config;
+        List<TopologyEntityDTO> entities = new ArrayList<>();
 
-                    @Override
-                    public void getMembers(final GetMembersRequest request, final StreamObserver<GetMembersResponse> responseObserver) {
-                        super.getMembers(request, responseObserver);
-                    }
-                }
-        ));
-        String serverName = InProcessServerBuilder.generateName();
-        grpcCleanup.register(InProcessServerBuilder.forName(serverName).directExecutor()
-                .addService(serviceImpl).build().start());
-        ManagedChannel channel = grpcCleanup.register(InProcessChannelBuilder.forName(serverName)
-                .directExecutor().build());
-        return GroupServiceGrpc.newBlockingStub(channel);
+        private EntitiesProcessor(ITopologyWriter writer, TopologyInfo info, WriterConfig config) {
+            this.writer = writer;
+            this.info = info;
+            this.config = config;
+        }
+
+        /**
+         * Create a new processor instance.
+         *
+         * @param writer writer to recieve entities
+         * @param info   topology info
+         * @param config writer config
+         * @return this entities processor
+         */
+        public static EntitiesProcessor of(
+                final EntityMetricWriter writer, final TopologyInfo info, final WriterConfig config) {
+            return new EntitiesProcessor(writer, info, config);
+        }
+
+        /**
+         * Add one or more entities to the list of entities to be processed.
+         *
+         * @param entities entities to process
+         * @return this entities processor
+         */
+        public EntitiesProcessor process(TopologyEntityDTO... entities) {
+            Arrays.stream(entities).forEach(this.entities::add);
+            return this;
+        }
+
+        /**
+         * Add a collection of entities to the list of entities to be processed.
+         *
+         * @param entities entities to process
+         * @return this entities processor
+         */
+        public EntitiesProcessor process(Collection<TopologyEntityDTO> entities) {
+            this.entities.addAll(entities);
+            return this;
+        }
+
+        /**
+         * Send all the supplied entities through the writer, and then invoke finish processing.
+         *
+         * @param dataProvider data provider instance
+         * @return number of entities processed
+         * @throws UnsupportedDialectException if db endpoint is malformed
+         * @throws SQLException                if there's an SQL exection
+         * @throws IOException                 if there's an IO problem
+         * @throws InterruptedException        if interrupted
+         */
+        public int finish(DataProvider dataProvider)
+                throws UnsupportedDialectException, SQLException, IOException, InterruptedException {
+            final Consumer<TopologyEntityDTO> consumer =
+                    writer.startTopology(info, config, new MultiStageTimer(null));
+            entities.stream().forEach(consumer);
+            return writer.finish(dataProvider);
+        }
     }
+
 }

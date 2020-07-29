@@ -1,8 +1,19 @@
 package com.vmturbo.extractor.util;
 
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CAPACITY;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CONSUMED;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CURRENT;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_KEY;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PROVIDER;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
+import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
+import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -10,12 +21,17 @@ import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+
+import org.apache.commons.lang3.tuple.Pair;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.Table;
 import com.vmturbo.extractor.models.Table.Record;
+import com.vmturbo.extractor.schema.enums.MetricType;
 
 /**
  * Utility class for use in tests involving {@link Record} class.
@@ -73,6 +89,41 @@ public class RecordTestUtil {
     }
 
     /**
+     * Create a new metric record from column values.
+     *
+     * @param time         time value
+     * @param oid          entity oid value
+     * @param hash         entity hash value
+     * @param type         commodity type value
+     * @param commodityKey commodity key value
+     * @param current      current used value (sold commodity metric)
+     * @param capacity     current capacity value (sold commodity metric)
+     * @param utilization  current utilization value (sold commodity metric)
+     * @param consumed     current consumed value (bought commodity metric)
+     * @param provider     providing entity (bought commodity metric)
+     * @return a map representing the record data
+     */
+    public static Map<String, Object> createMetricRecordMap(
+            final OffsetDateTime time, final long oid, final Long hash, final MetricType type,
+            final String commodityKey, final Double current, final Double capacity, final Double utilization,
+            final Double consumed, final Long provider) {
+        return ImmutableList.<Pair<String, Object>>of(
+                Pair.of(TIME.getName(), time),
+                Pair.of(ENTITY_OID.getName(), oid),
+                Pair.of(ENTITY_HASH.getName(), hash),
+                Pair.of(COMMODITY_TYPE.getName(), type),
+                Pair.of(COMMODITY_KEY.getName(), commodityKey),
+                Pair.of(COMMODITY_CURRENT.getName(), current),
+                Pair.of(COMMODITY_CAPACITY.getName(), capacity),
+                Pair.of(COMMODITY_UTILIZATION.getName(), utilization),
+                Pair.of(COMMODITY_CONSUMED.getName(), consumed),
+                Pair.of(COMMODITY_PROVIDER.getName(), provider))
+                .stream()
+                .filter(pair -> pair.getRight() != null)
+                .collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
+    }
+
+    /**
      * Matcher to compare a record with an expected record.
      *
      * <p>Null-valued entries are not considered, and otherwise the match is based on
@@ -84,26 +135,34 @@ public class RecordTestUtil {
     public static class MapMatchesLaxly<K, V> extends BaseMatcher<Map<K, V>> {
 
         private final Map<?, ?> expected;
+        private final ImmutableSet<K> wild;
 
         /**
          * Create a new matcher instance.
          *
          * @param expected expected record value
+         * @param wild     list of keys to allow in actual map, even if missing in expected
          * @param <K>      key type
          * @param <V>      value type
          * @return new matcher
          */
-        public static <K, V> MapMatchesLaxly<K, V> mapMatchesLaxly(Map<K, V> expected) {
-            return new MapMatchesLaxly<>(expected);
+        public static <K, V> MapMatchesLaxly<K, V> mapMatchesLaxly(Map<K, V> expected, K... wild) {
+            return new MapMatchesLaxly<>(expected, wild);
         }
 
-        MapMatchesLaxly(Map<?, ?> expected) {
+        MapMatchesLaxly(Map<?, ?> expected, K... wild) {
             this.expected = stripNullValues(expected);
+            this.wild = ImmutableSet.<K>builder().add(wild).build();
         }
 
         @Override
         public boolean matches(final Object item) {
-            return item instanceof Map && expected.equals(stripNullValues((Map<?, ?>)item));
+            boolean matches = item instanceof Map && expected.equals(stripWild(stripNullValues((Map<?, ?>)item)));
+            if (!matches) {
+                return matches;
+            } else {
+                return matches;
+            }
         }
 
         @Override
@@ -117,6 +176,12 @@ public class RecordTestUtil {
         private Map<?, ?> stripNullValues(Map<?, ?> map) {
             return map.entrySet().stream()
                     .filter(e -> e.getValue() != null)
+                    .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+        }
+
+        private Map<?, ?> stripWild(Map<?, ?> map) {
+            return map.entrySet().stream()
+                    .filter(e -> !wild.contains(e.getKey()))
                     .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
         }
     }

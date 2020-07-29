@@ -158,42 +158,12 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     private final int systemLoadRecordsPerChunk;
 
-
-    /**
-     * Cluster stats property types written from cluster headroom plan results.
-     */
-    public static final Set<String> HEADROOM_STATS = ImmutableSet.of(
-            StringConstants.CPU_HEADROOM,
-            StringConstants.MEM_HEADROOM,
-            StringConstants.STORAGE_HEADROOM,
-            StringConstants.TOTAL_HEADROOM,
-            StringConstants.CPU_EXHAUSTION,
-            StringConstants.MEM_EXHAUSTION,
-            StringConstants.STORAGE_EXHAUSTION,
-            StringConstants.VM_GROWTH,
-            StringConstants.HEADROOM_VMS,
-            StringConstants.NUM_STORAGES,
-            StringConstants.VM_GROWTH);
-
-    // Cluster stats property types written during live topology ingestion
-    protected static final Set<String> CLUSTER_ROLLUP_STATS = ImmutableSet.of(
-            StringConstants.MEM,
-            StringConstants.CPU,
-            StringConstants.NUM_SOCKETS,
-            StringConstants.NUM_CPUS,
-            StringConstants.NUM_VMS,
-            StringConstants.NUM_HOSTS,
-            StringConstants.HOST);
-
     // Cluster commodities for which to create projected headroom.
     private static final Set<String> CLUSTER_COMMODITY_STATS = ImmutableSet.of(
         StringConstants.CPU_HEADROOM,
         StringConstants.MEM_HEADROOM,
         StringConstants.STORAGE_HEADROOM,
         StringConstants.TOTAL_HEADROOM);
-
-    // all cluster stats
-    protected static final Set<String> CLUSTER_STATS = Sets.union(HEADROOM_STATS, CLUSTER_ROLLUP_STATS);
 
     private static final Summary GET_STATS_SNAPSHOT_DURATION_SUMMARY = Summary.build()
         .name("history_get_stats_snapshot_duration_seconds")

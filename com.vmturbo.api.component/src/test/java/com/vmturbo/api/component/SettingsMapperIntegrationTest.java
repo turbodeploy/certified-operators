@@ -52,7 +52,8 @@ public class SettingsMapperIntegrationTest {
     // Set of settings that are intentionally hidden from the UI
     private final Set<String> invisibleSettings = ImmutableSet.of(
         EntitySettingSpecs.ScalingGroupMembership.getSettingName(),
-        EntitySettingSpecs.VCPURequestUtilization.getSettingName());
+        EntitySettingSpecs.VCPURequestUtilization.getSettingName(),
+        EntitySettingSpecs.ResizeTargetUtilizationIops.getSettingName());
 
     /**
      * Test ensures, that all the settings from group component are seen in the UI through the
@@ -106,8 +107,16 @@ public class SettingsMapperIntegrationTest {
             .map(SettingSpec::getName)
             .collect(Collectors.toSet()));
 
-        // remainingGcCapacityUtilization is purposely an invisible setting
-        enumSettingsNames.remove("remainingGcCapacityUtilization");
+        // remainingGcCapacityUtilization and dbCacheHitRateUtilization
+        // are purposely an invisible settings
+        Assert.assertTrue(enumSettingsNames.remove("remainingGcCapacityUtilization"));
+        Assert.assertTrue(enumSettingsNames.remove("dbCacheHitRateUtilization"));
+
+        // old SLO settings are deprecated - remove them
+        Assert.assertTrue(enumSettingsNames.remove("responseTimeCapacity"));
+        Assert.assertTrue(enumSettingsNames.remove("autoSetResponseTimeCapacity"));
+        Assert.assertTrue(enumSettingsNames.remove("transactionsCapacity"));
+        Assert.assertTrue(enumSettingsNames.remove("autoSetTransactionsCapacity"));
 
         Assert.assertEquals(testError(enumSettingsNames, visibleSettings), enumSettingsNames, visibleSettings);
 

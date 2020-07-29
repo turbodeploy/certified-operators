@@ -197,7 +197,7 @@ public class ReservationValidatorTest {
             .build();
         doReturn(Collections.singletonList(PolicyResponse.newBuilder()
             .setPolicy(policy)
-            .build())).when(policyBackend).getAllPolicies(any());
+            .build())).when(policyBackend).getPolicies(any());
 
         Reservation validPolicy = makeReservation(Type.POLICY, policyId);
         final ValidationErrors errors = reservationValidator.validateReservations(Stream.of(validPolicy), e -> false);

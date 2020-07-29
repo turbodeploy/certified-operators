@@ -135,7 +135,6 @@ public class PlanActionStoreTest {
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
         actionStore = new PlanActionStore(spyActionFactory, dsl, firstContextId,
-            null, null,
             entitiesSnapshotFactory, actionTranslator, realtimeId,
             actionTargetSelector, licenseCheckClient);
 
@@ -408,7 +407,6 @@ public class PlanActionStoreTest {
         // Setup second planActionStore. This has 9 Buy RI Actions
         final ActionPlan buyRIActionPlan2 = buyRIActionPlan(3L, secondContextId, actionList(9));
         PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId,
-            null, null,
             entitiesSnapshotFactory, actionTranslator, realtimeId,
             actionTargetSelector, licenseCheckClient);
         actionStore2.populateRecommendedActions(buyRIActionPlan2);

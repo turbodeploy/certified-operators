@@ -9,9 +9,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -143,11 +145,9 @@ public class DbEndpointTestRule implements TestRule {
                 logger.info("Dropping database & user for {}", endpoint);
                 endpoint.getAdapter().dropDatabase();
                 endpoint.getAdapter().dropUser();
+                endpoint.getAdapter().dropReadersGroupUser();
             }
         }
-        // don't allow this rule's configurations to leak into other test classes involving
-        // the same endpoints
-        DbEndpoint.resetAll();
     }
 
     @Override
@@ -188,22 +188,29 @@ public class DbEndpointTestRule implements TestRule {
      * @throws SQLException                if there's a problem with provisioning
      */
     public void addEndpoints(final DbEndpoint... endpoints) throws InterruptedException, UnsupportedDialectException, SQLException {
+        List<DbEndpointCompleter> completers = new ArrayList<>();
         for (DbEndpoint endpoint : endpoints) {
             if (!endpoint.isReady()) {
                 try {
                     setOverridesForEndpoint(endpoint, provisioningSuffix);
+                    completers.add(endpoint.getEndpointCompleter());
                 } catch (UnsupportedDialectException e) {
                     logger.error("Failed to set properties for endpoint {}; testing is likely to fail",
                             endpoint, e);
                 }
             }
         }
-        DbEndpointCompleter.get().setResolver(propertySettings::get, mockPasswordUtil(), false);
+
+        completers.forEach(endpointCompleter -> {
+            endpointCompleter.setResolver(propertySettings::get, mockPasswordUtil());
+            endpointCompleter.onServerStarted(null);
+        });
+
         for (final DbEndpoint endpoint : endpoints) {
             if (!endpoint.isReady()) {
                 try {
                     logger.info("Completing endpoint {}", endpoint);
-                    DbEndpointCompleter.get().completePendingEndpoint(endpoint);
+                    endpoint.getEndpointCompleter().completePendingEndpoint(endpoint);
                 } catch (Exception e) {
                     logger.warn("Endpoint {} initialization failed; entering retry loop", endpoint, e);
                 }

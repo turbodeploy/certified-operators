@@ -1,5 +1,6 @@
 package com.vmturbo.stitching;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -337,6 +338,15 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *         false otherwise.
      */
     boolean hasMergeInformation();
+
+    /**
+     * Returns property values for specified property name.
+     *
+     * @param name name of the property which values required to get.
+     * @return property values for specified property name.
+     */
+    @Nonnull
+    Collection<String> getPropertyValues(@Nonnull String name);
 
     /**
      * Indicates an entity that only exists to push data and/or relationships in stitching.  This

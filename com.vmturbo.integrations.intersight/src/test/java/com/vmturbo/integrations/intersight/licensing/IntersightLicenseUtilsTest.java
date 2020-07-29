@@ -8,7 +8,9 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import com.cisco.intersight.client.model.LicenseLicenseInfo;
 import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseStateEnum;
@@ -195,10 +197,10 @@ public class IntersightLicenseUtilsTest {
 
         List<LicenseLicenseInfo> licenses = Arrays.asList(advantage, premier, essential);
         licenses.sort(new BestAvailableIntersightLicenseComparator());
-        // they should be in order of worst -> best editions
-        assertEquals("1", licenses.get(0).getMoid());
+        // they should be in order of best -> worst editions
+        assertEquals("3", licenses.get(0).getMoid());
         assertEquals("2", licenses.get(1).getMoid());
-        assertEquals("3", licenses.get(2).getMoid());
+        assertEquals("1", licenses.get(2).getMoid());
     }
 
     /**
@@ -214,9 +216,9 @@ public class IntersightLicenseUtilsTest {
         List<LicenseLicenseInfo> licenses = Arrays.asList(activePremier, activeEssential, inactivePremier);
         licenses.sort(new BestAvailableIntersightLicenseComparator());
         // they should be in order of: inactive premier, active essential, active premier
-        assertEquals("1", licenses.get(0).getMoid());
+        assertEquals("2", licenses.get(0).getMoid());
         assertEquals("3", licenses.get(1).getMoid());
-        assertEquals("2", licenses.get(2).getMoid());
+        assertEquals("1", licenses.get(2).getMoid());
     }
 
     /**
@@ -239,4 +241,28 @@ public class IntersightLicenseUtilsTest {
         assertEquals("3", licenses.get(2).getMoid());
     }
 
+    /**
+     * Verify that IntersightLicenseUtils.pickBestAvailableLicense() will pick the best license when
+     * multiple choices are given.
+     */
+    @Test
+    public void testPickBestAvailableLicense() {
+        LicenseLicenseInfo inactivePremier = createIwoLicense("1", LicenseTypeEnum.PREMIER, LicenseStateEnum.GRACEEXPIRED);
+        LicenseLicenseInfo activePremier = createIwoLicense("2", LicenseTypeEnum.PREMIER, LicenseStateEnum.COMPLIANCE);
+        LicenseLicenseInfo activeEssential = createIwoLicense("3", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.COMPLIANCE);
+
+        List<LicenseLicenseInfo> licenses = Arrays.asList(activePremier, activeEssential, inactivePremier);
+        Optional<LicenseLicenseInfo> optionalBestAvailable = IntersightLicenseUtils.pickBestAvailableLicense(licenses);
+        assertTrue(optionalBestAvailable.isPresent());
+        assertEquals(activePremier, optionalBestAvailable.get());
+    }
+
+    /**
+     * Validate that pickBestAvailableLicense will return an empty optional when there are no
+     * licenses to choose from.
+     */
+    @Test
+    public void testPickBestAvailableLicenseNoLicenses() {
+        assertEquals(Optional.empty(), IntersightLicenseUtils.pickBestAvailableLicense(Collections.emptyList()));
+    }
 }

@@ -699,6 +699,28 @@ services:
       instance_id: mediation-mssql-1
     restart: always
 
+  mediation-mysql-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.database.mysql.component
+    environment:
+      consul_host: consul
+      component_type: mediation-mysql
+      instance_id: mediation-mysql-1
+    restart: always
+
+  mediation-tomcat-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.tomcat.component
+    environment:
+      consul_host: consul
+      component_type: mediation-tomcat
+      instance_id: mediation-tomcat-1
+    restart: always
+
   mediation-actionscript-prod:
     extends:
       file: common-services.yml

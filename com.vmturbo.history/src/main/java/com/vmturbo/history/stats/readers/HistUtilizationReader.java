@@ -73,7 +73,7 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
                     @Nonnull Map<Integer, Collection<Integer>> propertyTypeToUtilizationTypes)
                     throws VmtDbException {
         try (Connection connection = historydbIO.transConnection();
-             DSLContext context = DSL.using(connection)) {
+             DSLContext context = historydbIO.using(connection)) {
             final Condition condition =
                             getPropertyToUtilizationTypeConditions(propertyTypeToUtilizationTypes);
             final List<HistUtilizationRecord> result = getChunkedEntityIds(entityIds).stream()

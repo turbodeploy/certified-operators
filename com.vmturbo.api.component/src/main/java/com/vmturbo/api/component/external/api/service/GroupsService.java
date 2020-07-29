@@ -154,9 +154,6 @@ public class GroupsService implements IGroupsService {
         EntityType.VIRTUAL_DATACENTER_VALUE, ImmutableList.of(ApiEntityType.VIRTUAL_DATACENTER.apiStr())
     );
 
-    private static final Collection<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableList.of(
-            "GROUP-VirtualMachine", "GROUP-PhysicalMachineByCluster", "Market");
-
     public static final Set<String> NESTED_GROUP_TYPES =
         ImmutableSet.of(StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER,
                 StringConstants.VIRTUAL_MACHINE_CLUSTER);
@@ -824,6 +821,7 @@ public class GroupsService implements IGroupsService {
         GetEntitySettingPoliciesRequest request =
             GetEntitySettingPoliciesRequest.newBuilder()
                 .addAllEntityOidList(members)
+                .setIncludeInactive(true)
                 .build();
         GetEntitySettingPoliciesResponse response =
             settingPolicyServiceBlockingStub.getEntitySettingPolicies(request);

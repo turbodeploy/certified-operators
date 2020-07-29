@@ -151,18 +151,10 @@ dependencies:
     condition: datacloud.enabled
 
 # Tracing dependencies
-  - name: jaeger
-    repository: file://../base/jaeger
-    version: 0.13.0
-    condition: jaeger.enabled
-  - name: cassandra
-    version: ^0.13.1
-    repository: file://../base/cassandra
-    condition: jaeger.enabled, jaeger.provisionDataStore.cassandra
-#  - name: elasticsearch
-#    version: ^1.24.1
-#    repository: file://../base/elasticsearch
-#    condition: jaeger.enabled, jaeger.provisionDataStore.elasticsearch
+  - name: jaeger-operator
+    repository: file://../base/jaeger-operator
+    version: 2.15.1
+    condition: jaeger-operator.enabled
 
 # Integration dependencies
   - name: intersight-integration
@@ -311,6 +303,14 @@ dependencies:
     repository: file://../probes/mediation-mssql
     version: 0.1.0
     condition: mssql.enabled
+  - name: mediation-mysql
+    repository: file://../probes/mediation-mysql
+    version: 0.1.0
+    condition: mysql.enabled
+  - name: mediation-tomcat
+    repository: file://../probes/mediation-tomcat
+    version: 0.1.0
+    condition: tomcat.enabled
   - name: mediation-oneview
     repository: file://../probes/mediation-oneview
     version: 0.1.0

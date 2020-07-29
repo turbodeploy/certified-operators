@@ -12,11 +12,14 @@ import java.util.Collections;
 
 import com.google.common.collect.Sets;
 
+import io.opentracing.SpanContext;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -97,7 +100,8 @@ public class TopologyEntitiesListenerTest {
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyManager,
                 liveTopologyStore,
-                notificationSender);
+                notificationSender,
+                e -> true);
 
         // Simulates three DTOs with two chunks received by the listener.
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
@@ -119,7 +123,7 @@ public class TopologyEntitiesListenerTest {
             .setCreationTime(creationTime)
             .build();
 
-        topologyEntitiesListener.onTopologyNotification(info, entityIterator);
+        topologyEntitiesListener.onTopologyNotification(info, entityIterator, Mockito.mock(SpanContext.class));
 
         verify(topologyManager).newSourceTopologyCreator(tid, info);
         verify(topologyCreator).complete();
@@ -149,7 +153,7 @@ public class TopologyEntitiesListenerTest {
             .setTopologyId(topologyId)
             .build();
 
-        topologyEntitiesListener.onTopologyNotification(info, entityIterator);
+        topologyEntitiesListener.onTopologyNotification(info, entityIterator, Mockito.mock(SpanContext.class));
 
         verify(topologyManager, never()).newSourceTopologyCreator(tid, info);
         verify(topologyCreator, never()).complete();
@@ -164,7 +168,7 @@ public class TopologyEntitiesListenerTest {
         TopologyInfo tInfo = TopologyInfo.newBuilder()
             .setTopologyId(1)
             .build();
-        final SourceRealtimeTopologyBuilder bldr = liveTopologyStore.newRealtimeTopology(tInfo);
+        final SourceRealtimeTopologyBuilder bldr = liveTopologyStore.newRealtimeSourceTopology(tInfo);
         bldr.addEntities(Collections.singletonList(host));
         bldr.finish();
         // Host goes into maintenance, with associated id = 1
@@ -183,7 +187,7 @@ public class TopologyEntitiesListenerTest {
             .setTopologyId(3)
             .build();
         // New topology gets ingested, with a new state for the host
-        final SourceRealtimeTopologyBuilder bldr1 = liveTopologyStore.newRealtimeTopology(tInfo1);
+        final SourceRealtimeTopologyBuilder bldr1 = liveTopologyStore.newRealtimeSourceTopology(tInfo1);
         bldr1.addEntities(Collections.singletonList(host));
         bldr1.finish();
         // Make sure the host state is no longer updated with maintenance, but it has the new

@@ -24,6 +24,9 @@ import org.springframework.web.context.request.async.TimeoutCallableProcessingIn
 import org.springframework.web.servlet.config.annotation.AsyncSupportConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
 import com.vmturbo.topology.processor.ClockConfig;
@@ -80,6 +83,9 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
     @Autowired
     private TopologyProcessorDiagnosticsConfig diagnosticsConfig;
 
+    @Autowired
+    private ActionOrchestratorClientConfig aoClientConfig;
+
     /**
      * Maximum amount of time to wait for async REST requests. This comes into use when requesting the stitching
      * journal for very large topologies. This can take a good deal of time for very large topologies.
@@ -118,8 +124,21 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
                 targetConfig.targetStore(),
                 probeConfig.probeStore(),
                 operationConfig.operationManager(),
-                topologyConfig.topologyHandler()
+                topologyConfig.topologyHandler(),
+                groupConfig.settingPolicyServiceClient(),
+                workflowRpcService()
         );
+    }
+
+    /**
+     * Creates a new WorkflowServiceBlockingStub which can be used to interact with workflow
+     * rpc service in AO.
+     *
+     * @return a new SettingPolicyServiceBlockingStub
+     */
+    @Bean
+    public WorkflowServiceBlockingStub workflowRpcService() {
+        return WorkflowServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
 
     @Bean

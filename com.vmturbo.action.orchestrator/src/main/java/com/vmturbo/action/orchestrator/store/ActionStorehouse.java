@@ -22,8 +22,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
-import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -132,7 +132,7 @@ public class ActionStorehouse {
             logger.debug("Store type {} does not allow execution -- will not check for automated actions.", store.getStoreTypeName());
         }
         // severity cache must be refreshed after actions change (see EntitySeverityCache javadoc)
-        store.getEntitySeverityCache().refresh(store);
+        store.getEntitySeverityCache().ifPresent(cache -> cache.refresh(store));
 
         return store;
     }
@@ -169,7 +169,7 @@ public class ActionStorehouse {
         final ActionStore store = storehouse.get(topologyContextId);
         return store == null ?
             Optional.empty() :
-            Optional.of(store.getEntitySeverityCache());
+            store.getEntitySeverityCache();
     }
 
     /**

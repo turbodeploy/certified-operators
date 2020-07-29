@@ -4,6 +4,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -13,11 +14,14 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -87,7 +91,7 @@ public class ActionApprovalManagerTest {
 
         when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(actionTargetInfo);
 
-        when(actionStore.getEntitySeverityCache()).thenReturn(entitySeverityCache);
+        when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(entitySeverityCache));
 
         when(actionTranslator.translateToSpec(any())).thenReturn(ActionSpec.newBuilder()
             .buildPartial());
@@ -137,6 +141,35 @@ public class ActionApprovalManagerTest {
         Assert.assertThat(acceptActionResponse.getError(), Matchers.containsString(
                 "Only action with READY state can be accepted. Action " + ACTION_ID + " has "
                         + ActionState.IN_PROGRESS + " state."));
+    }
+
+    /**
+     * Test postpone action execution for accepted action when execution window is not
+     * active.
+     */
+    @Test
+    public void testPostponeExecutionForExternalApprovedAction() {
+        final ActionSchedule actionSchedule = Mockito.spy(
+                new ActionSchedule(1L, 2L, "America/Chicago", 12L, "testSchedule",
+                        ActionMode.MANUAL, "admin"));
+        // isActiveSchedule() return status of action schedule updated during previous
+        // broadcast, so it is not related to real time and can be different from isActiveScheduleNow()
+        Mockito.when(actionSchedule.isActiveSchedule()).thenReturn(true);
+        Mockito.when(actionSchedule.isActiveScheduleNow()).thenReturn(false);
+
+        final Action action = Mockito.spy(
+                new MockedAction(ActionDTO.Action.newBuilder().setId(ACTION_ID).buildPartial(),
+                        ACTION_PLAN_ID, ACTION_RECOMMENDATION_OID));
+        Mockito.when(action.getSchedule()).thenReturn(Optional.of(actionSchedule));
+        Mockito.when(action.getAssociatedSettingsPolicies())
+                .thenReturn(Collections.singletonList(224L));
+        action.getActionTranslation()
+                .setTranslationSuccess(ActionDTO.Action.newBuilder().buildPartial());
+        when(actionStore.getAction(ACTION_ID)).thenReturn(Optional.of(action));
+
+        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
+        Mockito.verify(action, Mockito.never()).receive(Mockito.eq(new QueuedEvent()));
+        Assert.assertEquals(ActionState.ACCEPTED, action.getState());
     }
 
     /**

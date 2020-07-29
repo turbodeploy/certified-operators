@@ -117,8 +117,8 @@ public class ActionApprovalManager {
         final AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
                 userNameAndUuid);
         if (!action.isReady()) {
-            store.getEntitySeverityCache()
-                    .refresh(action.getTranslationResultOrOriginal(), store);
+            store.getEntitySeverityCache().ifPresent(severityCache ->
+                severityCache.refresh(action.getTranslationResultOrOriginal(), store));
         }
         AuditLog.newEntry(AuditAction.EXECUTE_ACTION, action.getDescription(), true)
                 .targetName(String.valueOf(action.getId()))
@@ -167,7 +167,7 @@ public class ActionApprovalManager {
             return acceptanceError("Unauthorized to accept action in mode " + action.getMode());
         }
 
-        if (action.getSchedule().isPresent() && !action.getSchedule().get().isActiveSchedule()) {
+        if (action.getSchedule().isPresent() && !action.getSchedule().get().isActiveScheduleNow()) {
             // postpone action execution, because action has related execution window
             return AcceptActionResponse.newBuilder()
                     .setActionSpec(actionTranslator.translateToSpec(action))

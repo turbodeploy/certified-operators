@@ -8,15 +8,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.grpc.stub.StreamObserver;
-
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
+import io.grpc.stub.StreamObserver;
+
 import org.jooq.DSLContext;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -33,7 +37,6 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICovera
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
@@ -58,7 +61,7 @@ public class RIAndExpenseUploadRpcServiceTest {
     @Rule
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    private final DSLContext dsl = dbConfig.getDslContext();
 
     private final AccountExpensesStore accountExpensesStore =
             mock(AccountExpensesStore.class);
@@ -92,16 +95,13 @@ public class RIAndExpenseUploadRpcServiceTest {
 
     /**
      * Set up before a test.
-     * @throws CommunicationException a communication exception.
      */
     @Before
-    public void setup() throws CommunicationException {
-
+    public void setup() {
         MockitoAnnotations.initMocks(this);
-
-        riAndExpenseUploadRpcService = new RIAndExpenseUploadRpcService(
-                dsl, accountExpensesStore, reservedInstanceSpecStore,
-                reservedInstanceBoughtStore, reservedInstanceCoverageUpdate);
+        riAndExpenseUploadRpcService = new RIAndExpenseUploadRpcService(dsl, accountExpensesStore,
+                reservedInstanceSpecStore, reservedInstanceBoughtStore,
+                reservedInstanceCoverageUpdate, true);
     }
 
     /**
@@ -120,16 +120,25 @@ public class RIAndExpenseUploadRpcServiceTest {
                         .setReservedInstanceSpec(2L)
                         .setProbeReservedInstanceId(probeReservedInstanceId))
                 .build();
-        final EntityRICoverageUpload entityRICoverageUpload = EntityRICoverageUpload.newBuilder()
-                .setEntityId(4L)
-                .addCoverage(Coverage.newBuilder()
-                        .setProbeReservedInstanceId(probeReservedInstanceId))
-                .build();
-        final AccountRICoverageUpload accountCoverage = AccountRICoverageUpload.newBuilder()
-                .setAccountId(10L)
-                .addCoverage(Coverage.newBuilder()
-                        .setProbeReservedInstanceId(probeReservedInstanceId))
-                .build();
+        final EntityRICoverageUpload entityRICoverageUpload =
+                EntityRICoverageUpload.newBuilder().setEntityId(4L).addCoverage(
+                        Coverage.newBuilder()
+                                .setProbeReservedInstanceId(probeReservedInstanceId)
+                                .setCoveredCoupons(96D)
+                                .setUsageStartTimestamp(0)
+                                .setUsageEndTimestamp(TimeUnit.DAYS.toMillis(1))).addCoverage(
+                        Coverage.newBuilder()
+                                .setProbeReservedInstanceId(probeReservedInstanceId)
+                                .setCoveredCoupons(48D)).build();
+        final AccountRICoverageUpload accountCoverage =
+                AccountRICoverageUpload.newBuilder()
+                        .setAccountId(10L)
+                        .addCoverage(Coverage.newBuilder()
+                                .setProbeReservedInstanceId(probeReservedInstanceId)
+                                .setCoveredCoupons(384)
+                                .setUsageStartTimestamp(1591574400000L)
+                                .setUsageEndTimestamp(1591574400000L + TimeUnit.DAYS.toMillis(2)))
+                        .build();
         final ReservedInstanceBought undiscoveredRIBought = ReservedInstanceBought.newBuilder()
                 .setId(1L)
                 .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
@@ -181,27 +190,30 @@ public class RIAndExpenseUploadRpcServiceTest {
                 actualReservedInstanceBoughtInfoList.get(0);
         // verify the spec ID was updated based on the request spec ID -> local OID mapping
         assertThat(actualRIBoughtInfo.getReservedInstanceSpec(), equalTo(7L));
-        final List<EntityRICoverageUpload> actualEntityRICoverageList =
-                entityRICoverageListCaptor.getValue();
-        assertThat(actualEntityRICoverageList.size(), equalTo(1));
-
         // verify the Coverage::reservedInstanceId is updated based on the ID assigned
         // in the ReservedInstanceBoughtStore
-        final EntityRICoverageUpload actualEntityRICoverage =
-                actualEntityRICoverageList.get(0);
-        assertThat(actualEntityRICoverage.getCoverageCount(), equalTo(1));
-        final Coverage actualCoverage = actualEntityRICoverage.getCoverage(0);
-        // should match ID of storedReservedInstanceBought
-        assertThat(actualCoverage.getReservedInstanceId(), equalTo(3L));
-
+        Assert.assertEquals(Collections.singletonList(EntityRICoverageUpload.newBuilder()
+                .setEntityId(4)
+                .addCoverage(Coverage.newBuilder()
+                        .setReservedInstanceId(3)
+                        .setProbeReservedInstanceId(probeReservedInstanceId)
+                        .setCoveredCoupons(4D)
+                        .setUsageStartTimestamp(0)
+                        .setUsageEndTimestamp(86400000))
+                .addCoverage(Coverage.newBuilder()
+                        .setReservedInstanceId(3)
+                        .setProbeReservedInstanceId(probeReservedInstanceId)
+                        .setCoveredCoupons(48D))
+                .build()), entityRICoverageListCaptor.getValue());
         // verify account coverage
-        final List<AccountRICoverageUpload> actualaAccountRICoverageList =
-                accountRICoverageListCaptor.getValue();
-        assertThat(actualaAccountRICoverageList.size(), equalTo(1));
-        final AccountRICoverageUpload actualAccountCoverage = actualaAccountRICoverageList.get(0);
-        assertThat(actualAccountCoverage.getCoverageCount(), equalTo(1));
-        final Coverage actualActCoverage = actualAccountCoverage.getCoverage(0);
-        // should match ID of storedReservedInstanceBought
-        assertThat(actualActCoverage.getReservedInstanceId(), equalTo(3L));
+        Assert.assertEquals(Collections.singletonList(AccountRICoverageUpload.newBuilder()
+                .setAccountId(10)
+                .addCoverage(Coverage.newBuilder()
+                        .setReservedInstanceId(3)
+                        .setProbeReservedInstanceId(probeReservedInstanceId)
+                        .setCoveredCoupons(8.0)
+                        .setUsageStartTimestamp(1591574400000L)
+                        .setUsageEndTimestamp(1591747200000L))
+                .build()), accountRICoverageListCaptor.getValue());
     }
 }

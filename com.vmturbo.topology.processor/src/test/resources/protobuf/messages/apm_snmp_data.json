@@ -30,7 +30,7 @@
     }
   },
   {
-    "entityType": "APPLICATION",
+    "entityType": "APPLICATION_COMPONENT",
     "id": "2",
     "displayName": "proxy-guestload-app-1",
     "commoditiesSold": [

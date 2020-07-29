@@ -21,15 +21,15 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
  * Provides a limited-access view of an action that permits accessors for retrieving properties
  * of that action, but provides minimal capability to clients for changing the properties of the action.
  *
- * Objects accessed through an {@link ActionView} may be mutable (for example, the {@link ActionTranslation})
+ * <p>Objects accessed through an {@link ActionView} may be mutable (for example, the {@link ActionTranslation})
  * but it must not be possible to use an {@link ActionView} to mutate properties of its associated action
- * that important enough that they may be audited (ie {@link ActionState}, or {@link ActionDecision}).
+ * that important enough that they may be audited (ie {@link ActionState}, or {@link ActionDecision}).</p>
  *
- * When it is not necessary to mutate the state of an action, clients should prefer accessing the action
+ * <p>When it is not necessary to mutate the state of an action, clients should prefer accessing the action
  * through its {@link ActionView} interface so as to minimize the chance of accidentally mutating
- * an {@link Action} inappropriately.
+ * an {@link Action} inappropriately.</p>
  *
- * Implementations of an ActionView must be thread-safe.
+ * <p>Implementations of an ActionView must be thread-safe.</p>
  */
 @ThreadSafe
 public interface ActionView {
@@ -162,6 +162,41 @@ public interface ActionView {
     void setSchedule(@Nonnull ActionSchedule schedule);
 
     /**
+     * Returns the external identifier that the customer can visit to approve the action. This will
+     * be empty if the action does not have external approval configured or if the change request
+     * has not been created yet.
+     *
+     * @return the external identifier that the customer needs to visit to approve the action.
+     */
+    @Nonnull
+    Optional<String> getExternalActionName();
+
+    /**
+     * Sets the external identifier that the customer can visit to approve the action.
+     *
+     * @param externalActionName the external identifier that the customer needs to visit to
+     *                           approve the action.
+     */
+    void setExternalActionName(@Nonnull String externalActionName);
+
+    /**
+     * Returns the url that the customer can visit to approve the action. This will be empty if
+     * the action does not have external approval configured or if the change request has not
+     * been created yet.
+     *
+     * @return the url that the customer can visit to approve the action.
+     */
+    @Nonnull
+    Optional<String> getExternalActionUrl();
+
+    /**
+     * Sets the url that the customer can visit to approve the action.
+     *
+     * @param externalActionUrl the url that the customer can visit to approve the action.
+     */
+    void setExternalActionUrl(@Nonnull String externalActionUrl);
+
+    /**
      * Gets the list of associated policies for this action.
      * If there are no associated policies then return empty collection.
      *
@@ -222,12 +257,12 @@ public interface ActionView {
     default boolean determineExecutability() {
         // An action is considered "Executable" if the initial recommendation is marked as
         // executable by the market, and it has ready or accepted state
-        return getRecommendation().getExecutable() &&
-                (getState().equals(ActionState.READY) || getState().equals(ActionState.ACCEPTED));
+        return getRecommendation().getExecutable()
+            && (getState().equals(ActionState.READY) || getState().equals(ActionState.ACCEPTED));
     }
 
     /**
-     * Determine whether the action has at least one remaining step to execute
+     * Determine whether the action has at least one remaining step to execute.
      * This could include PRE and POST workflow executions, in addition to the main execution
      * of the action. Steps that are currently in-progress count as a pending execution.
      *
@@ -236,7 +271,7 @@ public interface ActionView {
     boolean hasPendingExecution();
 
     /**
-     * Whether this action has at least one execution step in a failed state
+     * Whether this action has at least one execution step in a failed state.
      *
      * @return true, if this action has at least one execution step in a failed state
      */

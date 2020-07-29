@@ -231,8 +231,9 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         boolean runRiBuy = false;
         final StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
         logger.info("Business accounts received in topology broadcast: {}", allBusinessAccounts);
-        if (addNewBAsWithCost(allBusinessAccounts)) {
-            logger.info("Invoke RI Buy Analysis as a new BA with Cost was found.");
+        final int newAccountsCount = addNewBAsWithCost(allBusinessAccounts);
+        if (newAccountsCount > 0) {
+            logger.info("{} new account(s) with Cost found - invoking RI Buy Analysis...", newAccountsCount);
             runRiBuy = true;
         }
         if (rmObsoleteBAs(allBusinessAccounts)) {
@@ -393,7 +394,6 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     protected boolean checkAndUpdatePricing(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
         boolean priceChanged = false;
 
-        Set<BizAccPriceRecord> newBusinessAccountsWithCost = new HashSet<>();
         // Get all BAs which have cost (includes old and new).
         final Map<Long, Long> allBAToPriceTableOid = prTabKeyStore
                 .fetchPriceTableKeyOidsByBusinessAccount(allBusinessAccounts.stream().map(p -> p.left)
@@ -473,9 +473,9 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      *
      * @param allBusinessAccounts All Business Accounts in topology.
      *
-     * @return whether any new BAs with cost were discovered since last topology broadcast.
+     * @return count of new BAs with cost that were discovered since last topology broadcast.
      */
-    protected boolean addNewBAsWithCost(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+    protected int addNewBAsWithCost(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
         Set<BizAccPriceRecord> newBusinessAccountsWithCost = getNewBusinessAccountsWithCost(allBusinessAccounts);
         if (newBusinessAccountsWithCost.size() > 0) {
             businessAccountsWithCost.addAll(newBusinessAccountsWithCost);
@@ -484,7 +484,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
             logger.info("Size of the updated collection 'Business Accounts With Cost' = {}",
                     businessAccountsWithCost.size());
         }
-        return (newBusinessAccountsWithCost.size() > 0);
+        return newBusinessAccountsWithCost.size();
     }
 
     /**
@@ -537,6 +537,11 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                 businessAccountsWithCost.stream().map(baRec -> baRec.getBusinessAccountOid())
                         .collect(Collectors.toSet())).immutableCopy();
 
+        logger.debug("getNewBusinessAccountsWithCost:\n"
+                + "  - allBusinessAccounts {},\n"
+                + "  - businessAccountsWithCost {},\n"
+                + "  - newBusinessAccounts {}",
+                allBusinessAccounts, businessAccountsWithCost, newBusinessAccounts);
         if (CollectionUtils.isEmpty(newBusinessAccounts)) {
             return new HashSet<>();
         }
@@ -544,6 +549,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         // Get all BAs which have cost (includes old and new).
         final Map<Long, Long> newBAToPriceTableOid = prTabKeyStore
                 .fetchPriceTableKeyOidsByBusinessAccount(newBusinessAccounts);
+        logger.debug("getNewBusinessAccountsWithCost:\n  - newBAToPriceTableOid {}", newBAToPriceTableOid);
 
         return collectBAsCostRecords(allBusinessAccounts, newBAToPriceTableOid);
     }
@@ -578,6 +584,24 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      */
     public void setRunBuyRIOnNextBroadcast(boolean runBuyRIOnNextBroadcast) {
         this.runBuyRIOnNextBroadcast = runBuyRIOnNextBroadcast;
+    }
+
+    /**
+     * Gets BA price table key store.
+     *
+     * @return BA price table key store.
+     */
+    public BusinessAccountPriceTableKeyStore getPrTabKeyStore() {
+        return prTabKeyStore;
+    }
+
+    /**
+     * Gets BA price table store.
+     *
+     * @return BA price table store.
+     */
+    public PriceTableStore getPrTabStore() {
+        return prTabStore;
     }
 
     /**

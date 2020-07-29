@@ -292,7 +292,7 @@ public class ActionLogger {
     private void setProjectedReservedInstanceAttributes(SMAReservedInstance ri, SMAMatch match) {
         projectedReservedInstanceName = ri.getName();
         projectedReservedInstanceTemplateName = ri.getTemplate().getName();
-        projectedReservedInstanceCouponsApplied = match.getDiscountedCoupons();
+        projectedReservedInstanceCouponsApplied = match.getProjectedRICoverage();
     }
 
     /**

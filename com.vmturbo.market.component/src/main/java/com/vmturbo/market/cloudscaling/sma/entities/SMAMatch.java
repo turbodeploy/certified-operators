@@ -27,6 +27,11 @@ public class SMAMatch {
     private int discountedCoupons;
 
     /**
+     * ri-coverage after we do post-processing. Still coupons. Not percentage.
+     */
+    private float projectedRICoverage;
+
+    /**
      * Constructor when the VM is matched to a single reserved instance.
      *
      * @param virtualMachine virtual machine
@@ -44,6 +49,14 @@ public class SMAMatch {
         this.reservedInstance = reservedInstance;
     }
 
+    public float getProjectedRICoverage() {
+        return projectedRICoverage;
+    }
+
+    public void setProjectedRICoverage(final float projectedRICoverage) {
+        this.projectedRICoverage = projectedRICoverage;
+    }
+
     // TODO add the netcost computation method
 
     @Nonnull
@@ -58,6 +71,10 @@ public class SMAMatch {
 
     public void setVirtualMachine(final SMAVirtualMachine virtualMachine) {
         this.virtualMachine = virtualMachine;
+    }
+
+    public void setReservedInstance(final SMAReservedInstance reservedInstance) {
+        this.reservedInstance = reservedInstance;
     }
 
     /**

@@ -19,6 +19,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
+import com.vmturbo.components.common.tracing.TracingManager;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -100,22 +103,27 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
      * @param input The input to the pipeline.
      * @return The output of the pipeline.
      * @throws TopologyPipelineException If a required stage fails.
-     * @throws InterruptedException If the pipeline is interrupted.
+     * @throws InterruptedException      If the pipeline is interrupted.
      */
     @SuppressWarnings("unchecked")
     @Nonnull
     public PipelineOutput run(@Nonnull PipelineInput input)
-            throws TopologyPipelineException, InterruptedException {
+        throws TopologyPipelineException, InterruptedException {
         logger.info("Running the topology pipeline for context {}",
-                context.getTopologyInfo().getTopologyContextId());
+            context.getTopologyInfo().getTopologyContextId());
         pipelineSummary.start();
         Object curStageInput = input;
         try (DataMetricTimer pipelineTimer =
-                 TOPOLOGY_BROADCAST_SUMMARY.labels(context.getTopologyTypeName()).startTimer()) {
+                 TOPOLOGY_BROADCAST_SUMMARY.labels(context.getTopologyTypeName()).startTimer();
+             TracingScope pipelineScope = Tracing.trace(
+                 context.getTopologyTypeName() + " Broadcast", TracingManager.alwaysOnTracer())
+                 .tag("context_id", context.getTopologyInfo().getTopologyContextId())
+                 .tag("topology_id", context.getTopologyInfo().getTopologyContextId())) {
             for (final Stage stage : stages) {
                 try (final DataMetricTimer stageTimer =
                          TOPOLOGY_STAGE_SUMMARY.labels(context.getTopologyTypeName(),
-                                 getSnakeCaseName(stage)).startTimer()) {
+                             getSnakeCaseName(stage)).startTimer();
+                     TracingScope stageScope = Tracing.trace(getSnakeCaseName(stage))) {
                     // TODO (roman, Nov 13) OM-27195: Consider refactoring the builder and pipeline
                     // into more of a linked-list format so that there is better type safety.
                     logger.info("Executing stage {}", stage.getClass().getSimpleName());
@@ -124,7 +132,7 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
                     pipelineSummary.endStage(result.status());
                 } catch (PipelineStageException | RuntimeException e) {
                     final String message = "Topology pipeline failed at stage " +
-                            stage.getClass().getSimpleName() + " with error: " + e.getMessage();
+                        stage.getClass().getSimpleName() + " with error: " + e.getMessage();
                     pipelineSummary.fail(message);
                     logger.info("\n{}", pipelineSummary);
                     throw new TopologyPipelineException(message, e);
@@ -133,7 +141,7 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
         }
         logger.info("\n{}", pipelineSummary);
         logger.info("Topology pipeline for context {} finished successfully.",
-                context.getTopologyInfo().getTopologyContextId());
+            context.getTopologyInfo().getTopologyContextId());
         return (PipelineOutput)curStageInput;
     }
 

@@ -5,17 +5,13 @@
     <parent>
         <artifactId>xl-sdk-probe-parent</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.22.5-SNAPSHOT</version>
+        <version>7.22.6-SNAPSHOT</version>
         <relativePath>../com.vmturbo.mediation.probe.parent/pom.xml</relativePath>
     </parent>
 
     <artifactId>com.vmturbo.mediation.udt</artifactId>
     <description>User Defined Topology Component</description>
     <packaging>jar</packaging>
-
-    <properties>
-        <jacocoVersion>0.8.2</jacocoVersion>
-    </properties>
 
     <build>
         <plugins>
@@ -131,8 +127,20 @@
             <artifactId>junit</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <version>${mockito.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -142,6 +150,24 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.powermock</groupId>
+            <artifactId>powermock-module-junit4</artifactId>
+            <version>${powermock.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.powermock</groupId>
+            <artifactId>powermock-core</artifactId>
+            <version>${powermock.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.powermock</groupId>
+            <artifactId>powermock-api-mockito</artifactId>
+            <version>${powermock.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>

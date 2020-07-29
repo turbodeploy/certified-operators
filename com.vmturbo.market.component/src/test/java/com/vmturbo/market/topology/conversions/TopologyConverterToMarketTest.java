@@ -332,12 +332,12 @@ public class TopologyConverterToMarketTest {
         TraderTO traderVmOff = convertToMarketTO(Sets.newHashSet(vmOff), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.IDLE, traderVmOff.getState());
 
-        TopologyEntityDTO appOn = entity(EntityType.APPLICATION_VALUE, 10, EntityState.POWERED_ON,
+        TopologyEntityDTO appOn = entity(EntityType.APPLICATION_COMPONENT_VALUE, 10, EntityState.POWERED_ON,
                 Collections.emptyList(), Collections.emptyList());
         TraderTO traderAppOn = convertToMarketTO(Sets.newHashSet(appOn), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.ACTIVE, traderAppOn.getState());
 
-        TopologyEntityDTO appOff = entity(EntityType.APPLICATION_VALUE, 10,
+        TopologyEntityDTO appOff = entity(EntityType.APPLICATION_COMPONENT_VALUE, 10,
                 EntityState.POWERED_OFF, Collections.emptyList(), Collections.emptyList());
         TraderTO traderAppOff = convertToMarketTO(Sets.newHashSet(appOff), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.INACTIVE, traderAppOff.getState());

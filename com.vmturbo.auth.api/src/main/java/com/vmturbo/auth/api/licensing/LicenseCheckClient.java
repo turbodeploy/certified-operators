@@ -13,6 +13,7 @@ import com.google.protobuf.Empty;
 import com.google.protobuf.ProtocolStringList;
 
 import io.grpc.Channel;
+import io.opentracing.SpanContext;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -27,6 +28,8 @@ import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseSummaryResponse
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 /**
@@ -249,8 +252,11 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
     }
 
     @Override
-    protected void processMessage(@Nonnull final LicenseSummary message) {
-        updateLicenseSummary(message);
+    protected void processMessage(@Nonnull final LicenseSummary message,
+                                  @Nonnull final SpanContext tracingContext) {
+        try (TracingScope scope = Tracing.trace("license_update")) {
+            updateLicenseSummary(message);
+        }
     }
 
     /**

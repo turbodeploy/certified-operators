@@ -1,0 +1,1499 @@
+[{
+  "oid": "73536059648272",
+  "type": 4,
+  "state": "ACTIVE",
+  "commoditiesSold": [{
+    "specification": {
+      "type": 302,
+      "baseType": 49,
+      "debugInfoNeverUseInCode": "TRANSACTION",
+      "cloneWithNewType": false
+    },
+    "quantity": 0.29559642,
+    "peakQuantity": 0.29559642,
+    "maxQuantity": 0.37544483,
+    "capacity": 10.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 0
+  }, {
+    "specification": {
+      "type": 303,
+      "baseType": 69,
+      "debugInfoNeverUseInCode": "DB_CACHE_HIT_RATE",
+      "cloneWithNewType": false
+    },
+    "quantity": 100.0,
+    "peakQuantity": 100.0,
+    "maxQuantity": 100.0,
+    "capacity": 100.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 0
+  }, {
+    "specification": {
+      "type": 304,
+      "baseType": 67,
+      "debugInfoNeverUseInCode": "DB_MEM",
+      "cloneWithNewType": false
+    },
+    "quantity": 1694631.0,
+    "peakQuantity": 1694631.0,
+    "maxQuantity": 1694776.0,
+    "capacity": 1729464.0,
+    "thin": true,
+    "settings": {
+      "resizable": true,
+      "capacityIncrement": 131072.0,
+      "utilizationUpperBound": 0.8,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 0
+  }, {
+    "specification": {
+      "type": 305,
+      "baseType": 44,
+      "debugInfoNeverUseInCode": "CONNECTION",
+      "cloneWithNewType": false
+    },
+    "quantity": 5.0,
+    "peakQuantity": 5.0,
+    "maxQuantity": 5.0,
+    "capacity": 100.0,
+    "thin": true,
+    "settings": {
+      "resizable": true,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 0
+  }, {
+    "specification": {
+      "type": 306,
+      "baseType": 68,
+      "debugInfoNeverUseInCode": "TRANSACTION_LOG",
+      "cloneWithNewType": false
+    },
+    "quantity": 0.021048665,
+    "peakQuantity": 0.021048665,
+    "maxQuantity": 0.021101475,
+    "capacity": 1.1695175,
+    "thin": true,
+    "settings": {
+      "resizable": true,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 0
+  }, {
+    "specification": {
+      "type": 307,
+      "baseType": 52,
+      "debugInfoNeverUseInCode": "RESPONSE_TIME",
+      "cloneWithNewType": false
+    },
+    "quantity": 0.0,
+    "peakQuantity": 0.0,
+    "maxQuantity": 0.0,
+    "capacity": 2000.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 0
+  }],
+  "shoppingLists": [{
+    "oid": "1195",
+    "supplier": "73536054841232",
+    "movable": true,
+    "commoditiesBought": [{
+      "specification": {
+        "type": 21,
+        "baseType": 26,
+        "debugInfoNeverUseInCode": "VCPU",
+        "cloneWithNewType": false
+      },
+      "quantity": 1361.1,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 23,
+        "baseType": 53,
+        "debugInfoNeverUseInCode": "VMEM",
+        "cloneWithNewType": false
+      },
+      "quantity": 1694631.0,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 259,
+        "baseType": 65,
+        "debugInfoNeverUseInCode": "VSTORAGE|VirtualMachine::609f901eb9a3f5cd86c757fba26850243b2dead4",
+        "cloneWithNewType": false
+      },
+      "quantity": 11446.625,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 258,
+        "baseType": 56,
+        "debugInfoNeverUseInCode": "APPLICATION|ApplicationCommodity::ProxyVM-For-10.10.168.198::5b7e1dca6e78e6499e18366fc51b49f9a161218b",
+        "cloneWithNewType": true
+      },
+      "quantity": 1.0,
+      "peakQuantity": 0.0
+    }],
+    "storageMoveCost": 0.0
+  }],
+  "settings": {
+    "clonable": false,
+    "suspendable": false,
+    "minDesiredUtilization": 0.65,
+    "maxDesiredUtilization": 0.75,
+    "guaranteedBuyer": false,
+    "canAcceptNewCustomers": true,
+    "isEligibleForResizeDown": true,
+    "isShopTogether": false,
+    "quoteFunction": {
+      "sumOfCommodity": {
+      }
+    },
+    "providerMustClone": false,
+    "quoteFactor": 0.68,
+    "moveCostFactor": 0.05,
+    "controllable": true,
+    "canSimulateAction": false,
+    "daemon": false
+  },
+  "debugInfoNeverUseInCode": "DATABASE_SERVER|73536059648272|SQLServer 10.10.168.198:1433 [win-mssql2016-174.53]"
+}, {
+  "oid": "73536054840880",
+  "type": 2,
+  "state": "ACTIVE",
+  "commoditiesSold": [{
+    "specification": {
+      "type": 0,
+      "baseType": 8,
+      "debugInfoNeverUseInCode": "STORAGE_AMOUNT",
+      "cloneWithNewType": false
+    },
+    "quantity": 2401779.0,
+    "peakQuantity": 2401779.0,
+    "maxQuantity": 2401779.0,
+    "capacity": 5242624.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 102400.0,
+      "utilizationUpperBound": 0.9,
+      "priceFunction": {
+        "step": {
+          "stepAt": 1.0,
+          "priceBelow": 1.0E-4,
+          "priceAbove": "Infinity"
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 89
+  }, {
+    "specification": {
+      "type": 1,
+      "baseType": 64,
+      "debugInfoNeverUseInCode": "STORAGE_ACCESS",
+      "cloneWithNewType": false
+    },
+    "quantity": 111.277084,
+    "peakQuantity": 111.277084,
+    "maxQuantity": 119.63333,
+    "capacity": 5000.0,
+    "thin": true,
+    "settings": {
+      "resizable": true,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 89
+  }, {
+    "specification": {
+      "type": 4,
+      "baseType": 6,
+      "debugInfoNeverUseInCode": "STORAGE_PROVISIONED",
+      "cloneWithNewType": false
+    },
+    "quantity": 5506939.0,
+    "peakQuantity": 5506939.0,
+    "maxQuantity": 5506939.0,
+    "capacity": 1.0485248E7,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "step": {
+          "stepAt": 1.0,
+          "priceBelow": 1.0E-4,
+          "priceAbove": "Infinity"
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 89
+  }, {
+    "specification": {
+      "type": 5,
+      "baseType": 22,
+      "debugInfoNeverUseInCode": "STORAGE_LATENCY",
+      "cloneWithNewType": false
+    },
+    "quantity": 8.280209,
+    "peakQuantity": 8.280209,
+    "maxQuantity": 18.3,
+    "capacity": 100.0,
+    "thin": true,
+    "settings": {
+      "resizable": true,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+        "avgAdd": {
+        }
+      }
+    },
+    "numConsumers": 89
+  }, {
+    "specification": {
+      "type": 6,
+      "baseType": 59,
+      "debugInfoNeverUseInCode": "STORAGE_CLUSTER|free_storage_cluster",
+      "cloneWithNewType": false
+    },
+    "quantity": 0.0,
+    "peakQuantity": 0.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 89
+  }, {
+    "specification": {
+      "type": 3,
+      "baseType": 2,
+      "debugInfoNeverUseInCode": "BICLIQUE BC-T1-73536054840868"
+    },
+    "settings": {
+      "resizable": false,
+      "priceFunction": {
+        "constant": {
+          "value": 0.0
+        }
+      },
+      "updateFunction": {
+        "projectSecond": {
+        }
+      }
+    }
+  }],
+  "cliques": ["73536054840882"],
+  "shoppingLists": [{
+    "oid": "1087",
+    "supplier": "73536054840866",
+    "movable": true,
+    "commoditiesBought": [{
+      "specification": {
+        "type": 192,
+        "baseType": 60,
+        "debugInfoNeverUseInCode": "EXTENT|DiskArray-5cf6e809-7d9d85ad-7a3f-001cc46d09d2",
+        "cloneWithNewType": false
+      },
+      "quantity": 1.0,
+      "peakQuantity": 0.0
+    }],
+    "storageMoveCost": 0.0
+  }],
+  "settings": {
+    "clonable": true,
+    "suspendable": true,
+    "minDesiredUtilization": 0.65,
+    "maxDesiredUtilization": 0.75,
+    "guaranteedBuyer": false,
+    "canAcceptNewCustomers": true,
+    "isEligibleForResizeDown": false,
+    "isShopTogether": false,
+    "quoteFunction": {
+      "sumOfCommodity": {
+      }
+    },
+    "providerMustClone": false,
+    "quoteFactor": 0.68,
+    "moveCostFactor": 0.05,
+    "controllable": true,
+    "canSimulateAction": true,
+    "daemon": false
+  },
+  "debugInfoNeverUseInCode": "STORAGE|73536054840880|NIMHF40:ACMDS1"
+}, {
+  "oid": "73536054840864",
+  "type": 12,
+  "state": "ACTIVE",
+  "commoditiesSold": [{
+    "specification": {
+      "type": 183,
+      "baseType": 24,
+      "debugInfoNeverUseInCode": "COOLING",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 4
+  }, {
+    "specification": {
+      "type": 184,
+      "baseType": 20,
+      "debugInfoNeverUseInCode": "POWER",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 4
+  }, {
+    "specification": {
+      "type": 185,
+      "baseType": 18,
+      "debugInfoNeverUseInCode": "SPACE",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 4
+  }, {
+    "specification": {
+      "type": 186,
+      "baseType": 55,
+      "debugInfoNeverUseInCode": "DATACENTER|DataCenter::DataCenter::f2309de7ab715e740fddadc39eef4ebfd22e2481",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 4
+  }],
+  "settings": {
+    "clonable": false,
+    "suspendable": false,
+    "minDesiredUtilization": 0.65,
+    "maxDesiredUtilization": 0.75,
+    "guaranteedBuyer": false,
+    "canAcceptNewCustomers": true,
+    "isEligibleForResizeDown": false,
+    "isShopTogether": false,
+    "quoteFunction": {
+      "sumOfCommodity": {
+      }
+    },
+    "providerMustClone": false,
+    "quoteFactor": 0.68,
+    "moveCostFactor": 0.05,
+    "controllable": true,
+    "canSimulateAction": false,
+    "daemon": false
+  },
+  "debugInfoNeverUseInCode": "DATACENTER|73536054840864|ACM"
+}, {
+  "oid": "73536054841232",
+  "type": 10,
+  "state": "ACTIVE",
+  "commoditiesSold": [{
+    "specification": {
+      "type": 256,
+      "baseType": 56,
+      "debugInfoNeverUseInCode": "APPLICATION|VirtualMachine::421dc716-ace0-d573-7d17-0a794fcf5c4e",
+      "cloneWithNewType": true
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 1
+  }, {
+    "specification": {
+      "type": 21,
+      "baseType": 26,
+      "debugInfoNeverUseInCode": "VCPU",
+      "cloneWithNewType": false
+    },
+    "quantity": 1389.155,
+    "peakQuantity": 3973.8352,
+    "maxQuantity": 3171.8035,
+    "capacity": 4047.881,
+    "thin": true,
+    "settings": {
+      "resizable": true,
+      "capacityLowerBound": 2023.9406,
+      "capacityUpperBound": 129532.195,
+      "capacityIncrement": 1576.4141,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 2,
+    "historicalQuantity": 3197.826
+  }, {
+    "specification": {
+      "type": 257,
+      "baseType": 65,
+      "debugInfoNeverUseInCode": "VSTORAGE|VirtualMachine::1e8e412593fd994621f6e866b42ce69ac2f7e8d1",
+      "cloneWithNewType": false
+    },
+    "quantity": 36511.117,
+    "peakQuantity": 36511.117,
+    "maxQuantity": 38306.746,
+    "capacity": 61087.996,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1048576.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "step": {
+          "stepAt": 1.0,
+          "priceBelow": 1.0E-4,
+          "priceAbove": "Infinity"
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 1
+  }, {
+    "specification": {
+      "type": 23,
+      "baseType": 53,
+      "debugInfoNeverUseInCode": "VMEM",
+      "cloneWithNewType": false
+    },
+    "quantity": 1681170.1,
+    "peakQuantity": 1681170.1,
+    "maxQuantity": 1694776.0,
+    "capacity": 2097152.0,
+    "thin": true,
+    "settings": {
+      "resizable": true,
+      "capacityLowerBound": 524288.0,
+      "capacityUpperBound": 1.34217728E8,
+      "capacityIncrement": 1048576.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 2,
+    "historicalQuantity": 1698693.1
+  }, {
+    "specification": {
+      "type": 258,
+      "baseType": 56,
+      "debugInfoNeverUseInCode": "APPLICATION|ApplicationCommodity::ProxyVM-For-10.10.168.198::5b7e1dca6e78e6499e18366fc51b49f9a161218b",
+      "cloneWithNewType": true
+    },
+    "quantity": 0.0,
+    "peakQuantity": 0.0,
+    "maxQuantity": 0.0,
+    "capacity": 100000.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 1
+  }, {
+    "specification": {
+      "type": 259,
+      "baseType": 65,
+      "debugInfoNeverUseInCode": "VSTORAGE|VirtualMachine::609f901eb9a3f5cd86c757fba26850243b2dead4",
+      "cloneWithNewType": false
+    },
+    "quantity": 0.0,
+    "peakQuantity": 0.0,
+    "maxQuantity": 0.0,
+    "capacity": 61087.996,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1048576.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "step": {
+          "stepAt": 1.0,
+          "priceBelow": 1.0E-4,
+          "priceAbove": "Infinity"
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 1
+  }],
+  "shoppingLists": [{
+    "oid": "1165",
+    "supplier": "73536054840880",
+    "movable": true,
+    "commoditiesBought": [{
+      "specification": {
+        "type": 6,
+        "baseType": 59,
+        "debugInfoNeverUseInCode": "STORAGE_CLUSTER|free_storage_cluster",
+        "cloneWithNewType": false
+      },
+      "quantity": 1.0,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 5,
+        "baseType": 22,
+        "debugInfoNeverUseInCode": "STORAGE_LATENCY",
+        "cloneWithNewType": false
+      },
+      "quantity": 0.19583334,
+      "peakQuantity": 3.000598
+    }, {
+      "specification": {
+        "type": 4,
+        "baseType": 6,
+        "debugInfoNeverUseInCode": "STORAGE_PROVISIONED",
+        "cloneWithNewType": false
+      },
+      "quantity": 61440.0,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 0,
+        "baseType": 8,
+        "debugInfoNeverUseInCode": "STORAGE_AMOUNT",
+        "cloneWithNewType": false
+      },
+      "quantity": 48147.0,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 1,
+        "baseType": 64,
+        "debugInfoNeverUseInCode": "STORAGE_ACCESS",
+        "cloneWithNewType": false
+      },
+      "quantity": 4.3625,
+      "peakQuantity": 6.839999
+    }, {
+      "specification": {
+        "type": 3,
+        "baseType": 2,
+        "debugInfoNeverUseInCode": "BICLIQUE BC-T1-73536054840868"
+      }
+    }],
+    "storageMoveCost": 47.018555
+  }, {
+    "oid": "1166",
+    "supplier": "73536054840913",
+    "movable": true,
+    "commoditiesBought": [{
+      "specification": {
+        "type": 10,
+        "baseType": 57,
+        "debugInfoNeverUseInCode": "NETWORK|Network::VM Network",
+        "cloneWithNewType": false
+      },
+      "quantity": 1.0,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 17,
+        "baseType": 40,
+        "debugInfoNeverUseInCode": "CPU",
+        "cloneWithNewType": false
+      },
+      "quantity": 3119.645,
+      "peakQuantity": 3973.8352
+    }, {
+      "specification": {
+        "type": 11,
+        "baseType": 21,
+        "debugInfoNeverUseInCode": "MEM",
+        "cloneWithNewType": false
+      },
+      "quantity": 1770507.4,
+      "peakQuantity": 1788531.4
+    }, {
+      "specification": {
+        "type": 9,
+        "baseType": 39,
+        "debugInfoNeverUseInCode": "IO_THROUGHPUT",
+        "cloneWithNewType": false
+      },
+      "quantity": 160.8125,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 61,
+        "baseType": 31,
+        "debugInfoNeverUseInCode": "Q2_VCPU",
+        "cloneWithNewType": false
+      },
+      "quantity": 1165.4125,
+      "peakQuantity": 1355.5365
+    }, {
+      "specification": {
+        "type": 14,
+        "baseType": 45,
+        "debugInfoNeverUseInCode": "MEM_PROVISIONED",
+        "cloneWithNewType": false
+      },
+      "quantity": 2097152.0,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 15,
+        "baseType": 28,
+        "debugInfoNeverUseInCode": "CPU_PROVISIONED",
+        "cloneWithNewType": false
+      },
+      "quantity": 4047.881,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 8,
+        "baseType": 0,
+        "debugInfoNeverUseInCode": "CLUSTER|Cluster::efca529f8cca2f57b89de60ed2a1dd843d8411c8",
+        "cloneWithNewType": false
+      },
+      "quantity": 1.0,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 7,
+        "baseType": 2,
+        "debugInfoNeverUseInCode": "BICLIQUE BC-T2-73536054840868"
+      }
+    }, {
+      "specification": {
+        "type": 12,
+        "baseType": 55,
+        "debugInfoNeverUseInCode": "DATACENTER|DataCenter::f2309de7ab715e740fddadc39eef4ebfd22e2481",
+        "cloneWithNewType": false
+      },
+      "quantity": 1.0,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 13,
+        "baseType": 47,
+        "debugInfoNeverUseInCode": "NET_THROUGHPUT",
+        "cloneWithNewType": false
+      },
+      "quantity": 6.65625,
+      "peakQuantity": 0.0
+    }],
+    "storageMoveCost": 0.0
+  }],
+  "settings": {
+    "clonable": false,
+    "suspendable": false,
+    "minDesiredUtilization": 0.65,
+    "maxDesiredUtilization": 0.75,
+    "guaranteedBuyer": false,
+    "canAcceptNewCustomers": true,
+    "isEligibleForResizeDown": false,
+    "isShopTogether": false,
+    "quoteFunction": {
+      "sumOfCommodity": {
+      }
+    },
+    "providerMustClone": false,
+    "quoteFactor": 0.68,
+    "moveCostFactor": 0.05,
+    "controllable": true,
+    "canSimulateAction": false,
+    "daemon": false
+  },
+  "debugInfoNeverUseInCode": "VIRTUAL_MACHINE|73536054841232|win-mssql2016-174.53"
+}, {
+  "oid": "73536054840913",
+  "type": 14,
+  "state": "ACTIVE",
+  "commoditiesSold": [{
+    "specification": {
+      "type": 8,
+      "baseType": 0,
+      "debugInfoNeverUseInCode": "CLUSTER|Cluster::efca529f8cca2f57b89de60ed2a1dd843d8411c8",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 29
+  }, {
+    "specification": {
+      "type": 9,
+      "baseType": 39,
+      "debugInfoNeverUseInCode": "IO_THROUGHPUT",
+      "cloneWithNewType": false
+    },
+    "quantity": 2169.473,
+    "peakQuantity": 3710.6926,
+    "maxQuantity": 3932.1667,
+    "capacity": 1280000.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 0.5,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 29
+  }, {
+    "specification": {
+      "type": 13,
+      "baseType": 47,
+      "debugInfoNeverUseInCode": "NET_THROUGHPUT",
+      "cloneWithNewType": false
+    },
+    "quantity": 2022.8229,
+    "peakQuantity": 4569.2417,
+    "maxQuantity": 3908.0,
+    "capacity": 256000.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 0.5,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 29
+  }, {
+    "specification": {
+      "type": 28,
+      "baseType": 5,
+      "debugInfoNeverUseInCode": "Q1_VCPU",
+      "cloneWithNewType": false
+    },
+    "quantity": 139.62582,
+    "peakQuantity": 139.62582,
+    "maxQuantity": 0.0,
+    "capacity": 20000.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "finiteStandardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+        "avgAdd": {
+        }
+      }
+    },
+    "numConsumers": 10
+  }, {
+    "specification": {
+      "type": 201,
+      "baseType": 17,
+      "debugInfoNeverUseInCode": "Q8_VCPU",
+      "cloneWithNewType": false
+    },
+    "quantity": 57.634377,
+    "peakQuantity": 57.634377,
+    "maxQuantity": 0.0,
+    "capacity": 20000.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "finiteStandardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+        "avgAdd": {
+        }
+      }
+    },
+    "numConsumers": 1
+  }, {
+    "specification": {
+      "type": 202,
+      "baseType": 57,
+      "debugInfoNeverUseInCode": "NETWORK|Network::ST Network",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 0
+  }, {
+    "specification": {
+      "type": 10,
+      "baseType": 57,
+      "debugInfoNeverUseInCode": "NETWORK|Network::VM Network",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 29
+  }, {
+    "specification": {
+      "type": 61,
+      "baseType": 31,
+      "debugInfoNeverUseInCode": "Q2_VCPU",
+      "cloneWithNewType": false
+    },
+    "quantity": 536.5801,
+    "peakQuantity": 536.5801,
+    "maxQuantity": 0.0,
+    "capacity": 20000.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "finiteStandardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+        "avgAdd": {
+        }
+      }
+    },
+    "numConsumers": 9
+  }, {
+    "specification": {
+      "type": 69,
+      "baseType": 57,
+      "debugInfoNeverUseInCode": "NETWORK|Network::Infrastructure",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 1
+  }, {
+    "specification": {
+      "type": 11,
+      "baseType": 21,
+      "debugInfoNeverUseInCode": "MEM",
+      "cloneWithNewType": false
+    },
+    "quantity": 8.0169848E7,
+    "peakQuantity": 8.022752E7,
+    "maxQuantity": 8.01796E7,
+    "capacity": 1.34214448E8,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 29
+  }, {
+    "specification": {
+      "type": 12,
+      "baseType": 55,
+      "debugInfoNeverUseInCode": "DATACENTER|DataCenter::f2309de7ab715e740fddadc39eef4ebfd22e2481",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 29
+  }, {
+    "specification": {
+      "type": 203,
+      "baseType": 9,
+      "debugInfoNeverUseInCode": "Q16_VCPU",
+      "cloneWithNewType": false
+    },
+    "quantity": 0.0,
+    "peakQuantity": 0.0,
+    "maxQuantity": 0.0,
+    "capacity": 20000.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "finiteStandardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+        "avgAdd": {
+        }
+      }
+    },
+    "numConsumers": 0
+  }, {
+    "specification": {
+      "type": 204,
+      "baseType": 81,
+      "debugInfoNeverUseInCode": "HOST_LUN_ACCESS",
+      "cloneWithNewType": false
+    },
+    "quantity": 4.0,
+    "peakQuantity": 4.0,
+    "maxQuantity": 4.0,
+    "capacity": 256.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 0
+  }, {
+    "specification": {
+      "type": 15,
+      "baseType": 28,
+      "debugInfoNeverUseInCode": "CPU_PROVISIONED",
+      "cloneWithNewType": false
+    },
+    "quantity": 118522.6,
+    "peakQuantity": 118522.6,
+    "maxQuantity": 118522.6,
+    "capacity": 8619826.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 0.7770649,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 29
+  }, {
+    "specification": {
+      "type": 14,
+      "baseType": 45,
+      "debugInfoNeverUseInCode": "MEM_PROVISIONED",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.38018816E8,
+    "peakQuantity": 1.38018816E8,
+    "maxQuantity": 1.38018816E8,
+    "capacity": 1.34214438E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "standardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 29
+  }, {
+    "specification": {
+      "type": 16,
+      "baseType": 58,
+      "debugInfoNeverUseInCode": "Q4_VCPU",
+      "cloneWithNewType": false
+    },
+    "quantity": 816.0868,
+    "peakQuantity": 816.0868,
+    "maxQuantity": 0.0,
+    "capacity": 20000.0,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "finiteStandardWeighted": {
+          "weight": 1.0
+        }
+      },
+      "updateFunction": {
+        "avgAdd": {
+        }
+      }
+    },
+    "numConsumers": 9
+  }, {
+    "specification": {
+      "type": 17,
+      "baseType": 40,
+      "debugInfoNeverUseInCode": "CPU",
+      "cloneWithNewType": false
+    },
+    "quantity": 9812.289,
+    "peakQuantity": 10799.8,
+    "maxQuantity": 9978.9375,
+    "capacity": 28732.752,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 0.7770649,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "scaledCapacityStandardWeighted": {
+          "weight": 1.0,
+          "scale": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 29
+  }, {
+    "specification": {
+      "type": 205,
+      "baseType": 57,
+      "debugInfoNeverUseInCode": "NETWORK|Network::PM Network",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 0.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 0
+  }, {
+    "specification": {
+      "type": 7,
+      "baseType": 2,
+      "debugInfoNeverUseInCode": "BICLIQUE BC-T2-73536054840868"
+    },
+    "settings": {
+      "resizable": false,
+      "priceFunction": {
+        "constant": {
+          "value": 0.0
+        }
+      },
+      "updateFunction": {
+        "projectSecond": {
+        }
+      }
+    }
+  }],
+  "cliques": ["73536054840882"],
+  "shoppingLists": [{
+    "oid": "1121",
+    "supplier": "73536054840880",
+    "movable": false,
+    "storageMoveCost": 0.0
+  }, {
+    "oid": "1122",
+    "supplier": "73536054840868",
+    "movable": false,
+    "storageMoveCost": 0.0
+  }, {
+    "oid": "1123",
+    "supplier": "73536054840881",
+    "movable": false,
+    "storageMoveCost": 0.0
+  }, {
+    "oid": "1124",
+    "supplier": "73536054840864",
+    "movable": false,
+    "commoditiesBought": [{
+      "specification": {
+        "type": 183,
+        "baseType": 24,
+        "debugInfoNeverUseInCode": "COOLING",
+        "cloneWithNewType": false
+      },
+      "quantity": 1.0,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 186,
+        "baseType": 55,
+        "debugInfoNeverUseInCode": "DATACENTER|DataCenter::DataCenter::f2309de7ab715e740fddadc39eef4ebfd22e2481",
+        "cloneWithNewType": false
+      },
+      "quantity": 1.0,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 185,
+        "baseType": 18,
+        "debugInfoNeverUseInCode": "SPACE",
+        "cloneWithNewType": false
+      },
+      "quantity": 1.0,
+      "peakQuantity": 0.0
+    }, {
+      "specification": {
+        "type": 184,
+        "baseType": 20,
+        "debugInfoNeverUseInCode": "POWER",
+        "cloneWithNewType": false
+      },
+      "quantity": 1.0,
+      "peakQuantity": 0.0
+    }],
+    "storageMoveCost": 0.0
+  }],
+  "settings": {
+    "clonable": true,
+    "suspendable": true,
+    "minDesiredUtilization": 0.65,
+    "maxDesiredUtilization": 0.75,
+    "guaranteedBuyer": false,
+    "canAcceptNewCustomers": true,
+    "isEligibleForResizeDown": false,
+    "isShopTogether": false,
+    "quoteFunction": {
+      "sumOfCommodity": {
+      }
+    },
+    "providerMustClone": false,
+    "quoteFactor": 0.68,
+    "moveCostFactor": 0.05,
+    "controllable": true,
+    "canSimulateAction": false,
+    "daemon": false
+  },
+  "debugInfoNeverUseInCode": "PHYSICAL_MACHINE|73536054840913|dc17-host-04.eng.vmturbo.com"
+}, {
+  "oid": "73536054840866",
+  "type": 11,
+  "state": "ACTIVE",
+  "commoditiesSold": [{
+    "specification": {
+      "type": 192,
+      "baseType": 60,
+      "debugInfoNeverUseInCode": "EXTENT|DiskArray-5cf6e809-7d9d85ad-7a3f-001cc46d09d2",
+      "cloneWithNewType": false
+    },
+    "quantity": 1.0,
+    "peakQuantity": 1.0,
+    "maxQuantity": 1.0,
+    "capacity": 1.0E9,
+    "thin": true,
+    "settings": {
+      "resizable": false,
+      "capacityIncrement": 1.0,
+      "utilizationUpperBound": 1.0,
+      "priceFunction": {
+        "constant": {
+          "value": 1.0
+        }
+      },
+      "updateFunction": {
+      }
+    },
+    "numConsumers": 1
+  }],
+  "settings": {
+    "clonable": true,
+    "suspendable": false,
+    "minDesiredUtilization": 0.65,
+    "maxDesiredUtilization": 0.75,
+    "guaranteedBuyer": false,
+    "canAcceptNewCustomers": true,
+    "isEligibleForResizeDown": false,
+    "isShopTogether": false,
+    "quoteFunction": {
+      "sumOfCommodity": {
+      }
+    },
+    "providerMustClone": false,
+    "quoteFactor": 0.68,
+    "moveCostFactor": 0.05,
+    "controllable": true,
+    "canSimulateAction": false,
+    "daemon": false
+  },
+  "debugInfoNeverUseInCode": "DISK_ARRAY|73536054840866|DiskArray-NIMHF40:ACMDS1"
+}]

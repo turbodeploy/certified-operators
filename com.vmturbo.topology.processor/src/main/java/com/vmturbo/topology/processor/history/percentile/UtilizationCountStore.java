@@ -130,14 +130,10 @@ public class UtilizationCountStore {
      * Store the data from a persisted percentile record into the full window counts array.
      *
      * @param record serialized record
-     * @param clear whether to clear the array before adding points
      * @throws HistoryCalculationException when passed data are not valid
      */
-    public synchronized void addFullCountsRecord(PercentileRecord record, boolean clear) throws HistoryCalculationException {
-        if (clear) {
-            full.clear();
-        }
-        full.deserialize(record, fieldReference.toString(), clear);
+    public synchronized void addFullCountsRecord(PercentileRecord record) throws HistoryCalculationException {
+        full.deserialize(record, fieldReference.toString());
     }
 
     /**
@@ -169,7 +165,22 @@ public class UtilizationCountStore {
      * @return serialized record
      */
     public synchronized PercentileRecord.Builder getLatestCountsRecord() {
-        return latest.serialize(fieldReference).setPeriod(1);
+        return serialize(latest, 1);
+    }
+
+    /**
+     * Serialize the full window counts array.
+     *
+     * @return serialized record
+     */
+    public synchronized PercentileRecord.Builder getFullCountsRecord() {
+        return serialize(full, periodDays);
+    }
+
+    @Nonnull
+    private PercentileRecord.Builder serialize(@Nonnull UtilizationCountArray full,
+                    int periodDays) {
+        return full.serialize(fieldReference).setPeriod(periodDays);
     }
 
     /**
@@ -202,7 +213,14 @@ public class UtilizationCountStore {
             }
         }
         latest.clear();
-        return full.serialize(fieldReference).setPeriod(periodDays);
+        return serialize(full, periodDays);
+    }
+
+    /**
+     * Clear the full counts array.
+     */
+    public synchronized void clearFullRecord() {
+        full.clear();
     }
 
     public int getPeriodDays() {
@@ -211,16 +229,6 @@ public class UtilizationCountStore {
 
     public void setPeriodDays(int periodDays) {
         this.periodDays = periodDays;
-    }
-
-    /**
-     * Copy utilization counts from latest to full.
-     *
-     * @throws HistoryCalculationException if copying the counts array from full to latest is not
-     * successful
-     */
-    public synchronized void copyCountsFromLatestToFull() throws HistoryCalculationException {
-        full.copyCountsFrom(latest);
     }
 
     @Override
@@ -241,4 +249,5 @@ public class UtilizationCountStore {
                         ", latestStoredTimestamp=" + latest.getEndTimestamp() +
                         ", periodDays=" + periodDays + '}';
     }
+
 }

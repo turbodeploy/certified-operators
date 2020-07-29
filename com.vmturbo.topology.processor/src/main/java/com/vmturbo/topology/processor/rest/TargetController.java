@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.rest;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -14,6 +16,7 @@ import javax.annotation.Nullable;
 import javax.ws.rs.ForbiddenException;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 
 import io.swagger.annotations.Api;
@@ -33,7 +36,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowsRequest;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -84,14 +93,34 @@ public class TargetController {
 
     private final Logger logger = LogManager.getLogger();
 
-    public TargetController(@Nonnull final Scheduler scheduler, @Nonnull final TargetStore targetStore,
-                            @Nonnull final ProbeStore probeStore, @Nonnull IOperationManager operationManager,
-                            @Nonnull final TopologyHandler topologyHandler) {
+    private final WorkflowServiceBlockingStub workflowRpcService;
+
+    private final SettingPolicyServiceBlockingStub settingPolicyRpcService;
+
+    /**
+     * Constructor of {@link TargetController}.
+     *
+     * @param scheduler schedules events like target discovery or topology broadcast
+     * @param targetStore the target store
+     * @param probeStore the probe store
+     * @param operationManager the operation manager to operate with probes
+     * @param topologyHandler the {@link TopologyHandler} instance
+     * @param settingPolicyServiceBlockingStub the setting policy service
+     * @param workflowServiceBlockingStub the workflow service
+     */
+    public TargetController(@Nonnull final Scheduler scheduler,
+            @Nonnull final TargetStore targetStore, @Nonnull final ProbeStore probeStore,
+            @Nonnull IOperationManager operationManager,
+            @Nonnull final TopologyHandler topologyHandler,
+            @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
+            @Nonnull final WorkflowServiceBlockingStub workflowServiceBlockingStub) {
         this.scheduler = Objects.requireNonNull(scheduler);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.operationManager = Objects.requireNonNull(operationManager);
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
+        this.settingPolicyRpcService = Objects.requireNonNull(settingPolicyServiceBlockingStub);
+        this.workflowRpcService = Objects.requireNonNull(workflowServiceBlockingStub);
     }
 
     @RequestMapping(method = RequestMethod.POST,
@@ -220,6 +249,17 @@ public class TargetController {
                     value = "The ID of the target.") @PathVariable("targetId") final Long targetId) {
         try {
             Target target = getTargetFromStore(targetId);
+            final List<SettingPolicy> policiesBlockedTheDeletion =
+                    getPoliciesWithWorkflowsDiscoveredByTarget(targetId);
+            if (!policiesBlockedTheDeletion.isEmpty()) {
+                final Collection<String> policiesBlockedDeleting =
+                        Collections2.transform(policiesBlockedTheDeletion,
+                                policy -> policy.getInfo().getName() + " (" + policy.getId() + ')');
+                return errorResponse(new ForbiddenException(
+                        "Cannot remove target " + target.getDisplayName()
+                                + " because there are policies related to the target: "
+                                + policiesBlockedDeleting + " ."), HttpStatus.FORBIDDEN);
+            }
             if (TargetOperation.REMOVE.isValidTargetOperation(target.getProbeInfo().getCreationMode())) {
                 target = targetStore.removeTargetAndBroadcastTopology(targetId, topologyHandler, scheduler);
                 return new ResponseEntity<>(targetToTargetInfo(target), HttpStatus.OK);
@@ -233,6 +273,21 @@ public class TargetController {
         } catch (IdentityStoreException e) {
             return errorResponse(e, HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private List<SettingPolicy> getPoliciesWithWorkflowsDiscoveredByTarget(@Nonnull Long targetId) {
+        final List<Workflow> workflowsDiscoveredByTarget = workflowRpcService.fetchWorkflows(
+                FetchWorkflowsRequest.newBuilder().addTargetId(targetId).build())
+                .getWorkflowsList();
+        if (!workflowsDiscoveredByTarget.isEmpty()) {
+            final List<SettingPolicy> settingPolicies = new ArrayList<>();
+            settingPolicyRpcService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
+                    .addAllWorkflowId(
+                            Collections2.transform(workflowsDiscoveredByTarget, Workflow::getId))
+                    .build()).forEachRemaining(settingPolicies::add);
+            return settingPolicies;
+        }
+        return Collections.emptyList();
     }
 
     @Nonnull

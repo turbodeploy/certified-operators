@@ -87,6 +87,7 @@ public abstract class DbAdapter {
     private void performProvisioning() throws UnsupportedDialectException, SQLException {
         if (config.getDbShouldProvisionDatabase()) {
             createSchema();
+            createReadersGroup();
         }
         if (config.getDbShouldProvisionUser()) {
             createNonRootUser();
@@ -141,6 +142,8 @@ public abstract class DbAdapter {
     }
 
     protected abstract void createSchema() throws SQLException, UnsupportedDialectException;
+
+    protected void createReadersGroup() throws UnsupportedDialectException, SQLException {}
 
     protected void execute(Connection conn, String sql) throws SQLException {
         logger.info("Executing SQL: {}", sql);
@@ -281,6 +284,14 @@ public abstract class DbAdapter {
             e.printStackTrace();
         }
     }
+
+    /**
+     * Drop the readers user which acts as a group.
+     *
+     * @throws UnsupportedDialectException if this endpoint is mis-configured
+     * @throws SQLException if there are DB problems
+     */
+    public void dropReadersGroupUser() throws UnsupportedDialectException, SQLException {}
 
     protected abstract void dropUserIfExists(Connection conn) throws SQLException;
 }

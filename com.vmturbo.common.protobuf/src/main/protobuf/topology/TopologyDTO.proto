@@ -291,7 +291,8 @@ message TypeSpecificInfo {
         // boolean indicating that wasted storage actions should not be generated for this storage
         // this is set to true for storages where storage browsing is disabled for at least one
         // discovering target.
-        optional bool ignore_wasted_files = 4 [default = false];
+        // note: no longer used any more, since such files have been cleared before broadcast
+        optional bool ignore_wasted_files = 4 [default = false, deprecated = true];
 
         // vSAN storage policy
         optional .common_dto.EntityDTO.StorageData.StoragePolicy policy = 5;

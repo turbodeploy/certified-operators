@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -387,10 +388,10 @@ public class Table {
          * @param includedColumns names of columns to include in the hash calculation
          * @return hash value
          */
-        public long getXxHash(Set<String> includedColumns) {
+        public long getXxHash(Set<Column<?>> includedColumns) {
             final StreamingXXHash64 hash64 = HashUtil.XX_HASH_FACTORY.newStreamingHash64(HashUtil.XX_HASH_SEED);
             tableWriter.getColumns().stream()
-                    .filter(c -> includedColumns.contains(c.getName()))
+                    .filter(includedColumns::contains)
                     .map(c -> c.toHashValue(values.get(c)))
                     // empty byte arrays cause problems in at least the unsafe java xxhash impl
                     .filter(ba -> ba.length > 0)
@@ -416,6 +417,19 @@ public class Table {
         @Override
         public void close() {
             sink.accept(this);
+        }
+
+        /**
+         * Return this record as a map, ommitting null keys and values, if any.
+         *
+         * <p>This is currently used for testing.</p>
+         *
+         * @return the record as a map
+         */
+        public Map<String, Object> asMap() {
+            return values.entrySet().stream()
+                    .filter(e -> e.getKey() != null && e.getValue() != null)
+                    .collect(Collectors.toMap(e -> e.getKey().getName(), Entry::getValue));
         }
     }
 }

@@ -3,6 +3,8 @@ package cost;
 
 option java_package = "com.vmturbo.common.protobuf.cost";
 
+import "cca/CloudCommitmentAnalysis.proto";
+
 message EnableCostRecordingRequest {
     message EntityFilter {
         // Cannot be empty - empty will be a no op.
@@ -91,6 +93,14 @@ message GetBuyRIImpactCsvResponse {
     optional string csv_string = 1;
 }
 
+message StartFullAllocatedRIBuyRequest {
+    //Empty message
+}
+
+message StartFullAllocatedRIBuyResponse {
+    optional cca.CloudCommitmentAnalysisInfo cloud_commitment_analysis_info = 1;
+}
+
 // A service for debugging-related information in the cost component.
 // This shouldn't be called from the core "application" code - it's helper
 // methods to help diagnose errors.
@@ -134,4 +144,7 @@ service CostDebugService {
     // Generates a csv-formatted report of Buy RI savings. This is a way to verify the
     // BuyRIImpactAnalysis output from the market component.
     rpc GetBuyRIImpactCsv(GetBuyRIImpactCsvRequest) returns (GetBuyRIImpactCsvResponse);
+
+    rpc StartFullAllocatedRIBuyAnalysis(StartFullAllocatedRIBuyRequest)
+    returns (StartFullAllocatedRIBuyResponse);
 }

@@ -14,6 +14,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.communication.CommunicationException;
@@ -99,7 +101,7 @@ public class ActionApprovalService extends AbstractActionApprovalService {
     }
 
     private void actionApprovalRequested(@Nonnull ActionApprovalRequests requests,
-            @Nonnull Runnable commitCommand) {
+            @Nonnull Runnable commitCommand, @Nonnull SpanContext tracingContext) {
         final Optional<Long> targetId = getTargetId();
         if (!targetId.isPresent()) {
             getLogger().warn("No external approval backend targets found,"

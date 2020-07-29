@@ -87,15 +87,11 @@ public class ActionModeCalculator {
 
     private final RangeAwareSpecCalculator rangeAwareSpecCalculator;
 
+    /**
+     * Constructs a ActionModeCalculator with the default RangeAwareSpecCalculator.
+     */
     public ActionModeCalculator() {
         this.rangeAwareSpecCalculator = new RangeAwareSpecCalculator();
-    }
-
-    // This is present in case we want to test just ActionModeCalculator without
-    // rangeAwareSpecCalculator. In that case, it cane be mocked if needed.
-    @VisibleForTesting
-    ActionModeCalculator(@Nonnull RangeAwareSpecCalculator rangeAwareSpecCalculator) {
-        this.rangeAwareSpecCalculator = rangeAwareSpecCalculator;
     }
 
     /**
@@ -255,8 +251,8 @@ public class ActionModeCalculator {
             try {
                 final long targetEntityId = ActionDTOUtil.getPrimaryEntityId(actionDto);
 
-                final Map<String, Setting> settingsForTargetEntity = entitiesCache == null ?
-                        Collections.emptyMap() : entitiesCache.getSettingsForEntity(targetEntityId);
+                final Map<String, Setting> settingsForTargetEntity = entitiesCache == null
+                    ? Collections.emptyMap() : entitiesCache.getSettingsForEntity(targetEntityId);
 
                 return specsApplicableToAction(actionDto, settingsForTargetEntity)
                     .map(spec -> {
@@ -630,7 +626,7 @@ public class ActionModeCalculator {
      * For an action which corresponds to a Workflow Action, e.g. ProvisionActionWorkflow,
      * return the ActionMode of the policy for the related action, e.g. ProvisionAction.
      *
-     * If this is not a Workflow Action, then return Optional.empty()
+     * <p>If this is not a Workflow Action, then return Optional.empty()</p>
      *
      * @param action The action to analyze to see if it is a Workflow Action
      * @param entitySettingsCache the EntitySettings lookaside for the given action
@@ -666,8 +662,8 @@ public class ActionModeCalculator {
             // note: the value of the workflowSettingSpec is the OID of the workflow, only used during
             // execution
             Setting workflowSettingSpec = settingsForActionTarget.get(workflowOverride.getSettingName());
-            if (workflowSettingSpec == null ||
-                    StringUtils.isEmpty(workflowSettingSpec.getStringSettingValue().getValue())) {
+            if (workflowSettingSpec == null
+                    || StringUtils.isEmpty(workflowSettingSpec.getStringSettingValue().getValue())) {
                 return Optional.empty();
             }
 
@@ -691,7 +687,7 @@ public class ActionModeCalculator {
      * For an action which corresponds to a Workflow Action, e.g. ProvisionActionWorkflow,
      * return the ActionMode of the policy for the related action, e.g. ProvisionAction.
      *
-     * If this is not a Workflow Action, then return an empty map.
+     * <p>If this is not a Workflow Action, then return an empty map. </p>
      *
      * @param recommendation The action to analyze to see if it is a Workflow Action
      * @param snapshot the entity settings cache to look up the settings.
@@ -715,7 +711,7 @@ public class ActionModeCalculator {
             // get a map of all the settings (settingName  -> setting) specific to this entity
             final Map<String, Setting> settingsForActionTarget =
                 snapshot.getSettingsForEntity(actionTargetEntityId);
-            return getSettingForState(settingsForActionTarget, actionType);
+            return getSettingForState(recommendation, settingsForActionTarget, actionType);
         } catch (UnsupportedActionException e) {
             logger.error("Unable to calculate complex action mode.", e);
             return Collections.emptyMap();
@@ -723,7 +719,10 @@ public class ActionModeCalculator {
     }
 
     @Nonnull
-    private Map<ActionState, String> getActionStateSettings(@Nonnull ActionType actionType) {
+    private Map<ActionState, String> getActionStateSettings(
+            @Nonnull final ActionDTO.Action recommendation,
+            @Nonnull Map<String, Setting> actionSettings,
+            @Nonnull ActionType actionType) {
         final Map<ActionState, String> actionStateSettings = new HashMap<>();
         final EntitySettingSpecs preInProgress = PREP_WORKFLOW_ACTION_TYPE_MAP.get(actionType);
         if (preInProgress != null) {
@@ -737,24 +736,46 @@ public class ActionModeCalculator {
         if (postInProgress != null) {
             actionStateSettings.put(ActionState.POST_IN_PROGRESS, postInProgress.getSettingName());
         }
-        final EntitySettingSpecs baseActionSetting = WORKFLOW_ACTION_BASE_MAP.get(
-                WORKFLOW_ACTION_TYPE_MAP.get(actionType));
-        if (baseActionSetting != null) {
-            final String afterExecSettingSpec =
-                    ActionSettingSpecs.getSubSettingFromActionModeSetting(baseActionSetting,
-                            ActionSettingType.AFTER_EXEC);
-            actionStateSettings.put(ActionState.SUCCEEDED, afterExecSettingSpec);
-            final String onGenSettingSpec = ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                    baseActionSetting, ActionSettingType.ON_GEN);
-            actionStateSettings.put(ActionState.READY, onGenSettingSpec);
-        }
+
+        getActionModeSettingSpec(recommendation, actionSettings)
+            .ifPresent(actionModeSetting ->
+                addActionModeRelatedSettings(actionModeSetting, actionStateSettings));
+
         return Collections.unmodifiableMap(actionStateSettings);
     }
 
+    private void addActionModeRelatedSettings(@Nonnull EntitySettingSpecs actionModeSetting,
+                                              @Nonnull Map<ActionState, String> actionStateSettings) {
+        final String afterExecSettingSpec =
+            ActionSettingSpecs.getSubSettingFromActionModeSetting(actionModeSetting,
+                ActionSettingType.AFTER_EXEC);
+        actionStateSettings.put(ActionState.SUCCEEDED, afterExecSettingSpec);
+        actionStateSettings.put(ActionState.FAILED, afterExecSettingSpec);
+        final String onGenSettingSpec =
+            ActionSettingSpecs.getSubSettingFromActionModeSetting(actionModeSetting,
+                ActionSettingType.ON_GEN);
+        actionStateSettings.put(ActionState.READY, onGenSettingSpec);
+    }
+
     @Nonnull
-    private Map<ActionState, Setting> getSettingForState(@Nonnull Map<String, Setting> actionSettings,
+    private Optional<EntitySettingSpecs> getActionModeSettingSpec(
+        @Nonnull final ActionDTO.Action action,
+        @Nonnull Map<String, Setting> settingsForTargetEntity) {
+        return specsApplicableToAction(action, settingsForTargetEntity)
+            // there potentially be setting unrelated to action mode like
+            // EntitySettingSpecs.EnforceNonDisruptive. Take a look at specsApplicableToAction
+            // for more details. Here we only need action mode settings.
+            .filter(ActionSettingSpecs::isActionModeSetting)
+            .findAny();
+    }
+
+    @Nonnull
+    private Map<ActionState, Setting> getSettingForState(
+            @Nonnull final ActionDTO.Action recommendation,
+            @Nonnull Map<String, Setting> actionSettings,
             @Nonnull ActionType actionType) {
-        final Map<ActionState, String> actionStateSettings = getActionStateSettings(actionType);
+        final Map<ActionState, String> actionStateSettings = getActionStateSettings(
+            recommendation, actionSettings, actionType);
         final Map<ActionState, Setting> result = new EnumMap<>(ActionState.class);
         for (Entry<ActionState, String> settingEntry: actionStateSettings.entrySet()) {
             final ActionState actionState = settingEntry.getKey();
@@ -793,8 +814,7 @@ public class ActionModeCalculator {
                                                         EntitySettingSpecs.Move))
                         .distinct();
             case SCALE:
-                // For now we use Move policy for SCALE actions
-                return Stream.of(EntitySettingSpecs.Move);
+                return Stream.of(EntitySettingSpecs.CloudComputeScale);
             case ALLOCATE:
                 // Allocate actions are not executable and are not configurable by the user
                 return Stream.empty();
@@ -921,8 +941,8 @@ public class ActionModeCalculator {
      * @return Returns {@code true} if the action has Application Component as a target and Heap commodity
      */
     private boolean isApplicationComponentHeapCommodity(Resize resize) {
-        return resize.getTarget().getType() == EntityType.APPLICATION_COMPONENT_VALUE &&
-                resize.getCommodityType().getType() == CommodityType.HEAP.getNumber();
+        return resize.getTarget().getType() == EntityType.APPLICATION_COMPONENT_VALUE
+            && resize.getCommodityType().getType() == CommodityType.HEAP.getNumber();
     }
 
     /**
@@ -931,8 +951,8 @@ public class ActionModeCalculator {
      * @return Returns {@code true} if the action has Database Server as a target and DBMem commodity
      * */
     private boolean isDatabaseServerDBMemCommodity(Resize resize) {
-        return resize.getTarget().getType() == EntityType.DATABASE_SERVER_VALUE &&
-                resize.getCommodityType().getType() == CommodityType.DB_MEM.getNumber();
+        return resize.getTarget().getType() == EntityType.DATABASE_SERVER_VALUE
+            && resize.getCommodityType().getType() == CommodityType.DB_MEM.getNumber();
     }
 
     /**
@@ -945,20 +965,21 @@ public class ActionModeCalculator {
         // This map holds the resizeSettings by commodity type per entity type
         private final Map<Integer, Map<Integer, RangeAwareResizeSettings>> resizeSettingsByEntityType =
                 ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, populateResizeSettingsByCommodityForVM());
+
         /**
          * Gets the spec applicable for range aware commodity resize. Currently VMem, VCpu
          * resizes of on-prem VMs are considered range aware.
          *
-         * There is a minThreshold and a maxThreshold defined for the commodity resizing.
+         * <p>There is a minThreshold and a maxThreshold defined for the commodity resizing.
          * There are separate automation modes defined for these cases:
          * 1. The new capacity is greater than the maxThreshold
          * 2. The new capacity is lesser than the minThreshold
          * 3. The new capacity is greater than or equal to minThreshold and less than or equal
          *    to maxThreshold, and it is sizing up
          * 4. The new capacity is greater than or equal to minThreshold and less than or equal
-         *    to maxThreshold, and it is sizing down
+         *    to maxThreshold, and it is sizing down</p>
          *
-         * This method will determine if any of these settings apply to the resize action.
+         * <p>This method will determine if any of these settings apply to the resize action.</p>
          *
          * @param resize the resize action
          * @param settingsForTargetEntity A map of the setting name and the setting for this entity
@@ -998,9 +1019,9 @@ public class ActionModeCalculator {
                         // Recognize if this is a resize up or down
                         if (Math.abs(newCapacity - oldCapacity) <= CAPACITY_COMPARISON_DELTA) {
                             // -Delta <= new capacity - old capacity <= +Delta
-                            logger.error("{}  has a resize action on commodity {}  with same " +
-                                            "old and new capacity -> {}", resize.getTarget().getId(), commType,
-                                    resize.getNewCapacity());
+                            logger.error("{}  has a resize action on commodity {}  with same "
+                                    + "old and new capacity -> {}", resize.getTarget().getId(), commType,
+                                resize.getNewCapacity());
                         } else if (newCapacity > oldCapacity) {
                             // A resize up action
                             // initialize applicableSpec to the actionMode for scaling up inbetween thresholds
@@ -1021,8 +1042,8 @@ public class ActionModeCalculator {
                     }
                 }
             } else if (entityType == EntityType.VIRTUAL_MACHINE.getNumber()) {
-                applicableSpec = Optional.ofNullable(VMS_ACTION_MODE_SETTINGS.get(changedAttribute) != null ?
-                    VMS_ACTION_MODE_SETTINGS.get(changedAttribute).get(commType) : null );
+                applicableSpec = Optional.ofNullable(VMS_ACTION_MODE_SETTINGS.get(changedAttribute) != null
+                    ? VMS_ACTION_MODE_SETTINGS.get(changedAttribute).get(commType) : null );
             }
             logger.debug("Range aware spec for resizing {} of commodity {} of entity {} is {} ",
                     changedAttribute, commType, resize.getTarget().getId(),
@@ -1078,7 +1099,9 @@ public class ActionModeCalculator {
 
         /**
          * Returns a map of the commodity type to the range aware resize settings applicable to it.
-         * @return
+         *
+         * @return returns a map of the commodity type to the range aware resize settings applicable
+         * to it.
          */
         private Map<Integer, RangeAwareResizeSettings> populateResizeSettingsByCommodityForVM() {
             RangeAwareResizeSettings vCpuSettings = ImmutableRangeAwareResizeSettings.builder()

@@ -19,8 +19,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import org.junit.Assert;
-import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -36,6 +34,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
@@ -47,12 +46,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
@@ -96,6 +97,10 @@ public class ActionModeCalculatorTest {
     private static final long ACTION_OID = 10289L;
     private static final long AN_HOUR_IN_MILLIS = 3600000L;
 
+    /**
+     * Should return AUTOMATIC for a storage host action, with the target having an AUTOMATIC
+     * host move action mode.
+     */
     @Test
     public void testSettingHostMove() {
         final ActionDTO.Action action = createMoveAction(1, EntityType.PHYSICAL_MACHINE_VALUE);
@@ -113,6 +118,10 @@ public class ActionModeCalculatorTest {
                 is(ActionModeCalculator.ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
+    /**
+     * ActionModeCalculator should return the default action mode when the target does have
+     * and action mode setting for host move.
+     */
     @Test
     public void testNoSettingHostMove() {
         final ActionDTO.Action action = createMoveAction(1, EntityType.PHYSICAL_MACHINE_VALUE);
@@ -123,6 +132,10 @@ public class ActionModeCalculatorTest {
                     EntitySettingSpecs.Move.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
+    /**
+     * Should return AUTOMATIC for a storage move action, with the target having an AUTOMATIC
+     * storage move action mode.
+     */
     @Test
     public void testSettingStorageMove() {
         final ActionDTO.Action action = createMoveAction(1, EntityType.STORAGE_VALUE);
@@ -140,6 +153,10 @@ public class ActionModeCalculatorTest {
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
+    /**
+     * ActionModeCalculator should return the default action mode when the target does have
+     * and action mode setting for storage move.
+     */
     @Test
     public void testNoSettingStorageMove() {
         final ActionDTO.Action action = createMoveAction(1, EntityType.STORAGE_VALUE);
@@ -149,6 +166,11 @@ public class ActionModeCalculatorTest {
                     EntitySettingSpecs.StorageMove.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
+    /**
+     * Should return the most conservative (MANUAL) for a compound move
+     * action, with the target having resize thru moving set to AUTOMATIC but storage move set to
+     * MANUAL.
+     */
     @Test
     public void testSettingCompoundMove() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -189,6 +211,10 @@ public class ActionModeCalculatorTest {
                 is(ModeAndSchedule.of(ActionMode.MANUAL)));
     }
 
+    /**
+     * ActionModeCalculator should return the default action mode when the target does have
+     * and action mode setting for compound move.
+     */
     @Test
     public void testNoSettingCompoundMove() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -218,6 +244,10 @@ public class ActionModeCalculatorTest {
                 is(ModeAndSchedule.of(expectedDefaultMode)));
     }
 
+    /**
+     * Should return AUTOMATIC for a scale action, with the target having an AUTOMATIC
+     * scale action mode.
+     */
     @Test
     public void testSettingScale() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -226,7 +256,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        final String settingName = EntitySettingSpecs.Move.getSettingName();
+        final String settingName = EntitySettingSpecs.CloudComputeScale.getSettingName();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(settingName,
                         Setting.newBuilder()
@@ -240,6 +270,10 @@ public class ActionModeCalculatorTest {
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
+    /**
+     * ActionModeCalculator should return the default action mode when the target does have
+     * and action mode setting for scale.
+     */
     @Test
     public void testNoSettingScale() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -253,6 +287,10 @@ public class ActionModeCalculatorTest {
                 is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
 
+    /**
+     * Should return AUTOMATIC for a resize action, with the target having an AUTOMATIC
+     * resize action mode.
+     */
     @Test
     public void testSettingResize() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -274,6 +312,10 @@ public class ActionModeCalculatorTest {
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
+    /**
+     * ActionModeCalculator should return the default action mode when the target does have
+     * and action mode setting for resize.
+     */
     @Test
     public void testNoSettingResize() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -289,6 +331,10 @@ public class ActionModeCalculatorTest {
                 EntitySettingSpecs.Resize.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
+    /**
+     * Should return AUTOMATIC for a reconfigure action, with the target having an AUTOMATIC
+     * reconfigure action mode.
+     */
     @Test
     public void testSettingReconfigure() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -310,6 +356,10 @@ public class ActionModeCalculatorTest {
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
+    /**
+     * ActionModeCalculator should return the default action mode when the target does have
+     * and action mode setting for reconfigure.
+     */
     @Test
     public void testNoSettingReconfigure() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -324,6 +374,10 @@ public class ActionModeCalculatorTest {
                     EntitySettingSpecs.Reconfigure.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
+    /**
+     * Should return AUTOMATIC for a provision action, with the target having an AUTOMATIC
+     * provision action mode.
+     */
     @Test
     public void testSettingProvision() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -345,6 +399,10 @@ public class ActionModeCalculatorTest {
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
+    /**
+     * ActionModeCalculator should return the default action mode when the target does have
+     * and action mode setting for provision.
+     */
     @Test
     public void testNoSettingProvision() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -360,6 +418,10 @@ public class ActionModeCalculatorTest {
                     EntitySettingSpecs.Provision.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
+    /**
+     * Should return AUTOMATIC for a activate action, with the target having an AUTOMATIC
+     * activate action mode.
+     */
     @Test
     public void testSettingActivate() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -381,6 +443,10 @@ public class ActionModeCalculatorTest {
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
+    /**
+     * ActionModeCalculator should return the default action mode when the target does have
+     * and action mode setting for activate.
+     */
     @Test
     public void testNoSettingActivate() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -396,6 +462,10 @@ public class ActionModeCalculatorTest {
                     EntitySettingSpecs.Activate.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
+    /**
+     * Should return AUTOMATIC for a suspend action, with the target having an AUTOMATIC
+     * suspend action mode.
+     */
     @Test
     public void testSettingDeactivate() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -418,6 +488,10 @@ public class ActionModeCalculatorTest {
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
+    /**
+     * ActionModeCalculator should return the default action mode when the target does have
+     * and action mode setting for suspend.
+     */
     @Test
     public void testNoSettingDeactivate() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -433,6 +507,10 @@ public class ActionModeCalculatorTest {
                 EntitySettingSpecs.Suspend.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
+    /**
+     * Should return AUTOMATIC for a delete action, with the target having an AUTOMATIC
+     * delete action mode.
+     */
     @Test
     public void testSettingDelete() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -454,6 +532,9 @@ public class ActionModeCalculatorTest {
             is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
+    /**
+     * ActionModeCalculator should return RECOMMEND for a delete action without a setting.
+     */
     @Test
     public void testNoSettingDelete() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -467,6 +548,9 @@ public class ActionModeCalculatorTest {
             is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
 
+    /**
+     * ActionModeCalculator should not fail without action type.
+     */
     @Test
     public void testUnsetActionType() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder())
@@ -1642,4 +1726,94 @@ public class ActionModeCalculatorTest {
                 vCpuUpInBetweenThresholds);
     }
 
+    /**
+     * Resize vm up configured with on generation and after execution workflows should place
+     * READY, SUCCEEDED, and FAILED in the map returned by calculateWorkflowSettings.
+     */
+    @Test
+    public void testVmemResizeUpInThresholdOnGenAfterExecWorkflowSettings() {
+        final long afterExecWorkflowId = 706867209098681L;
+        final long onGenWorkflowId = 123L;
+        final long afterAuditVm = 706867209098714L;
+        // This is the DTO taken from a real resize up action in dc17
+        final ActionDTO.Action afterAuditedAction = makeResizeVmemUpAction(afterAuditVm);
+        final long onGenAuditVm = 111L;
+        final ActionDTO.Action onGenAuditedAction = makeResizeVmemUpAction(onGenAuditVm);
+
+        when(entitiesCache.getSettingsForEntity(afterAuditVm)).thenReturn(
+            makeVmemResizeBoundSettings()
+                .put("afterExecResizeVmemUpInBetweenThresholdsActionWorkflow", Setting.newBuilder()
+                    .setSettingSpecName("afterExecResizeVmemUpInBetweenThresholdsActionWorkflow")
+                    .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                        .addOids(afterExecWorkflowId)
+                        .build())
+                    .build())
+                .build());
+        when(entitiesCache.getSettingsForEntity(onGenAuditVm)).thenReturn(
+            makeVmemResizeBoundSettings()
+                .put("onGenResizeVmemUpInBetweenThresholdsActionWorkflow", Setting.newBuilder()
+                    .setSettingSpecName("onGenResizeVmemUpInBetweenThresholdsActionWorkflow")
+                    .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                        .addOids(onGenWorkflowId)
+                        .build())
+                    .build())
+                .build());
+
+        Map<ActionState, Setting> actual = actionModeCalculator.calculateWorkflowSettings(afterAuditedAction, entitiesCache);
+        Assert.assertTrue(actual.containsKey(ActionState.SUCCEEDED));
+        Assert.assertEquals(Arrays.asList(afterExecWorkflowId),
+            actual.get(ActionState.SUCCEEDED).getSortedSetOfOidSettingValue().getOidsList());
+        Assert.assertTrue(actual.containsKey(ActionState.FAILED));
+        Assert.assertEquals(Arrays.asList(afterExecWorkflowId),
+            actual.get(ActionState.FAILED).getSortedSetOfOidSettingValue().getOidsList());
+
+        actual = actionModeCalculator.calculateWorkflowSettings(onGenAuditedAction, entitiesCache);
+        Assert.assertTrue(actual.containsKey(ActionState.READY));
+        Assert.assertEquals(Arrays.asList(onGenWorkflowId),
+            actual.get(ActionState.READY).getSortedSetOfOidSettingValue().getOidsList());
+    }
+
+    private static ImmutableMap.Builder<String, Setting> makeVmemResizeBoundSettings() {
+        return ImmutableMap.<String, Setting>builder()
+            .put("resizeVmemMinThreshold", Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                    .setValue(512.0f)
+                    .build())
+                .build())
+            .put("resizeVmemMaxThreshold", Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                    .setValue(131072.0f)
+                    .build())
+                .build());
+    }
+
+    private static ActionDTO.Action makeResizeVmemUpAction(long vmOid) {
+        return ActionDTO.Action.newBuilder()
+            .setId(706867209099129L)
+            .setInfo(ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(vmOid)
+                        .setType(EntityType.VIRTUAL_MACHINE.getNumber())
+                        .setEnvironmentType(EnvironmentType.ON_PREM)
+                        .build())
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(53)
+                        .build())
+                    .setOldCapacity(3145728.0f)
+                    .setNewCapacity(4194304.0f)
+                    .setHotAddSupported(false)
+                    .build())
+                .buildPartial())
+            .setDeprecatedImportance(1.0E22)
+            .setExplanation(Explanation.newBuilder()
+                .setResize(ResizeExplanation.newBuilder()
+                    .setDeprecatedStartUtilization(1.0f)
+                    .setDeprecatedEndUtilization(0.75f)
+                    .build())
+                .build())
+            .setExecutable(true)
+            .setSupportingLevel(SupportLevel.SUPPORTED)
+            .build();
+    }
 }

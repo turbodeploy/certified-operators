@@ -39,8 +39,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  *
  * <p>This class will also handle reservation virtual machine entity, the only difference between normal
  * virtual machine with reservation virtual machine is that reservation virtual machine entity only
- * buy provision commodity, all other commodity bought value will be set to zero. It use isReservationEntity
- * field to represent it is a reservation virtual machine or not.
+ * buy provision commodity, all other commodity bought value will be set to zero.
  */
 public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
         implements ITopologyEntityConstructor {
@@ -48,17 +47,6 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
     private static final String ZERO = "0";
     private static final String RDM = "RDM";
 
-    // represent that whether the new created entity is reservation entity or not. If it is reservation
-    // entity, it will only buy provision commodity.
-    private final boolean isReservationEntity;
-
-    public VirtualMachineEntityConstructor() {
-        this.isReservationEntity = false;
-    }
-
-    public VirtualMachineEntityConstructor(final boolean isReservationEntity) {
-        this.isReservationEntity = isReservationEntity;
-    }
 
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
@@ -177,7 +165,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR, ZERO));
 
         // if created entity is reservation entity, cpu used value should be 0.
-        final double used = this.isReservationEntity ? 0.0 : numOfCpu * cpuSpeed * cpuConsumedFactor;
+        final double used = numOfCpu * cpuSpeed * cpuConsumedFactor;
         CommodityBoughtDTO cpuCommodity =
                 createCommodityBoughtDTO(CommodityDTO.CommodityType.CPU_VALUE, used);
         CommodityBoughtDTO cpuProvisionCommodity =
@@ -198,7 +186,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
         final double memoryConsumedFactor = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR, ZERO));
         // if created entity is reservation entity, memory used value should be 0.
-        final double used = this.isReservationEntity ? 0.0 : memorySize * memoryConsumedFactor;
+        final double used = memorySize * memoryConsumedFactor;
         CommodityBoughtDTO memCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.MEM_VALUE, used);
         CommodityBoughtDTO memProvCommodity =
@@ -215,10 +203,10 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
     private List<CommodityBoughtDTO> addComputeCommoditiesBoughtIONet(
             @Nonnull Map<String, String> fieldNameValueMap) {
         // if created entity is reservation entity, io throughput used value should be 0.
-        final double ioThroughput = this.isReservationEntity ? 0.0 : Double.valueOf(
+        final double ioThroughput = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT, ZERO));
         // if created entity is reservation entity, network throughput used value should be 0.
-        final double netThroughput = this.isReservationEntity ? 0.0 : Double.valueOf(
+        final double netThroughput = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT, ZERO));
 
         CommodityBoughtDTO ioThroughputCommodity =
@@ -376,7 +364,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
         final double disSize = type.toUpperCase().equals(RDM) ? Double.MIN_VALUE :
             Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_SIZE, ZERO));
         // if created entity is reservation entity, storage amount used value should be 0.
-        final double disConsumedFactor = this.isReservationEntity ? 0.0 : Double.valueOf(
+        final double disConsumedFactor = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR, ZERO));
         final double disIops = type.toUpperCase().equals(RDM) ? Double.MIN_VALUE :
             Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_IOPS, ZERO));
@@ -386,7 +374,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
         CommodityBoughtDTO stProvCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE, disSize);
         // if created entity is reservation entity, storage access used value should be 0.
-        final double storageAccessValue = this.isReservationEntity ? 0.0 : disIops;
+        final double storageAccessValue = disIops;
         CommodityBoughtDTO stAccessCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, storageAccessValue);
         return Lists.newArrayList(stAmountCommodity, stProvCommodity, stAccessCommodity);

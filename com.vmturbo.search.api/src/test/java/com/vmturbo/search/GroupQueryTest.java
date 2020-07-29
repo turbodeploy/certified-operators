@@ -50,10 +50,13 @@ import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
  * Tests for GroupQuery.
+ *
+ * <p>Majority of unit tests are located in {@link EntityQueryTest} as
+ * the 2 classes extend same {@link AbstractSearchQuery}.</p>
  */
 public class GroupQueryTest {
 
-    private static final SearchMetadataMapping oidPrimitive = SearchMetadataMapping.PRIMITIVE_OID;
+    private static final FieldApiDTO oidPrimitive = PrimitiveFieldApiDTO.oid();
 
     /**
      * A fake database context.
@@ -99,7 +102,7 @@ public class GroupQueryTest {
     }
 
     private GroupQuery groupQuery(final GroupQueryApiDTO groupQueryDto) {
-        return new GroupQuery(groupQueryDto, dSLContextSpy);
+        return new GroupQuery(groupQueryDto, dSLContextSpy, 100, 101);
     }
 
     /**
@@ -107,18 +110,18 @@ public class GroupQueryTest {
      *
      * <p>This is an end to end test of the class.  The query results are mocked and
      * test focus on expected {@link SearchQueryRecordApiDTO}</p>
-     * @throws Exception problems processing request
+     * @throws SearchQueryFailedException problems processing request
      */
     @Test
-    public void processGroupQuery() throws Exception {
+    public void processGroupQuery() throws SearchQueryFailedException {
         //GIVEN
-        final GroupType type = GroupType.COMPUTE_HOST_CLUSTER;
+        final GroupType type = GroupType.Cluster;
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
         final FieldApiDTO primitiveTextField = PrimitiveFieldApiDTO.origin();
         final FieldApiDTO aggregatedCommodityNumericField = getAnyGroupKeyField(type, AggregateCommodityFieldApiDTO.class, Type.NUMBER);
         final FieldApiDTO memberFieldApiDTO = getAnyGroupKeyField(type, MemberFieldApiDTO.class, Type.INTEGER);
 
-        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.COMPUTE_HOST_CLUSTER)
+        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.Cluster)
                 .fields(primitiveOid,
                         primitiveTextField,
                         aggregatedCommodityNumericField, // Test to make sure duplicate removed
@@ -145,6 +148,7 @@ public class GroupQueryTest {
                 .values(oidValue, primitiveTextValue, aggregatedCommodityNumericValue, memberFieldApiDTOValue));
 
         doReturn(result).when(dSLContextSpy).fetch(any(Select.class));
+        doReturn(4).when(dSLContextSpy).fetchCount(any(Select.class));
 
         //WHEN
         SearchQueryPaginationResponse<SearchQueryRecordApiDTO> paginationResponse = query.readQueryAndExecute();
@@ -159,10 +163,10 @@ public class GroupQueryTest {
                     assertTrue(((TextFieldValueApiDTO)resultValue).getValue().equals(primitiveTextValue));
                     break;
                 case AGGREGATE_COMMODITY:
-                    assertTrue(((NumberFieldValueApiDTO)resultValue).getValue() == (Double.valueOf(aggregatedCommodityNumericValue)));
+                    assertTrue(((NumberFieldValueApiDTO)resultValue).getValue() == Double.parseDouble(aggregatedCommodityNumericValue));
                     break;
                 case MEMBER:
-                    assertTrue(((IntegerFieldValueApiDTO)resultValue).getValue() == Long.valueOf(memberFieldApiDTOValue));
+                    assertTrue(((IntegerFieldValueApiDTO)resultValue).getValue() == Long.parseLong(memberFieldApiDTOValue));
                     break;
                 default:
                     Assert.fail("Unexpected Value");
@@ -172,21 +176,21 @@ public class GroupQueryTest {
 
 
     /**
-     * Expect correct mapping of {@link EntityType} to {@link GroupType}
+     * Expect correct mapping of {@link EntityType} to {@link GroupType}.
      */
     @Test
     public void mapRecordToValueReturnsGroupTypeApiEnum() {
         //GIVEN
-        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.COMPUTE_HOST_CLUSTER).build();
+        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.Cluster).build();
         GroupQueryApiDTO request = GroupQueryApiDTO.queryGroup(selectGroup);
         GroupQuery query = groupQuery(request);
 
-        EntityType recordValue = EntityType.COMPUTE_HOST_CLUSTER;
+        EntityType recordValue = EntityType.COMPUTE_CLUSTER;
         Record record = dSLContextSpy.newRecord(SearchEntity.SEARCH_ENTITY.TYPE).values(recordValue);
         PrimitiveFieldApiDTO groupTypeFieldDto = PrimitiveFieldApiDTO.groupType();
         //WHEN
         EnumFieldValueApiDTO
-                value = (EnumFieldValueApiDTO) query.mapRecordToValue(record, SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE, groupTypeFieldDto).get();
+                value = (EnumFieldValueApiDTO)query.mapRecordToValue(record, SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE, groupTypeFieldDto).get();
 
         //THEN
         assertTrue(value.getValue().equals(GroupTypeMapper.fromSearchSchemaToApi(recordValue).toString()));
@@ -198,11 +202,11 @@ public class GroupQueryTest {
     @Test
     public void buildSelectFieldsWithNoExtraFieldsSpecified() {
         //GIVEN
-        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.REGULAR).build();
+        final SelectGroupApiDTO selectGroup = SelectGroupApiDTO.selectGroup(GroupType.Group).build();
         final GroupQueryApiDTO request = GroupQueryApiDTO.queryGroup(selectGroup);
         GroupQuery query = groupQuery(request);
 
-        Map<FieldApiDTO, SearchMetadataMapping> mappings = SearchGroupMetadata.REGULAR.getMetadataMappingMap();
+        Map<FieldApiDTO, SearchMetadataMapping> mappings = SearchGroupMetadata.Group.getMetadataMappingMap();
         //WHEN
         Set<String> fields =
                 query.buildSelectFields().stream().map(Field::getName).collect(Collectors.toSet());

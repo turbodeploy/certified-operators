@@ -64,6 +64,10 @@ CONTAINER:
   nonVolatileProperties:
   - id
 
+CONTAINER_POD:
+  nonVolatileProperties:
+  - id
+
 VIRTUAL_MACHINE:
   nonVolatileProperties:
   - id

@@ -1,10 +1,11 @@
 package com.vmturbo.market.topology.conversions;
 
+import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Pattern;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -12,6 +13,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -42,8 +44,36 @@ public class CommodityTypeAllocator {
     private final Map<String, CommodityType>
             commoditySpecMap = Maps.newHashMap();
 
+    // a set of commodity types that could be used as constraint in reservation
+    private static final Set<Integer> reservationConstraintCommodities = Sets.newHashSet(
+            CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE,
+            CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE, CommodityDTO.CommodityType.CLUSTER_VALUE,
+            CommodityDTO.CommodityType.DATACENTER_VALUE, CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE,
+            CommodityDTO.CommodityType.NETWORK_VALUE, CommodityDTO.CommodityType.DRS_SEGMENTATION_VALUE,
+            CommodityDTO.CommodityType.SEGMENTATION_VALUE);
+
     CommodityTypeAllocator(final NumericIDAllocator commodityTypeAllocator) {
         this.idAllocator = commodityTypeAllocator;
+    }
+
+    /**
+     * Construct a map containing topologyDTO's {@link CommodityType} to economyDTO's
+     * commoditySpecification type mapping. The map only contains reservation constraint
+     * related commodity types mapping.
+     *
+     * @return a commodity type to integer map.
+     */
+    public Map<CommodityType, Integer> getReservationCommTypeToSpecMapping() {
+        Map<CommodityType, Integer> commTypeToSpecMap = Maps.newHashMap();
+        for (Map.Entry<String, CommodityType> e : commoditySpecMap.entrySet()) {
+            String commTypeAndKey = e.getKey();
+            CommodityType topologyCommType = e.getValue();
+            if (reservationConstraintCommodities.contains(topologyCommType.getType())
+                    && !commTypeToSpecMap.containsKey(commTypeAndKey)) {
+                commTypeToSpecMap.put(topologyCommType, idAllocator.getId(commTypeAndKey));
+            }
+        }
+        return commTypeToSpecMap;
     }
 
     /**

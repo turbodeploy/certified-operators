@@ -85,7 +85,7 @@ public class ActionStorehouseTest {
         actionStorehouse = new ActionStorehouse(actionStoreFactory,
                 executor, actionStoreLoader, actionApprovalSender);
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStore);
-        when(actionStore.getEntitySeverityCache()).thenReturn(severityCache);
+        when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(severityCache));
         when(actionStore.allowsExecution()).thenReturn(true);
         when(actionStore.getStoreTypeName()).thenReturn("test");
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

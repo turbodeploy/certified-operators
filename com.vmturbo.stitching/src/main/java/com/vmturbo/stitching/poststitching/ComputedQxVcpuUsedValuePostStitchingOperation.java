@@ -1,11 +1,10 @@
 package com.vmturbo.stitching.poststitching;
 
 import java.util.List;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -68,8 +67,32 @@ public class ComputedQxVcpuUsedValuePostStitchingOperation implements PostStitch
                     entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
                             .getCommoditySoldListBuilderList().stream()
                                     .filter(this::isQxVcpuCommodity)
-                                    .forEach(commSold ->
-                                            commSold.setUsed(avgUsedValue(commSold, entityToUpdate))));
+                                    .forEach(commSold -> {
+                                            Optional<Double> usedValue = avgUsedValue(commSold,
+                                            entityToUpdate);
+                                            if (usedValue.isPresent()) {
+                                                commSold.setUsed(usedValue.get());
+                                                if (logger.isDebugEnabled()) {
+                                                    logger.debug("Setting used value of commodity " +
+                                                            "sold {} of {} to {}",
+                                                        commSold.getCommodityType(),
+                                                        entityToUpdate.getDisplayName(),
+                                                        commSold.getUsed());
+                                                }
+                                            }
+                                            Optional<Double> peakValue = peakValue(commSold,
+                                            entityToUpdate);
+
+                                            if (peakValue.isPresent()) {
+                                                commSold.setPeak(peakValue.get());
+                                                if (logger.isDebugEnabled()) {
+                                                    logger.debug("Setting max value of commodity sold {} of {} to {}",
+                                                        commSold.getCommodityType(),
+                                                        entityToUpdate.getDisplayName(), commSold.getPeak());
+                                                }
+                                            }
+                                        }
+                                    ));
         });
         return resultBuilder.build();
     }
@@ -86,7 +109,7 @@ public class ComputedQxVcpuUsedValuePostStitchingOperation implements PostStitch
      * @param seller an entity that sells the commodity.
      * @return the computed average used value.
      */
-    private double avgUsedValue(@Nonnull final CommoditySoldDTO.Builder commSold,
+    private Optional<Double> avgUsedValue(@Nonnull final CommoditySoldDTO.Builder commSold,
                                 @Nonnull final TopologyEntity seller) {
         // get all used value from its consumers' commodity bought which has same type as commSold.
         final List<Double> commodityBoughtQxVcpuUsedValues = seller.getConsumers().stream()
@@ -108,9 +131,24 @@ public class ComputedQxVcpuUsedValuePostStitchingOperation implements PostStitch
         // the total count of QxVcpu commodity bought.
         final long commodityBoughtQxVcpuCount = commodityBoughtQxVcpuUsedValues.size();
         // if there is no consumer bought for this commodity, just return 0.
-        final double result = commodityBoughtQxVcpuCount == 0 ? 0 : (totalUsed / commodityBoughtQxVcpuCount);
-        logger.debug("Setting used value of commodity sold {} of {} to {}", commSold.getCommodityType(),
-                seller.getDisplayName(), result);
-        return result;
+        return commodityBoughtQxVcpuCount == 0 ? Optional.empty()
+            : Optional.of(totalUsed / commodityBoughtQxVcpuCount);
+    }
+
+    private Optional<Double> peakValue(@Nonnull final CommoditySoldDTO.Builder commSold,
+                                @Nonnull final TopologyEntity seller) {
+        final Optional<Double> commodityBoughtQxVcpuMaxValue = seller.getConsumers().stream()
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .flatMap(entityDtoBuilder ->
+                entityDtoBuilder.getCommoditiesBoughtFromProvidersList().stream())
+            .filter(commodityBoughtFromProvider ->
+                commodityBoughtFromProvider.getProviderId() == seller.getOid())
+            .flatMap(commodityBoughtFromProvider ->
+                commodityBoughtFromProvider.getCommodityBoughtList().stream())
+            .filter(commodityBought ->
+                commSold.getCommodityType().equals(commodityBought.getCommodityType()))
+            .map(CommodityBoughtDTO::getPeak)
+            .max(Double::compareTo);
+        return commodityBoughtQxVcpuMaxValue;
     }
 }

@@ -7,9 +7,13 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.searchquery.EntityCountRequestApiDTO;
+import com.vmturbo.api.dto.searchquery.EntityMetadataRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.FieldValueTypeApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupCountRequestApiDTO;
+import com.vmturbo.api.dto.searchquery.GroupMetadataRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.SearchAllQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
@@ -40,19 +44,34 @@ public class ApiQueryEngine implements IApiQueryEngine {
     private QueryFactory queryFactory;
 
     /**
+     * Default limit of results to return in search queries when not specified.
+     */
+    private final int apiPaginationDefaultLimit;
+
+    /**
+     * Max number of results allowed to be returned in search queries.
+     */
+    private final int apiPaginationMaxLimit;
+
+    /**
      * Construct an ApiQueryEngine.
      *
      * @param readonlyDbEndpoint a database endpoint configuration
      * @param enableSearchApi a feature flag, if true then search features are enabled
+     * @param apiPaginationDefaultLimit default limit of results to return
+     * @param apiPaginationMaxLimit max number of results to return
+     *
      */
-    public ApiQueryEngine(@Nonnull DbEndpoint readonlyDbEndpoint, boolean enableSearchApi) {
+    public ApiQueryEngine(@Nonnull DbEndpoint readonlyDbEndpoint, boolean enableSearchApi, final int apiPaginationDefaultLimit, final int apiPaginationMaxLimit) {
         this.readonlyDbEndpoint = Objects.requireNonNull(readonlyDbEndpoint);
         this.enableSearchApi = enableSearchApi;
+        this.apiPaginationDefaultLimit = apiPaginationDefaultLimit;
+        this.apiPaginationMaxLimit = apiPaginationMaxLimit;
     }
 
     @Override
     public SearchQueryPaginationResponse processEntityQuery(@Nonnull final EntityQueryApiDTO request)
-            throws UnsupportedDialectException, SQLException {
+            throws UnsupportedDialectException, SQLException, SearchQueryFailedException {
         if (!enableSearchApi) {
             throw new UnsupportedOperationException("Search API is not yet enabled!");
         }
@@ -61,11 +80,20 @@ public class ApiQueryEngine implements IApiQueryEngine {
 
     @Override
     public SearchQueryPaginationResponse processGroupQuery(@Nonnull final GroupQueryApiDTO request)
-        throws UnsupportedDialectException, SQLException {
+            throws UnsupportedDialectException, SQLException, SearchQueryFailedException {
         if (!enableSearchApi) {
             throw new UnsupportedOperationException("Search API is not yet enabled!");
         }
         return getQueryFactory().performGroupQuery(request);
+    }
+
+    @Override
+    public SearchQueryPaginationResponse processSearchAllQuery(@Nonnull final SearchAllQueryApiDTO request)
+            throws UnsupportedDialectException, SQLException, SearchQueryFailedException {
+        if (!enableSearchApi) {
+            throw new UnsupportedOperationException("Search API is not yet enabled!");
+        }
+        return getQueryFactory().performSearchAllQuery(request);
     }
 
     @Override
@@ -87,6 +115,40 @@ public class ApiQueryEngine implements IApiQueryEngine {
     }
 
     /**
+     * Processes a {@link EntityMetadataRequestApiDTO} and returns an (unpaginated) list of results.
+     *
+     * @param request describes the group by parameters of the request
+     * @return a list of results
+     * @throws Exception when the query cannot be processed
+     */
+    @Override
+    public List<FieldValueTypeApiDTO> entityFields(
+            @Nonnull EntityMetadataRequestApiDTO request)
+            throws Exception {
+        if (!enableSearchApi) {
+            throw new UnsupportedOperationException("Search API is not yet enabled!");
+        }
+        return getQueryFactory().performEntityFieldQuery(request);
+    }
+
+    /**
+     * Processes a {@link GroupMetadataRequestApiDTO} and returns an (unpaginated) list of results.
+     *
+     * @param request describes the group by parameters of the request
+     * @return a list of results
+     * @throws Exception when the query cannot be processed
+     */
+    @Override
+    public List<FieldValueTypeApiDTO> groupFields(
+            @Nonnull GroupMetadataRequestApiDTO request)
+            throws Exception {
+        if (!enableSearchApi) {
+            throw new UnsupportedOperationException("Search API is not yet enabled!");
+        }
+        return getQueryFactory().performGroupFieldQuery(request);
+    }
+
+    /**
      * Initializes the API query factory from the {@link DbEndpoint}.
      *
      * @return a factory for constructing API database queries
@@ -96,12 +158,11 @@ public class ApiQueryEngine implements IApiQueryEngine {
     private QueryFactory getQueryFactory() throws UnsupportedDialectException, SQLException {
         if (this.queryFactory == null) {
             try {
-                this.queryFactory = new QueryFactory(readonlyDbEndpoint.dslContext());
+                this.queryFactory = new QueryFactory(readonlyDbEndpoint.dslContext(), apiPaginationDefaultLimit, apiPaginationMaxLimit);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
         return queryFactory;
     }
-
 }

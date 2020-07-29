@@ -18,6 +18,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
+import io.opentracing.SpanContext;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -120,11 +122,11 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
         sendEntities(topologyContextId, topologyTwoId, entities);
         Mockito.verify(listener1, Mockito.timeout(TIMEOUT_MS).times(2))
-                        .onTopologyNotification(topologyInfoCaptor1.capture(), Mockito.any());
+                        .onTopologyNotification(topologyInfoCaptor1.capture(), Mockito.any(), Mockito.any());
         Assert.assertEquals(topologyTwoId, topologyInfoCaptor1.getValue().getTopologyId());
         Assert.assertEquals(topologyContextId, topologyInfoCaptor1.getValue().getTopologyContextId());
         Mockito.verify(listener2, Mockito.timeout(TIMEOUT_MS).times(1))
-                        .onTopologyNotification(topologyInfoCaptor2.capture(), Mockito.any());
+                        .onTopologyNotification(topologyInfoCaptor2.capture(), Mockito.any(), Mockito.any());
         listener1.await();
         listener2.await();
         assertThat(listener1.result, containsInAnyOrder(entities.toArray()));
@@ -147,7 +149,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         final TopologyAccumulator goodListener = Mockito.spy(new TopologyAccumulator(2));
         final EntitiesListener failingListener = Mockito.mock(EntitiesListener.class);
         Mockito.doThrow(new RuntimeException("Exception for tests")).when(failingListener)
-                        .onTopologyNotification(Mockito.any(TopologyInfo.class), Mockito.any());
+                        .onTopologyNotification(Mockito.any(TopologyInfo.class), Mockito.any(), Mockito.any());
 
         getTopologyProcessor().addLiveTopologyListener(failingListener);
         getTopologyProcessor().addLiveTopologyListener(goodListener);
@@ -157,9 +159,9 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         sendEntities(0L, 1L, entities);
 
         Mockito.verify(failingListener, Mockito.timeout(TIMEOUT_MS).times(2))
-                .onTopologyNotification(Mockito.any(TopologyInfo.class), Mockito.any());
+                .onTopologyNotification(Mockito.any(TopologyInfo.class), Mockito.any(), Mockito.any());
         Mockito.verify(goodListener, Mockito.timeout(TIMEOUT_MS).times(2))
-                .onTopologyNotification(Mockito.any(TopologyInfo.class), Mockito.any());
+                .onTopologyNotification(Mockito.any(TopologyInfo.class), Mockito.any(), Mockito.any());
         goodListener.await();
         assertThat(goodListener.result, containsInAnyOrder(entities.toArray()));
     }
@@ -572,7 +574,8 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
         @Override
         public void onTopologyNotification(TopologyInfo topologyInfo,
-                @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs) {
+                @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs,
+                @Nonnull final SpanContext tracingContext) {
             try {
                 while (topologyDTOs.hasNext()) {
                     result.addAll(topologyDTOs.nextChunk().stream().filter(

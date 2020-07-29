@@ -176,6 +176,25 @@ public class ReservationDaoImplTest {
         assertThat(reservation.get(), Matchers.is(createdReservation));
     }
 
+    /**
+     * Test the blocking call of reservation.
+     * @throws DuplicateTemplateException if template is duplicate.
+     */
+    @Test
+    public void testGetReservationByIdBlocking() throws DuplicateTemplateException {
+        Reservation reservationWithTemplate = createReservationWithTemplate(testFirstReservation);
+        Reservation createdReservation = reservationDao.createReservation(reservationWithTemplate);
+        createdReservation = createdReservation.toBuilder().setStatus(ReservationStatus.RESERVED).build();
+        try {
+            reservationDao.updateReservation(createdReservation.getId(), createdReservation);
+        } catch (NoSuchObjectException e) {
+            e.printStackTrace();
+        }
+        Optional<Reservation> reservation = reservationDao.getReservationById(createdReservation.getId(), true);
+        assertTrue(reservation.isPresent());
+        assertThat(reservation.get(), Matchers.is(createdReservation));
+    }
+
     @Test
     public void testGetAllReservation() throws DuplicateTemplateException {
         Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
@@ -248,7 +267,7 @@ public class ReservationDaoImplTest {
         Template template = templatesDao.createTemplate(TemplateInfo.newBuilder()
                 .setName("test-template")
                 .build());
-        Reservation reservation = updateReservationTemplate(testFirstReservation, template.getId());
+        Reservation reservation = updateReservationTemplate(testFirstReservation, template);
         reservationDao.createReservation(reservation);
         Set<Reservation> reservationSet =
                 reservationDao.getReservationsByTemplates(Sets.newHashSet(template.getId()));
@@ -260,19 +279,20 @@ public class ReservationDaoImplTest {
         Template template = templatesDao.createTemplate(TemplateInfo.newBuilder()
                 .setName(reservation.getName())
                 .build());
-        return updateReservationTemplate(reservation, template.getId());
+        return updateReservationTemplate(reservation, template);
 
     }
 
     private Reservation updateReservationTemplate(@Nonnull final Reservation reservation,
-                                                  final long templateId) {
+                                                  final Template template) {
         // make sure reservation only have 1 template.
         assertEquals(1,
                 reservation.getReservationTemplateCollection().getReservationTemplateCount());
         Reservation.Builder builder = reservation.toBuilder();
         builder.getReservationTemplateCollectionBuilder()
                 .getReservationTemplateBuilderList()
-                .forEach(reservationTemplate -> reservationTemplate.setTemplateId(templateId));
+        .forEach(reservationTemplate -> reservationTemplate.setTemplateId(template.getId())
+        .setTemplate(template));
         return builder.build();
     }
 
@@ -303,13 +323,16 @@ public class ReservationDaoImplTest {
             reservationDao.createReservation(createReservationWithTemplate(testFirstReservation));
 
         final List<String> diags = Arrays.asList(
-            "{\"id\":\"1997938755808\",\"name\":\"Test-first-reservation\",\"startDate\":" +
-                "\"1544590800000\",\"expirationDate\":\"1544850000000\",\"status\":\"FUTURE\"," +
-                "\"reservationTemplateCollection\":{\"reservationTemplate\":[{\"count\":\"1\"," +
-                "\"templateId\":\"1997938753776\",\"reservationInstance\":[{\"entityId\":\"456\"," +
-                "\"placementInfo\":[{\"providerId\":\"14\"}]}]}]},\"constraintInfoCollection\":" +
-                "{\"reservationConstraintInfo\":[{\"constraintId\":\"100\",\"type\":" +
-                "\"DATA_CENTER\"}]}}",
+            "{\"id\":\"3143031140272\",\"name\":\"Test-first-reservation\",\"startDate\":"
+                    + "\"1547251200000\",\"expirationDate\":\"1547510400000\",\"status\":\"INITIAL\""
+                    + ",\"reservationTemplateCollection\":{\"reservationTemplate\":[{\"count\":\"1\","
+                    + "\"templateId\":\"3143031138320\",\"reservationInstance\":[{\"entityId\":\"456\","
+                    + "\"placementInfo\":[{\"providerId\":\"14\"}]}],"
+                    + "\"template\":{\"id\":\"3143031138320\",\"templateInfo\":"
+                    + "{\"name\":\"Test-first-reservation\"},\"type\":\"USER\"}}]}"
+                    + ",\"constraintInfoCollection\":"
+                    + "{\"reservationConstraintInfo\":[{\"constraintId\":\"100\",\"type\":"
+                    + "\"DATA_CENTER\"}]}}",
             "{\"id\":\"1997938756368\",\"name\":\"Test-second-reservation\",\"startDate\":" +
                 "\"1574398800000\",\"expirationDate\":\"1577595600000\",\"status\":\"RESERVED\"," +
                 "\"reservationTemplateCollection\":{\"reservationTemplate\":[{\"count\":\"1\"," +

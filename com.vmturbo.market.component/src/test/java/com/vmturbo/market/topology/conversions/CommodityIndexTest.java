@@ -2,7 +2,6 @@ package com.vmturbo.market.topology.conversions;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -164,5 +163,4 @@ public class CommodityIndexTest {
         assertTrue(commSold.isPresent());
         assertEquals(cs2, commSold.get());
     }
-
 }

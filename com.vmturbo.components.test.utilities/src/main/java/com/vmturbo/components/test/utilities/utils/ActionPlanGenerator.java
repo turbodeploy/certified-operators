@@ -232,6 +232,7 @@ public class ActionPlanGenerator {
             EntityType.BUSINESS_APPLICATION,
             EntityType.APPLICATION_SERVER,
             EntityType.APPLICATION,
+            EntityType.APPLICATION_COMPONENT,
             EntityType.SERVICE,
             EntityType.CHASSIS,
             EntityType.CONTAINER,

@@ -42,12 +42,18 @@ import com.vmturbo.search.mappers.EntityStateMapper;
 import com.vmturbo.search.mappers.EntityTypeMapper;
 import com.vmturbo.search.mappers.EnvironmentTypeMapper;
 import com.vmturbo.search.mappers.GroupTypeMapper;
+import com.vmturbo.search.mappers.TypeMapper;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
  * A representation of a single API query, mapped to a SQL query.
  */
 public abstract class AbstractQuery {
+
+    /**
+     * Const field used by searchAll to handle entity/groupType parsing.
+     */
+    protected static final PrimitiveFieldApiDTO PRIMITIVE_TYPE = PrimitiveFieldApiDTO.primitive("EntityOrGroupType");
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -65,6 +71,7 @@ public abstract class AbstractQuery {
     private static Map<FieldApiDTO, Field> primaryTableColumns =
         new HashMap<FieldApiDTO, Field>() {{
             put(PrimitiveFieldApiDTO.oid(), SearchEntity.SEARCH_ENTITY.OID);
+            put(PRIMITIVE_TYPE, SearchEntity.SEARCH_ENTITY.TYPE);
             put(PrimitiveFieldApiDTO.entityType(), SearchEntity.SEARCH_ENTITY.TYPE);
             put(PrimitiveFieldApiDTO.groupType(), SearchEntity.SEARCH_ENTITY.TYPE);
             put(PrimitiveFieldApiDTO.name(), SearchEntity.SEARCH_ENTITY.NAME);
@@ -80,6 +87,7 @@ public abstract class AbstractQuery {
         put(PrimitiveFieldApiDTO.severity(), EntitySeverityMapper.fromSearchSchemaToApiFunction);
         put(PrimitiveFieldApiDTO.entityState(), EntityStateMapper.fromSearchSchemaToApiFunction);
         put(PrimitiveFieldApiDTO.environmentType(), EnvironmentTypeMapper.fromSearchSchemaToApiFunction);
+        put(PRIMITIVE_TYPE, TypeMapper.fromSearchSchemaToApiFunction); // For Search All
     }};
 
     /**
@@ -102,6 +110,7 @@ public abstract class AbstractQuery {
      * Tracks requested columns, used to know which information to read when building response.
      */
     private Map<SearchMetadataMapping, FieldApiDTO> requestedColumns = new HashMap<>();
+
 
     /**
      * Creates a query to retrieve data from the search db.
@@ -168,24 +177,14 @@ public abstract class AbstractQuery {
             return Optional.empty();
         }
 
-        FieldValueApiDTO fieldValue = null;
-        final Object value;
-
-        try {
-            value = record.get(columnAlias);
-        } catch (IllegalArgumentException e) {
-            //TODO:  Specify exception,  test processEntities is cause
-            //This will only happen during testing. End to end test we may not include all the
-            //primary column data.
-            logger.info("Record does not contain column " + columnAlias );
-            return Optional.empty();
-        }
+        final Object value = this.getValueFromRecord(record, columnAlias);
 
         // Do not try to map a missing field
         if (value == null) {
             return Optional.empty();
         }
 
+        FieldValueApiDTO fieldValue = null;
         switch (columnMetadata.getApiDatatype()) {
             case TEXT:
             case ENUM:
@@ -246,11 +245,17 @@ public abstract class AbstractQuery {
     @VisibleForTesting
     Field buildAndTrackSelectFieldFromEntityType(FieldApiDTO apiField) {
         SearchMetadataMapping columnMetadata = getMetadataMapping().get(apiField);
-        trackField(columnMetadata, apiField);
+        trackUserRequestedFields(columnMetadata, apiField);
         return buildFieldForApiField(apiField, true);
     }
 
-    protected void trackField(final SearchMetadataMapping columnMetadata, final FieldApiDTO apiField) {
+    /**
+     * This will track user request and common fields, used for reading results.
+     *
+     * @param columnMetadata metadata of field being tracked
+     * @param apiField the field being tracked
+     */
+    protected void trackUserRequestedFields(final SearchMetadataMapping columnMetadata, final FieldApiDTO apiField) {
         requestedColumns.put(columnMetadata, apiField);
     }
 
@@ -279,20 +284,36 @@ public abstract class AbstractQuery {
             throw new IllegalArgumentException("Field " + apiField.toString()
                     + " does not apply to selected type. ");
         }
-        final String columnName = mapping.getColumnName();
-        final String jsonKey = mapping.getJsonKeyName();
-        final String columnAlias = getColumnAlias(columnName, jsonKey);
+
         final Field<?> field;
         if (this.primaryTableColumns.containsKey(apiField)) {
             //For Primary Columns we use the jooq generated Fields
             field = this.primaryTableColumns.get(apiField);
         } else {
+            final String columnName = mapping.getColumnName();
+            final String jsonKey = mapping.getJsonKeyName();
+            final Field unCastfield = Objects.isNull(jsonKey)
+                    ? DSL.field(columnName, getColumnDataType(mapping))
+                    : DSL.field(buildSqlStringForJsonBColumns(columnName, jsonKey), getColumnDataType(mapping));
             DataType dataType = getColumnDataType(mapping);
-            final Field unCastfield = Objects.isNull(jsonKey) ? DSL.field(columnName, getColumnDataType(mapping)) : DSL.field(buildSqlStringForJsonBColumns(columnName, jsonKey), getColumnDataType(mapping));
             field = unCastfield.cast(dataType); //Required for proper handling of where and sorting
         }
 
-        return aliasColumn ? field.as(columnAlias) : field;
+        return aliasColumn ? addColumnAliasToField(field, mapping) : field;
+    }
+
+    /**
+     * Adds columnAlias by parsing metadata information.
+     *
+     * @param unaliasedField Field to attach alias to.
+     * @param mapping Metadata mapping for the field
+     * @return aliased field
+     */
+    protected Field<?> addColumnAliasToField(Field<?> unaliasedField, SearchMetadataMapping mapping) {
+        final String columnName = mapping.getColumnName();
+        final String jsonKey = mapping.getJsonKeyName();
+        final String columnAlias = getColumnAlias(columnName, jsonKey);
+        return unaliasedField.as(columnAlias);
     }
 
     private DataType<?> getColumnDataType(SearchMetadataMapping columnMapping) {
@@ -334,5 +355,24 @@ public abstract class AbstractQuery {
 
     protected Table<SearchEntityRecord> getSearchTable() {
         return searchTable;
+    }
+
+    /**
+     * Will read the value from record based on columnAlias.
+     *
+     * @param record to be read
+     * @param columnAlias the column to read value from
+     * @return value, null if error occurred or column not set
+     */
+    Object getValueFromRecord(@Nonnull final Record record, @Nonnull final String columnAlias) {
+        try {
+            return record.get(columnAlias);
+        } catch (IllegalArgumentException e) {
+            //TODO:  Specify exception,  test processEntities is cause
+            //This will only happen during testing. End to end test we may not include all the
+            //primary column data.
+            logger.info("Record does not contain column " + columnAlias );
+            return null;
+        }
     }
 }

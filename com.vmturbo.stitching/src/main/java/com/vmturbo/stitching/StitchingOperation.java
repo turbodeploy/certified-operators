@@ -26,9 +26,9 @@ import com.vmturbo.stitching.journal.JournalableOperation;
  *    targets OTHER than the target that initiates the operation) of the type specified by
  *    {@link #getExternalEntityType()}.
  *
- *    Matching works by first building an index of the signatures for all internal entities (the index is
- *    created via the operation's {@link #createIndex(int)} method). Then, the signature for each external
- *    entity is used as a lookup into the index to find matching internal entities.
+ *    Matching works by first building an map of the signatures for all internal entities.
+ *    Then, the signature for each external entity is used as a lookup into the index to
+ *    find matching internal entities.
  *
  *    The matches are then processed.
  * 2. Processing: During processing, the operation makes updates and removes entities in the topology.
@@ -91,8 +91,8 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
 
     /**
      * Get the internal signature for an internal entity. Internal signatures will be matched against
-     * external signatures using a {@link StitchingIndex} to identify entities that should be stitched
-     * with each other.
+     * external signatures using a map from signature to internal entity to identify entities that
+     * should be stitched with each other.
      *
      * The {@link EntityType} of the internal entity will be guaranteed to match the entity type returned
      * by {@link #getInternalEntityType()}.
@@ -109,8 +109,8 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
 
     /**
      * Get the external signature for an external entity. External signatures will be matched against
-     * internal signatures using a {@link StitchingIndex} to identify entities that should be stitched
-     * with each other.
+     * internal signatures using a map from signature to internal entity to identify entities that
+     * should be stitched with each other.
      *
      * The {@link EntityType} of the external entity will be guaranteed to match the entity type returned
      * by {@link #getExternalEntityType()}. If {@link #getExternalEntityType()} returned {@link Optional#empty()},
@@ -154,17 +154,4 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
     @Nonnull
     TopologicalChangelog<StitchingEntity> stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
                                                  @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder);
-
-    /**
-     * Create an index for use to accelerate match-finding for this {@link StitchingOperation}.
-     * For further details, see {@link StitchingIndex}.
-     *
-     * @param expectedSize The expected number of internal signatures to be inserted into the index.
-     *                     This parameter is used to provide an initial size for the index.
-     * @return an index for use to accelerate match-finding for this {@link StitchingOperation}.
-     */
-    @Nonnull
-    default StitchingIndex<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> createIndex(final int expectedSize) {
-        return new StitchingIndex.DefaultStitchingIndex<>(expectedSize);
-    }
 }

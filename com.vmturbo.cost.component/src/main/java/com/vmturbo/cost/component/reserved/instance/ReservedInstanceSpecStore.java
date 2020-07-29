@@ -59,7 +59,7 @@ public class ReservedInstanceSpecStore implements DiagsRestorable {
     /**
      * Constructor.
      * @param dsl database context.
-     * @param identityProvider identity provivder to generate OIDs.
+     * @param identityProvider identity provider to generate OIDs.
      * @param riBatchSize max size of a batch to insert into 'reserved_instance_spec'.
      */
     public ReservedInstanceSpecStore(@Nonnull final DSLContext dsl,

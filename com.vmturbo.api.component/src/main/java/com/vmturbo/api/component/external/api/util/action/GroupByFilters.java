@@ -85,8 +85,12 @@ public class GroupByFilters {
             ActionSpecMapper.mapXlActionCategoryToApi(category));
     }
 
-    public void setExplanation(@Nonnull final String explanation) {
-        setValue(StringConstants.RISK_DESCRIPTION, explanation);
+    /**
+     * Mutator for risk string.
+     * @param risk The risk (e.g. "Mem congestion")
+     */
+    public void setRelatedRisk(@Nonnull final String risk) {
+        setValue(StringConstants.RISK, risk);
     }
 
     public void setState(@Nonnull final ActionState state) {

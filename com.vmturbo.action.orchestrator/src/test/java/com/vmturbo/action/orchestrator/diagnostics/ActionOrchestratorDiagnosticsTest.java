@@ -76,7 +76,7 @@ public class ActionOrchestratorDiagnosticsTest {
         when(actionStorehouse.getActionStoreFactory()).thenReturn(storeFactory);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(
             Optional.of(actionStore));
-        when(actionStore.getEntitySeverityCache()).thenReturn(severityCache);
+        when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(severityCache));
         IdentityGenerator.initPrefix(0);
     }
 
@@ -198,7 +198,7 @@ public class ActionOrchestratorDiagnosticsTest {
             .thenReturn(ImmutableMap.of(ActionPlanType.MARKET, ImmutableSet.of(action)));
         when(actionStorehouse.getStore(eq(planTopologyContextId))).thenReturn(Optional.empty());
         when(storeFactory.newStore(anyLong())).thenReturn(newStore);
-        when(newStore.getEntitySeverityCache()).thenReturn(severityCache);
+        when(newStore.getEntitySeverityCache()).thenReturn(Optional.of(severityCache));
 
         dumpAndRestore();
 
@@ -244,7 +244,7 @@ public class ActionOrchestratorDiagnosticsTest {
                 ActionPlanType.BUY_RI, ImmutableSet.of(action4)));
         when(actionStorehouse.getStore(eq(planTopologyContextId)))
             .thenReturn(Optional.of(planStore));
-        when(planStore.getEntitySeverityCache()).thenReturn(planSeverityCache);
+        when(planStore.getEntitySeverityCache()).thenReturn(Optional.of(planSeverityCache));
 
         dumpAndRestore();
 

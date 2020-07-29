@@ -7,13 +7,16 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -34,9 +37,9 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Reservation;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationToTemplateRecord;
@@ -56,6 +59,11 @@ public class ReservationDaoImpl implements ReservationDao {
 
     private final List<ReservationDeletedListener> listeners =
             Collections.synchronizedList(new ArrayList<>());
+
+    private final Object reservationBlockingLock = new Object();
+
+    Set<ReservationStatus> finishedStatuses = new HashSet(Arrays.asList(ReservationStatus.RESERVED,
+            ReservationStatus.FUTURE, ReservationStatus.PLACEMENT_FAILED, ReservationStatus.INVALID));
 
     public ReservationDaoImpl(@Nonnull final DSLContext dsl) {
         this.dsl = Objects.requireNonNull(dsl);
@@ -87,6 +95,53 @@ public class ReservationDaoImpl implements ReservationDao {
                 .fetchOne())
                 .map(record -> record.into(Reservation.class))
                 .map(this::convertReservationToProto);
+    }
+
+    /**
+     * Get the reservation by its id.
+     *
+     * @param id id of reservation.
+     * @param apiCallBlock determines if the api call is blocking or not
+     * @return Optional Reservation, if not found, will return Optional.empty().
+     */
+    @Nonnull
+    @Override
+    public Optional<ReservationDTO.Reservation> getReservationById(final long id, final boolean apiCallBlock) {
+        if (!apiCallBlock) {
+            return getReservationById(id);
+        } else {
+            Optional<ReservationDTO.Reservation> reservationOptional;
+            final long currentTime = System.currentTimeMillis();
+            final long timeout = 120000L;
+            synchronized (reservationBlockingLock) {
+                try {
+                    while (true) {
+                        reservationOptional =
+                                getReservationById(id);
+                        if (!reservationOptional.isPresent()
+                                || finishedStatuses.contains(reservationOptional.get().getStatus())) {
+                            return reservationOptional;
+                        } else {
+                            try {
+                                reservationBlockingLock.wait(timeout);
+                                if (System.currentTimeMillis() > currentTime + timeout) {
+                                    throw new TimeoutException(
+                                            "get reservation by id timed out after: " + timeout + " ms");
+                                }
+                            } catch (InterruptedException e) {
+                                Thread.currentThread()
+                                        .interrupt();
+                                throw new RuntimeException("Thread interrupted awaiting lock for reservation: "
+                                        + id, e);
+                            }
+                        }
+                    }
+                } catch (TimeoutException e) {
+                    throw new RuntimeException("Thread timed out awaiting for status to change for reservation: "
+                            + id, e);
+                }
+            }
+        }
     }
 
     /**
@@ -148,34 +203,38 @@ public class ReservationDaoImpl implements ReservationDao {
     public ReservationDTO.Reservation updateReservation(
             final long id,
             @Nonnull final ReservationDTO.Reservation reservation) throws NoSuchObjectException {
-        try {
-            return dsl.transactionResult(configuration -> {
-                final DSLContext transactionDsl = DSL.using(configuration);
-                final ReservationRecord reservationRecord = Optional.ofNullable(transactionDsl.selectFrom(RESERVATION)
-                        .where(RESERVATION.ID.eq(id))
-                        .fetchOne())
-                        .orElseThrow(() ->
-                                new NoSuchObjectException("Reservation with id" + id + " not found"));
-                final ReservationDTO.Reservation newReservation = reservation.toBuilder()
-                        .setId(id)
-                        .build();
-                final Set<Long> templateIds = getTemplateIds(reservation);
-                // delete old mapping records between reservation with templates;
-                transactionDsl.deleteFrom(RESERVATION_TO_TEMPLATE)
-                        .where(RESERVATION_TO_TEMPLATE.RESERVATION_ID.eq(id))
-                        .execute();
-                final List<ReservationToTemplateRecord> reservationToTemplateRecords =
-                        generateReservationToTemplateRecord(transactionDsl, newReservation, templateIds);
-                updateReservationRecordWithStore(newReservation, reservationRecord);
-                // insert new mapping record between reservation with template.
-                transactionDsl.batchInsert(reservationToTemplateRecords).execute();
-                return newReservation;
-            });
-        } catch (DataAccessException e) {
-            if (e.getCause() instanceof NoSuchObjectException) {
-                throw (NoSuchObjectException)e.getCause();
-            } else {
-                throw e;
+        synchronized (reservationBlockingLock) {
+            try {
+                return dsl.transactionResult(configuration -> {
+                    final DSLContext transactionDsl = DSL.using(configuration);
+                    final ReservationRecord reservationRecord = Optional.ofNullable(transactionDsl.selectFrom(RESERVATION)
+                            .where(RESERVATION.ID.eq(id))
+                            .fetchOne())
+                            .orElseThrow(() ->
+                                    new NoSuchObjectException("Reservation with id" + id + " not found"));
+                    final ReservationDTO.Reservation newReservation = reservation.toBuilder()
+                            .setId(id)
+                            .build();
+                    final Set<Long> templateIds = getTemplateIds(reservation);
+                    // delete old mapping records between reservation with templates;
+                    transactionDsl.deleteFrom(RESERVATION_TO_TEMPLATE)
+                            .where(RESERVATION_TO_TEMPLATE.RESERVATION_ID.eq(id))
+                            .execute();
+                    final List<ReservationToTemplateRecord> reservationToTemplateRecords =
+                            generateReservationToTemplateRecord(transactionDsl, newReservation, templateIds);
+                    updateReservationRecordWithStore(newReservation, reservationRecord);
+                    // insert new mapping record between reservation with template.
+                    transactionDsl.batchInsert(reservationToTemplateRecords).execute();
+                    return newReservation;
+                });
+            } catch (DataAccessException e) {
+                if (e.getCause() instanceof NoSuchObjectException) {
+                    throw (NoSuchObjectException)e.getCause();
+                } else {
+                    throw e;
+                }
+            } finally {
+                reservationBlockingLock.notifyAll();
             }
         }
     }
@@ -193,47 +252,51 @@ public class ReservationDaoImpl implements ReservationDao {
     @Override
     public Set<ReservationDTO.Reservation> updateReservationBatch(
             @Nonnull final Set<ReservationDTO.Reservation> reservations) throws NoSuchObjectException {
-        try {
-            dsl.transaction(configuration -> {
-                DSLContext transactionDsl = DSL.using(configuration);
-                final List<ReservationRecord> updateReservationRecords = new ArrayList<>();
-                final List<ReservationToTemplateRecord> updateReservationToTemplateRecords = new ArrayList<>();
-                final Set<Long> reservationIds = reservations.stream()
-                        .map(ReservationDTO.Reservation::getId)
-                        .collect(Collectors.toSet());
-                final List<ReservationRecord> reservationRecords = transactionDsl.selectFrom(RESERVATION)
-                        .where(RESERVATION.ID.in(reservationIds))
-                        .fetch();
-                if (reservationRecords.size() != reservations.size()) {
-                    throw new NoSuchObjectException("There are reservations missing, required: "
-                            + reservations.size() + " but found: " + reservationRecords.size());
+        synchronized (reservationBlockingLock) {
+            try {
+                dsl.transaction(configuration -> {
+                    DSLContext transactionDsl = DSL.using(configuration);
+                    final List<ReservationRecord> updateReservationRecords = new ArrayList<>();
+                    final List<ReservationToTemplateRecord> updateReservationToTemplateRecords = new ArrayList<>();
+                    final Set<Long> reservationIds = reservations.stream()
+                            .map(ReservationDTO.Reservation::getId)
+                            .collect(Collectors.toSet());
+                    final List<ReservationRecord> reservationRecords = transactionDsl.selectFrom(RESERVATION)
+                            .where(RESERVATION.ID.in(reservationIds))
+                            .fetch();
+                    if (reservationRecords.size() != reservations.size()) {
+                        throw new NoSuchObjectException("There are reservations missing, required: "
+                                + reservations.size() + " but found: " + reservationRecords.size());
+                    }
+                    // delete old mapping record between reservation with template.
+                    transactionDsl.deleteFrom(RESERVATION_TO_TEMPLATE)
+                            .where(RESERVATION_TO_TEMPLATE.RESERVATION_ID.in(reservationIds)).execute();
+                    final Map<Long, ReservationDTO.Reservation> reservationMap = reservations.stream()
+                            .collect(Collectors.toMap(ReservationDTO.Reservation::getId, Function.identity()));
+                    reservationRecords.stream()
+                            .map(record -> updateReservationRecord(reservationMap.get(record.getId()), record))
+                            .forEach(updateReservationRecords::add);
+                    reservationRecords.stream()
+                            .map(record -> reservationMap.get(record.getId()))
+                            .map(reservation -> generateReservationToTemplateRecord(
+                                    transactionDsl, reservation, getTemplateIds(reservation)))
+                            .flatMap(List::stream)
+                            .forEach(updateReservationToTemplateRecords::add);
+                    transactionDsl.batchUpdate(updateReservationRecords).execute();
+                    // insert new mapping record between reservation with template.
+                    transactionDsl.batchInsert(updateReservationToTemplateRecords).execute();
+                });
+            } catch (DataAccessException e) {
+                if (e.getCause() instanceof NoSuchObjectException) {
+                    throw (NoSuchObjectException)e.getCause();
+                } else {
+                    throw e;
                 }
-                // delete old mapping record between reservation with template.
-                transactionDsl.deleteFrom(RESERVATION_TO_TEMPLATE)
-                        .where(RESERVATION_TO_TEMPLATE.RESERVATION_ID.in(reservationIds)).execute();
-                final Map<Long, ReservationDTO.Reservation> reservationMap = reservations.stream()
-                        .collect(Collectors.toMap(ReservationDTO.Reservation::getId, Function.identity()));
-                reservationRecords.stream()
-                        .map(record -> updateReservationRecord(reservationMap.get(record.getId()), record))
-                        .forEach(updateReservationRecords::add);
-                reservationRecords.stream()
-                        .map(record -> reservationMap.get(record.getId()))
-                        .map(reservation -> generateReservationToTemplateRecord(
-                                transactionDsl, reservation, getTemplateIds(reservation)))
-                        .flatMap(List::stream)
-                        .forEach(updateReservationToTemplateRecords::add);
-                transactionDsl.batchUpdate(updateReservationRecords).execute();
-                // insert new mapping record between reservation with template.
-                transactionDsl.batchInsert(updateReservationToTemplateRecords).execute();
-            });
-        } catch (DataAccessException e) {
-            if (e.getCause() instanceof NoSuchObjectException) {
-                throw (NoSuchObjectException)e.getCause();
-            } else {
-                throw e;
+            } finally {
+                reservationBlockingLock.notifyAll();
             }
+            return reservations;
         }
-        return reservations;
     }
 
     /**
@@ -246,22 +309,26 @@ public class ReservationDaoImpl implements ReservationDao {
     @Nonnull
     @Override
     public ReservationDTO.Reservation deleteReservationById(final long id) throws NoSuchObjectException {
-        try {
-            ReservationDTO.Reservation reservation = dsl.transactionResult(configuration -> {
-                final DSLContext transactionDsl = DSL.using(configuration);
-                final ReservationDTO.Reservation insideReservation = getReservationById(id)
-                        .orElseThrow(() ->
-                                new NoSuchObjectException("Reservation with id" + id + " not found"));
-                transactionDsl.deleteFrom(RESERVATION).where(RESERVATION.ID.eq(id)).execute();
-                return insideReservation;
-            });
-            listeners.forEach(listener -> listener.onReservationDeleted(reservation));
-            return reservation;
-        } catch (DataAccessException e) {
-            if (e.getCause() instanceof NoSuchObjectException) {
-                throw (NoSuchObjectException)e.getCause();
-            } else {
-                throw e;
+        synchronized (reservationBlockingLock) {
+            try {
+                ReservationDTO.Reservation reservation = dsl.transactionResult(configuration -> {
+                    final DSLContext transactionDsl = DSL.using(configuration);
+                    final ReservationDTO.Reservation insideReservation = getReservationById(id)
+                            .orElseThrow(() ->
+                                    new NoSuchObjectException("Reservation with id" + id + " not found"));
+                    transactionDsl.deleteFrom(RESERVATION).where(RESERVATION.ID.eq(id)).execute();
+                    return insideReservation;
+                });
+                listeners.forEach(listener -> listener.onReservationDeleted(reservation));
+                return reservation;
+            } catch (DataAccessException e) {
+                if (e.getCause() instanceof NoSuchObjectException) {
+                    throw (NoSuchObjectException)e.getCause();
+                } else {
+                    throw e;
+                }
+            } finally {
+                reservationBlockingLock.notifyAll();
             }
         }
     }
@@ -504,10 +571,14 @@ public class ReservationDaoImpl implements ReservationDao {
      * @return the number of records deleted
      */
     private int deleteAllReservations() {
-        try {
-            return dsl.deleteFrom(RESERVATION).execute();
-        } catch (DataAccessException e) {
-            return 0;
+        synchronized (reservationBlockingLock) {
+            try {
+                return dsl.deleteFrom(RESERVATION).execute();
+            } catch (DataAccessException e) {
+                return 0;
+            } finally {
+                reservationBlockingLock.notifyAll();
+            }
         }
     }
 

@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -193,8 +194,8 @@ public class TopologyEntitiesHandlerTest {
         }
     }
 
-    private static final long myOid = 73512221249052L;
-    private static final float heapCapacity = 1024f * 1024f;
+    private static final long APP_OID = 73512221249052L;
+    private static final long DB_OID = 73536059648272L;
 
     /**
      * Verify that we get the expected Resize actions for various combinations of
@@ -208,91 +209,160 @@ public class TopologyEntitiesHandlerTest {
         Set<TraderTO> traderTOs = Collections.unmodifiableSet(
                 Sets.newHashSet(messagesFromJsonFile(
                         "protobuf/messages/traders5b.json", TraderTO::newBuilder)));
-        TraderTO myTrader = traderTOs.stream()
-                .filter(trader -> trader.getOid() == myOid)
-                .findFirst()
-                .get();
+        TraderTO myTrader = myTrader(traderTOs, APP_OID);
 
         float heapUtilizationThreshold = 0.8f;
         float gcUtilizationThreshold = 0.97f;
+        float heapCapacity = 1024f * 1024f;
 
-        // HEAP: 90% (high), REMAINING_GC_CAPACITY: 99% (high)
-        Optional<ActionTO> resizeHH = resize(traderTOs, myTrader, 0.9f, 0.99f,
-                heapUtilizationThreshold, gcUtilizationThreshold);
+        final CommodityValues lowHeap = new CommodityValues(
+                CommodityType.HEAP_VALUE, heapCapacity, 0.4f, heapUtilizationThreshold, 1.3f);
+        final CommodityValues highHeap = new CommodityValues(
+                CommodityType.HEAP_VALUE, heapCapacity, 0.9f, heapUtilizationThreshold, 1.3f);
+        final CommodityValues lowGC = new CommodityValues(
+                CommodityType.REMAINING_GC_CAPACITY_VALUE, 100f, 0.95f, gcUtilizationThreshold);
+        final CommodityValues highGC = new CommodityValues(
+                CommodityType.REMAINING_GC_CAPACITY_VALUE, 100f, 0.99f, gcUtilizationThreshold);
+
+        Optional<ActionTO> resizeHH = resize(traderTOs, myTrader, CommodityType.HEAP_VALUE,
+                highHeap, highGC);
         // Expected: no resize
         assertFalse(resizeHH.isPresent());
 
-        // HEAP: 40% (low), REMAINING_GC_CAPACITY: 98% (high)
-        Optional<ActionTO> resizeLH = resize(traderTOs, myTrader, 0.4f, 0.98f,
-                heapUtilizationThreshold, gcUtilizationThreshold);
+        Optional<ActionTO> resizeLH = resize(traderTOs, myTrader, CommodityType.HEAP_VALUE,
+                lowHeap, highGC);
         // Expected: resize down
         assertTrue(resizeLH.get().getResize().getNewCapacity() < heapCapacity);
 
-        // HEAP: 90% (high), REMAINING_GC_CAPACITY: 95% (low)
-        Optional<ActionTO> resizeHL = resize(traderTOs, myTrader, 0.9f, 0.95f,
-                heapUtilizationThreshold, gcUtilizationThreshold);
+        Optional<ActionTO> resizeHL = resize(traderTOs, myTrader, CommodityType.HEAP_VALUE,
+                highHeap, lowGC);
         // Expected: resize up
         assertTrue(resizeHL.get().getResize().getNewCapacity() > heapCapacity);
     }
 
+
     /**
-     * Get a set of traders in an economy and one trader which properties are to
-     * be modified.
+     * Verify that we get the expected Resize actions for various combinations of
+     * db_mem and db_cache_hit_rate utilization and threshold.
      *
-     * @param traderTOs traders in the economy
-     * @param myTrader the trader to modify
-     * @param heapUtil heap utilization value to set
-     * @param gcUtil remaining_gc_capacity utilization to set
-     * @param heapThreshold heap utilization threshold to set
-     * @param gcThreshold remaining_gc_capacity utilization to set
-     * @return trader TOs with modified trader
+     * @throws IOException not expected to happen
+     * @throws InvalidTopologyException not expected to happen
      */
-    private Optional<ActionTO> resize(Set<TraderTO> traderTOs, TraderTO myTrader,
-            float heapUtil, float gcUtil, float heapThreshold, float gcThreshold) {
+    @Test
+    public void resizeDbTest() throws IOException, InvalidTopologyException {
+        Set<TraderTO> traderTOs = Collections.unmodifiableSet(
+                Sets.newHashSet(messagesFromJsonFile(
+                        "protobuf/messages/db-traders.json", TraderTO::newBuilder)));
+        TraderTO myTrader = myTrader(traderTOs, DB_OID);
+
+        float dbMemCapacity = 1729464.0f;
+        float dbMemUtilizationThreshold = 0.8f;
+        float dbCacheHitRateUtilizationThreshold = 0.9f;
+
+        final CommodityValues lowDbMem = new CommodityValues(
+                CommodityType.DB_MEM_VALUE, dbMemCapacity, 0.4f, dbMemUtilizationThreshold);
+        final CommodityValues highDbMem = new CommodityValues(
+                CommodityType.DB_MEM_VALUE, dbMemCapacity, 0.9f, dbMemUtilizationThreshold);
+        final CommodityValues lowHitRate = new CommodityValues(
+                CommodityType.DB_CACHE_HIT_RATE_VALUE, 100f, 0.85f, dbCacheHitRateUtilizationThreshold);
+        final CommodityValues highHitRate = new CommodityValues(
+                CommodityType.DB_CACHE_HIT_RATE_VALUE, 100f, 1.0f, dbCacheHitRateUtilizationThreshold);
+
+        Optional<ActionTO> resizeHH = resize(traderTOs, myTrader, CommodityType.DB_MEM_VALUE,
+                highDbMem, highHitRate);
+        // Expected: no resize
+        assertFalse(resizeHH.isPresent());
+
+        Optional<ActionTO> resizeLH = resize(traderTOs, myTrader, CommodityType.DB_MEM_VALUE,
+                lowDbMem, highHitRate);
+        // Expected: resize down
+        assertTrue(resizeLH.get().getResize().getNewCapacity() < dbMemCapacity);
+
+        Optional<ActionTO> resizeHL = resize(traderTOs, myTrader, CommodityType.DB_MEM_VALUE,
+                highDbMem, lowHitRate);
+        // Expected: resize up
+        assertTrue(resizeHL.get().getResize().getNewCapacity() > dbMemCapacity);
+    }
+
+    private static TraderTO myTrader(Set<TraderTO> traderTOs, long oid) {
+        return traderTOs.stream()
+                .filter(trader -> trader.getOid() == oid)
+                .findFirst()
+                .get();
+    }
+
+    /**
+     * Helper class to specify properties of commodities sold
+     * in various unit test scenarios.
+     */
+    private final class CommodityValues {
+        final int type;
+        final float capacity;
+        final float utilization;
+        final float utilizationThreshold;
+        final float peakRatio;
+        final float peak;
+
+        CommodityValues(int type, float capacity, float utilization,
+                float utilizationThreshold, float peakRatio) {
+            this.type = type;
+            this.capacity = capacity;
+            this.utilization = utilization;
+            this.utilizationThreshold = utilizationThreshold;
+            this.peakRatio = peakRatio;
+            this.peak = Math.min(capacity, peakRatio * utilization * capacity);
+        }
+
+        CommodityValues(int type, float capacity, float utilization, float utilizationThreshold) {
+            this(type, capacity, utilization, utilizationThreshold, 1.0f);
+        }
+    }
+
+    /**
+     * Given a set of trader TOs and one trader to modify based on the specification, generate
+     * the actions for the traders and return the generated Resize action on the trader and
+     * specified commodity type.
+     *
+     * @param traderTOs set of trader TOs to run the market algorithm on
+     * @param myTrader one trader to modify based on specs
+     * @param type type of commodity to look for resize action
+     * @param specs specify how to change myTrader
+     * @return a resize action if generated
+     */
+    private Optional<ActionTO> resize(Set<TraderTO> traderTOs, TraderTO myTrader, int type,
+            CommodityValues... specs) {
         Set<TraderTO> newTraders = new HashSet<>();
         newTraders.addAll(traderTOs);
         TraderTO.Builder myTraderBuilder = myTrader.toBuilder();
+        Map<Integer, CommodityValues> specMap = Arrays.stream(specs)
+                .collect(Collectors.toMap(spec -> spec.type, Function.identity()));
         for (int i = 0; i < myTrader.getCommoditiesSoldCount(); i++) {
             CommoditySoldTO commSold = myTrader.getCommoditiesSold(i);
-            switch (commSold.getSpecification().getDebugInfoNeverUseInCode()) {
-                case "HEAP": {
-                    commSold = commSold.toBuilder()
-                            .setCapacity(heapCapacity)
-                            .setQuantity(heapUtil * heapCapacity)
-                            .setPeakQuantity(Math.min(heapCapacity, 1.3f * heapUtil * heapCapacity))
-                            .setSettings(commSold.getSettings().toBuilder()
-                                    .setUtilizationUpperBound(heapThreshold)
-                                    .build())
-                            .build();
-                    break;
-                }
-                case "REMAINING_GC_CAPACITY": {
-                    commSold = commSold.toBuilder()
-                            .setCapacity(100.0f)
-                            .setQuantity(gcUtil * 100f)
-                            .setPeakQuantity(100f)
-                            .setSettings(commSold.getSettings().toBuilder()
-                                    .setUtilizationUpperBound(gcThreshold)
-                                    .build())
-                            .build();
-                    break;
-                }
+            int commSoldType = commSold.getSpecification().getBaseType();
+            CommodityValues spec = specMap.get(commSoldType);
+            if (spec != null) {
+                commSold = commSold.toBuilder()
+                        .setCapacity(spec.capacity)
+                        .setQuantity(spec.utilization * spec.capacity)
+                        .setPeakQuantity(spec.peak)
+                        .setMaxQuantity(spec.peak)
+                        .setSettings(commSold.getSettings().toBuilder()
+                                .setUtilizationUpperBound(spec.utilizationThreshold)
+                                .build())
+                        .build();
             }
             myTraderBuilder.setCommoditiesSold(i, commSold);
         }
         newTraders.remove(myTrader);
         TraderTO myNewTrader = myTraderBuilder.build();
         newTraders.add(myNewTrader);
-        System.out.println(myNewTrader);
 
         AnalysisResults result = generateEnd2EndActions(mock(Analysis.class), newTraders);
         return result.getActionsList().stream()
                 .filter(ActionTO::hasResize)
-                .filter(action -> action.getResize().getSpecification().getBaseType()
-                        == CommodityType.HEAP_VALUE)
-                .filter(action -> action.getResize().getSellingTrader() == myOid)
+                .filter(action -> action.getResize().getSpecification().getBaseType() == type)
+                .filter(action -> action.getResize().getSellingTrader() == myTrader.getOid())
                 .findAny();
-
     }
 
     /**
@@ -365,8 +435,7 @@ public class TopologyEntitiesHandlerTest {
                 .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                 .setReplayProvisionsForRealTime(replayProvisionsForRealTime)
                 .build();
-        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
-                analysisConfig, analysis);
+        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
                         analysisConfig, analysis, topology);
 
@@ -377,7 +446,7 @@ public class TopologyEntitiesHandlerTest {
                         .collect(Collectors.toList());
         ReplayActions replayActions = analysis.getReplayActions();
         List<Long> replayOids = replayActions.getDeactivateActions().stream()
-                    .map(a -> replayActions.getTopology().getTraderOids().get(a.getActionTarget()))
+                    .map(a -> a.getActionTarget().getOid())
                     .collect(Collectors.toList());
 
         // Check that populated replay actions contain all Deactivate actions.
@@ -740,8 +809,7 @@ public class TopologyEntitiesHandlerTest {
                         .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                         .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
         // Call analysis
-        final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
-                REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
+        final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
                         REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology);
         logger.info(results.getActionsList());
@@ -853,8 +921,7 @@ public class TopologyEntitiesHandlerTest {
                             .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                             .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
             // Call analysis
-            final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
-                    REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
+            final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO, analysis);
             AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
                             REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology);
             logger.info(results.getActionsList());
@@ -992,8 +1059,7 @@ public class TopologyEntitiesHandlerTest {
                 .setMaxPlacementsOverride(maxPlacementIterations)
                 .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                 .build();
-        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
-                analysisConfig, analysis);
+        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo, analysis);
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
                 analysisConfig, analysis, topology);
         return results;
@@ -1123,11 +1189,11 @@ public class TopologyEntitiesHandlerTest {
      *
      * @param fileName the name of the file to load
      * @param builderSupplier The method to create a builder for Msg.
-     * @param <Msg> The type of DTO.
+     * @param <M> The type of DTO.
      * @return A list of DTOs represented by the file
      * @throws IOException when the file is not found
      */
-    public static <Msg extends AbstractMessage> List<Msg> messagesFromJsonFile(
+    public static <M extends AbstractMessage> List<M> messagesFromJsonFile(
             @Nonnull final String fileName,
             @Nonnull final Supplier<AbstractMessage.Builder> builderSupplier)
             throws IOException {
@@ -1139,7 +1205,7 @@ public class TopologyEntitiesHandlerTest {
                     try {
                         AbstractMessage.Builder builder = builderSupplier.get();
                         JsonFormat.parser().merge(json, builder);
-                        return (Msg)builder.build();
+                        return (M)builder.build();
                     } catch (InvalidProtocolBufferException e ) {
                         return null;
                     }
@@ -1210,7 +1276,7 @@ public class TopologyEntitiesHandlerTest {
     public void testPopulateRawMaterialsMap() {
         Topology topology = new Topology();
         TopologyEntitiesHandler.populateRawMaterialsMap(topology);
-        Economy e = (Economy) topology.getEconomy();
+        Economy e = (Economy)topology.getEconomy();
         assertEquals(e.getModifiableRawCommodityMap().size(), RawMaterialsMap.rawMaterialsMap.size());
         // check if the VMEM's rawMaterials are correctly stored
         assertEquals(e.getRawMaterials(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).get().getMaterials().length,

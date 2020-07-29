@@ -2,18 +2,18 @@ package com.vmturbo.mediation.udt.explore.collectors;
 
 import static com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
 import org.apache.logging.log4j.LogManager;
@@ -100,26 +100,22 @@ public class AutomatedDefinitionCollector extends UdtCollector<AutomatedEntityDe
     private Multimap<String, TopologyEntityDTO> getTagValuesMap(@Nonnull Set<TopologyEntityDTO> entities) {
         Multimap<String, TopologyEntityDTO> map = ArrayListMultimap.create();
         for (TopologyEntityDTO entity : entities) {
-            String tagValue = getTagValue(entity);
-            if (tagValue != null) {
+            for (String tagValue : getTagValues(entity)) {
                 map.put(tagValue, entity);
             }
         }
         return map;
     }
 
-    @Nullable
-    private String getTagValue(@Nonnull TopologyEntityDTO entity) {
+    @Nonnull
+    private List<String> getTagValues(@Nonnull TopologyEntityDTO entity) {
         String tagKey = definition.getTagGrouping().getTagKey();
         Tags entityTags = entity.getTags();
         if (entityTags.containsTags(tagKey)) {
             TagValuesDTO valuesDto = entityTags.getTagsMap().get(tagKey);
-            ArrayList<String> values = new ArrayList<>(valuesDto.getValuesList());
-            if (!values.isEmpty()) {
-                return values.get(0);
-            }
+            return Lists.newArrayList(valuesDto.getValuesList());
         }
-        return null;
+        return Collections.emptyList();
     }
 
     @Nonnull

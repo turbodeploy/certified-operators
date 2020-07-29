@@ -5,6 +5,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.APP
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_TRANSACTION;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.CONTAINER;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.CONTAINER_POD;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATABASE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATABASE_SERVER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.SERVICE;
@@ -64,6 +65,8 @@ public class UdtSupplyChain {
                 templateType, templatePriority, appCommodity);
         final SupplyChainNodeBuilder containerNode = createSupplyChainNodeBuilder(CONTAINER,
                 templateType, templatePriority, appCommodity);
+        final SupplyChainNodeBuilder containerPodNode = createSupplyChainNodeBuilder(CONTAINER_POD,
+                templateType, templatePriority, appCommodity);
 
         return new SupplyChainBuilder()
                 .top(businessAppNode)
@@ -74,6 +77,7 @@ public class UdtSupplyChain {
                 .entity(databaseNode)
                 .entity(virtualMachineNode)
                 .entity(containerNode)
+                .entity(containerPodNode)
                 .configure();
     }
 

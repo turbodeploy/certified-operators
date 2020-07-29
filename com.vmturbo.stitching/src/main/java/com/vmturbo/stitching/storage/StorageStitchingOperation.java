@@ -11,9 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.IntersectionStitchingIndex;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
@@ -133,11 +131,5 @@ public class StorageStitchingOperation implements StitchingOperation<String, Str
             // Merge the hypervisor diskArray onto the storage DiskArray.
             .queueEntityMerger(MergeEntities.mergeEntity(hypervisorDiskArray)
                     .onto(storageDiskArrayOrLogicalPool));
-    }
-
-    @Nonnull
-    @Override
-    public StitchingIndex<String, String> createIndex(final int expectedSize) {
-        return new IntersectionStitchingIndex(expectedSize);
     }
 }

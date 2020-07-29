@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,12 +20,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -183,7 +182,6 @@ public class ActionSpecMappingContextFactory {
      *
      * @param actions list of actions
      * @param topologyContextId the context id of the topology
-     * @param policiesService the API service implementation of policy
      * @return ActionSpecMappingContext
      * @throws ExecutionException on failure getting entities
      * @throws InterruptedException if thread has been interrupted
@@ -193,8 +191,14 @@ public class ActionSpecMappingContextFactory {
             long topologyContextId)
             throws ExecutionException, InterruptedException, ConversionException {
 
+        // NOTE: calls made on the current thread will be made "as the user" in upstream components
+        // and trigger user-scoping, authorization checks and so on. Since we decided NOT to restrict
+        // the display of policy-related info in action explanations, we are making the rpcs to populate
+        // the mapping context as the "System", so we don't trigger further auth checks upstream. This
+        // is as simple as running the RPCS on a separate thread (and also gives us parallelization
+        // of the calls, as Pengcheng originally designed for)
         final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
-        Collection<PolicyApiDTO> policiesApiDto = policiesService.convertPolicyDTOCollection(policies.get().values());
+        final Future<Collection<PolicyApiDTO>> policiesApiDto = executorService.submit(() -> policiesService.convertPolicyDTOCollection(policies.get().values()));
         final Future<Map<Long, ApiPartialEntity>> entities = executorService.submit(() ->
             getEntities(actions, topologyContextId));
         Map<Long, ApiPartialEntity> entitiesById = entities.get();
@@ -263,7 +267,7 @@ public class ActionSpecMappingContextFactory {
         if (topologyContextId == realtimeTopologyContextId) {
             return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
                 volumesAspectsByEntity, cloudAspects, Collections.emptyMap(), Collections.emptyMap(),
-                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false, policiesApiDto);
+                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false, policiesApiDto.get());
         }
 
         // fetch all vm aspects
@@ -278,7 +282,7 @@ public class ActionSpecMappingContextFactory {
 
         return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
             volumesAspectsByEntity, cloudAspects, vmAspects, dbAspects,
-            buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true, policiesApiDto);
+            buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true, policiesApiDto.get());
     }
 
     /**
@@ -488,7 +492,7 @@ public class ActionSpecMappingContextFactory {
     @Nonnull
     private Map<Long, PolicyDTO.Policy> getPolicies() {
         final Map<Long, PolicyDTO.Policy> policies = new HashMap<>();
-        policyService.getAllPolicies(PolicyDTO.PolicyRequest.newBuilder().build()).forEachRemaining(
+        policyService.getPolicies(PolicyDTO.PolicyRequest.newBuilder().build()).forEachRemaining(
                         response -> policies
                                         .put(response.getPolicy().getId(), response.getPolicy()));
         return policies;

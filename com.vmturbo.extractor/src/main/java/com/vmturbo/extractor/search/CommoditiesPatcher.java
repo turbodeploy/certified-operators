@@ -51,20 +51,24 @@ public class CommoditiesPatcher implements EntityRecordPatcher<TopologyEntityDTO
                     case USED:
                         attrs.put(jsonKey, getUsed(commoditySoldDTOs));
                         break;
-                    case UTILIZATION:
-                        attrs.put(jsonKey, getUtilization(commoditySoldDTOs));
-                        break;
                     case CAPACITY:
                         attrs.put(jsonKey, getCapacity(commoditySoldDTOs));
                         break;
                     case PEAK:
                         attrs.put(jsonKey, getPeak(commoditySoldDTOs));
                         break;
-                    case PERCENTILE:
-                        // we are using the used percentile here (there is also peak percentile)
-                        // not all commodities have percentile
-                        getPercentile(commoditySoldDTOs).ifPresent(percentile ->
+                    case CURRENT_UTILIZATION:
+                        attrs.put(jsonKey, getCurrentUtilization(commoditySoldDTOs));
+                        break;
+                    case WEIGHTED_HISTORICAL_UTILIZATION:
+                        // not all commodities have weighted historical utilization
+                        getWeightedAverageHistoricalUtilization(commoditySoldDTOs).ifPresent(percentile ->
                                 attrs.put(jsonKey, percentile));
+                        break;
+                    case PERCENTILE_HISTORICAL_UTILIZATION:
+                        // not all commodities have percentile historical utilization
+                        getPercentileHistoricalUtilization(commoditySoldDTOs).ifPresent(percentile ->
+                            attrs.put(jsonKey, percentile));
                         break;
                     default:
                         logger.error("Unsupported commodity attribute: {}",
@@ -86,23 +90,58 @@ public class CommoditiesPatcher implements EntityRecordPatcher<TopologyEntityDTO
         return commoditySoldDTOs.stream().mapToDouble(CommoditySoldDTO::getPeak).sum();
     }
 
-    private double getUtilization(List<CommoditySoldDTO> commoditySoldDTOs) {
+    /**
+     * Get the current utilization.
+     *
+     * <p>This is a simple calculation of the current 'used' value divided by the current
+     * 'capacity' value.</p>
+     *
+     * @param commoditySoldDTOs commodities from which to derive the current utilization
+     * @return the current utilization, expressed as a percentage
+     */
+    private double getCurrentUtilization(List<CommoditySoldDTO> commoditySoldDTOs) {
         final double capacity = getCapacity(commoditySoldDTOs);
         return capacity == 0 ? 0 : getUsed(commoditySoldDTOs) / capacity;
     }
 
     /**
-     * For most cases, entity sells one commodity of a type. If there are multiple, we do an
-     * average on all of them, since percentile is the utilization.
+     * Get the percentile-based historical utilization if available, expressed as a percentage.
      *
-     * @param commoditySoldDTOs list of {@link CommoditySoldDTO}
-     * @return optional percentile utilization
+     * <p>The details of this calculation can be found in:
+     * com.vmturbo.topology.processor.history.percentile.PercentileEditor</p>
+     *
+     * @param commoditySoldDTOs commodities from which to derive the percentile utilization
+     * @return the percentile utilization, if available, expressed as a percentage
      */
-    private OptionalDouble getPercentile(List<CommoditySoldDTO> commoditySoldDTOs) {
+    private OptionalDouble getPercentileHistoricalUtilization(List<CommoditySoldDTO> commoditySoldDTOs) {
         return commoditySoldDTOs.stream()
-                .filter(commoditySoldDTO -> commoditySoldDTO.hasHistoricalUsed())
-                .filter(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().hasPercentile())
-                .mapToDouble(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().getPercentile())
-                .average();
+            .filter(commoditySoldDTO -> commoditySoldDTO.hasHistoricalUsed())
+            .filter(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().hasPercentile())
+            .mapToDouble(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().getPercentile())
+            // For most cases, entity sells one commodity of a type. If there are multiple, we do an
+            // average on all of them, since percentile (as a measure of utilization) is a percentage.
+            .average();
+    }
+
+    /**
+     * Get the weighted average-based historical utilization if available, expressed as a percentage.
+     *
+     * <p>The details of this calculation can be found in:
+     * com.vmturbo.topology.processor.topology.HistoricalEditor::calculateSmoothedValue </p>
+     *
+     * <p>This is an older method for calculating the historical percentage of a commodity.
+     * Percentile is preferred when available, but this can be used as a fall back when it is not.</p>
+     *
+     * @param commoditySoldDTOs commodities from which to derive the historical utilization
+     * @return the historical utilization, if available, expressed as a percentage
+     */
+    private OptionalDouble getWeightedAverageHistoricalUtilization(List<CommoditySoldDTO> commoditySoldDTOs) {
+        return commoditySoldDTOs.stream()
+            .filter(commoditySoldDTO -> commoditySoldDTO.hasHistoricalUsed())
+            .filter(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().hasHistUtilization())
+            .mapToDouble(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().getHistUtilization())
+            // For most cases, entity sells one commodity of a type. If there are multiple, we do an
+            // average on all of them, since historical utilization is a percentage.
+            .average();
     }
 }

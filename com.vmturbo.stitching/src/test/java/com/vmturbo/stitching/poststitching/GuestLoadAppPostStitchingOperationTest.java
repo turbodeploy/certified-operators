@@ -54,7 +54,7 @@ public class GuestLoadAppPostStitchingOperationTest {
             TopologyEntityDTO.newBuilder()
                 .setOid(appOid1)
                 .setDisplayName("GuestLoad[vm1]")
-                .setEntityType(EntityType.APPLICATION_VALUE)
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .putEntityPropertyMap(
                     GuestLoadAppPostStitchingOperation.APPLICATION_TYPE_PATH,
                     SupplyChainConstants.GUEST_LOAD)
@@ -84,7 +84,7 @@ public class GuestLoadAppPostStitchingOperationTest {
             TopologyEntityDTO.newBuilder()
                 .setOid(appOid2)
                 .setDisplayName("RealApp")
-                .setEntityType(EntityType.APPLICATION_VALUE)
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                     .setProviderId(vmOid1)
                     .addCommodityBought(CommodityBoughtDTO.newBuilder()
@@ -125,7 +125,7 @@ public class GuestLoadAppPostStitchingOperationTest {
             TopologyEntityDTO.newBuilder()
                 .setOid(appOid3)
                 .setDisplayName("GuestLoad[vm2]")
-                .setEntityType(EntityType.APPLICATION_VALUE)
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .putEntityPropertyMap(
                     GuestLoadAppPostStitchingOperation.APPLICATION_TYPE_PATH,
                     SupplyChainConstants.GUEST_LOAD)

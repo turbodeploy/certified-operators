@@ -17,7 +17,7 @@ public class EntityTypeMapperTest {
     @Test
     public void allEntityTypesFromMetaDataAvailable() {
         for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
-            assertNotNull(searchEntityMetadata.getEntityType().getDisplayName(), EntityTypeMapper.fromApiToSearchSchema(searchEntityMetadata.getEntityType()));
+            assertNotNull(searchEntityMetadata.getEntityType().name(), EntityTypeMapper.fromApiToSearchSchema(searchEntityMetadata.getEntityType()));
         }
     }
 }

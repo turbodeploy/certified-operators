@@ -28,6 +28,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData.StorageFi
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VirtualMachineFileDescriptor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
@@ -317,7 +318,8 @@ public class AddVirtualVolumeDiscoveryConverter {
             .setEntityType(EntityType.VIRTUAL_VOLUME)
             .addLayeredOver(storageId)
             .setVirtualVolumeData(VirtualVolumeData.newBuilder()
-                .addAllFile(getVmFileList(vmId, storageId)));
+                    .addAllFile(getVmFileList(vmId, storageId))
+                    .setAttachmentState(AttachmentState.ATTACHED));
         // Storage browsing data may be out of date.  Discard volumes that don't get stitched with
         // a volume from the main probe.
         if (isStorageBrowsing) {
@@ -347,7 +349,8 @@ public class AddVirtualVolumeDiscoveryConverter {
                 .setEntityType(EntityType.VIRTUAL_VOLUME)
                 .addLayeredOver(storageId)
                 .setVirtualVolumeData(VirtualVolumeData.newBuilder()
-                        .addAllFile(getStorageFileList(storageId)))
+                        .addAllFile(getStorageFileList(storageId))
+                        .setAttachmentState(AttachmentState.UNATTACHED))
                 .build();
     }
 

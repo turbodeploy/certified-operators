@@ -1,10 +1,19 @@
 package com.vmturbo.integrations.intersight.licensing;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.cisco.intersight.client.ApiException;
 import com.cisco.intersight.client.JSON;
 import com.cisco.intersight.client.model.LicenseLicenseInfo;
 import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseStateEnum;
@@ -20,6 +29,8 @@ import org.json.JSONObject;
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
+import com.vmturbo.components.api.RetriableOperation;
+import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.licensing.License;
 import com.vmturbo.licensing.utils.LicenseUtil;
 
@@ -29,7 +40,33 @@ import com.vmturbo.licensing.utils.LicenseUtil;
 public class IntersightLicenseUtils {
     private static final Logger logger = LogManager.getLogger();
 
+    public static final String TRACE_ID_HEADER = "X-Starship-TraceId";
+
     private IntersightLicenseUtils() {}
+
+    /**
+     * Utility method to generate a string summary of an {@link ApiException}, so that any especially
+     * useful fields (http status code, trace id) will be shared.
+     *
+     * @param ae the {@link ApiException} to inspect
+     * @return a String summary of the exception, including http status code and other fields of
+     * particular interest.
+     */
+    public static String describeApiError(ApiException ae) {
+        return new StringBuilder("ApiException(code:")
+                .append(ae.getCode())
+                .append(",traceid:").append(getTraceIdHeader(ae.getResponseHeaders()))
+                .append(",msg:").append(ae.getMessage())
+                .append(")")
+                .toString();
+    }
+
+    public static String getTraceIdHeader(Map<String, List<String>> headers) {
+        String traceId = (headers != null && headers.containsKey(TRACE_ID_HEADER))
+                ? headers.get(TRACE_ID_HEADER).stream().collect(Collectors.joining(","))
+                : "none";
+        return traceId;
+    }
 
     /**
      * These are the license states an Intersight license can be in to be considered active.
@@ -187,6 +224,58 @@ public class IntersightLicenseUtils {
         return true;
     }
 
+    /**\
+     * Runs a {@link RetriableOperation}, with some handling for treating certain Intersight API
+     * exceptions as retriable conditions.
+     * @param name the name of the operation for logging purposes
+     * @param operation the actual {@link RetriableOperation}
+     * @param timeout the max time (in seconds) the operation is given to complete.
+     * @param <T> the return type from the retriable operation
+     * @return an Optional containing the return value from the operation, or an empty optional if it did not.
+     */
+    public static <T> Optional<T> runRetriableOperation(String name, RetriableOperation<T> operation, long timeout) {
+        Instant startTime = Instant.now();
+        try {
+            logger.info("Running operation {}", name);
+            return Optional.of(operation.run(timeout, TimeUnit.SECONDS));
+        } catch (InterruptedException ie) {
+            logger.info("Retriable operation {} interrupted.", name, ie);
+        } catch (TimeoutException te) {
+            Duration timeoutTime = Duration.between(startTime, Instant.now());
+            logger.error("Retriable operation {} timed out after {} ms.", name,
+                    timeoutTime.toMillis());
+        } catch (RetriableOperationFailedException rofe) {
+            if (rofe.getCause() instanceof ApiException) {
+                // log extra info for ApiExceptions
+                logger.warn("Operation {} failed with ApiException {}, will retry.", name,
+                        IntersightLicenseUtils.describeApiError((ApiException)rofe.getCause()),
+                        rofe);
+            } else {
+                logger.warn("Operation {} failed with exception, will retry.", name, rofe);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Given a list of intersight licenses, pick the best one available in the list. Note: this will
+     * also sort the list of licenses from best -> worst.
+     * @param intersightLicenses a list of intersight LicenseLicenseInfo objects.
+     * @return the best available active license from the list, if one was found.
+     */
+    public static Optional<LicenseLicenseInfo> pickBestAvailableLicense(List<LicenseLicenseInfo> intersightLicenses) {
+        if (intersightLicenses.size() > 0) {
+            // sort the intersight licenses by "best available" so we can find the best ones.
+            intersightLicenses.sort(new BestAvailableIntersightLicenseComparator());
+            LicenseLicenseInfo bestAvailableLicense = intersightLicenses.get(0);
+            // we will target this license, as long as it's active
+            if (IntersightLicenseUtils.isActiveIntersightLicense(bestAvailableLicense)) {
+                return Optional.of(bestAvailableLicense);
+            }
+        }
+        return Optional.empty();
+    }
+
     /**
      * Sort licenses so that the "best" license is the highest-ranked. The sorting will be based on
      * the following criteria:
@@ -208,7 +297,7 @@ public class IntersightLicenseUtils {
             boolean isAActive = isActiveIntersightLicense(a);
             boolean isBActive = isActiveIntersightLicense(b);
             if (isAActive != isBActive) {
-                return isAActive ? 1 : -1;
+                return isAActive ? -1 : 1;
             }
 
             // both licenses have the same validity. Let's compare license types
@@ -216,7 +305,7 @@ public class IntersightLicenseUtils {
             IntersightProxyLicenseEdition edition2 = IntersightProxyLicenseEdition.fromIntersightLicenseType(b.getLicenseType());
             if (edition1.getTierNumber() != edition2.getTierNumber()) {
                 // higher-tiered license wins
-                return (edition1.getTierNumber() > edition2.getTierNumber()) ? 1 : -1;
+                return (edition1.getTierNumber() > edition2.getTierNumber()) ? -1 : 1;
             }
 
             // ok, same validity and tier -- let's tie-break using moids

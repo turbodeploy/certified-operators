@@ -164,6 +164,7 @@ public class GroupResolver {
                     try {
                         final Set<Long> members = searchResolver.search(SearchQuery.newBuilder()
                             .addAllSearchParameters(entityFilter.getSearchParametersCollection().getSearchParametersList())
+                            .setLogicalOperator(entityFilter.getLogicalOperator())
                             .build(), graph)
                             .map(TopologyEntity::getOid)
                             .collect(Collectors.toSet());

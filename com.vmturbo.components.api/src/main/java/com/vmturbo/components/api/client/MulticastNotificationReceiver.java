@@ -15,8 +15,13 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.AbstractMessage;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 
 /**
  * A {@link ComponentNotificationReceiver} that supports parallel distribution to a set of listeners.
@@ -119,10 +124,14 @@ public class MulticastNotificationReceiver<MSG_TYPE extends AbstractMessage, LIS
     }
 
     @Override
-    protected void processMessage(@Nonnull final MSG_TYPE message) throws ApiClientException, InterruptedException {
-        // the default implementation consumes the base message type. Override this if you want to
-        // do anything more sophisticated.
-        invokeListeners(messageMappingFunction.apply(message));
+    protected void processMessage(@Nonnull final MSG_TYPE message,
+                                  @Nonnull final SpanContext tracingContext) throws ApiClientException, InterruptedException {
+        try (TracingScope tracingScope = Tracing.trace("Notification handler for "
+            + message.getClass().getSimpleName(), tracingContext)) {
+            // the default implementation consumes the base message type. Override this if you want to
+            // do anything more sophisticated.
+            invokeListeners(messageMappingFunction.apply(message));
+        }
     }
 
     /**

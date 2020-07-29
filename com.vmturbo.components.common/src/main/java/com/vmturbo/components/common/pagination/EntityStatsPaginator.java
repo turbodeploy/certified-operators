@@ -79,8 +79,10 @@ public class EntityStatsPaginator {
         }
         paginationResponse.setTotalRecordCount(entityIds.size());
 
-        final List<Long> nextStatsPage =
-            entityIdsList.subList(skipCount, Math.min(maxEndIdx, entityIds.size()));
+        final List<Long> nextStatsPage = skipCount >= entityIdsList.size()
+                                            ? Collections.emptyList()
+                                            : entityIdsList.subList(skipCount,
+                                                                    Math.min(maxEndIdx, entityIds.size()));
         return new PaginatedStats(nextStatsPage, paginationResponse.build());
     }
 

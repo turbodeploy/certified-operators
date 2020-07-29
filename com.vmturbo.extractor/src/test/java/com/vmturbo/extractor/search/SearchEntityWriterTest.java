@@ -10,7 +10,9 @@ import static com.vmturbo.extractor.models.ModelDefinitions.NUM_ACTIONS;
 import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkEntity;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkGroup;
-import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodity;
+
+import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodityWithHistoricalUtilization;
+import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodityWithPercentile;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATACENTER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
@@ -37,6 +39,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import org.javatuples.Quartet;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Test;
@@ -86,13 +89,13 @@ public class SearchEntityWriterTest {
      * Entities.
      */
     private static final TopologyEntityDTO vm = mkEntity(VIRTUAL_MACHINE).toBuilder()
-            .addCommoditySoldList(soldCommodity(CommodityType.VCPU, 300, 1000))
-            .addCommoditySoldList(soldCommodity(CommodityType.VMEM, 1024, 4096))
+            .addCommoditySoldList(soldCommodityWithPercentile(CommodityType.VCPU, 300, 1000, 0.25))
+            .addCommoditySoldList(soldCommodityWithPercentile(CommodityType.VMEM, 1024, 4096, 0.25))
             .build();
 
     private static final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
-            .addCommoditySoldList(soldCommodity(CommodityType.CPU, 4000, 20000))
-            .addCommoditySoldList(soldCommodity(CommodityType.MEM, 2048, 10240))
+            .addCommoditySoldList(soldCommodityWithHistoricalUtilization(CommodityType.CPU, 4000, 20000, 0.20))
+            .addCommoditySoldList(soldCommodityWithHistoricalUtilization(CommodityType.MEM, 2048, 10240, 0.20))
             .build();
 
     private static final TopologyEntityDTO dc = mkEntity(DATACENTER);
@@ -164,7 +167,7 @@ public class SearchEntityWriterTest {
             if (oid == vm.getOid()) {
                 // commodity
                 assertThat(attrs.get(SearchMetadataMapping.COMMODITY_VCPU_USED.getJsonKeyName()), is(300.0));
-                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_VCPU_UTILIZATION.getJsonKeyName()), is(0.3));
+                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_VCPU_PERCENTILE_UTILIZATION.getJsonKeyName()), is(0.25));
                 assertThat(attrs.get(SearchMetadataMapping.PRIMITIVE_GUEST_OS_TYPE.getJsonKeyName()), is("LINUX"));
                 // related entity
                 assertThat(attrs.get(SearchMetadataMapping.RELATED_DATA_CENTER.getJsonKeyName()),
@@ -172,7 +175,7 @@ public class SearchEntityWriterTest {
             } else if (oid == pm.getOid()) {
                 // commodity
                 assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_USED.getJsonKeyName()), is(4000.0));
-                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_UTILIZATION.getJsonKeyName()), is(0.2));
+                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_HISTORICAL_UTILIZATION.getJsonKeyName()), is(0.2));
                 // related entity
                 assertThat(attrs.get(SearchMetadataMapping.RELATED_DATA_CENTER.getJsonKeyName()),
                         is(Collections.singletonList(dc.getDisplayName())));

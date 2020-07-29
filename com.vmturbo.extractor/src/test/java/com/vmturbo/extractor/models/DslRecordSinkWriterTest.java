@@ -1,16 +1,10 @@
 package com.vmturbo.extractor.models;
 
-import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CAPACITY;
-import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CONSUMED;
-import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CURRENT;
-import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PROVIDER;
-import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
-import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.METRIC_TABLE;
 import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
 import static com.vmturbo.extractor.util.RecordTestUtil.MapMatchesLaxly.mapMatchesLaxly;
+import static com.vmturbo.extractor.util.RecordTestUtil.createMetricRecordMap;
 import static com.vmturbo.extractor.util.RecordTestUtil.createRecordByName;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
@@ -23,9 +17,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableList;
-
-import org.apache.commons.lang3.tuple.Pair;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -40,6 +31,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
+import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -52,7 +44,7 @@ import com.vmturbo.sql.utils.DbEndpointTestRule;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 public class DslRecordSinkWriterTest {
 
     private static final WriterConfig config = ImmutableWriterConfig.builder()
@@ -63,6 +55,7 @@ public class DslRecordSinkWriterTest {
             .insertTimeoutSeconds(60)
             .lastSeenAdditionalFuzzMinutes(10)
             .lastSeenUpdateIntervalMinutes(10)
+            .unaggregatedCommodities(ModelDefinitions.UNAGGREGATED_KEYED_COMMODITY_TYPES)
             .build();
 
     private DslRecordSink metricSink;
@@ -78,10 +71,10 @@ public class DslRecordSinkWriterTest {
     @ClassRule
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
 
-    private final Map<String, Object> metricData1 = createRecordMap(
-            OffsetDateTime.now(), 1L, 100L, "VM", null, null, 1.0, 1.0, 2L);
-    private final Map<String, Object> metricData2 = createRecordMap(
-            OffsetDateTime.now(), 2L, 200L, "PM", 1.0, 1.0, null, null, null);
+    private final Map<String, Object> metricData1 = createMetricRecordMap(
+            OffsetDateTime.now(), 1L, 100L, MetricType.CPU, null, null, null, 1.0, 1.0, 2L);
+    private final Map<String, Object> metricData2 = createMetricRecordMap(
+            OffsetDateTime.now(), 2L, 200L, MetricType.MEM, null, 1.0, 1.0, null, null, null);
 
 
     /**
@@ -120,24 +113,5 @@ public class DslRecordSinkWriterTest {
         Map<String, Object> fromDb = dsl.fetchOne(String.format("SELECT * FROM \"%s\" WHERE %s",
                 table.getName(), conditions)).intoMap();
         assertThat(fromDb, mapMatchesLaxly(data));
-    }
-
-    private static Map<String, Object> createRecordMap(
-            final OffsetDateTime time, final long oid, final long hash, final String type,
-            final Double current, final Double capacity, final Double utilization,
-            final Double consumed, final Long provider) {
-        return ImmutableList.<Pair<String, Object>>of(
-                Pair.of(TIME.getName(), time),
-                Pair.of(ENTITY_OID.getName(), oid),
-                Pair.of(ENTITY_HASH.getName(), hash),
-                Pair.of(COMMODITY_TYPE.getName(), type),
-                Pair.of(COMMODITY_CURRENT.getName(), current),
-                Pair.of(COMMODITY_CAPACITY.getName(), capacity),
-                Pair.of(COMMODITY_UTILIZATION.getName(), utilization),
-                Pair.of(COMMODITY_CONSUMED.getName(), consumed),
-                Pair.of(COMMODITY_PROVIDER.getName(), provider))
-                .stream()
-                .filter(pair -> pair.getRight() != null)
-                .collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
     }
 }

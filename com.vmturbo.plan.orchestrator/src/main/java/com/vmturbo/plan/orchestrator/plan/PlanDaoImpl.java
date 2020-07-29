@@ -409,7 +409,6 @@ public class PlanDaoImpl implements PlanDao {
                         PlanStatus.FAILED.name()))
                 .and(PLAN_INSTANCE.STATUS.isNotNull())
                 .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.USER.name()))
-                .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.RESERVATION_PLAN.name()))
                 .fetchOne()
                 .into(Integer.class);
     }
@@ -492,7 +491,7 @@ public class PlanDaoImpl implements PlanDao {
                 final DSLContext context = DSL.using(configuration);
 
                 // Proceed only if the maximum number of concurrent plan instances have not been exceeded
-                if (isUserOrInitialPlacementPlan(planInstance)
+                if (isUserPlan(planInstance)
                         || isPlanExecutionCapacityAvailable()) {
                     // Select the instance record that is in READY state and has the given ID.
                     // Call "forUpdate()" to lock the record for subsequent update.
@@ -649,9 +648,8 @@ public class PlanDaoImpl implements PlanDao {
      * @param planInstance {@link PlanInstance} needs to check.
      * @return return true if it is a user created plan or initial placement plan.
      */
-    private boolean isUserOrInitialPlacementPlan(@Nonnull final PlanDTO.PlanInstance planInstance) {
-        return planInstance.getProjectType().equals(PlanProjectType.USER) ||
-            planInstance.getProjectType().equals(PlanProjectType.RESERVATION_PLAN);
+    private boolean isUserPlan(@Nonnull final PlanDTO.PlanInstance planInstance) {
+        return planInstance.getProjectType().equals(PlanProjectType.USER);
     }
 
     /**

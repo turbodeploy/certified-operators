@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -14,17 +13,16 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -36,6 +34,9 @@ import com.vmturbo.action.orchestrator.store.EntitySeverityCache.OrderOidBySever
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache.SeverityCount;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
+import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
+import com.vmturbo.action.orchestrator.topology.ActionRealtimeTopology;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -45,17 +46,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.graph.TopologyGraphCreator;
 
 /**
  * Unit Tests for EntitySeverityCache.
@@ -69,21 +66,17 @@ public class EntitySeverityCacheTest {
     private static final long DEFAULT_SOURCE_ID = 1;
     private static final long ACTION_PLAN_ID = 9876;
 
-    private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
-
-    /**
-     * Grpc server for mocking services. The rule handles starting it and cleaning it up.
-     */
-    @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(
-        repositoryServiceMole);
+    private ActionTopologyStore actionTopologyStore = mock(ActionTopologyStore.class);
 
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
-        entitySeverityCache = new EntitySeverityCache(
-            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            true);
+        entitySeverityCache = new EntitySeverityCache(actionTopologyStore, true);
+
+        ActionRealtimeTopology actionRealtimeTopology = mock(ActionRealtimeTopology.class);
+        when(actionRealtimeTopology.entityGraph())
+            .thenReturn(new TopologyGraphCreator<ActionGraphEntity.Builder, ActionGraphEntity>().build());
+        when(actionTopologyStore.getSourceTopology()).thenReturn(Optional.of(actionRealtimeTopology));
     }
 
     @Test
@@ -231,7 +224,7 @@ public class EntitySeverityCacheTest {
     @Test
     public void testSeverityBreakdownAndSeverityCounts() {
         SeverityBreakdownScenario severityBreakdownScenario = new SeverityBreakdownScenario(
-            actionStore, repositoryServiceMole);
+            actionStore, actionTopologyStore);
 
         // trigger the recomputation of severity and severity breakdown
         entitySeverityCache.refresh(actionStore);
@@ -350,11 +343,10 @@ public class EntitySeverityCacheTest {
     @Test
     public void testSeverityBreakdownDisabled() {
         entitySeverityCache = new EntitySeverityCache(
-            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            false);
+                actionTopologyStore, false);
 
         SeverityBreakdownScenario severityBreakdownScenario = new SeverityBreakdownScenario(
-            actionStore, repositoryServiceMole);
+            actionStore, actionTopologyStore);
 
         // trigger the recomputation of severity and severity breakdown
         entitySeverityCache.refresh(actionStore);
@@ -450,11 +442,10 @@ public class EntitySeverityCacheTest {
          * Sets up actionStore, and repositoryServiceMole with the scenario.
          *
          * @param actionStore Sets up actionStore with the scenario.
-         * @param repositoryServiceMole Sets up repositoryServiceMole with the scenario.
+         * @param actionTopologyStore Sets up repositoryServiceMole with the scenario.
          */
-        private SeverityBreakdownScenario(
-            ActionStore actionStore,
-            RepositoryServiceMole repositoryServiceMole) {
+        private SeverityBreakdownScenario(ActionStore actionStore,
+                ActionTopologyStore actionTopologyStore) {
             List<ActionView> actions = Arrays.asList(
                 actionView(executableMove(0, virtualMachine1Oid, 1, 2, 1, Severity.MINOR)),
                 actionView(executableMove(3, physicalMachine1Oid, 1, 4, 1, Severity.MINOR)),
@@ -473,109 +464,91 @@ public class EntitySeverityCacheTest {
                         actionView -> actionView.getRecommendation().getId(),
                         Function.identity()))));
 
-            when(repositoryServiceMole.retrieveTopologyEntities(any()))
-                .thenReturn(Collections.emptyList());
+            TopologyGraphCreator<ActionGraphEntity.Builder, ActionGraphEntity> graphCreator =
+                    new TopologyGraphCreator<>();
+            makeEntity(EntityType.BUSINESS_APPLICATION, businessApp1Oid, graphCreator, businessTx1Oid);
+            makeEntity(EntityType.BUSINESS_APPLICATION, businessApp2Oid, graphCreator,  businessTx2Oid);
 
-            setupRetrieveTopologyEntities(EntityType.BUSINESS_APPLICATION,
-                makeApiPartialEntity(businessApp1Oid, businessTx1Oid),
-                makeApiPartialEntity(businessApp2Oid, businessTx2Oid));
+            makeEntity(EntityType.BUSINESS_TRANSACTION, businessTx1Oid, graphCreator, service1Oid);
+            makeEntity(EntityType.BUSINESS_TRANSACTION, businessTx2Oid, graphCreator, service2Oid);
+            makeEntity(EntityType.BUSINESS_TRANSACTION, businessTx3Oid, graphCreator, service1Oid, service3Oid);
 
-            setupRetrieveTopologyEntities(EntityType.BUSINESS_TRANSACTION,
-                makeApiPartialEntity(businessTx1Oid, service1Oid),
-                makeApiPartialEntity(businessTx2Oid, service2Oid),
-                makeApiPartialEntity(businessTx3Oid, service1Oid, service3Oid));
+            makeEntity(EntityType.SERVICE, service1Oid, graphCreator, application1Oid);
+            makeEntity(EntityType.SERVICE, service2Oid, graphCreator, database1Oid);
+            makeEntity(EntityType.SERVICE, service3Oid, graphCreator, application2Oid);
+            makeEntity(EntityType.SERVICE, service4Oid, graphCreator, application1Oid, application2Oid);
+            makeEntity(EntityType.SERVICE, service5Oid, graphCreator, application5Oid);
 
-            setupRetrieveTopologyEntities(EntityType.SERVICE,
-                makeApiPartialEntity(service1Oid, application1Oid),
-                makeApiPartialEntity(service2Oid, database1Oid),
-                makeApiPartialEntity(service3Oid, application2Oid),
-                makeApiPartialEntity(service4Oid, application1Oid, application2Oid),
-                makeApiPartialEntity(service5Oid, application5Oid));
+            makeEntity(EntityType.APPLICATION_COMPONENT, application1Oid, graphCreator, virtualMachine1Oid);
+            makeEntity(EntityType.APPLICATION_COMPONENT, application2Oid, graphCreator, virtualMachine3Oid);
+            makeEntity(EntityType.APPLICATION_COMPONENT, application5Oid, graphCreator, virtualMachine5Oid, database4Oid);
 
-            setupRetrieveTopologyEntities(EntityType.APPLICATION_COMPONENT,
-                makeApiPartialEntity(application1Oid, virtualMachine1Oid),
-                makeApiPartialEntity(application2Oid, virtualMachine3Oid),
-                makeApiPartialEntity(application5Oid, virtualMachine5Oid, database4Oid));
+            makeEntity(EntityType.DATABASE, database1Oid, graphCreator, virtualMachine2Oid);
+            makeEntity(EntityType.DATABASE, database4Oid, graphCreator, virtualMachine4Oid);
 
-            setupRetrieveTopologyEntities(EntityType.DATABASE,
-                makeApiPartialEntity(database1Oid, virtualMachine2Oid),
-                makeApiPartialEntity(database4Oid, virtualMachine4Oid));
+            makeEntity(EntityType.VIRTUAL_MACHINE, virtualMachine1Oid, graphCreator, physicalMachine1Oid, storage1Oid);
+            makeEntity(EntityType.VIRTUAL_MACHINE, virtualMachine2Oid, graphCreator, physicalMachine2Oid, storage2Oid);
+            makeEntity(EntityType.VIRTUAL_MACHINE, virtualMachine3Oid, graphCreator, physicalMachine1Oid, storage1Oid);
+            makeEntity(EntityType.VIRTUAL_MACHINE, virtualMachine4Oid, graphCreator,
+                    ImmutableMap.of(EntityType.VIRTUAL_VOLUME, Collections.singleton(virtualVolume4Oid),
+                            EntityType.STORAGE, Collections.singleton(storage4Oid)),
+                    physicalMachine4Oid, storage4Oid);
+            makeEntity(EntityType.VIRTUAL_MACHINE, virtualMachine5Oid, graphCreator,
+                    ImmutableMap.of(EntityType.VIRTUAL_VOLUME, Collections.singleton(virtualVolume5Oid),
+                            EntityType.STORAGE, Collections.singleton(storage4Oid)),
+                    physicalMachine4Oid, storage4Oid);
 
-            setupRetrieveTopologyEntities(EntityType.VIRTUAL_MACHINE,
-                makeApiPartialEntity(virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
-                makeApiPartialEntity(virtualMachine2Oid, physicalMachine2Oid, storage2Oid),
-                makeApiPartialEntity(virtualMachine3Oid, physicalMachine1Oid, storage1Oid),
-                makeApiPartialEntity(virtualMachine4Oid,
-                    ImmutableList.of(
-                        makeRelatedEntity(EntityType.VIRTUAL_VOLUME, virtualVolume4Oid),
-                        makeRelatedEntity(EntityType.STORAGE, storage4Oid)),
-                    physicalMachine4Oid, storage4Oid),
-                makeApiPartialEntity(virtualMachine5Oid,
-                    ImmutableList.of(
-                        makeRelatedEntity(EntityType.VIRTUAL_VOLUME, virtualVolume5Oid),
-                        makeRelatedEntity(EntityType.STORAGE, storage4Oid)),
-                    physicalMachine4Oid, storage4Oid));
+            makeEntity(EntityType.VIRTUAL_VOLUME, virtualVolume4Oid, graphCreator, storage4Oid);
+            makeEntity(EntityType.VIRTUAL_VOLUME, virtualVolume5Oid, graphCreator, storage4Oid);
 
-            setupRetrieveTopologyEntities(EntityType.VIRTUAL_VOLUME,
-                makeApiPartialEntity(virtualVolume4Oid, storage4Oid),
-                makeApiPartialEntity(virtualVolume5Oid, storage4Oid));
+            makeEntity(EntityType.PHYSICAL_MACHINE, physicalMachine1Oid, graphCreator, storage1Oid);
+            makeEntity(EntityType.PHYSICAL_MACHINE, physicalMachine2Oid, graphCreator, storage2Oid);
+            makeEntity(EntityType.PHYSICAL_MACHINE, physicalMachine4Oid, graphCreator, storage4Oid);
 
-            setupRetrieveTopologyEntities(EntityType.PHYSICAL_MACHINE,
-                makeApiPartialEntity(physicalMachine1Oid, storage1Oid),
-                makeApiPartialEntity(physicalMachine2Oid, storage2Oid),
-                makeApiPartialEntity(physicalMachine4Oid, storage4Oid));
+            makeEntity(EntityType.STORAGE, storage1Oid, graphCreator);
+            makeEntity(EntityType.STORAGE, storage2Oid, graphCreator);
+            makeEntity(EntityType.STORAGE, storage4Oid, graphCreator);
 
-            setupRetrieveTopologyEntities(EntityType.STORAGE,
-                makeApiPartialEntity(storage1Oid),
-                makeApiPartialEntity(storage2Oid),
-                makeApiPartialEntity(storage4Oid));
+            ActionRealtimeTopology actionRealtimeTopology = mock(ActionRealtimeTopology.class);
+            when(actionRealtimeTopology.entityGraph())
+                    .thenReturn(graphCreator.build());
+            when(actionTopologyStore.getSourceTopology()).thenReturn(Optional.of(actionRealtimeTopology));
         }
 
-
-    }
-
-    private void setupRetrieveTopologyEntities(EntityType entityType,
-                                               PartialEntity... partialEntities) {
-        PartialEntityBatch.Builder partialEntityBatch = PartialEntityBatch.newBuilder();
-        for (PartialEntity partialEntity : partialEntities) {
-            partialEntityBatch.addEntities(partialEntity);
+        private ActionGraphEntity.Builder makeEntity(EntityType type,
+                long oid,
+                TopologyGraphCreator<ActionGraphEntity.Builder, ActionGraphEntity> graphCreator,
+                long... providerOids) {
+            return makeEntity(type, oid, graphCreator, Collections.emptyMap(), providerOids);
         }
 
-        when(repositoryServiceMole.retrieveTopologyEntities(
-            RetrieveTopologyEntitiesRequest.newBuilder()
-                .addEntityType(entityType.getNumber())
-                .setReturnType(Type.API)
-                .build()))
-            .thenReturn(Arrays.asList(partialEntityBatch.buildPartial()));
-    }
+        private ActionGraphEntity.Builder makeEntity(EntityType type,
+                long oid,
+                TopologyGraphCreator<ActionGraphEntity.Builder, ActionGraphEntity> graphCreator,
+                Map<EntityType, Set<Long>> connectedIds,
+                long... providerOids) {
+            TopologyEntityDTO.Builder e = TopologyEntityDTO.newBuilder()
+                    .setOid(oid)
+                    .setDisplayName(type.name() + "-" + oid)
+                    .setEntityType(type.getNumber());
+            for (long provider : providerOids) {
+                e.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(provider));
+            }
 
-    private RelatedEntity makeRelatedEntity(EntityType entityType, long oid) {
-        return RelatedEntity.newBuilder()
-            .setOid(oid)
-            .setEntityType(entityType.getNumber())
-            .buildPartial();
-    }
+            connectedIds.forEach((entityType, ids) -> {
+                ids.forEach(id -> {
+                    e.addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                            .setConnectedEntityId(id)
+                            .setConnectedEntityType(entityType.getNumber()));
+                });
+            });
 
-    @Nonnull
-    private PartialEntity makeApiPartialEntity(long entityOid, long... providerOids) {
-        return makeApiPartialEntity(entityOid, Collections.emptyList(), providerOids);
-    }
-
-    @Nonnull
-    private PartialEntity makeApiPartialEntity(long entityOid,
-                                                           List<RelatedEntity> connectedEntities,
-                                                           long... providerOids) {
-        ApiPartialEntity.Builder apiPartialEntity = ApiPartialEntity.newBuilder()
-                .setOid(entityOid)
-                .addAllConnectedTo(connectedEntities)
-                .addAllProviders(Arrays.stream(providerOids)
-                    .boxed()
-                    .map(providerOid -> RelatedEntity.newBuilder()
-                        .setOid(providerOid)
-                        .buildPartial())
-                    .collect(Collectors.toList()));
-
-        return PartialEntity.newBuilder().setApi(apiPartialEntity.buildPartial()).buildPartial();
+            ActionGraphEntity.Builder bldr = new ActionGraphEntity.Builder(e.build());
+            graphCreator.addEntity(bldr);
+            return bldr;
+        }
     }
 
     /**

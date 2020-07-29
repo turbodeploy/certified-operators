@@ -200,8 +200,8 @@ public class ConfigurableRICoverageRule implements ReservedInstanceCoverageRule 
         final CoverageKeyRepository.Builder repositoryBuilder = CoverageKeyRepository.newBuilder();
 
         getReservedInstancesInScope().forEach(ri ->
-                createKeyFromReservedInstance(ri)
-                        .ifPresent(key -> repositoryBuilder.addReservedInstanceByKey(key, ri.getId())));
+                createKeysFromReservedInstance(ri)
+                        .forEach(key -> repositoryBuilder.addReservedInstanceByKey(key, ri.getId())));
 
         getEntitiesInScope().forEach(entity ->
                 createKeysFromEntity(entity)
@@ -279,7 +279,7 @@ public class ConfigurableRICoverageRule implements ReservedInstanceCoverageRule 
      * @return A {@link Set} of {@link CoverageKey} instances created from {@code reservedInstance}
      */
     @Nonnull
-    private Optional<CoverageKey> createKeyFromReservedInstance(@Nonnull final ReservedInstanceBought reservedInstance) {
+    private Set<CoverageKey> createKeysFromReservedInstance(@Nonnull final ReservedInstanceBought reservedInstance) {
 
         return isReservedInstanceSizeFlexible(reservedInstance).map(isSizeFlexible ->
             isReservedInstancePlatformFlexible(reservedInstance).map(isPlatformFlexible -> {
@@ -295,11 +295,11 @@ public class ConfigurableRICoverageRule implements ReservedInstanceCoverageRule 
                 final CoverageKeyCreator keyCreator = keyCreatorsByConfig.get(riKeyConfig);
 
                 return keyCreator != null ?
-                        keyCreator.createKeyForReservedInstance(reservedInstance.getId()) :
-                        Optional.<CoverageKey>empty();
+                        keyCreator.createKeysForReservedInstance(reservedInstance.getId()) :
+                        Collections.<CoverageKey>emptySet();
 
-            }).orElse(Optional.empty())
-        ).orElse(Optional.empty());
+            }).orElse(Collections.emptySet())
+        ).orElse(Collections.emptySet());
 
     }
 
