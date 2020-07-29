@@ -52,6 +52,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -230,10 +231,6 @@ public class ActionModeCalculator {
             case UNKNOWN:
                 return ModeAndSchedule.of(ActionMode.DISABLED);
             case SHOW_ONLY:
-                final ActionMode mode = getNonWorkflowActionMode(
-                    action, entitiesCache).getMode();
-                return ModeAndSchedule.of((mode.getNumber() > ActionMode.RECOMMEND_VALUE)
-                    ? ActionMode.RECOMMEND : mode);
             case SUPPORTED:
                 return getNonWorkflowActionMode(action, entitiesCache);
             default:
@@ -244,6 +241,7 @@ public class ActionModeCalculator {
     @Nonnull
     private ModeAndSchedule getNonWorkflowActionMode(@Nonnull final ActionView action,
               @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
+        ModeAndSchedule result = null;
         Optional<ActionDTO.Action> translatedRecommendation = action.getActionTranslation()
                 .getTranslatedRecommendation();
         if (translatedRecommendation.isPresent()) {
@@ -254,7 +252,7 @@ public class ActionModeCalculator {
                 final Map<String, Setting> settingsForTargetEntity = entitiesCache == null
                     ? Collections.emptyMap() : entitiesCache.getSettingsForEntity(targetEntityId);
 
-                return specsApplicableToAction(actionDto, settingsForTargetEntity)
+                result = specsApplicableToAction(actionDto, settingsForTargetEntity)
                     .map(spec -> {
                         final Setting setting = settingsForTargetEntity.get(spec.getSettingName());
                         if (spec == EntitySettingSpecs.EnforceNonDisruptive) {
@@ -304,12 +302,24 @@ public class ActionModeCalculator {
 
             } catch (UnsupportedActionException e) {
                 logger.error("Unable to calculate action mode.", e);
-                return ModeAndSchedule.of(ActionMode.RECOMMEND);
+                result = ModeAndSchedule.of(ActionMode.RECOMMEND);
             }
         } else {
             logger.error("Action {} has no translated recommendation.", action.getId());
-            return ModeAndSchedule.of(ActionMode.RECOMMEND);
+            result = ModeAndSchedule.of(ActionMode.RECOMMEND);
         }
+
+        if (action.getRecommendation().getSupportingLevel() == SupportLevel.SHOW_ONLY) {
+            ActionMode resultMode = result.getMode();
+            if (resultMode == ActionMode.EXTERNAL_APPROVAL) {
+                result = ModeAndSchedule.of(ActionMode.EXTERNAL_APPROVAL);
+            } else {
+                result = ModeAndSchedule.of((resultMode.getNumber() > ActionMode.RECOMMEND_VALUE)
+                        ? ActionMode.RECOMMEND : resultMode);
+            }
+        }
+
+        return result;
     }
 
     /**

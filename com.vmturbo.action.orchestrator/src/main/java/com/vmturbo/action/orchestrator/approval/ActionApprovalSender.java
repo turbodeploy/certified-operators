@@ -13,6 +13,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
+import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -52,9 +53,10 @@ public class ActionApprovalSender {
      * @throws InterruptedException if current thread has been interrupted
      */
     public void sendApprovalRequests(@Nonnull ActionStore store) throws InterruptedException {
-        if (!store.allowsExecution()) {
+        if (store.getStoreTypeName().equals(PlanActionStore.STORE_TYPE_NAME)) {
             return;
         }
+
         final ActionApprovalRequests.Builder builder = ActionApprovalRequests.newBuilder();
         for (Action action : store.getActions()
                 .values()) {
@@ -76,6 +78,7 @@ public class ActionApprovalSender {
                 }
             }
         }
+
         if (builder.getActionsCount() > 0) {
             try {
                 messageSender.sendMessage(builder.build());
