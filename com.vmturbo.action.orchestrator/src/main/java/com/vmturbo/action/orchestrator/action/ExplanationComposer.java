@@ -578,15 +578,22 @@ public class ExplanationComposer {
 
             String resizeExplanation;
 
-            final String commodityType = commodityDisplayName(resize.getCommodityType(), keepItShort)
+            CommodityType commType = resize.getCommodityType();
+            final String commodityType = commodityDisplayName(commType, keepItShort)
                     + (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
 
-            final boolean isResizeDown = action.getInfo().getResize().getOldCapacity()
-                                            > action.getInfo().getResize().getNewCapacity();
+            String commString = commodityType;
+            if (commType.getType() == CommodityDTO.CommodityType.VCPU_VALUE
+                    || commType.getType() == CommodityDTO.CommodityType.VMEM_VALUE)    {
+                commString = commodityType + " Limit";
+            }
+
+            final boolean isResizeDown = resize.getOldCapacity() > resize.getNewCapacity();
+
             if (isResizeDown) {
-                resizeExplanation = UNDERUTILIZED_EXPLANATION + commodityType;
+                resizeExplanation = UNDERUTILIZED_EXPLANATION + commString;
             } else {
-                resizeExplanation = commodityType + CONGESTION_EXPLANATION;
+                resizeExplanation = commString + CONGESTION_EXPLANATION;
             }
 
             StringBuilder sb = new StringBuilder();
