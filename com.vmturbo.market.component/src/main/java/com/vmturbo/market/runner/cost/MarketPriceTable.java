@@ -265,6 +265,13 @@ public class MarketPriceTable {
                     dependentPrice.getEndRangeInUnits(),
                     CostProtoUtil.getHourlyPriceAmount(dependentPrice)));
         }
+        /*
+        Sort storage options ascending based on the end range. Turbonomic needs to find the least
+        expensive option that can fit the demand. This is why we sort the options based on the
+        end range.
+         */
+        Collections.sort(storageOptions,
+                (a, b) -> Long.valueOf(a.getEndRange() - b.getEndRange()).intValue());
         // Add the base configuration price.
         priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), dbEngine, dbEdition,
                 deploymentType, licenseModel, baseHourlyPrice *

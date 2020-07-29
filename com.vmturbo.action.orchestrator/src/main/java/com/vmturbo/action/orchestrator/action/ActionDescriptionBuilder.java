@@ -9,6 +9,7 @@ import java.text.MessageFormat;
 import java.text.StringCharacterIterator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -22,11 +23,13 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
@@ -71,7 +74,8 @@ public class ActionDescriptionBuilder {
     private static final String SUSPENSION = "Suspension";
     // pass in methodName, name of entity, and entity OID
     private static final String ENTITY_NOT_FOUND_WARN_MSG = "{} {} Entity {} doesn't exist in the entities snapshot";
-
+    private static final Map<CommodityType, String> CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
+            = ImmutableMap.of(CommodityType.STORAGE_ACCESS, "IOPS", CommodityType.STORAGE_AMOUNT, "Disk size");
 
     // Static patterns used for dynamically-constructed message contents.
     //
@@ -105,9 +109,13 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
         ACTION_DESCRIPTION_MOVE("{0} {1}{2} from {3} to {4}"),
+        ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE("Scale {0} {1} for {2} from {3} to {4}"),
+        ACTION_DESCRIPTION_SCALE_ADDITIONAL_COMMODITY_CHANGE("{0} {1} from {2} to {3}"),
         ACTION_DESCRIPTION_BUYRI("Buy {0} {1} RIs for {2} in {3}"),
         ACTION_DESCRIPTION_ALLOCATE("Increase RI coverage for {0} in {1}"),
         CONTAINER_VCPU_MHZ("{0,number,integer} MHz"),
+        STORAGE_ACCESS_IOPS("{0,number,integer} IOPS"),
+        IO_THROUGHPUT_MBPS("{0,number,integer} MB/s"),
         SIMPLE("{0, number, integer}");
 
         private final ThreadLocal<MessageFormat> messageFormat;
@@ -134,6 +142,13 @@ public class ActionDescriptionBuilder {
             .put(CommodityDTO.CommodityType.DB_MEM, Units.KBYTE)
             .put(CommodityDTO.CommodityType.VSTORAGE, Units.MBYTE)
             .build();
+
+    private static final ImmutableMap<CommodityDTO.CommodityType, ActionMessageFormat>
+            COMMODITY_TYPE_ACTION_MESSAGE_FORMAT_IMMUTABLE_MAP =
+            new ImmutableMap.Builder<CommodityDTO.CommodityType, ActionMessageFormat>()
+                    .put(CommodityType.STORAGE_ACCESS, ActionMessageFormat.STORAGE_ACCESS_IOPS)
+                    .put(CommodityType.IO_THROUGHPUT, ActionMessageFormat.IO_THROUGHPUT_MBPS)
+                    .build();
 
     /**
      * Builds the action description to be passed to the API component. Forming the description was
@@ -384,7 +399,7 @@ public class ActionDescriptionBuilder {
     }
 
     /**
-     * Builds Move or Right Size action description. This is intended to be called by
+     * Builds Move or Scale action description. This is intended to be called by
      * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
      *
      * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
@@ -395,14 +410,26 @@ public class ActionDescriptionBuilder {
     private static String getMoveOrScaleActionDescription(
                 @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
                 @Nonnull final ActionDTO.Action recommendation) throws UnsupportedActionException {
-        final boolean initialPlacement = ActionDTOUtil.getChangeProviderExplanationList(
-            recommendation.getExplanation()).stream()
-            .anyMatch(ChangeProviderExplanation::hasInitialPlacement);
+        final Optional<ChangeProvider> primaryChange = ActionDTOUtil.getPrimaryChangeProvider(recommendation);
+        if (primaryChange.isPresent()) {
+            return getMoveOrScaleActionWithProviderChangeDescription(entitiesSnapshot, recommendation, primaryChange.get());
+        } else {
+            return getScaleActionWithoutProviderChangeDescription(entitiesSnapshot, recommendation);
+        }
 
-        final ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(recommendation);
+    }
+
+    private static String getMoveOrScaleActionWithProviderChangeDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                                            @Nonnull final ActionDTO.Action recommendation,
+                                                                            @Nonnull final ChangeProvider primaryChange)
+            throws UnsupportedActionException {
+        final boolean initialPlacement = ActionDTOUtil.getChangeProviderExplanationList(
+                recommendation.getExplanation()).stream()
+                .anyMatch(ChangeProviderExplanation::hasInitialPlacement);
+
         final boolean hasSource = !initialPlacement && primaryChange.hasSource();
         final long destinationEntityId = primaryChange.getDestination().getId();
-        final long targetEntityId = ActionDTOUtil.getPrimaryEntity(recommendation, true).getId();
+        final long targetEntityId = ActionDTOUtil.getPrimaryEntity(recommendation).getId();
         Optional<ActionPartialEntity> optTargetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId);
         if (!optTargetEntity.isPresent()) {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "targetEntityId", targetEntityId);
@@ -420,30 +447,76 @@ public class ActionDescriptionBuilder {
 
         if (!hasSource) {
             return ActionMessageFormat.ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE.format(
-                beautifyEntityTypeAndName(targetEntityDTO),
-                beautifyEntityTypeAndName(newEntityDTO));
+                    beautifyEntityTypeAndName(targetEntityDTO),
+                    beautifyEntityTypeAndName(newEntityDTO));
         } else {
             long sourceEntityId = primaryChange.getSource().getId();
             ActionPartialEntity currentEntityDTO = entitiesSnapshot.getEntityFromOid(
-                sourceEntityId).get();
+                    sourceEntityId).get();
             int sourceType = currentEntityDTO.getEntityType();
             int destinationType = newEntityDTO.getEntityType();
-            String verb = TopologyDTOUtil.isPrimaryTierEntityType(destinationType)
-                && TopologyDTOUtil.isPrimaryTierEntityType(sourceType) ? SCALE : MOVE;
+            String verb = (recommendation.getInfo().getActionTypeCase() == ActionTypeCase.SCALE
+                    || TopologyDTOUtil.isPrimaryTierEntityType(destinationType)
+                    && TopologyDTOUtil.isPrimaryTierEntityType(sourceType)) ? SCALE : MOVE;
             String resource = "";
             if (primaryChange.hasResource() &&
                     targetEntityId != primaryChange.getResource().getId()) {
                 Optional<ActionPartialEntity> resourceEntity = entitiesSnapshot.getEntityFromOid(
-                    primaryChange.getResource().getId());
+                        primaryChange.getResource().getId());
                 if (resourceEntity.isPresent()) {
                     resource = beautifyEntityTypeAndName(resourceEntity.get()) + OF;
                 }
             }
             return ActionMessageFormat.ACTION_DESCRIPTION_MOVE.format(verb, resource,
-                beautifyEntityTypeAndName(targetEntityDTO),
-                currentEntityDTO.getDisplayName(),
-                newEntityDTO.getDisplayName());
+                    beautifyEntityTypeAndName(targetEntityDTO),
+                    currentEntityDTO.getDisplayName(),
+                    newEntityDTO.getDisplayName());
         }
+    }
+
+    private static String getScaleActionWithoutProviderChangeDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                                         @Nonnull final ActionDTO.Action recommendation)
+            throws UnsupportedActionException {
+        final long targetEntityId = ActionDTOUtil.getPrimaryEntity(recommendation).getId();
+        ActionPartialEntity optTargetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId).orElse(null);
+        if (optTargetEntity == null) {
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getScaleActionDescription", "targetEntityId", targetEntityId);
+            return "";
+        }
+        List<ResizeInfo> resizeInfos = recommendation.getInfo().getScale().getCommodityResizesList();
+        if (CollectionUtils.isEmpty(resizeInfos)) {
+            logger.warn("No commodity change for Scale action without provider change for {}", targetEntityId);
+            return "";
+        }
+        ResizeInfo firstResizeInfo = resizeInfos.get(0);
+        final CommodityDTO.CommodityType firstResizeInfoCommodityType = CommodityDTO.CommodityType
+                .forNumber(firstResizeInfo.getCommodityType().getType());
+        String commodityTypeDisplayName = CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
+                .getOrDefault(firstResizeInfoCommodityType, beautifyCommodityType(firstResizeInfo.getCommodityType()));
+        String description = ActionMessageFormat.ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE.format(
+                firstResizeInfo.getNewCapacity() > firstResizeInfo.getOldCapacity() ? UP : DOWN,
+                commodityTypeDisplayName, beautifyEntityTypeAndName(optTargetEntity),
+                formatResizeActionCommodityValue(firstResizeInfoCommodityType,
+                        optTargetEntity.getEntityType(), firstResizeInfo.getOldCapacity()),
+                formatResizeActionCommodityValue(firstResizeInfoCommodityType,
+                        optTargetEntity.getEntityType(), firstResizeInfo.getNewCapacity()));
+        // Scaling more than one commodity
+        for (int i = 1; i < resizeInfos.size(); i++) {
+            ResizeInfo additionalResizeInfo = resizeInfos.get(i);
+            description += ", ";
+            final CommodityDTO.CommodityType additionalResizeInfoCommodityType = CommodityDTO.CommodityType
+                    .forNumber(additionalResizeInfo.getCommodityType().getType());
+            commodityTypeDisplayName = CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
+                    .getOrDefault(additionalResizeInfoCommodityType,
+                            beautifyCommodityType(additionalResizeInfo.getCommodityType()));
+            description += ActionMessageFormat.ACTION_DESCRIPTION_SCALE_ADDITIONAL_COMMODITY_CHANGE.format(
+                    additionalResizeInfo.getNewCapacity() > additionalResizeInfo.getOldCapacity() ? UP : DOWN,
+                    commodityTypeDisplayName, formatResizeActionCommodityValue(additionalResizeInfoCommodityType,
+                            optTargetEntity.getEntityType(), additionalResizeInfo.getOldCapacity()),
+                    formatResizeActionCommodityValue(additionalResizeInfoCommodityType,
+                            optTargetEntity.getEntityType(), additionalResizeInfo.getNewCapacity()));
+        }
+        return description;
     }
 
     /**
@@ -716,6 +789,10 @@ public class ActionDescriptionBuilder {
             return getHumanReadableSize(capacityInBytes);
         } else if (entityType == EntityType.CONTAINER_VALUE) {
             return ActionMessageFormat.CONTAINER_VCPU_MHZ.format(capacity);
+        } else if (COMMODITY_TYPE_ACTION_MESSAGE_FORMAT_IMMUTABLE_MAP.containsKey(commodityType)) {
+            // Convert IO_Throughput value from KB/s to MB/s in action description
+            double adaptCapacityToUnit = CommodityType.IO_THROUGHPUT == commodityType ? capacity / Units.KIBI : capacity;
+            return COMMODITY_TYPE_ACTION_MESSAGE_FORMAT_IMMUTABLE_MAP.get(commodityType).format(adaptCapacityToUnit);
         } else {
             return ActionMessageFormat.SIMPLE.format(capacity);
         }

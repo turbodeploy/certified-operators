@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -15,6 +16,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
@@ -50,7 +52,6 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -96,6 +97,9 @@ public class ActionDTOUtil {
 
     // String constant for displayName.
     private static final String DISPLAY_NAME = "displayName";
+
+    private static final Map<Integer, String> CLOUD_SCALE_ACTION_ENTITY_TYPE_DISPLAYNAME
+            = ImmutableMap.of(EntityType.VIRTUAL_VOLUME_VALUE, "Volume");
 
     private ActionDTOUtil() {}
 
@@ -165,7 +169,7 @@ public class ActionDTOUtil {
             case SCALE:
                 // For any Cloud entity we need to return target id
                 // for correct severity calculations
-                ActionEntity primaryEntity = getPrimaryEntity(action.getId(), actionInfo, false);
+                ActionEntity primaryEntity = getPrimaryEntity(action.getId(), actionInfo);
                 if (primaryEntity.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
                     return primaryEntity.getId();
                 }
@@ -219,7 +223,6 @@ public class ActionDTOUtil {
      *
      * @param actionId The action ID.
      * @param actionInfo The action info in question.
-     * @param returnVolumeForMoveVolumeAction This parameter affects Move Volume actions only. If
      * it is set to {@code true} then Volume is returned instead of VM although target entity is
      * still a virtual machine.
      * @return The ActionEntity of the entity targeted by the action.
@@ -227,16 +230,11 @@ public class ActionDTOUtil {
      */
     public static ActionEntity getPrimaryEntity(
             final long actionId,
-            @Nonnull final ActionInfo actionInfo,
-            // TODO: Get rid of this parameter. Move Volume actions must be associated with Volume
-            //  rather than VM.
-            final boolean returnVolumeForMoveVolumeAction)
+            @Nonnull final ActionInfo actionInfo)
             throws UnsupportedActionException {
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
-                return returnVolumeForMoveVolumeAction
-                        ? getMoveActionTarget(actionInfo)
-                        : actionInfo.getMove().getTarget();
+                return actionInfo.getMove().getTarget();
             case SCALE:
                 return actionInfo.getScale().getTarget();
             case ALLOCATE:
@@ -270,54 +268,11 @@ public class ActionDTOUtil {
      * that the action is acting upon.
      *
      * @param action The action in question.
-     * @param returnVolumeForMoveVolumeAction This parameter affects Move Volume actions only. If
-     * it is set to {@code true} then Volume is returned instead of VM although target entity is
-     * still a virtual machine.
      * @return The ActionEntity of the entity targeted by the action.
      * @throws UnsupportedActionException If the type of the action is not supported.
      */
-    public static ActionEntity getPrimaryEntity(
-            @Nonnull final Action action,
-            final boolean returnVolumeForMoveVolumeAction)
-            throws UnsupportedActionException {
-        return getPrimaryEntity(action.getId(), action.getInfo(), returnVolumeForMoveVolumeAction);
-    }
-
-    /**
-     * Get the "main" entity targeted by a specific action.
-     * This will be one of the entities involved in the action. It can be thought of as the entity
-     * that the action is acting upon.
-     *
-     * @param action The action in question.
-     * @return The ActionEntity of the entity targeted by the action.
-     * @throws UnsupportedActionException If the type of the action is not supported.
-     */
-    public static ActionEntity getPrimaryEntity(@Nonnull final Action action)
-            throws UnsupportedActionException {
-        return getPrimaryEntity(action, true);
-    }
-
-    /**
-     * If a move action has a volume as resource and is from one storage tier to another, the
-     * resource volume should be treated as the target of the action.
-     *
-     * @param actionInfo action info to be assessed
-     * @return the entity that should be treated as its target
-     */
-    public static ActionEntity getMoveActionTarget(final ActionInfo actionInfo) {
-        if (!actionInfo.getMove().getChangesList().isEmpty()) {
-            final ChangeProvider primaryChangeProvider = getPrimaryChangeProvider(actionInfo);
-            if (primaryChangeProvider.hasSource()
-                && primaryChangeProvider.hasDestination()
-                && primaryChangeProvider.hasResource()
-                && TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getSource().getType())
-                && TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getDestination().getType())
-                && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getSource().getType())
-                && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getDestination().getType())) {
-                return primaryChangeProvider.getResource();
-            }
-        }
-        return actionInfo.getMove().getTarget();
+    public static ActionEntity getPrimaryEntity(@Nonnull final Action action) throws UnsupportedActionException {
+        return getPrimaryEntity(action.getId(), action.getInfo());
     }
 
     /**
@@ -481,7 +436,7 @@ public class ActionDTOUtil {
                 && ChangeProviderExplanationTypeCase.COMPLIANCE
                     == getPrimaryChangeProviderExplanation(action)
                         .getChangeProviderExplanationTypeCase();
-        retList.add(getPrimaryEntity(action, false));
+        retList.add(getPrimaryEntity(action));
         for (ChangeProvider change : getChangeProviderList(action)) {
             if (change.getSource().getId() != 0
                 // Compliance source does not impact ARM entity so it should not be included
@@ -503,7 +458,7 @@ public class ActionDTOUtil {
             InvolvedEntityCalculation involvedEntityCalculation)
             throws UnsupportedActionException {
         final List<ActionEntity> retList = new ArrayList<>();
-        retList.add(getPrimaryEntity(action, false));
+        retList.add(getPrimaryEntity(action));
         for (ChangeProvider change : getChangeProviderList(action)) {
             if (change.getSource().getId() != 0) {
                 retList.add(change.getSource());
@@ -738,26 +693,17 @@ public class ActionDTOUtil {
 
     /**
      * Get primary {@link ChangeProvider} for Move or Scale action.
-     *
-     * @param actionInfo Move or Scale action info.
-     * @return The primary {@link ChangeProvider}.
-     * @throws IllegalArgumentException if action is not of Move/Scale type.
-     */
-    @Nonnull
-    public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionInfo actionInfo) {
-        return getChangeProviderList(actionInfo).get(getPrimaryChangeProviderIdx(actionInfo));
-    }
-
-    /**
-     * Get primary {@link ChangeProvider} for Move or Scale action.
+     * Could be empty for cloud volume Scale action.
      *
      * @param action Move or Scale action.
      * @return The primary {@link ChangeProvider}.
      * @throws IllegalArgumentException if action is not of Move/Scale type.
      */
-    @Nonnull
-    public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionDTO.Action action) {
-        return getPrimaryChangeProvider(action.getInfo());
+    public static Optional<ChangeProvider> getPrimaryChangeProvider(@Nonnull final ActionDTO.Action action) {
+        final ActionInfo actionInfo = action.getInfo();
+        List<ChangeProvider> changeProviderList = getChangeProviderList(actionInfo);
+        return changeProviderList.isEmpty() ? Optional.empty()
+                : Optional.of(changeProviderList.get(getPrimaryChangeProviderIdx(actionInfo)));
     }
 
     @Nonnull
@@ -1026,8 +972,11 @@ public class ActionDTOUtil {
      * @return The entity type and name separated by a space.
      */
     public static String beautifyEntityTypeAndName(@Nonnull final ActionPartialEntity entityDTO) {
+        final String entityTypeName = CLOUD_SCALE_ACTION_ENTITY_TYPE_DISPLAYNAME
+                .getOrDefault(entityDTO.getEntityType(),
+                        ApiEntityType.fromType(entityDTO.getEntityType()).displayName());
         return new StringBuilder()
-                .append(ApiEntityType.fromType(entityDTO.getEntityType()).displayName())
+                .append(entityTypeName)
                 .append(" ")
                 .append(entityDTO.getDisplayName())
                 .toString();

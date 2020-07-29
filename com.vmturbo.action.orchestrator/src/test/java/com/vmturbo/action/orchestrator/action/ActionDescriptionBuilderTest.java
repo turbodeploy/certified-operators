@@ -36,6 +36,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -56,7 +58,8 @@ public class ActionDescriptionBuilderTest {
 
     private ActionDTO.Action moveRecommendation;
     private ActionDTO.Action scaleRecommendation;
-    private ActionDTO.Action cloudStorageMoveRecommendation;
+    private ActionDTO.Action cloudVolumeScaleProviderChangeRecommendation;
+    private ActionDTO.Action cloudVolumeScaleCommodityChangeRecommendation;
     private ActionDTO.Action resizeRecommendation;
     private ActionDTO.Action resizeMemRecommendation;
     private static final Long SWITCH1_ID = 77L;
@@ -126,11 +129,12 @@ public class ActionDescriptionBuilderTest {
                     PM_DESTINATION_ID, EntityType.PHYSICAL_MACHINE.getNumber()),
                             SupportLevel.SUPPORTED).build();
 
-        cloudStorageMoveRecommendation =
-                makeRec(makeMoveInfo(VM1_ID, VV_ID, EntityType.VIRTUAL_VOLUME.getNumber(),
-                    ST_SOURCE_ID, EntityType.STORAGE_TIER.getNumber(), ST_DESTINATION_ID,
-                    EntityType.STORAGE_TIER.getNumber()),
-                        SupportLevel.SUPPORTED).build();
+        cloudVolumeScaleProviderChangeRecommendation =
+                makeRec(makeScaleInfoWithProviderChangeOnly(VV_ID, ST_SOURCE_ID,
+                        EntityType.STORAGE_TIER.getNumber(), ST_DESTINATION_ID,
+                        EntityType.STORAGE_TIER.getNumber()), SupportLevel.SUPPORTED).build();
+        cloudVolumeScaleCommodityChangeRecommendation =
+                makeRec(makeCloudVolumeScaleInfoWithCommodityChangeOnly(VV_ID), SupportLevel.SUPPORTED).build();
         scaleRecommendation =
                 makeRec(makeMoveInfo(VM1_ID, COMPUTE_TIER_SOURCE_ID, EntityType.COMPUTE_TIER.getNumber(),
                     COMPUTE_TIER_DESTINATION_ID, EntityType.COMPUTE_TIER.getNumber()),
@@ -466,6 +470,38 @@ public class ActionDescriptionBuilderTest {
             .build());
     }
 
+    private ActionInfo.Builder makeScaleInfoWithProviderChangeOnly(long targetId,
+                                                                   long sourceId,
+                                                                   int sourceType,
+                                                                   long destinationId,
+                                                                   int destinationType) {
+        final ChangeProvider.Builder changeBuilder = ChangeProvider.newBuilder()
+                .setSource(ActionEntity.newBuilder()
+                        .setId(sourceId)
+                        .setType(sourceType)
+                        .build())
+                .setDestination(ActionEntity.newBuilder()
+                        .setId(destinationId)
+                        .setType(destinationType)
+                        .build());
+        return ActionInfo.newBuilder().setScale(Scale.newBuilder()
+                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
+                .addChanges(changeBuilder.build())
+                .build());
+    }
+
+    private ActionInfo.Builder makeCloudVolumeScaleInfoWithCommodityChangeOnly(long targetId) {
+        final ResizeInfo.Builder commodityChangeBuilder = ResizeInfo.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
+                .setOldCapacity(100)
+                .setNewCapacity(200);
+
+        return ActionInfo.newBuilder().setScale(Scale.newBuilder()
+                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
+                .addCommodityResizes(commodityChangeBuilder)
+                .build());
+    }
+
     /**
      * Create a {@link ProvisionBySupplyExplanation}.
      *
@@ -571,7 +607,7 @@ public class ActionDescriptionBuilderTest {
      * @throws UnsupportedActionException if something is extraordinarily wrong.
      */
     @Test
-    public void testBuildCloudStorageMoveActionDescription() throws UnsupportedActionException {
+    public void testBuildCloudVolumeScaleActionWithProviderChangeDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
                 .thenReturn((createEntity(VV_ID,
                         EntityType.VIRTUAL_VOLUME.getNumber(),
@@ -588,8 +624,26 @@ public class ActionDescriptionBuilderTest {
                         ST_DESTINATION_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
-                entitySettingsCache, cloudStorageMoveRecommendation);
-        Assert.assertEquals("Move Virtual Volume vm1_test from storage_source_test to storage_destination_test", description);
+                entitySettingsCache, cloudVolumeScaleProviderChangeRecommendation);
+        Assert.assertEquals("Scale Virtual Volume vm1_test from storage_source_test to storage_destination_test", description);
+    }
+
+    /**
+     * Test that for an action involving a cloud volume commodity scaling from one capacity to another,
+     * the description is accurate.
+     *
+     * @throws UnsupportedActionException if something is extraordinarily wrong.
+     */
+    @Test
+    public void testBuildCloudVolumeScaleActionWithCommodityChangeDescription() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
+                .thenReturn((createEntity(VV_ID,
+                        EntityType.VIRTUAL_VOLUME.getNumber(),
+                        VM1_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, cloudVolumeScaleCommodityChangeRecommendation);
+        Assert.assertEquals("Scale up Storage Amount for Virtual Volume vm1_test from 100 to 200", description);
     }
 
     /**

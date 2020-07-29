@@ -256,7 +256,7 @@ public class ActionOrchestratorTestUtils {
                                                         Action action) {
         Long action1EntityId = action.getRecommendation().getInfo().getMove().getTarget().getId();
         ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(
-                action.getRecommendation());
+                action.getRecommendation()).get();
         Long actionSourceId = primaryChange.getSource().getId();
         Long actionDestinationId = primaryChange.getDestination().getId();
 
@@ -274,7 +274,7 @@ public class ActionOrchestratorTestUtils {
     public static void setEntityAndSourceAndDestination(EntitiesAndSettingsSnapshot entityCacheSnapshot,
                                                         ActionDTO.Action action) {
         Long action1EntityId = action.getInfo().getMove().getTarget().getId();
-        ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(action);
+        ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(action).get();
         Long actionSourceId = primaryChange.getSource().getId();
         Long actionDestinationId = primaryChange.getDestination().getId();
 
