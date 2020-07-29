@@ -1302,34 +1302,11 @@ public class ActionInterpreter {
     private ActionEntity createActionEntity(final long id,
                             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final TopologyEntityDTO projectedEntity = projectedTopology.get(id).getEntity();
-
-        ActionEntity.Builder actionBuilder = ActionEntity.newBuilder()
-            .setId(id)
-            .setType(projectedEntity.getEntityType())
-            .setEnvironmentType(projectedEntity.getEnvironmentType());
-
-        CloudTopology<TopologyEntityDTO> cloudTopology = cloudTc.getCloudTopology();
-        if (cloudTopology == null) {
-            return actionBuilder.build();
-        }
-        // Set service-provider id if applicable, needed for inter-CSP moves for cloud migration.
-        Optional<TopologyEntityDTO> optRegion = Optional.empty();
-        if (projectedEntity.getEntityType() == EntityType.COMPUTE_TIER_VALUE
-                || projectedEntity.getEntityType() == EntityType.STORAGE_TIER_VALUE) {
-            optRegion = cloudTopology.getConnectedRegion(projectedEntity.getOid());
-        } else if (projectedEntity.getEntityType() == EntityType.REGION_VALUE) {
-            optRegion = Optional.of(projectedEntity);
-        }
-        if (optRegion.isPresent()) {
-            // If it is a tier->tier move or a region->region move, then try and set CSP id.
-            // Needed later to decide if move action needs to be translated to scale, should not
-            // be done for cloud-to-cloud migration happening b/w CSPs.
-            Optional<TopologyEntityDTO> optCsp = cloudTopology.getServiceProvider(
-                    optRegion.get().getOid());
-            optCsp.ifPresent(topologyEntityDTO -> actionBuilder.setServiceProviderId(
-                    topologyEntityDTO.getOid()));
-        }
-        return actionBuilder.build();
+        return ActionEntity.newBuilder()
+                .setId(id)
+                .setType(projectedEntity.getEntityType())
+                .setEnvironmentType(projectedEntity.getEnvironmentType())
+                .build();
     }
 
     private static Function<CommodityType, ReasonCommodity> commType2ReasonCommodity() {

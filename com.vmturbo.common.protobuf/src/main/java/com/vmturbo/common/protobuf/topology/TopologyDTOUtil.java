@@ -304,25 +304,26 @@ public final class TopologyDTOUtil {
         }
 
         // Primary compute tiers source and destination are same. Check if we are doing a
-        // region change, if so, we need to show a MOVE instead of SCALE action.
-        // Find the change provider for region move
-        final Optional<ChangeProvider> optRegion = action.getInfo().getMove()
+        // region/zone change, if so, we need to show a MOVE instead of SCALE action.
+        // Find the change provider for region/zone move
+        final Optional<ChangeProvider> optLocation = action.getInfo().getMove()
                 .getChangesList()
                 .stream()
                 .filter(cp -> cp.hasSource()
                         && cp.hasDestination()
-                        && cp.getSource().getType() == EntityType.REGION_VALUE
+                        && (cp.getSource().getType() == EntityType.REGION_VALUE
+                        || cp.getSource().getType() == EntityType.AVAILABILITY_ZONE_VALUE)
                         && cp.getDestination().getType() == EntityType.REGION_VALUE)
                 .findFirst();
-        if (!optRegion.isPresent()) {
+        if (!optLocation.isPresent()) {
             // No region provided, translate move to scale in that case.
             return true;
         }
-        final ChangeProvider regionProvider = optRegion.get();
-        // If regions are same, we need to translate move to scale. Otherwise (as in
+        final ChangeProvider locationProvider = optLocation.get();
+        // If regions/zones are same, we need to translate move to scale. Otherwise (as in
         // cloud-to-cloud migration case, we would be moving b/w same compute tier types,
-        // but would be b/w different regions, so in that case, we need to return false.
-        return regionProvider.getSource().getId() == regionProvider.getDestination().getId();
+        // but would be b/w different zone/regions, so in that case, we need to return false.
+        return locationProvider.getSource().getId() == locationProvider.getDestination().getId();
     }
 
     /**
