@@ -5,10 +5,12 @@ import static com.vmturbo.trax.Trax.trax;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -104,6 +106,7 @@ public class ActionInterpreter {
     private static final Set<EntityState> evacuationEntityState =
         EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
     private final CommodityIndex commodityIndex;
+    private final Map<Long, AtomicInteger> provisionActionTracker = new HashMap<>();
 
     ActionInterpreter(@Nonnull final CommodityConverter commodityConverter,
                       @Nonnull final Map<Long, ShoppingListInfo> shoppingListOidToInfos,
@@ -443,10 +446,15 @@ public class ActionInterpreter {
     private ActionDTO.Provision interpretProvisionByDemand(
             @Nonnull final ProvisionByDemandTO provisionByDemandTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        AtomicInteger index =
+            provisionActionTracker.computeIfAbsent(provisionByDemandTO.getModelSeller(),
+                id -> new AtomicInteger());
+
         return ActionDTO.Provision.newBuilder()
                 .setEntityToClone(createActionEntity(
                     provisionByDemandTO.getModelSeller(), projectedTopology))
                 .setProvisionedSeller(provisionByDemandTO.getProvisionedSeller())
+                .setProvisionIndex(index.getAndIncrement())
                 .build();
     }
 
@@ -454,10 +462,15 @@ public class ActionInterpreter {
     private ActionDTO.Provision interpretProvisionBySupply(
             @Nonnull final ProvisionBySupplyTO provisionBySupplyTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        AtomicInteger index =
+            provisionActionTracker.computeIfAbsent(provisionBySupplyTO.getModelSeller(),
+                id -> new AtomicInteger());
+
         return ActionDTO.Provision.newBuilder()
                 .setEntityToClone(createActionEntity(
                         provisionBySupplyTO.getModelSeller(), projectedTopology))
                 .setProvisionedSeller(provisionBySupplyTO.getProvisionedSeller())
+                .setProvisionIndex(index.getAndIncrement())
                 .build();
     }
 

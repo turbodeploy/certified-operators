@@ -490,6 +490,10 @@ message Provision {
     // Since this is a special case, we will just use the EntityId. The entity
     // type will be the same as the entity_to_clone.
     optional sint64 provisioned_seller = 2;
+
+    // There could be more than one provision action on an entity, this field is the index
+    // (starting from zero) associated with each of those actions.
+    optional int32 provision_index = 3;
 }
 
 // An action to Buy a reserved instance
