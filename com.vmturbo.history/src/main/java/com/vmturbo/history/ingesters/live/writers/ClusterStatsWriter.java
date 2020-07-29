@@ -6,7 +6,6 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.MEM;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CPUS;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_HOSTS;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_SOCKETS;
-import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_STORAGES;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS;
 import static com.vmturbo.common.protobuf.utils.StringConstants.USED;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsLatest.CLUSTER_STATS_LATEST;
@@ -36,7 +35,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -215,8 +213,6 @@ public class ClusterStatsWriter extends TopologyWriterBase {
         private double memCapacity = 0.0;
         // total # of VM entities that buy commodities from member hosts
         private int vmCount = 0;
-        //
-        private int storageCount = 0;
 
         ComputeClusterAggregator(Grouping cluster,
                 BulkLoader<ClusterStatsLatestRecord> loader, Timestamp recordTimestamp) {
@@ -236,9 +232,6 @@ public class ClusterStatsWriter extends TopologyWriterBase {
                     break;
                 case EntityType.VIRTUAL_MACHINE_VALUE:
                     processVm(entity);
-                    break;
-                case EntityType.STORAGE_VALUE:
-                    processStorage(entity);
                     break;
                 default:
                     // no other entities are of interest
@@ -290,23 +283,6 @@ public class ClusterStatsWriter extends TopologyWriterBase {
         }
 
         /**
-         * Process a Storage entity.
-         *
-         * <p>Processing is limited to counting this VM in this cluster's `numVM` statistic, if
-         * the VM buys any commodities from any of our member hosts.</p>
-         *
-         * @param storage Storage entity
-         */
-        private void processStorage(TopologyEntityDTO storage) {
-            if (storage.getCommoditySoldListList().stream()
-                .filter(cs -> cs.getCommodityType().getType() == CommodityType.DSPM_ACCESS_VALUE)
-                .map(CommoditySoldDTO::getAccesses)
-                .anyMatch(members::contains)) {
-                storageCount++;
-            }
-        }
-
-        /**
          * Write cluster stats records for all the aggregated stats for this cluster.
          *
          * @throws InterruptedException if interrupted
@@ -321,7 +297,6 @@ public class ClusterStatsWriter extends TopologyWriterBase {
             writeRecord(MEM, CAPACITY, memCapacity);
             writeRecord(NUM_HOSTS, NUM_HOSTS, members.size());
             writeRecord(NUM_VMS, NUM_VMS, vmCount);
-            writeRecord(NUM_STORAGES, NUM_STORAGES, storageCount);
         }
 
         /**

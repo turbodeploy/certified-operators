@@ -878,6 +878,12 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
             headroomData.put(StringConstants.HEADROOM_VMS, StringConstants.HEADROOM_VMS,
                     (double)request.getHeadroom());
+            headroomData.put(StringConstants.NUM_VMS, StringConstants.NUM_VMS,
+                    (double)request.getNumVMs());
+            headroomData.put(StringConstants.NUM_HOSTS, StringConstants.NUM_HOSTS,
+                    (double)request.getNumHosts());
+            headroomData.put(StringConstants.NUM_STORAGES, StringConstants.NUM_STORAGES,
+                    (double)request.getNumStorages());
             headroomData.put(StringConstants.VM_GROWTH, StringConstants.VM_GROWTH,
                     (double)request.getMonthlyVMGrowth());
             // CPU related headroom stats.
