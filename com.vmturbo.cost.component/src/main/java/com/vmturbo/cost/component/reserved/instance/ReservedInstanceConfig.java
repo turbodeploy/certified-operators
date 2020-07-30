@@ -183,7 +183,8 @@ public class ReservedInstanceConfig {
                 PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
                 realtimeTopologyContextId, pricingConfig.priceTableStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
-                BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
+                BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
+                accountRIMappingStore());
     }
 
     /**
