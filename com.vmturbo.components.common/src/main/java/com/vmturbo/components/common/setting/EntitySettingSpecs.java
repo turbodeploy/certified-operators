@@ -1279,11 +1279,6 @@ public enum EntitySettingSpecs {
                     EntitySettingSpecs.ShopTogether.name);
 
     /**
-     * Default value for a String-type SettingDataStructure = empty String.
-     */
-    public static final String DEFAULT_STRING_VALUE = "";
-
-    /**
      * Default regex for a String-type SettingDataStructure = matches anything.
      */
     public static final String MATCH_ANYTHING_REGEX = ".*";
@@ -1512,7 +1507,7 @@ public enum EntitySettingSpecs {
 
     @Nonnull
     private static SettingDataStructure<?> string() {
-        return new StringSettingDataType(DEFAULT_STRING_VALUE, MATCH_ANYTHING_REGEX);
+        return new StringSettingDataType(null, MATCH_ANYTHING_REGEX);
     }
 
     @Nonnull
@@ -1522,7 +1517,7 @@ public enum EntitySettingSpecs {
 
     @Nonnull
     private static SettingDataStructure<?> sortedSetOfOid(@Nonnull final Type type) {
-        return new SortedSetOfOidSettingDataType(type, Collections.emptySet());
+        return new SortedSetOfOidSettingDataType(type, null);
     }
 
     @Nonnull

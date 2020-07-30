@@ -66,12 +66,13 @@ public class NumericSettingDataType extends AbstractSettingDataType<Float> {
 
     @Override
     public void build(@Nonnull Builder builder) {
-        builder.setNumericSettingValueType(NumericSettingValueType.newBuilder()
-                .setMin(min)
-                .setMax(max)
-                .setDefault(getDefault())
-                .putAllEntityDefaults(getEntityDefaults())
-                .build());
+        final NumericSettingValueType.Builder settingBuilder = NumericSettingValueType.newBuilder().setMin(min)
+                .setMax(max).putAllEntityDefaults(getEntityDefaults());
+        final Float defaultValue = getDefault();
+        if (defaultValue != null) {
+            settingBuilder.setDefault(defaultValue);
+        }
+        builder.setNumericSettingValueType(settingBuilder.build());
     }
 
     @Override

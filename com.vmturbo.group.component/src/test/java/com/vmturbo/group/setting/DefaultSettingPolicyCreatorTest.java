@@ -45,6 +45,7 @@ import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.service.MockTransactionProvider;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Tests creation of default setting policies.
@@ -152,15 +153,16 @@ public class DefaultSettingPolicyCreatorTest {
     @Test
     public void testDefSettingFromSpecList() throws Exception {
         final SettingSpec spec = SettingSpec.newBuilder(defaultSetting)
-            .setSortedSetOfOidSettingValueType(
-                SortedSetOfOidSettingValueType.newBuilder()
-                    .setType(SortedSetOfOidSettingValueType.Type.ENTITY))
-            .build();
+                .setSortedSetOfOidSettingValueType(SortedSetOfOidSettingValueType.newBuilder()
+                        .setType(SortedSetOfOidSettingValueType.Type.ENTITY)
+                        .addAllDefault(Collections.singletonList(1L)))
+                .build();
         final SettingPolicyInfo info = getPolicyInfo(spec);
         Assert.assertEquals(1, info.getSettingsCount());
         final Setting setting = info.getSettings(0);
         Assert.assertEquals(spec.getName(), setting.getSettingSpecName());
-        Assert.assertTrue(setting.getSortedSetOfOidSettingValue().getOidsList().isEmpty());
+        Assert.assertEquals(Sets.newHashSet(1L),
+                Sets.newHashSet(setting.getSortedSetOfOidSettingValue().getOidsList()));
     }
 
     /**
@@ -451,9 +453,10 @@ public class DefaultSettingPolicyCreatorTest {
      */
     @Test
     public void testDoesNotCreateUnnecessaryPolicies() throws Exception {
+        final ThinTargetCache thinTargetCache = Mockito.mock(ThinTargetCache.class);
         final Map<Integer, SettingPolicyInfo> defaultsMap =
             DefaultSettingPolicyCreator.defaultSettingPoliciesFromSpecs(
-                new EnumBasedSettingSpecStore(false, false).getAllSettingSpecs());
+                new EnumBasedSettingSpecStore(false, false, thinTargetCache).getAllSettingSpecs());
 
         assertThat(defaultsMap.size(), is(lessThan(EntityType.values().length)));
         assertThat(defaultsMap.keySet(), not(contains(EntityType.UNKNOWN.getValue())));
@@ -555,6 +558,27 @@ public class DefaultSettingPolicyCreatorTest {
                 .stream()
                 .map(Setting::getSettingSpecName)
                 .collect(Collectors.toSet()));
+    }
+
+    /**
+     * Test that we don't create settings without default values.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testSkipCreatingSettingsWithoutDefaultValue() throws Exception {
+        final SettingSpec settingSpec = SettingSpec.newBuilder()
+                .setName(SPEC_NAME)
+                .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
+                .setSortedSetOfOidSettingValueType(
+                        SortedSetOfOidSettingValueType.getDefaultInstance())
+                .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
+                .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance())
+                .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
+                .setEntitySettingSpec(entitySettingSpec(11))
+                .build();
+        final SettingPolicyInfo policyInfo1 = getPolicyInfo(settingSpec);
+        Assert.assertEquals(0, policyInfo1.getSettingsCount());
     }
 
     private Collection<SettingPolicyInfo> getPolicyInfo(int expectedCount, SettingSpec... specs)
