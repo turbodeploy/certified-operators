@@ -254,7 +254,10 @@ public class TargetController {
             if (!policiesBlockedTheDeletion.isEmpty()) {
                 final Collection<String> policiesBlockedDeleting =
                         Collections2.transform(policiesBlockedTheDeletion,
-                                policy -> policy.getInfo().getName() + " (" + policy.getId() + ')');
+                                policy -> policy.getInfo().getName());
+                logger.error("Failed to delete target {} because of blocking policies {}.",
+                        targetId,
+                        Collections2.transform(policiesBlockedTheDeletion, SettingPolicy::getId));
                 return errorResponse(new ForbiddenException(
                         "Cannot remove target " + target.getDisplayName()
                                 + " because there are policies related to the target: "
