@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.runtime.stages.selection;
+package com.vmturbo.cloud.commitment.analysis.runtime.stages;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -18,16 +18,12 @@ import com.google.common.collect.Sets;
 
 import org.stringtemplate.v4.ST;
 
-import com.vmturbo.cloud.commitment.analysis.demand.CloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityCloudTierMapping;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStageResult;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.AbstractStage;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
 
@@ -35,7 +31,7 @@ import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandS
  * The demand selection stage is responsible for querying the demand stores for appropriate demand,
  * based on selection filters in the CCA config. It wraps the {@link CloudCommitmentDemandReader}.
  */
-public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDemandSet> {
+public class DemandSelectionStage extends AbstractStage<Void, Set<EntityCloudTierMapping<?>>> {
 
     private static final String STAGE_NAME = "Demand Selection";
 
@@ -71,28 +67,26 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
      * @return A stage result, containing the trimmed demand based on demand selection.
      */
     @Override
-    public AnalysisStage.StageResult<EntityCloudTierDemandSet> execute(final Void aVoid) {
+    public AnalysisStage.StageResult<Set<EntityCloudTierMapping<?>>> execute(final Void aVoid) {
 
         final Instant lookBackStartTime = analysisContext.getAnalysisStartTime()
                 .orElseThrow(() -> new IllegalStateException("Analysis start time must be set"));
 
-        final Stream<EntityCloudTierMapping> persistedDemandStream = demandReader.getDemand(
+        final Stream<EntityCloudTierMapping<?>> persistedDemandStream = demandReader.getDemand(
                 demandSelection.getCloudTierType(),
                 demandSelection.getDemandSegmentList(),
                 lookBackStartTime);
 
         final DemandSummary demandSummary = DemandSummary.newSummary(logDetailedSummary);
-        final Set<EntityCloudTierMapping> selectedDemand = persistedDemandStream
+        final Set<EntityCloudTierMapping<?>> selectedDemand = persistedDemandStream
                 // Some demand may end after the lookback start time but start before it. In these
                 // cases, we trim the demand to start on the lookback start time
                 .map(m -> trimDemandStartTime(m, lookBackStartTime))
                 .peek(demandSummary.toSummaryCollector())
                 .collect(ImmutableSet.toImmutableSet());
 
-        return ImmutableStageResult.<EntityCloudTierDemandSet>builder()
-                .output(ImmutableEntityCloudTierDemandSet.builder()
-                        .addAllAllocatedDemand(selectedDemand)
-                        .build())
+        return ImmutableStageResult.<Set<EntityCloudTierMapping<?>>>builder()
+                .output(selectedDemand)
                 .resultSummary(demandSummary.toString())
                 .build();
     }
@@ -114,14 +108,13 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
      * @param lookBackStartTime The minimum start time to allow for {@code cloudTierMapping}.
      * @return A normalized entity cloud tier mapping instance.
      */
-    private EntityCloudTierMapping trimDemandStartTime(@Nonnull EntityCloudTierMapping cloudTierMapping,
+    private EntityCloudTierMapping<?> trimDemandStartTime(@Nonnull EntityCloudTierMapping cloudTierMapping,
                                                           @Nonnull Instant lookBackStartTime) {
 
-        if (cloudTierMapping.timeInterval().startTime().isBefore(lookBackStartTime)) {
+        if (cloudTierMapping.startTime().isBefore(lookBackStartTime)) {
             return ImmutableEntityCloudTierMapping.builder()
                     .from(cloudTierMapping)
-                    .timeInterval(ImmutableTimeInterval.copyOf(cloudTierMapping.timeInterval())
-                            .withStartTime(lookBackStartTime))
+                    .startTime(lookBackStartTime)
                     .build();
         } else {
             return cloudTierMapping;
@@ -140,9 +133,7 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
                         + "    Total: <totalDuration>\n"
                         + "    Avg: <averageDuration>\n"
                         + "    Max: <maxDuration>\n"
-                        + "    Count: <durationCount>\n";
-        private static final String DEMAND_SELECTION_DETAILED_SUMMARY_TEMPLATE =
-                DEMAND_SELECTION_SUMMARY_TEMPLATE
+                        + "    Count: <durationCount>\n"
                         + "Unique Entities: <uniqueEntities>\n"
                         + "Unique Demand: <uniqueDemand>\n";
 
@@ -154,7 +145,9 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
 
         private final Set<Long> uniqueEntities = Sets.newConcurrentHashSet();
 
-        private final Map<CloudTierDemand, LongSummaryStatistics> durationStatsByDemand = Maps.newConcurrentMap();
+        private final Set uniqueDemand = Sets.newConcurrentHashSet();
+
+        private final Map<?, LongSummaryStatistics> durationStatsByDemand = Maps.newConcurrentMap();
 
         private DemandSummary(boolean detailedSummary) {
             this.detailedSummary = detailedSummary;
@@ -164,36 +157,30 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
             return new DemandSummary(detailedSummary);
         }
 
-        public Consumer<EntityCloudTierMapping> toSummaryCollector() {
+        public Consumer<EntityCloudTierMapping<?>> toSummaryCollector() {
 
             return (entityCloudTierMapping) -> {
 
-                final TimeInterval mappingInterval = entityCloudTierMapping.timeInterval();
-                final Instant startTime = mappingInterval.startTime();
+                final Instant startTime = entityCloudTierMapping.startTime();
                 if (earliestStartTime == null
                         || startTime.isBefore(earliestStartTime)) {
                     earliestStartTime = startTime;
                 }
 
-                final long durationMillis = mappingInterval.duration().toMillis();
+                final Instant endTime = entityCloudTierMapping.endTime();
+                final long durationMillis = Duration.between(startTime, endTime).toMillis();
                 durationStats.accept(durationMillis);
 
                 if (detailedSummary) {
                     uniqueEntities.add(entityCloudTierMapping.entityOid());
-
-                    durationStatsByDemand.computeIfAbsent(
-                            entityCloudTierMapping.cloudTierDemand(),
-                            demand -> new LongSummaryStatistics())
-                                .accept(durationMillis);
+                    uniqueDemand.add(entityCloudTierMapping.cloudTierDemand());
                 }
             };
         }
 
         @Override
         public String toString() {
-            final ST template = new ST(detailedSummary
-                    ? DEMAND_SELECTION_DETAILED_SUMMARY_TEMPLATE
-                    : DEMAND_SELECTION_SUMMARY_TEMPLATE);
+            final ST template = new ST(DEMAND_SELECTION_SUMMARY_TEMPLATE);
 
             template.add("earliestStartTime", earliestStartTime);
 
@@ -201,11 +188,8 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
             template.add("averageDuration", Duration.ofMillis((long)durationStats.getAverage()));
             template.add("maxDuration", Duration.ofMillis(durationStats.getMax()));
             template.add("durationCount", durationStats.getCount());
-
-            if (detailedSummary) {
-                template.add("uniqueEntities", uniqueEntities.size());
-                template.add("uniqueDemand", durationStatsByDemand.size());
-            }
+            template.add("uniqueEntities", uniqueEntities.size());
+            template.add("uniqueDemand", uniqueDemand.size());
 
             return template.render();
         }
@@ -215,7 +199,7 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
     /**
      * A factory class for creating instances of {@link DemandSelectionStage}.
      */
-    public static class DemandSelectionFactory implements AnalysisStage.StageFactory<Void, EntityCloudTierDemandSet> {
+    public static class DemandSelectionFactory implements AnalysisStage.StageFactory<Void, Set<EntityCloudTierMapping<?>>> {
 
         private final CloudCommitmentDemandReader demandReader;
 
@@ -232,7 +216,7 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
          */
         @Nonnull
         @Override
-        public AnalysisStage<Void, EntityCloudTierDemandSet> createStage(
+        public AnalysisStage<Void, Set<EntityCloudTierMapping<?>>> createStage(
                 final long id,
                 @Nonnull final CloudCommitmentAnalysisConfig config,
                 @Nonnull final CloudCommitmentAnalysisContext context) {

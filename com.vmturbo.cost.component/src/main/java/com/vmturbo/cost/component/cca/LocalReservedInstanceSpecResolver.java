@@ -26,7 +26,7 @@ public class LocalReservedInstanceSpecResolver implements CloudCommitmentSpecRes
     }
 
     @Override
-    public List<ReservedInstanceSpec> getSpecsForRegion(final long regionOid) {
+    public List<ReservedInstanceSpec> getRISpecsForRegion(final Long regionOid) {
         return reservedInstanceSpecStore.getAllRISpecsForRegion(regionOid);
     }
 }

@@ -6,19 +6,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableMap;
-
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.cloud.commitment.analysis.CloudCommitmentAnalysisManager;
-import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.ClassifiedDemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
@@ -49,20 +45,10 @@ import com.vmturbo.common.protobuf.cost.CostDebug.StartFullAllocatedRIBuyRespons
 import com.vmturbo.common.protobuf.cost.CostDebug.TriggerBuyRIAlgorithmRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug.TriggerBuyRIAlgorithmResponse;
 import com.vmturbo.common.protobuf.cost.CostDebugServiceGrpc.CostDebugServiceImplBase;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.component.reserved.instance.BuyRIImpactReportGenerator;
 import com.vmturbo.cost.component.reserved.instance.EntityReservedInstanceMappingStore;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 import com.vmturbo.cost.component.topology.CostJournalRecorder;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
 /**
  * See cost/CostDebug.proto
@@ -81,20 +67,16 @@ public class CostDebugRpcService extends CostDebugServiceImplBase {
 
     private final CloudCommitmentAnalysisManager ccaManager;
 
-    private final RepositoryServiceBlockingStub repositoryClient;
-
     public CostDebugRpcService(@Nonnull final CostJournalRecorder costJournalRecording,
                                @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
                                @Nonnull final ReservedInstanceAnalysisInvoker invoker,
                                @Nonnull BuyRIImpactReportGenerator buyRIImpactReportGenerator,
-                               @Nonnull CloudCommitmentAnalysisManager ccaManager,
-                               @Nonnull RepositoryServiceBlockingStub repositoryClient) {
+                               @Nonnull CloudCommitmentAnalysisManager ccaManager) {
         this.costJournalRecording = costJournalRecording;
         this.entityReservedInstanceMappingStore = entityReservedInstanceMappingStore;
         this.invoker = invoker;
         this.buyRIImpactReportGenerator = Objects.requireNonNull(buyRIImpactReportGenerator);
         this.ccaManager = Objects.requireNonNull(ccaManager);
-        this.repositoryClient = Objects.requireNonNull(repositoryClient);
     }
 
     @Override
@@ -114,25 +96,14 @@ public class CostDebugRpcService extends CostDebugServiceImplBase {
                             .setDemandSelection(ClassifiedDemandSelection.newBuilder()
                                     .addScope(ClassifiedDemandScope.newBuilder()
                                             .setScope(DemandScope.newBuilder())
-                                            .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED)))
-                            .setLogDetailedSummary(true))
+                                            .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED))))
                     .setCloudCommitmentInventory(CloudCommitmentInventory.newBuilder())
                     .setPurchaseProfile(CommitmentPurchaseProfile.newBuilder()
                             .addScope(ClassifiedDemandScope.newBuilder()
                                     .setScope(DemandScope.newBuilder())
                                     .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED))
                             .setRecommendationSettings(RecommendationSettings.newBuilder())
-                            .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder()
-                                    .putAllRiTypeByRegionOid(
-                                            retrieveAllRegionsFromRepository()
-                                                    .collect(ImmutableMap.toImmutableMap(
-                                                            TopologyEntityDTO::getOid,
-                                                            (t) -> ReservedInstanceType.newBuilder()
-                                                                    .setOfferingClass(OfferingClass.CONVERTIBLE)
-                                                                    .setPaymentOption(PaymentOption.ALL_UPFRONT)
-                                                                    .setTermYears(1)
-                                                                    .build()))))
-                            .build())
+                            .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder()))
                     .build();
 
             final CloudCommitmentAnalysisInfo analysisInfo = ccaManager.startAnalysis(analysisConfig);
@@ -233,17 +204,5 @@ public class CostDebugRpcService extends CostDebugServiceImplBase {
                 .setCsvString(buyRIImpactReportGenerator.generateCsvReportAsString(request))
                 .build());
         responseObserver.onCompleted();
-    }
-
-    private Stream<TopologyEntityDTO> retrieveAllRegionsFromRepository() {
-        final RetrieveTopologyEntitiesRequest.Builder retrieveTopologyRequest =
-                RetrieveTopologyEntitiesRequest.newBuilder()
-                        .setReturnType(Type.FULL)
-                        .setTopologyType(TopologyType.SOURCE)
-                        .addEntityType(EntityType.REGION_VALUE);
-
-        return RepositoryDTOUtil.topologyEntityStream(
-                repositoryClient.retrieveTopologyEntities(retrieveTopologyRequest.build()))
-                    .map(PartialEntity::getFullEntity);
     }
 }

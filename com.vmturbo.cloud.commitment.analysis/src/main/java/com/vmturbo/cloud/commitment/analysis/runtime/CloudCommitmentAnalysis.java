@@ -68,7 +68,7 @@ public class CloudCommitmentAnalysis {
             Object stageInput = null;
             for (AnalysisStage stage : analysisPipeline.stages()) {
                 try {
-                    logger.info("{} Executing stage [{}]", logMarker, stage.stageName());
+                    logger.info("{} Executing stage {}", logMarker, stage.stageName());
 
                     analysisSummary.onStageStart(stage);
                     StageResult<?> stageResult = stage.execute(stageInput);

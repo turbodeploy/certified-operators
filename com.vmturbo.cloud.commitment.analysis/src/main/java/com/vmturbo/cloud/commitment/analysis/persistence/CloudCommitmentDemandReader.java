@@ -26,7 +26,7 @@ public interface CloudCommitmentDemandReader {
      * @param earliestEndTime The earliest point from which demand should be queried.
      * @return A {@link Stream} containing EntityCloudTierMapping entries from the requested demand.
      */
-    Stream<EntityCloudTierMapping> getDemand(@Nonnull CloudTierType cloudTierType,
-                                             @Nonnull Collection<DemandSegment> demandSegments,
-                                             @Nonnull Instant earliestEndTime);
+    Stream<EntityCloudTierMapping<?>> getDemand(@Nonnull CloudTierType cloudTierType,
+                                                @Nonnull Collection<DemandSegment> demandSegments,
+                                                @Nonnull Instant earliestEndTime);
 }

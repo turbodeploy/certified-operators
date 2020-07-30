@@ -9,16 +9,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Set;
+
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
+import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysis.IdentityProvider;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.DemandSelectionStage.DemandSelectionFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandSet;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.DemandSelectionStage.DemandSelectionFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.EntityCloudTierDemandSet;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 
 /**
@@ -32,13 +32,10 @@ public class AnalysisPipelineTest {
 
     private final DemandSelectionFactory demandSelectionFactory = mock(DemandSelectionFactory.class);
 
-    private final DemandClassificationFactory demandClassificationFactory = mock(DemandClassificationFactory.class);
-
     private final AnalysisPipelineFactory analysisPipelineFactory =
             new AnalysisPipelineFactory(identityProvider,
                     initializationStageFactory,
-                    demandSelectionFactory,
-                    demandClassificationFactory);
+                    demandSelectionFactory);
 
     /**
      * Test for the analysis pipeline and factory.
@@ -53,20 +50,13 @@ public class AnalysisPipelineTest {
         // setup mocks
         long firstStageId = 123L;
         long secondStageId = 456L;
-        long thirdStageId = 789L;
-        when(identityProvider.next()).thenReturn(firstStageId)
-                .thenReturn(secondStageId)
-                .thenReturn(thirdStageId);
+        when(identityProvider.next()).thenReturn(firstStageId).thenReturn(secondStageId);
 
         final AnalysisStage<Void, Void> initializationStage = mock(AnalysisStage.class);
         when(initializationStageFactory.createStage(anyLong(), any(), any())).thenReturn(initializationStage);
 
-        final AnalysisStage<Void, EntityCloudTierDemandSet> demandSelectionStage = mock(AnalysisStage.class);
+        final AnalysisStage<Void, Set<EntityCloudTierMapping<?>>> demandSelectionStage = mock(AnalysisStage.class);
         when(demandSelectionFactory.createStage(anyLong(), any(), any())).thenReturn(demandSelectionStage);
-
-        final AnalysisStage<EntityCloudTierDemandSet, ClassifiedEntityDemandSet> demandClassificationStage =
-                mock(AnalysisStage.class);
-        when(demandClassificationFactory.createStage(anyLong(), any(), any())).thenReturn(demandClassificationStage);
 
         // invoke pipeline factory
         final AnalysisPipeline analysisPipeline = analysisPipelineFactory.createAnalysisPipeline(
@@ -95,19 +85,9 @@ public class AnalysisPipelineTest {
         assertThat(analysisConfigCaptor.getValue(), equalTo(analysisConfig));
         assertThat(analysisContextCaptor.getValue(), equalTo((analysisContext)));
 
-        // check the invocation of the demand classification factory
-        verify(demandClassificationFactory).createStage(stageIdCaptor.capture(),
-                analysisConfigCaptor.capture(),
-                analysisContextCaptor.capture());
-
-        assertThat(stageIdCaptor.getValue(), equalTo(thirdStageId));
-        assertThat(analysisConfigCaptor.getValue(), equalTo(analysisConfig));
-        assertThat(analysisContextCaptor.getValue(), equalTo((analysisContext)));
-
         // check the analysis pipeline structure
-        assertThat(analysisPipeline.stages(), hasSize(3));
+        assertThat(analysisPipeline.stages(), hasSize(2));
         assertThat(analysisPipeline.stages().get(0), equalTo(initializationStage));
         assertThat(analysisPipeline.stages().get(1), equalTo(demandSelectionStage));
-        assertThat(analysisPipeline.stages().get(2), equalTo(demandClassificationStage));
     }
 }

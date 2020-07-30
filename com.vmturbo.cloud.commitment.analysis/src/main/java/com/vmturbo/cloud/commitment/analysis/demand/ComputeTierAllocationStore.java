@@ -1,12 +1,10 @@
-package com.vmturbo.cloud.commitment.analysis.demand.store;
+package com.vmturbo.cloud.commitment.analysis.demand;
 
 import java.util.Collection;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
-import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 
@@ -22,8 +20,8 @@ public interface ComputeTierAllocationStore extends DiagsRestorable {
     /**
      * Persists the allocation datapoints. The datapoints represent the allocated demand for a single
      * point in time, as determined by the creation time of the {@code topologyInfo}.
-     *
-     * <p>If the immediately prior topology was also persisted, any matching allocated records are extended
+     * <p>
+     * If the immediately prior topology was also persisted, any matching allocated records are extended
      * between the two points, representing allocated demand the duration between the two topologies.
      * this behavior can be chained among multiple consecutive topologies to treat point in time datapoints
      * from a topology as continuous demand over a period of time.

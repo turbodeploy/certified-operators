@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.demand.store;
+package com.vmturbo.cloud.commitment.analysis.demand;
 
 import java.util.Set;
 
@@ -9,10 +9,6 @@ import org.immutables.value.Value.Immutable;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
-/**
- * A filter of allocated {@link com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand} for
- * a set of entities.
- */
 @Immutable
 public interface EntityComputeTierAllocationFilter extends EntityCloudTierAllocationFilter {
 

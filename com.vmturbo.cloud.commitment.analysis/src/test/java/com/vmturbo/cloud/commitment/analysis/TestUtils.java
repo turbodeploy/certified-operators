@@ -8,6 +8,7 @@ import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandCl
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.ClassifiedDemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.ReservedInstancePurchaseProfile;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification.ClassifiedDemandSelection;
@@ -43,13 +44,13 @@ public class TestUtils {
                         .setDemandSelection(ClassifiedDemandSelection.newBuilder()
                                 .addScope(ClassifiedDemandScope.newBuilder()
                                         .setScope(DemandScope.newBuilder())
-                                        .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED)))
-                        .setLogDetailedSummary(true))
+                                        .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED))))
                 .setCloudCommitmentInventory(CloudCommitmentInventory.newBuilder())
                 .setPurchaseProfile(CommitmentPurchaseProfile.newBuilder()
                         .addScope(ClassifiedDemandScope.newBuilder()
                                 .setScope(DemandScope.newBuilder())
                                 .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED))
+                        .setRecommendationSettings(RecommendationSettings.newBuilder())
                         .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder()))
                 .build();
     }

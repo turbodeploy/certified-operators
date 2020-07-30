@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.demand.store;
+package com.vmturbo.cloud.commitment.analysis.demand;
 
 import java.util.Optional;
 import java.util.Set;
@@ -6,8 +6,6 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import org.immutables.value.Value.Immutable;
-
-import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 
 /**
  * A filter for records of entity cloud tier allocation demand. Cloud scope filtering is supported.

@@ -11,7 +11,7 @@ import org.mockito.Matchers;
 import org.mockito.Mockito;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
-import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
+import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationStore;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;

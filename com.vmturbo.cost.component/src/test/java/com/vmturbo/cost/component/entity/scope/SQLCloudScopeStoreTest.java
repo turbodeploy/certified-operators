@@ -31,10 +31,10 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
-import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
+import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.store.ImmutableEntityComputeTierAllocationFilter;
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocation;
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -85,7 +85,7 @@ public class SQLCloudScopeStoreTest {
                 .regionOid(3)
                 .availabilityZoneOid(4)
                 .serviceProviderOid(5)
-                .cloudTierDemand(ImmutableComputeTierDemand.builder()
+                .cloudTierDemand(ImmutableComputeTierAllocation.builder()
                         .osType(OSType.LINUX)
                         .tenancy(Tenancy.DEFAULT)
                         .cloudTierOid(6).build())
@@ -95,7 +95,7 @@ public class SQLCloudScopeStoreTest {
                 .accountOid(8)
                 .regionOid(9)
                 .serviceProviderOid(10)
-                .cloudTierDemand(ImmutableComputeTierDemand.builder()
+                .cloudTierDemand(ImmutableComputeTierAllocation.builder()
                         .osType(OSType.LINUX)
                         .tenancy(Tenancy.DEFAULT)
                         .cloudTierOid(12).build())
@@ -205,7 +205,7 @@ public class SQLCloudScopeStoreTest {
         IntStream.range(0, numEntitiesToUpdate).forEach(i ->
                 secondPassDatapoints.set(i,
                         ImmutableComputeTierAllocationDatapoint.copyOf(secondPassDatapoints.get(i))
-                                .withCloudTierDemand(ImmutableComputeTierDemand.builder()
+                                .withCloudTierDemand(ImmutableComputeTierAllocation.builder()
                                         .osType(OSType.LINUX)
                                         .tenancy(Tenancy.DEFAULT)
                                         .cloudTierOid(2L)
@@ -270,7 +270,7 @@ public class SQLCloudScopeStoreTest {
                 .serviceProviderOid(Math.round(Math.random() * 3))
                 .cloudTierDemand(
                         // Allocation demand does not effect cloud scope
-                        ImmutableComputeTierDemand.builder()
+                        ImmutableComputeTierAllocation.builder()
                                 .osType(OSType.LINUX)
                                 .tenancy(Tenancy.DEFAULT)
                                 .cloudTierOid(1L)

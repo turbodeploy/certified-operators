@@ -3,12 +3,30 @@ package com.vmturbo.cloud.commitment.analysis.spec;
 import org.immutables.value.Value;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
  * An aggregate set of data about a {@link ReservedInstanceSpec} instance.
  */
 @Value.Immutable
-public interface ReservedInstanceSpecData extends CloudCommitmentSpecData<ReservedInstanceSpec> {
+public interface ReservedInstanceSpecData {
+
+    /**
+     * The target RI spec. This value is not used in equality or hashing checks.
+     *
+     * @return The {@link ReservedInstanceSpec}
+     */
+    @Value.Auxiliary
+    ReservedInstanceSpec reservedInstanceSpec();
+
+    /**
+     * The compute tier associated with {@link #reservedInstanceSpec()}. This value is not used
+     * in equality or hashing checks.
+     *
+     * @return The compute tier associated with the {@link ReservedInstanceSpec}.
+     */
+    @Value.Auxiliary
+    TopologyEntityDTO computeTier();
 
     /**
      * The coupons per instance of RI spec. This is derived from the compute tier of the RI spec.
@@ -16,13 +34,8 @@ public interface ReservedInstanceSpecData extends CloudCommitmentSpecData<Reserv
      *
      * @return THe coupon capacity of the compute tier.
      */
-    @Value.Derived
     @Value.Auxiliary
-    default int couponsPerInstance() {
-        return cloudTier().getTypeSpecificInfo()
-                .getComputeTier()
-                .getNumCoupons();
-    }
+    int couponsPerInstance();
 
     /**
      * The RI spec ID, which is the sole identifier used in equality and hashing checks.
@@ -30,8 +43,7 @@ public interface ReservedInstanceSpecData extends CloudCommitmentSpecData<Reserv
      * @return The RI spec ID.
      */
     @Value.Derived
-    @Override
-    default long specId() {
-        return spec().getId();
+    default long reservedInstanceSpecId() {
+        return reservedInstanceSpec().getId();
     }
 }

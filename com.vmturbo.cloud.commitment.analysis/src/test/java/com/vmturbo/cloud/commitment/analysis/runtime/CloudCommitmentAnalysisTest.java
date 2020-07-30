@@ -81,7 +81,7 @@ public class CloudCommitmentAnalysisTest {
         when(stageC.id()).thenReturn(stageCId);
         when(stageC.stageName()).thenReturn(stageCName);
 
-        when(analysisContextFactory.createContext(any(), any())).thenReturn(analysisContext);
+        when(analysisContextFactory.createContext(any())).thenReturn(analysisContext);
         when(analysisPipelineFactory.createAnalysisPipeline(any(), any())).thenReturn(analysisPipeline);
 
     }
@@ -122,7 +122,7 @@ public class CloudCommitmentAnalysisTest {
         cloudCommitmentAnalysis.run();
 
         // check analysis factory
-        verify(analysisContextFactory).createContext(any(), any());
+        verify(analysisContextFactory).createContext(any());
 
         final ArgumentCaptor<CloudCommitmentAnalysisConfig> analysisConfigCaptor =
                 ArgumentCaptor.forClass(CloudCommitmentAnalysisConfig.class);

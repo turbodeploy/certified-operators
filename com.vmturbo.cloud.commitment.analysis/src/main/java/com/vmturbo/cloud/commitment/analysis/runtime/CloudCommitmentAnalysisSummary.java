@@ -40,7 +40,7 @@ public class CloudCommitmentAnalysisSummary {
                     + "Analysis Completed: <endTime>\n"
                     + "Analysis Duration: <duration>\n"
                     + "======== Stage Breakdown ========\n"
-                    + "<stages;separator=\"\\n\">"
+                    + "<stages;separator=\"------------------------------\\n\">"
                     + "=================================\n";
 
     private Instant startTime = null;
@@ -278,14 +278,14 @@ public class CloudCommitmentAnalysisSummary {
             final boolean hasStarted = status.state() != State.READY;
             final boolean hasFinished = status.state() == State.COMPLETED || status.state() == State.FAILED;
             template.add("startTime", hasStarted ? startTime : "Not Started");
-            template.add("endTime", hasFinished ? endTime : "Not Available");
+            template.add("endTime", hasFinished ? endTime : "Still Running");
             template.add("duration", hasStarted
                     ? Duration.between(startTime, hasFinished ? endTime : Instant.now()) : "Not Available");
 
             // Format the results with the correct indent
-            final String results = (hasFinished && stageResult != null)
+            final String results = hasFinished
                     ? stageResult.resultSummary().replaceAll("\n", "        \n")
-                    : "Not Available";
+                    : "<Not Available>";
             template.add("resultsSummary", results);
 
             return template.render();

@@ -46,8 +46,7 @@ public class AnalysisFactory {
     @Nonnull
     public CloudCommitmentAnalysis createAnalysis(@Nonnull CloudCommitmentAnalysisConfig analysisConfig) {
         final CloudCommitmentAnalysisInfo analysisInfo = createAnalysisInfo(analysisConfig);
-        final CloudCommitmentAnalysisContext analysisContext =
-                analysisContextFactory.createContext(analysisInfo, analysisConfig);
+        final CloudCommitmentAnalysisContext analysisContext = analysisContextFactory.createContext(analysisInfo);
         final AnalysisPipeline analysisPipeline = analysisPipelineFactory
                 .createAnalysisPipeline(analysisConfig, analysisContext);
 

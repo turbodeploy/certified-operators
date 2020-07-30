@@ -7,17 +7,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
+import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriterImpl;
-import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecResolver;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.entity.scope.CloudScopeStore;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.stats.CostStatsConfig;
 
 /**
@@ -25,8 +21,7 @@ import com.vmturbo.cost.component.stats.CostStatsConfig;
  */
 @Import({CostDBConfig.class,
         TopologyProcessorListenerConfig.class,
-        CostStatsConfig.class,
-        ReservedInstanceSpecConfig.class})
+        CostStatsConfig.class})
 public class CloudCommitmentAnalysisStoreConfig {
 
     @Autowired
@@ -37,9 +32,6 @@ public class CloudCommitmentAnalysisStoreConfig {
 
     @Autowired
     private CostStatsConfig costStatsConfig;
-
-    @Autowired
-    private ReservedInstanceSpecStore reservedInstanceSpecStore;
 
     @Value("${recordCloudAllocationData:true}")
     private boolean recordAllocationData;
@@ -85,14 +77,5 @@ public class CloudCommitmentAnalysisStoreConfig {
         return new SQLCloudScopeStore(dbConfig.dsl(), costStatsConfig.taskScheduler(),
                 Duration.ofSeconds(cleanupSchedulerPeriod),
                 statsRecordsCommitBatchSize);
-    }
-
-    /**
-     * Bean for RI implementation of cloud commitment spec resolver.
-     * @return An instance of {@link LocalReservedInstanceSpecResolver}
-     */
-    @Bean
-    public CloudCommitmentSpecResolver<ReservedInstanceSpec> reservedInstanceSpecResolver() {
-        return new LocalReservedInstanceSpecResolver(reservedInstanceSpecStore);
     }
 }
