@@ -33,7 +33,6 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -59,13 +58,13 @@ public class PercentileEditorSimulationTest {
     private static final int SIMULATION_LENGTH_IN_DAYS = 60;
     private static final long PERIOD_START_TIMESTAMP = 1595424732000L;
     private static final long PERIOD_END_TIMESTAMP =
-        PERIOD_START_TIMESTAMP + TimeUnit.DAYS.toHours(SIMULATION_LENGTH_IN_DAYS) * TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+            PERIOD_START_TIMESTAMP + TimeUnit.DAYS.toMillis(SIMULATION_LENGTH_IN_DAYS);
     private static final int LOOK_BACK_PERIOD_30 = 30;
     private static final int LOOK_BACK_PERIOD_7 = 7;
     private static final long BROADCAST_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(60);
     private static final int MAINTENANCE_WINDOW_HOURS = 24;
     private static final long MAINTENANCE_WINDOW_MILLIS =
-        MAINTENANCE_WINDOW_HOURS * TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+            TimeUnit.HOURS.toMillis(MAINTENANCE_WINDOW_HOURS);
 
     private static final KVConfig KV_CONFIG = createKvConfig();
 
@@ -230,7 +229,7 @@ public class PercentileEditorSimulationTest {
 
         // Calculate timestamp for aggregation start
         long startTimestamp = lastCheckpoint
-            - (LOOK_BACK_PERIOD_30 * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS)
+            - TimeUnit.DAYS.toMillis(LOOK_BACK_PERIOD_30)
             + MAINTENANCE_WINDOW_MILLIS;
 
         // Create a count array for different vms and aggregate the counts for the lookback period

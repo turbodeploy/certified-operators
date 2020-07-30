@@ -18,6 +18,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -44,7 +45,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.Units;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -82,7 +82,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private static final long TIMESTAMP_INIT_START_SEP_1_2019 = 1567296000000L;
 
     private static final int MAINTENANCE_WINDOW_HOURS = 12;
-    private static final long MAINTENANCE_WINDOW_MS = MAINTENANCE_WINDOW_HOURS * TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+    private static final long MAINTENANCE_WINDOW_MS = TimeUnit.HOURS.toMillis(MAINTENANCE_WINDOW_HOURS);
     private static final String PERCENTILE_BUCKETS_SPEC = "0,1,5,99,100";
     private static final KVConfig KV_CONFIG = createKvConfig();
     private static final PercentileHistoricalEditorConfig PERCENTILE_HISTORICAL_EDITOR_CONFIG =
@@ -300,9 +300,9 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     @Test
     public void testCheckObservationPeriodsChangedSaveTotalWithRemoval()
             throws InterruptedException, HistoryCalculationException {
-        final long nextScheduledCheckpointMs = TIMESTAMP_INIT_START_SEP_1_2019
-                        + PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours()
-                        * TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+        final long nextScheduledCheckpointMs =
+                TIMESTAMP_INIT_START_SEP_1_2019 + TimeUnit.HOURS.toMillis(
+                        PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours());
         checkObservationWindowChanged(nextScheduledCheckpointMs + 2000, nextScheduledCheckpointMs,
                                       Arrays.asList(Arrays.asList(112, 119, 126, 133, 140),
                                       Arrays.asList(153, 156, 159, 162, 165)),

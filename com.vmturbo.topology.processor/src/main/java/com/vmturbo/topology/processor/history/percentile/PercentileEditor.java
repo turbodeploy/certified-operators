@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
 import javax.annotation.Nonnull;
@@ -41,7 +42,6 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.utils.ThrowingFunction;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -407,12 +407,12 @@ public class PercentileEditor extends
             // and accumulate them into percentile cache, respect per-entity observation window settings
 
             // Calculate maintenance window in milliseconds.
-            final long windowMillis = getConfig().getMaintenanceWindowHours() *
-                    TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+            final long windowMillis = TimeUnit.HOURS.toMillis(
+                    getConfig().getMaintenanceWindowHours());
             final long checkpoint = getCheckpoint();
             // Calculate timestamp for farthest snapshot.
             long startTimestamp = checkpoint
-                            - (maxOfPeriods * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS)
+                            - (TimeUnit.DAYS.toMillis(maxOfPeriods))
                             + windowMillis;
             logger.debug("Loading daily blobs in range from {} to {}, step {}",
                             Instant.ofEpochMilli(startTimestamp),
@@ -438,9 +438,8 @@ public class PercentileEditor extends
                     // Calculate bound timestamp for specific entry.
                     // This is necessary if the changed observation period
                     // for a given entry is less than the maximum modified observation period.
-                    final long timestampBound = checkpoint -
-                            (store.getPeriodDays() * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS) +
-                            windowMillis;
+                    final long timestampBound = checkpoint
+                            - TimeUnit.DAYS.toMillis(store.getPeriodDays()) + windowMillis;
                     if (timestampBound <= startTimestamp) {
                         final PercentileRecord percentileRecord = page.get(entry.getKey());
                         if (percentileRecord != null) {
@@ -509,8 +508,8 @@ public class PercentileEditor extends
                  currentCheckpointMs <= checkpointMs;
                  currentCheckpointMs += getMaintenanceWindowInMs()) {
                 for (Integer periodInDays : periods) {
-                    final long outdatedTimestamp = currentCheckpointMs - periodInDays
-                                                                         * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
+                    final long outdatedTimestamp =
+                            currentCheckpointMs - TimeUnit.DAYS.toMillis(periodInDays);
                     final PercentilePersistenceTask loadOutdated = createTask(outdatedTimestamp);
                     logger.debug("Started checkpoint percentile cache for timestamp {} with period of {} days. Outdated percentile timestamp is {} ",
                                  currentCheckpointMs,
@@ -661,8 +660,7 @@ public class PercentileEditor extends
     }
 
     private long getMaintenanceWindowInMs() {
-        return getConfig().getMaintenanceWindowHours() *
-               TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+        return TimeUnit.HOURS.toMillis(getConfig().getMaintenanceWindowHours());
     }
 
     @Override

@@ -4,8 +4,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
 
-import org.apache.commons.math3.util.Pair;
-
 import com.vmturbo.market.cloudscaling.sma.entities.SMACSP;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMACost;
