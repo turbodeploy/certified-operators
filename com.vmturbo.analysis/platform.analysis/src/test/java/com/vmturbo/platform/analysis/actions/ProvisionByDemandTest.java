@@ -47,6 +47,34 @@ public class ProvisionByDemandTest {
 
     // Methods
 
+    /**
+     * This test is testing the case where model buyer is a clone.
+     * Make sure that the model buyer of the action is the shopping list of the original entity.
+     */
+    @Test
+    public final void testModelBuyer() {
+        Economy e = new Economy();
+        CommoditySpecification commSpec1 = new CommoditySpecification(0, 1);
+        CommoditySpecification commSpec2 = new CommoditySpecification(0, 2);
+
+        Trader origin = e.addTrader(0, TraderState.ACTIVE, EMPTY);
+        ShoppingList originSL1 = e.addBasketBought(origin, new Basket(commSpec1));
+        ShoppingList originSL2 = e.addBasketBought(origin, new Basket(commSpec2));
+
+        Trader clone = e.addTrader(0, TraderState.ACTIVE, EMPTY);
+        ShoppingList cloneSL1 = e.addBasketBought(clone, new Basket(commSpec1));
+        ShoppingList cloneSL2 = e.addBasketBought(clone, new Basket(commSpec2));
+        clone.setCloneOf(origin);
+
+        Trader modelSeller = e.addTrader(0, TraderState.ACTIVE, new Basket(commSpec1));
+        ProvisionByDemand provision = new ProvisionByDemand(e, cloneSL1, modelSeller);
+        assertEquals(originSL1, provision.getModelBuyer());
+
+        modelSeller = e.addTrader(0, TraderState.ACTIVE, new Basket(commSpec2));
+        provision = new ProvisionByDemand(e, cloneSL2, modelSeller);
+        assertEquals(originSL2, provision.getModelBuyer());
+    }
+
     @Test
     @Parameters
     @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1},{2},{3])")

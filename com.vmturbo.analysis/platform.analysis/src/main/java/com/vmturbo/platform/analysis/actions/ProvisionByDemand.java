@@ -1,8 +1,10 @@
 package com.vmturbo.platform.analysis.actions;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -43,20 +45,59 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
     /**
      * Constructs a new ProvisionByDemand action with the specified attributes.
      *
+     * <p>provisionByDemand means create an copy of modelSeller and increase capacity of certain
+     * commodities, in case the modelSeller is itself a clone, go all the way back to the
+     * original modelSeller to simplify action handling by entities outside M2 that are not
+     * necessarily aware of cloned traders
+     *
+     * <p>We also need to find the corresponding shopping list of the original buyer.
+     * The reason is that sometimes the model buyer is a cloned entity and it can be suspended later.
+     * If so, the model buyer won't appear in the shoppingListOid map of AnalysisToProtobuf#actionTO,
+     * which will lead to a NPE. See OM-60571.
+     *
      * @param economy The economy in which the seller will be provisioned.
      * @param modelBuyer The shopping list that should be satisfied by the new seller.
      */
     public ProvisionByDemand(@NonNull Economy economy, @NonNull ShoppingList modelBuyer,
                     @NonNull Trader modelSeller) {
-        // provisionByDemand means create an copy of modelSeller and increase capacity of certain
-        // commodities, in case the modelSeller is itself a clone, go all the way back to the
-        // original modelSeller to simplify action handling by entities outside M2 that are not
-        // necessarily aware of cloned traders
         super(economy, economy.getCloneOfTrader(modelSeller));
-        modelBuyer_ = modelBuyer;
+        // Find the shopping list of the original entity.
+        // It's not possible that the shopping list of the original entity doesn't exist.
+        // For safety, use the given modelBuyer if it cannot be found.
+        modelBuyer_ = getOriginalShoppingList(economy, modelBuyer);
+        logger.debug("Use {} as modelBuyer instead of {}.",
+            () -> modelBuyer_.getDebugInfoNeverUseInCode() == null ? ""
+                : modelBuyer_.getDebugInfoNeverUseInCode(),
+            () -> modelBuyer.getDebugInfoNeverUseInCode() == null ? ""
+                : modelBuyer.getDebugInfoNeverUseInCode());
     }
 
     // Methods
+
+    /**
+     * Find the shopping list of the original entity.
+     * We are able to do it because getMarketsAsBuyer is a linked map so order is well defined.
+     *
+     * @param economy The economy in which the seller will be provisioned.
+     * @param modelBuyer The shopping list that should be satisfied by the new seller.
+     * @return the shopping list of the original entity
+     * @throws NoSuchElementException if no shopping list exists
+     */
+    private ShoppingList getOriginalShoppingList(@NonNull Economy economy, @NonNull ShoppingList modelBuyer) {
+        final Set<ShoppingList> cloned =
+            economy.getMarketsAsBuyer(modelBuyer.getBuyer()).keySet();
+        final Iterator<ShoppingList> originIterator =
+            economy.getMarketsAsBuyer(economy.getCloneOfTrader(modelBuyer.getBuyer())).keySet().iterator();
+        for (ShoppingList shoppingList : cloned) {
+            if (shoppingList == modelBuyer) {
+                return originIterator.next();
+            }
+            originIterator.next();
+        }
+        throw new NoSuchElementException("Cannot find the original shopping list of "
+            + (modelBuyer.getDebugInfoNeverUseInCode() == null ? ""
+            : modelBuyer.getDebugInfoNeverUseInCode()));
+    }
 
     /**
      * Returns the model buyer that should be satisfied by the new seller.
