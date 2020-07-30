@@ -7,12 +7,12 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
-import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocationFilter;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
+import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
+import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
+import com.vmturbo.cloud.commitment.analysis.demand.store.ImmutableEntityComputeTierAllocationFilter;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.DemandSegment;
@@ -38,7 +38,7 @@ public class CloudCommitmentDemandReaderImpl implements CloudCommitmentDemandRea
      * {@inheritDoc}
      */
     @Override
-    public Stream<EntityCloudTierMapping<?>> getDemand(@Nonnull final CloudTierType cloudTierType,
+    public Stream<EntityCloudTierMapping> getDemand(@Nonnull final CloudTierType cloudTierType,
                                                        @Nonnull final Collection<DemandSegment> demandSegments,
                                                        @Nonnull final Instant earliestEndTime) {
 

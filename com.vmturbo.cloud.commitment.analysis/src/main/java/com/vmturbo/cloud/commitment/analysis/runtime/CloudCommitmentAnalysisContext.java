@@ -11,10 +11,14 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher;
+import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology;
 import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology.MinimalCloudTopologyFactory;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisInfo;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.TopologyReference;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -36,11 +40,15 @@ public class CloudCommitmentAnalysisContext {
 
     private final CloudCommitmentAnalysisInfo analysisInfo;
 
+    private final CloudCommitmentAnalysisConfig analysisConfig;
+
     private final RepositoryServiceBlockingStub repositoryClient;
 
     private final MinimalCloudTopologyFactory<MinimalEntity> minimalCloudTopologyFactory;
 
     private final TopologyEntityCloudTopologyFactory fullCloudTopologyFactory;
+
+    private final CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory;
 
     private final StaticAnalysisConfig staticAnalysisConfig;
 
@@ -52,26 +60,37 @@ public class CloudCommitmentAnalysisContext {
 
     private final SetOnce<Instant> analysisStartTime = new SetOnce<>();
 
+    private final SetOnce<CloudCommitmentSpecMatcher<?>> cloudCommitmentSpecMatcher = new SetOnce<>();
+
     /**
      * Constructs a new {@link CloudCommitmentAnalysisContext} instance.
      * @param analysisInfo The analysis info, used in resolving the topology reference and building
      *                     a log marker for the analysis.
+     * @param analysisConfig The analysis config, used to resolve the correct {@link CloudCommitmentSpecMatcher}
+     *                       implementation.
      * @param repositoryClient The repository client, use to resolve the topology.
      * @param minimalCloudTopologyFactory A minimal cloud topology factory.
      * @param fullCloudTopologyFactory A full cloud topology factory.
+     * @param cloudCommitmentSpecMatcherFactory A {@link CloudCommitmentSpecMatcherFactory}, used to create
+     *                                          a {@link CloudCommitmentSpecMatcher} based on the type
+     *                                          of recommendations request in the analysis config.
      * @param staticAnalysisConfig Configuration attributes that are static across all instances
      *                             of {@link CloudCommitmentAnalysis}.
      */
     public CloudCommitmentAnalysisContext(@Nonnull CloudCommitmentAnalysisInfo analysisInfo,
+                                          @Nonnull CloudCommitmentAnalysisConfig analysisConfig,
                                           @Nonnull RepositoryServiceBlockingStub repositoryClient,
                                           @Nonnull MinimalCloudTopologyFactory<MinimalEntity> minimalCloudTopologyFactory,
                                           @Nonnull TopologyEntityCloudTopologyFactory fullCloudTopologyFactory,
+                                          @Nonnull CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory,
                                           @Nonnull StaticAnalysisConfig staticAnalysisConfig) {
 
         this.analysisInfo = Objects.requireNonNull(analysisInfo);
+        this.analysisConfig = Objects.requireNonNull(analysisConfig);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.minimalCloudTopologyFactory = Objects.requireNonNull(minimalCloudTopologyFactory);
         this.fullCloudTopologyFactory = Objects.requireNonNull(fullCloudTopologyFactory);
+        this.cloudCommitmentSpecMatcherFactory = Objects.requireNonNull(cloudCommitmentSpecMatcherFactory);
         this.staticAnalysisConfig = Objects.requireNonNull(staticAnalysisConfig);
 
         this.logMarker = String.format("[%s|%s]", analysisInfo.getOid(), analysisInfo.getAnalysisTag());
@@ -169,6 +188,21 @@ public class CloudCommitmentAnalysisContext {
         return analysisStartTime.getValue();
     }
 
+    /**
+     * Returns the {@link CloudCommitmentSpecMatcher} implementation, based on the purchase profile
+     * of the {@link CloudCommitmentAnalysisConfig}. The spec matcher will return specs corresponding
+     * to the requested cloud commitment type (e.g. RI specs, if RI recommendations are requested).
+     *
+     * @return The {@link CloudCommitmentSpecMatcher} instance for the analysis.
+     */
+    @Nonnull
+    public CloudCommitmentSpecMatcher<?> getCloudCommitmentSpecMatcher() {
+        return cloudCommitmentSpecMatcher.ensureSet(() ->
+                cloudCommitmentSpecMatcherFactory.createSpecMatcher(
+                        getCloudTierTopology(),
+                        analysisConfig.getPurchaseProfile()));
+    }
+
     @Nonnull
     private MinimalCloudTopology<MinimalEntity> createMinimalCloudTopology(@Nonnull TopologyType topologyType) {
 
@@ -216,7 +250,8 @@ public class CloudCommitmentAnalysisContext {
     @Nonnull
     private CloudTopology<TopologyEntityDTO> createCloudTierTopology() {
 
-        final Set<Integer> entityTypes = Collections.singleton(EntityType.COMPUTE_TIER_VALUE);
+        final Set<Integer> entityTypes = ImmutableSet.of(
+                EntityType.COMPUTE_TIER_VALUE);
 
         final Stream<TopologyEntityDTO> entities =
                 retrieveTopologyEntities(Type.FULL, TopologyType.SOURCE, entityTypes)
@@ -235,10 +270,13 @@ public class CloudCommitmentAnalysisContext {
          * Creates a new instance, tied to a specific {@link CloudCommitmentAnalysis}.
          *
          * @param analysisInfo The analysis info for the target {@link CloudCommitmentAnalysis}.
+         * @param analysisConfig The analysis config.
          * @return The newly created {@link CloudCommitmentAnalysisContext} instance.
          */
         @Nonnull
-        CloudCommitmentAnalysisContext createContext(@Nonnull CloudCommitmentAnalysisInfo analysisInfo);
+        CloudCommitmentAnalysisContext createContext(
+                @Nonnull CloudCommitmentAnalysisInfo analysisInfo,
+                @Nonnull CloudCommitmentAnalysisConfig analysisConfig);
     }
 
 
@@ -253,6 +291,8 @@ public class CloudCommitmentAnalysisContext {
 
         private final TopologyEntityCloudTopologyFactory fullCloudTopologyFactory;
 
+        private final CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory;
+
         private final StaticAnalysisConfig staticAnalysisConfig;
 
         /**
@@ -261,16 +301,19 @@ public class CloudCommitmentAnalysisContext {
          * @param repositoryClient The repository client, used to fetch topologies.
          * @param minimalCloudTopologyFactory The minimal cloud topology factory.
          * @param fullCloudTopologyFactory The full cloud topology factory.
+         * @param cloudCommitmentSpecMatcherFactory the cloud commitment spec matcher factory.
          * @param staticAnalysisConfig The analysis config, containing static attributes.
          */
         public DefaultAnalysisContextFactory(@Nonnull RepositoryServiceBlockingStub repositoryClient,
                                              @Nonnull MinimalCloudTopologyFactory<MinimalEntity> minimalCloudTopologyFactory,
                                              @Nonnull TopologyEntityCloudTopologyFactory fullCloudTopologyFactory,
+                                             @Nonnull CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory,
                                              @Nonnull StaticAnalysisConfig staticAnalysisConfig) {
 
             this.repositoryClient = Objects.requireNonNull(repositoryClient);
             this.minimalCloudTopologyFactory = Objects.requireNonNull(minimalCloudTopologyFactory);
             this.fullCloudTopologyFactory = Objects.requireNonNull(fullCloudTopologyFactory);
+            this.cloudCommitmentSpecMatcherFactory = Objects.requireNonNull(cloudCommitmentSpecMatcherFactory);
             this.staticAnalysisConfig = Objects.requireNonNull(staticAnalysisConfig);
         }
 
@@ -278,12 +321,16 @@ public class CloudCommitmentAnalysisContext {
          * {@inheritDoc}
          */
         @Override
-        public CloudCommitmentAnalysisContext createContext(@Nonnull final CloudCommitmentAnalysisInfo analysisInfo) {
+        public CloudCommitmentAnalysisContext createContext(
+                @Nonnull final CloudCommitmentAnalysisInfo analysisInfo,
+                @Nonnull final CloudCommitmentAnalysisConfig analysisConfig) {
             return new CloudCommitmentAnalysisContext(
                     analysisInfo,
+                    analysisConfig,
                     repositoryClient,
                     minimalCloudTopologyFactory,
                     fullCloudTopologyFactory,
+                    cloudCommitmentSpecMatcherFactory,
                     staticAnalysisConfig);
         }
     }

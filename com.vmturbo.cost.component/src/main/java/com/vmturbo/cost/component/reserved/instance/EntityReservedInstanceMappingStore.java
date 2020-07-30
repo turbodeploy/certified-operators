@@ -184,7 +184,7 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
                         // Again, add a minute to the usage end time.
                         Instant.ofEpochMilli(usageEndTime + 1000 * 60),
                         ZoneId.from(ZoneOffset.UTC));
-                logger.info("Usage start/end for Entity/RI pair '{}:{}' = [{} .. {}], covered coupons = {}",
+                logger.debug("Usage start/end for Entity/RI pair '{}:{}' = [{} .. {}], covered coupons = {}",
                         entityOid, reservedInstanceId, usageStart.toString(), usageEnd.toString(), cell.getValue());
 
                 records.add(context.newRecord(HIST_ENTITY_RESERVED_INSTANCE_MAPPING,
