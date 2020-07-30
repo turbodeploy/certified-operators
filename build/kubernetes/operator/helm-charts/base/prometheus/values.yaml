@@ -407,6 +407,14 @@ kubeStateMetrics:
 kube-state-metrics:
   #nameOverride: ""
   fullnameOverride: prometheus-kube-state-metrics
+  # Available collectors for kube-state-metrics. By default all available
+  # collectors are enabled.
+  collectors:
+    # (Vaptistis) Current version of kube-state-metrics targets the v1 API instead of the v1beta1
+    # one. That means that in order to use the following collectors we need version >= 1.16 of
+    # Kubernetes instead >= 1.9 and our appliances that I checked were running v1.14.3.
+    validatingwebhookconfigurations: false
+    mutatingwebhookconfigurations: false
 
 nodeExporter:
   ## If false, node-exporter will not be installed
