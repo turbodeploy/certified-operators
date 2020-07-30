@@ -4,6 +4,7 @@ import static com.vmturbo.trax.Trax.trax;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -24,13 +25,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
 import org.hamcrest.collection.IsIterableContainingInAnyOrder;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+import org.mockito.runners.MockitoJUnitRunner;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -38,6 +42,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -50,6 +57,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
@@ -70,6 +78,8 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.InitialPlacement;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO.CommodityContext;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Performance;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
@@ -86,6 +96,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Test various actions.
  */
+@RunWith(MockitoJUnitRunner.class)
 public class InterpretActionTest {
 
     private static final TopologyInfo REALTIME_TOPOLOGY_INFO = TopologyInfo.newBuilder()
@@ -411,6 +422,85 @@ public class InterpretActionTest {
         assertTrue(reasonCommodity.hasTimeSlot());
         assertEquals(slot, reasonCommodity.getTimeSlot().getSlot());
         assertEquals(totalSlotNumber, reasonCommodity.getTimeSlot().getTotalSlotNumber());
+    }
+
+    /**
+     * Test interpreting scaling cloud volume action.
+     *
+     * @throws IOException when passing json file.
+     */
+    @Test
+    public void testInterpretScaleAction() throws IOException {
+        final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
+                TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/cloud-volume.json"),
+                TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/cloud-vm.json"),
+                TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/cloud-storageTier.json"),
+                TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/cloud-storageTier-dest.json"))
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        TopologyEntityDTO region = TopologyEntityDTO.newBuilder().setOid(73442089143124L).setEntityType(EntityType.REGION_VALUE).build();
+        topologyDTOs.put(region.getOid(), region);
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
+                MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable,
+                ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
+        Set<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
+        final TraderTO vmTraderTO = TopologyConverterToMarketTest.getVmTrader(traderTOs);
+        assertNotNull(vmTraderTO);
+        // Get the shoppingList within the VM trader which represents cloud volume.
+        ShoppingListTO volumeSL = vmTraderTO.getShoppingListsCount() > 0 ? vmTraderTO.getShoppingLists(0) : null;
+        assertNotNull(volumeSL);
+        TraderTO sourceStorageTierTraderTO = traderTOs.stream()
+                .filter(tto -> tto.getType() == EntityType.STORAGE_TIER_VALUE
+                        && tto.getDebugInfoNeverUseInCode().contains("GP2"))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(sourceStorageTierTraderTO);
+        TraderTO destStorageTierTraderTO = traderTOs.stream()
+                .filter(tto -> tto.getType() == EntityType.STORAGE_TIER_VALUE
+                        && tto.getDebugInfoNeverUseInCode().contains("STANDARD"))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(destStorageTierTraderTO);
+        CloudTopology<TopologyEntityDTO> originalCloudTopology = Mockito.mock(CloudTopology.class);
+        Mockito.when(originalCloudTopology.getConnectedRegion(org.mockito.Matchers.anyLong())).thenReturn(Optional.of(region));
+        Map<Long, ProjectedTopologyEntity> projectedTopology = ImmutableMap.of(
+                73442089143120L, entity(73442089143120L, EntityType.VIRTUAL_MACHINE_VALUE, EnvironmentType.CLOUD),
+                73442089143125L, entity(73442089143125L, EntityType.VIRTUAL_VOLUME_VALUE, EnvironmentType.CLOUD),
+                73363299852962L, entity(73363299852962L, EntityType.STORAGE_TIER_VALUE, EnvironmentType.CLOUD),
+                73363299852963L, entity(73363299852963L, EntityType.STORAGE_TIER_VALUE, EnvironmentType.CLOUD));
+        ActionTO actionTO = ActionTO.newBuilder()
+                .setImportance(0.1)
+                .setIsNotExecutable(false)
+                .setMove(MoveTO.newBuilder()
+                        .setShoppingListToMove(volumeSL.getOid())
+                        .setMoveContext(Context.newBuilder().setRegionId(region.getOid()).build())
+                        .addCommodityContext(CommodityContext.newBuilder()
+                                .setOldCapacity(500)
+                                .setNewCapacity(600).build())
+                        .setSource(sourceStorageTierTraderTO.getOid())
+                        .setDestination(destStorageTierTraderTO.getOid())
+                        .setMoveExplanation(MoveExplanation.newBuilder()
+                                .setPerformance(Performance.getDefaultInstance())))
+                .build();
+        Action action = topologyConverter.interpretAction(actionTO,
+                projectedTopology, originalCloudTopology, Collections.emptyMap(), null).orElse(null);
+        assertNotNull(action);
+        assertTrue(action.getExplanation().getScale() instanceof ScaleExplanation);
+        Scale scale = action.getInfo().getScale();
+        assertNotNull(scale);
+        assertEquals("Scale action target entity should be volume", 73442089143125L, scale.getTarget().getId());
+        assertTrue(scale.getChangesCount() == 1);
+        ChangeProvider changeProvider = scale.getChanges(0);
+        assertEquals("Scale action source is source StorageTier", 73363299852962L, changeProvider.getSource().getId());
+        assertEquals("Scale action destination is destination StorageTier",
+                73363299852963L, changeProvider.getDestination().getId());
+        assertTrue(scale.getCommodityResizesCount() == 1);
+        ResizeInfo resizeInfo = scale.getCommodityResizes(0);
+        assertEquals("Scale action ResizeInfo old capacity is from MoveTO CommodityContext",
+                500, resizeInfo.getOldCapacity(), 0f);
+        assertEquals("Scale action ResizeInfo new capacity is from MoveTO CommodityContext",
+                600, resizeInfo.getNewCapacity(), 0f);
     }
 
     @Test
