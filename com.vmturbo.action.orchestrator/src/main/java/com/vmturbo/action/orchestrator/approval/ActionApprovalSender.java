@@ -60,8 +60,10 @@ public class ActionApprovalSender {
         final ActionApprovalRequests.Builder builder = ActionApprovalRequests.newBuilder();
         for (Action action : store.getActions()
                 .values()) {
+            // It does not make sense to send any actions except of READY. All the other actions
+            // are already executing or failed or rejected (it's late to approve/reject them)
             if (action.getMode() == ActionMode.EXTERNAL_APPROVAL
-                    && action.getState() != ActionState.REJECTED) {
+                    && action.getState() == ActionState.READY) {
                 final Optional<ActionDTO.Action> recommendationOptional =
                         action.getActionTranslation()
                                 .getTranslatedRecommendation();

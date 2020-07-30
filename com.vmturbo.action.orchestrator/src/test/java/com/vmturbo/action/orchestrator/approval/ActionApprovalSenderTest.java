@@ -8,6 +8,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,6 +44,8 @@ public class ActionApprovalSenderTest {
     private static final long ACTION_PLAN_ID = 10000L;
     private static final long ACTION1 = 10001L;
     private static final long ACTION2 = 10002L;
+    private static final long ACTION3 = 10003L;
+    private static final long ACTION4 = 10004L;
     private static final String EXPLANATION = "Resize VM from 3.0GB to 4.0GB";
     @Mock
     private IMessageSender<ActionApprovalRequests> requestSender;
@@ -177,6 +181,29 @@ public class ActionApprovalSenderTest {
                         && EXPLANATION.equals(executeActionRequest.getExplanation())
                 )
         );
+    }
+
+    /**
+     * Tests that only READY actions are sent to external approval backend.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testActionsInTeminalState() throws Exception {
+        createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL, ActionState.READY);
+        createAction(ACTION2, ActionMode.EXTERNAL_APPROVAL, ActionState.IN_PROGRESS);
+        createAction(ACTION3, ActionMode.EXTERNAL_APPROVAL, ActionState.SUCCEEDED);
+        createAction(ACTION4, ActionMode.EXTERNAL_APPROVAL, ActionState.QUEUED);
+        aas.sendApprovalRequests(actionStore);
+        final ArgumentCaptor<ActionApprovalRequests> captor = ArgumentCaptor.forClass(
+                ActionApprovalRequests.class);
+        Mockito.verify(requestSender)
+                .sendMessage(captor.capture());
+        Assert.assertEquals(Sets.newHashSet(ACTION1), captor.getValue()
+                .getActionsList()
+                .stream()
+                .map(ExecuteActionRequest::getActionId)
+                .collect(Collectors.toSet()));
     }
 
     private Action createAction(long oid, @Nonnull ActionMode actionMode,
