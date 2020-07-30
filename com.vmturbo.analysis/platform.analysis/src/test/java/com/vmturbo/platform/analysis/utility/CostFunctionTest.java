@@ -37,6 +37,7 @@ import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper;
 import com.vmturbo.platform.analysis.utilities.CostTable;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InitialInfiniteQuote;
@@ -71,9 +72,10 @@ public class CostFunctionTest {
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm2, new double[] {5, 500},
                         null);
-        assertEquals(Double.POSITIVE_INFINITY,
-            io1Function.calculateCost(sl2, io1, true, economy).getQuoteValue(),
-            TestUtils.FLOATING_POINT_DELTA);
+        sl2.setDemandScalable(false);
+        // get quote as if in Savings mode with penalty
+        assertTrue(io1Function.calculateCost(sl2, io1, true, economy)
+                .getQuoteValue() > CostFunctionFactoryHelper.REVERSIBILITY_PENALTY_COST);
 
         // create VM3 and get its cost from io1
         Trader vm3 = TestUtils.createVM(economy);
@@ -108,7 +110,10 @@ public class CostFunctionTest {
         ShoppingList sl = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm, new double[] {5, 120},
                 null);
-        assertTrue(Double.isInfinite(gp2Function.calculateCost(sl, gp2, true, economy).getQuoteValue()));
+        sl.setDemandScalable(false);
+        // get quote as if in Savings mode with penalty
+        assertTrue(gp2Function.calculateCost(sl, gp2, true, economy).getQuoteValue()
+                > CostFunctionFactoryHelper.REVERSIBILITY_PENALTY_COST);
 
         // create VM3 and get its cost from io1
         Trader vm3 = TestUtils.createVM(economy);
@@ -145,31 +150,6 @@ public class CostFunctionTest {
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[] {64}, null);
         assertEquals(10.21, premiumManagedFunction.calculateCost(sl2, premiumManaged, true, economy).getQuoteValue(),
                         TestUtils.FLOATING_POINT_DELTA);
-    }
-
-    /**
-     * Case: Azure standard unmanaged storage tier as a seller. Storage amount price is 0.05 per GB if 1~1024GB in LRS,
-     * 0.10 per GB if 1024 ~ 50*1024 in LRS, VM1 asks for 2000GB
-     * Expected result: VM1 cost is 0.05 * 1024 + 0.10 * (2000 - 1024)
-     */
-    @Test
-    public void testCostFunction_CalculateCost_AzureStandardUnmanagedCostFunction() {
-        Economy economy = new Economy();
-        BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
-        Trader standardUnManaged = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
-        standardUnManaged.getSettings().setContext(new Context(10L, zoneId, ba));
-        CostFunction standardUnManagedFunction = TestUtils.setUpStandardUnmanagedCostFunction();
-        standardUnManaged.getSettings().setCostFunction(standardUnManagedFunction);
-
-        // create VM1 and get its cost
-        Trader vm1 = TestUtils.createVM(economy);
-        vm1.getSettings().setContext(new Context(10L, zoneId, ba));
-        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[] {2000}, null);
-        assertEquals(0.05 * 1024 + 0.10 * (2000 - 1024),
-                        standardUnManagedFunction.calculateCost(sl1,
-                        standardUnManaged, true, economy).getQuoteValue(), TestUtils.FLOATING_POINT_DELTA);
-
     }
 
     /**

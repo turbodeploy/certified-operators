@@ -544,33 +544,14 @@ public class TestUtils {
     public static CostFunction setUpPremiumManagedCostFunction() {
         // create cost function DTO for azure premium managed storage
         StorageTierPriceData stAmt32GBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(32).setIsUnitPrice(false)
-                        .setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 5.28)).build();
+                        .setIsAccumulativeCost(true).addCostTupleList(setUpCostTuple(1, -1, 10L, 5.28)).build();
         StorageTierPriceData stAmt64GBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(64).setIsUnitPrice(false)
-                        .setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 10.21)).build();
+                        .setIsAccumulativeCost(true).addCostTupleList(setUpCostTuple(1, -1, 10L, 10.21)).build();
         StorageResourceCost stAmtDTO = StorageResourceCost.newBuilder().setResourceType(stAmtTO)
                         .addStorageTierPriceData(stAmt32GBPriceDTO).addStorageTierPriceData(stAmt64GBPriceDTO).build();
         CostDTO costDTO = CostDTO.newBuilder()
                         .setStorageTierCost(StorageTierCostDTO.newBuilder()
                                                .addStorageResourceCost(stAmtDTO)
-                                               .addStorageResourceLimitation(StorageResourceLimitation.newBuilder()
-                                               .setResourceType(stAmtTO).setMaxCapacity(4 * 1024)
-                                               .setMinCapacity(1).build()).build())
-                        .build();
-        return CostFunctionFactory.createCostFunction(costDTO);
-    }
-
-    public static CostFunction setUpStandardUnmanagedCostFunction() {
-        // create cost function DTO for azure standard unmanaged storage
-        StorageTierPriceData stAmtLRS1TBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(1024)
-                        .setIsAccumulativeCost(true).setIsUnitPrice(true).addCostTupleList(setUpCostTuple(1, -1, 10L, 0.05)).build();
-        StorageTierPriceData stAmtLRS50TBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(1024 * 50)
-                        .setIsAccumulativeCost(true).setIsUnitPrice(true).addCostTupleList(setUpCostTuple(1, -1, 10L, 0.10)).build();
-        StorageResourceCost resourceCostDTO = StorageResourceCost.newBuilder().setResourceType(stAmtTO)
-                        .addStorageTierPriceData(stAmtLRS1TBPriceDTO).addStorageTierPriceData(stAmtLRS50TBPriceDTO)
-                        .build();
-        CostDTO costDTO = CostDTO.newBuilder()
-                        .setStorageTierCost(StorageTierCostDTO.newBuilder()
-                                               .addStorageResourceCost(resourceCostDTO)
                                                .addStorageResourceLimitation(StorageResourceLimitation.newBuilder()
                                                .setResourceType(stAmtTO).setMaxCapacity(4 * 1024)
                                                .setMinCapacity(1).build()).build())
