@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -1254,7 +1255,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                 Long oid = sl.getSupplier() != null
                                 ? sl.getSupplier().getOid()
                                 : null;
-                if (matched && oid != groupSupplierId) {
+                if (matched && !Objects.equals(oid, groupSupplierId)) {
                     matched = first;
                     groupSupplierId = oid;
                 }
