@@ -46,7 +46,7 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
      * @param maxValue maximum value
      * @param enumClass class of an enum
      */
-    public EnumSettingDataType(@Nullable T defaultValue, @Nullable T maxValue,
+    public EnumSettingDataType(@Nonnull T defaultValue, @Nullable T maxValue,
                     @Nonnull Class<T> enumClass) {
         super(defaultValue);
         this.maxValue = maxValue;
@@ -55,19 +55,16 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
 
     @Override
     public void build(@Nonnull Builder builder) {
-        final EnumSettingValueType.Builder settingBuilder = EnumSettingValueType.newBuilder();
-        final T defaultValue = getDefault();
-        if (defaultValue != null) {
-            final List<String> values = Stream.of(getDefault().getDeclaringClass().getEnumConstants())
-                    .filter(t -> ((this.maxValue == null) || (t.ordinal() <= this.maxValue.ordinal())))
-                    .map(Enum::name)
-                    .collect(Collectors.toList());
-            settingBuilder.addAllEnumValues(values).setDefault(defaultValue.name());
-        }
+        final List<String> values = Stream.of(getDefault().getDeclaringClass().getEnumConstants())
+                .filter(t -> ((this.maxValue == null) || (t.ordinal() <= this.maxValue.ordinal())))
+                .map(Enum::name)
+                .collect(Collectors.toList());
         final Map<Integer, String> entityDefaults = getEntityDefaults().entrySet()
                 .stream()
                 .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().name()));
-        builder.setEnumSettingValueType(settingBuilder
+        builder.setEnumSettingValueType(EnumSettingValueType.newBuilder()
+                .addAllEnumValues(values)
+                .setDefault(getDefault().name())
                 .putAllEntityDefaults(entityDefaults)
                 .build());
     }

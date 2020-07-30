@@ -169,6 +169,18 @@ public class ServiceConfig {
     private String apiPaginationDefaultSortCommodity;
 
     /**
+     * Feature flag. If it is true then ExecutionSchedule settings are not displayed in UI.
+     */
+    @Value("${hideExecutionScheduleSetting:false}")
+    private boolean hideExecutionScheduleSetting;
+
+    /**
+     * Feature flag. If it is true then ExternalApproval settings are not displayed in UI.
+     */
+    @Value("${hideExternalApprovalOrAuditSettings:false}")
+    private boolean hideExternalApprovalOrAuditSettings;
+
+    /**
      * Allow target management in integration mode? False by default.
      */
     @Value("${allowTargetManagementInIntegrationMode:false}")
@@ -543,7 +555,9 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 mapperConfig.settingsMapper(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
-                settingsPoliciesService());
+                settingsPoliciesService(),
+                hideExecutionScheduleSetting,
+                hideExternalApprovalOrAuditSettings);
     }
 
     @Bean

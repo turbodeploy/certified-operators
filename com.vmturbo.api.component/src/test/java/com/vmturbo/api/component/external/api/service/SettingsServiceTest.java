@@ -20,10 +20,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -37,6 +39,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoade
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
@@ -64,6 +67,9 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SettingsServiceTest {
@@ -114,7 +120,8 @@ public class SettingsServiceTest {
         statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         settingsService = spy(new SettingsService(settingServiceStub, statsServiceClient,
-                settingsMapper, settingsManagerMapping, settingsPoliciesService));
+                settingsMapper, settingsManagerMapping, settingsPoliciesService,
+                false, false));
 
         when(settingRpcServiceSpy.searchSettingSpecs(any()))
                 .thenReturn(Collections.singletonList(vmSettingSpec));
@@ -326,6 +333,144 @@ public class SettingsServiceTest {
                 .thenReturn(Collections.emptyList());
         expectedException.expect(IllegalArgumentException.class);
         settingsService.getSettingByUuidAndName(managerName, "foo");
+    }
+
+    /**
+     * Test case when settingsService has special configuration (hideExecutionScheduleSettings =
+     * true), so all methods should filter out executionSchedule settings).
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testSettingsServiceHidesCertainSettings() throws Exception {
+        final SettingsService settingServiceHidesCertainSettings =
+                spy(new SettingsService(settingServiceStub, statsServiceClient, settingsMapper,
+                        settingsManagerMapping, settingsPoliciesService,
+                        true, true));
+        final SettingApiDTO<String> actionModeSetting = createActionModeSetting();
+        final SettingApiDTO<String> executionScheduleSetting = createExecutionScheduleSetting();
+
+        final SettingsManagerApiDTO automationSettingsManager =
+                createAutomationManages(Arrays.asList(actionModeSetting, executionScheduleSetting));
+        final String managerName = automationSettingsManager.getUuid();
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
+        settingsPolicyApiDTO.setSettingsManagers(Lists.newArrayList(automationSettingsManager));
+
+        final SettingsManagerInfo managerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerMapping.getManagerInfo(
+                eq(automationSettingsManager.getUuid()))).thenReturn(Optional.of(managerInfo));
+        when(settingsPoliciesService.getSettingsPolicies(true, Collections.emptySet(),
+                Sets.newHashSet(managerName))).thenReturn(Lists.newArrayList(settingsPolicyApiDTO));
+        when(settingsMapper.toManagerDto(any(), any(), eq(managerName), any())).thenReturn(
+                Optional.of(automationSettingsManager));
+        when(settingRpcServiceSpy.searchSettingSpecs(any())).thenReturn(
+                Arrays.asList(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingSpec(),
+                    ActionSettingSpecs.getSettingSpec(
+                        ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
+                                ActionSettingType.SCHEDULE))));
+
+        final List<? extends SettingApiDTO<?>> filteredSettings =
+                settingServiceHidesCertainSettings.getSettingsByUuid(managerName);
+        final List<SettingsManagerApiDTO> filteredSettingsSpec =
+                settingServiceHidesCertainSettings.getSettingsSpecs(managerName, null, false);
+
+        Assert.assertEquals(1, filteredSettings.size());
+        Assert.assertEquals(actionModeSetting.getValue(),
+                filteredSettings.iterator().next().getValue());
+
+        // check settings specs
+        assertEquals(1, filteredSettingsSpec.size());
+        assertEquals(managerName, filteredSettingsSpec.get(0).getUuid());
+        verify(settingsMapper).toManagerDto(specCaptor.capture(), eq(Optional.empty()),
+                eq(managerName), any());
+        assertThat(specCaptor.getValue(), containsInAnyOrder(
+                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingSpec()));
+    }
+
+    /**
+     * Test case when settingsService has configuration when hideExecutionScheduleSettings = false,
+     * so all methods should return all settings (including executionSchedule settings).
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testSettingsServiceWithoutRestrictions() throws Exception {
+        final SettingApiDTO<String> actionModeSetting = createActionModeSetting();
+        final SettingApiDTO<String> executionScheduleSetting = createExecutionScheduleSetting();
+
+        final SettingsManagerApiDTO automationSettingsManager =
+                createAutomationManages(Arrays.asList(actionModeSetting, executionScheduleSetting));
+        final String managerName = automationSettingsManager.getUuid();
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
+        settingsPolicyApiDTO.setSettingsManagers(Lists.newArrayList(automationSettingsManager));
+
+        final SettingsManagerInfo managerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerMapping.getManagerInfo(eq(managerName))).thenReturn(
+                Optional.of(managerInfo));
+        when(settingsPoliciesService.getSettingsPolicies(true, Collections.emptySet(),
+                Sets.newHashSet(managerName))).thenReturn(Lists.newArrayList(settingsPolicyApiDTO));
+        when(settingsMapper.toManagerDto(any(), any(), eq(managerName), any())).thenReturn(
+                Optional.of(automationSettingsManager));
+        when(settingRpcServiceSpy.searchSettingSpecs(any())).thenReturn(
+                Arrays.asList(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingSpec(),
+                    ActionSettingSpecs.getSettingSpec(
+                        ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
+                                ActionSettingType.SCHEDULE))));
+
+        final List<? extends SettingApiDTO<?>> allSettings =
+                settingsService.getSettingsByUuid(managerName);
+        final List<SettingsManagerApiDTO> allSettingsSpecs =
+                settingsService.getSettingsSpecs(managerName, null, false);
+
+        Assert.assertEquals(2, allSettings.size());
+        Assert.assertEquals(
+                Sets.newHashSet(actionModeSetting.getUuid(), executionScheduleSetting.getUuid()),
+                allSettings.stream().map(BaseApiDTO::getUuid).collect(Collectors.toSet()));
+
+        // check settings specs
+        assertEquals(1, allSettingsSpecs.size());
+        assertEquals(managerName, allSettingsSpecs.get(0).getUuid());
+        verify(settingsMapper).toManagerDto(specCaptor.capture(), eq(Optional.empty()),
+                eq(managerName), any());
+        assertThat(specCaptor.getValue(), containsInAnyOrder(
+                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingSpec(),
+                ActionSettingSpecs.getSettingSpec(
+                    ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
+                            ActionSettingType.SCHEDULE))));
+    }
+
+    private static SettingsManagerApiDTO createAutomationManages(List<SettingApiDTO<?>> settings) {
+        final String managerName = "automationmanager";
+        final SettingsManagerApiDTO settingsManagerApiDTO = new SettingsManagerApiDTO();
+        settingsManagerApiDTO.setUuid(managerName);
+        settingsManagerApiDTO.setSettings(settings);
+        return settingsManagerApiDTO;
+    }
+
+    private static SettingApiDTO<String> createActionModeSetting() {
+        final String actionModeSettingName =
+                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName();
+        final String actionModeSettingValue = "MANUAL";
+        final SettingApiDTO<String> actionModeSetting = new SettingApiDTO<>();
+        actionModeSetting.setUuid(actionModeSettingName);
+        actionModeSetting.setValue(actionModeSettingValue);
+        return actionModeSetting;
+    }
+
+    private static SettingApiDTO<String> createExecutionScheduleSetting() {
+        final String executionScheduleSettingName =
+                ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                    EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds, ActionSettingType.SCHEDULE);
+        final String executionScheduleSettingValue = "124";
+        final SettingApiDTO<String> executionScheduleSetting = new SettingApiDTO<>();
+        executionScheduleSetting.setUuid(executionScheduleSettingName);
+        executionScheduleSetting.setValue(executionScheduleSettingValue);
+        return executionScheduleSetting;
     }
 
     /**

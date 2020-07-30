@@ -5,10 +5,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -16,11 +14,9 @@ import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.common.protobuf.utils.ProbeFeature;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Setting spec store, based on enum ({@link EntitySettingSpecs}) and
@@ -29,26 +25,24 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 @Immutable
 public class EnumBasedSettingSpecStore implements SettingSpecStore {
 
-    private final Map<ProbeFeature, Map<String, SettingSpec>> settingSpecMap;
+    private final Map<String, SettingSpec> settingSpecMap;
     private final boolean hideExecutionScheduleSetting;
     private final boolean hideExternalApprovalOrAuditSettings;
-    private final ThinTargetCache thinTargetCache;
 
     /**
      * Constructs EnumBasedSettingSpecStore with the provided feature flag.
      *
      * @param hideExecutionScheduleSetting true when we need to hide the execution window settings.
      * @param hideExternalApprovalOrAuditSettings true when we need to hide the external approval
-     * @param thinTargetCache a cache for simple target information
+     *                                            related settings.
      */
-    public EnumBasedSettingSpecStore(boolean hideExecutionScheduleSetting,
-            boolean hideExternalApprovalOrAuditSettings,
-            @Nonnull final ThinTargetCache thinTargetCache) {
+    public EnumBasedSettingSpecStore(
+            boolean hideExecutionScheduleSetting,
+            boolean hideExternalApprovalOrAuditSettings) {
         this.hideExecutionScheduleSetting = hideExecutionScheduleSetting;
         this.hideExternalApprovalOrAuditSettings = hideExternalApprovalOrAuditSettings;
-        this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
 
-        final Map<ProbeFeature, Map<String, SettingSpec>> specs = new HashMap<>();
+        Map<String, SettingSpec> specs = new HashMap<>();
         for (EntitySettingSpecs setting : EntitySettingSpecs.values()) {
             SettingSpec settingSpec = setting.getSettingSpec();
             if (hideExternalApprovalOrAuditSettings && ActionSettingSpecs.isActionModeSetting(setting)) {
@@ -63,25 +57,17 @@ public class EnumBasedSettingSpecStore implements SettingSpecStore {
                         .addAllEnumValues(filteredEnumValues))
                     .build();
             }
-            specs.computeIfAbsent(null, e -> new HashMap<>()).put(setting.getSettingName(),
-                    settingSpec);
+            specs.put(setting.getSettingName(), settingSpec);
         }
         for (GlobalSettingSpecs setting : GlobalSettingSpecs.values()) {
-            specs.computeIfAbsent(null, e -> new HashMap<>()).put(setting.getSettingName(),
-                    setting.createSettingSpec());
+            specs.put(setting.getSettingName(), setting.createSettingSpec());
         }
 
-        final Map<String, ProbeFeature> settingSpecToProbeFeatureMap =
-                ActionSettingSpecs.getSettingSpecToProbeFeatureMap();
-
-        for (SettingSpec settingSpec : ActionSettingSpecs.getSettingSpecs()) {
+        ActionSettingSpecs.getSettingSpecs().stream()
             // only keep settings that have not been hidden by a feature flag
-            if (isSettingVisible(settingSpec)) {
-                final String settingSpecName = settingSpec.getName();
-                specs.computeIfAbsent(settingSpecToProbeFeatureMap.get(settingSpecName),
-                        e -> new HashMap<>()).put(settingSpecName, settingSpec);
-            }
-        }
+            .filter(this::isSettingVisible)
+            .forEach(settingSpec ->
+                specs.put(settingSpec.getName(), settingSpec));
 
         settingSpecMap = Collections.unmodifiableMap(specs);
     }
@@ -90,34 +76,23 @@ public class EnumBasedSettingSpecStore implements SettingSpecStore {
     @Override
     public Optional<SettingSpec> getSettingSpec(@Nonnull String name) {
         Objects.requireNonNull(name);
-        return Optional.ofNullable(getAvailableSettingSpecMap().get(name));
+        return Optional.ofNullable(settingSpecMap.get(name));
     }
 
     @Nonnull
     @Override
     public Collection<SettingSpec> getAllSettingSpecs() {
-        return getAvailableSettingSpecMap().values();
+        return settingSpecMap.values();
     }
 
     @Nonnull
     @Override
     public Collection<SettingSpec> getAllGlobalSettingSpecs() {
-        return getAvailableSettingSpecMap()
+        return settingSpecMap
                 .values()
                 .stream()
                 .filter(SettingSpec::hasGlobalSettingSpec)
                 .collect(Collectors.toList());
-    }
-
-    private Map<String, SettingSpec> getAvailableSettingSpecMap() {
-        final Set<ProbeFeature> availableProbeFeatures = thinTargetCache.getAvailableProbeFeatures();
-        final Map<String, SettingSpec> availableSettingSpecs = new HashMap<>();
-        for (Entry<ProbeFeature, Map<String, SettingSpec>> entry : settingSpecMap.entrySet()) {
-            if (entry.getKey() == null || availableProbeFeatures.contains(entry.getKey())) {
-                entry.getValue().forEach(availableSettingSpecs::put);
-            }
-        }
-        return availableSettingSpecs;
     }
 
     private boolean isSettingVisible(@Nonnull SettingSpec settingSpec) {

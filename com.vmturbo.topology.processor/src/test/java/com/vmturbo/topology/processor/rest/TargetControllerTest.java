@@ -837,8 +837,10 @@ public class TargetControllerTest {
         final TargetInfo notDeletedTarget = decodeResult(mvcResult, TargetInfo.class);
         Assert.assertEquals(Collections.singletonList(target1), targetStore.getAll());
         Assert.assertThat(notDeletedTarget.getErrors().iterator().next(), CoreMatchers.allOf(
-                CoreMatchers.containsString("Cannot remove target " + target1.getDisplayName()),
-                CoreMatchers.containsString(blockedPolicyName)));
+                CoreMatchers.containsString(
+                        "Cannot remove target " + target1.getDisplayName()),
+                CoreMatchers.containsString(blockedPolicyName),
+                CoreMatchers.containsString(String.valueOf(blockedPolicyId))));
     }
 
     /**

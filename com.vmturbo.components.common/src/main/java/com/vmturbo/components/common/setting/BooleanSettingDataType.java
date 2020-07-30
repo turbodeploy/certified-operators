@@ -14,7 +14,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.Builder;
 @Immutable
 public class BooleanSettingDataType extends AbstractSettingDataType<Boolean> {
     /**
-     * Constructs setting data type holding the specified default value.
+     * Cpmstructs setting data type holding the specified default value.
      *
      * @param defaultValue default value to use.
      */
@@ -24,13 +24,10 @@ public class BooleanSettingDataType extends AbstractSettingDataType<Boolean> {
 
     @Override
     public void build(@Nonnull Builder builder) {
-        final BooleanSettingValueType.Builder settingBuilder =
-                BooleanSettingValueType.newBuilder().putAllEntityDefaults(getEntityDefaults());
-        final Boolean defaultValue = getDefault();
-        if (defaultValue != null) {
-            settingBuilder.setDefault(defaultValue);
-        }
-        builder.setBooleanSettingValueType(settingBuilder.build());
+        builder.setBooleanSettingValueType(BooleanSettingValueType.newBuilder()
+                .setDefault(getDefault())
+                .putAllEntityDefaults(getEntityDefaults())
+                .build());
     }
 
     @Override

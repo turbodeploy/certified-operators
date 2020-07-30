@@ -18,9 +18,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType.Type;
-import com.vmturbo.common.protobuf.utils.ProbeFeature;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Enumeration of all the action specific settings. All they are created from the "base" setting,
@@ -35,9 +33,8 @@ public enum ActionSettingType {
             "Workflow to run when we generate a ", " action") {
         @Nonnull
         @Override
-        public Pair<SettingSpec, ProbeFeature> createEntitySpec(@Nonnull EntitySettingSpecs baseSetting) {
-            return Pair.create(createActionWorkflowSettingSpec(baseSetting),
-                    ProbeFeature.ACTION_AUDIT);
+        public SettingSpec createEntitySpec(@Nonnull EntitySettingSpecs baseSetting) {
+            return createActionWorkflowSettingSpec(baseSetting);
         }
     },
     /**
@@ -47,9 +44,8 @@ public enum ActionSettingType {
             "Workflow to run when we complete or fail a ", " action") {
         @Nonnull
         @Override
-        public Pair<SettingSpec, ProbeFeature> createEntitySpec(@Nonnull EntitySettingSpecs baseSetting) {
-            return Pair.create(createActionWorkflowSettingSpec(baseSetting),
-                    ProbeFeature.ACTION_AUDIT);
+        public SettingSpec createEntitySpec(@Nonnull EntitySettingSpecs baseSetting) {
+            return createActionWorkflowSettingSpec(baseSetting);
         }
     },
     /**
@@ -60,9 +56,8 @@ public enum ActionSettingType {
 
         @Nonnull
         @Override
-        public Pair<SettingSpec, ProbeFeature> createEntitySpec(@Nonnull EntitySettingSpecs baseSetting) {
-            return Pair.create(createActionWorkflowSettingSpec(baseSetting),
-                    ProbeFeature.ACTION_APPROVAL);
+        public SettingSpec createEntitySpec(@Nonnull EntitySettingSpecs baseSetting) {
+            return createActionWorkflowSettingSpec(baseSetting);
         }
     },
     /**
@@ -73,15 +68,18 @@ public enum ActionSettingType {
             "Execution window for ", " action") {
         @Nonnull
         @Override
-        public Pair<SettingSpec, ProbeFeature> createEntitySpec(@Nonnull EntitySettingSpecs baseSetting) {
+        public SettingSpec createEntitySpec(@Nonnull EntitySettingSpecs baseSetting) {
             final SortedSetOfOidSettingDataType dataType = new SortedSetOfOidSettingDataType(
                     Type.ENTITY, Collections.emptySet());
-            return Pair.create(createOidSettingSpec(dataType, baseSetting), null);
+            return createOidSettingSpec(dataType, baseSetting);
         }
+
     };
 
     private static final StringSettingDataType WORKFLOW_TYPE =
-            new StringSettingDataType(null, EntitySettingSpecs.MATCH_ANYTHING_REGEX);
+            new StringSettingDataType(
+                    EntitySettingSpecs.DEFAULT_STRING_VALUE,
+                    EntitySettingSpecs.MATCH_ANYTHING_REGEX);
 
     private final String settingNamePrefix;
     private final String settingNameSuffix;
@@ -97,13 +95,13 @@ public enum ActionSettingType {
     }
 
     /**
-     * Creates pair of entity spec from the specified base setting with associated probe feature.
+     * Creates entity spec from the specified base setting.
      *
      * @param baseSetting base setting to create setting spec from
-     * @return pair of subsetting spec with associated probe feature
+     * @return subsetting spec
      */
     @Nonnull
-    public abstract Pair<SettingSpec, ProbeFeature> createEntitySpec(@Nonnull EntitySettingSpecs baseSetting);
+    public abstract SettingSpec createEntitySpec(@Nonnull EntitySettingSpecs baseSetting);
 
     @Nonnull
     private String getSettingName(@Nonnull EntitySettingSpecs baseSetting) {

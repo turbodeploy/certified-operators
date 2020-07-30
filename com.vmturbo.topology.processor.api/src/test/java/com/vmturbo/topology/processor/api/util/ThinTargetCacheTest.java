@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.api.util;
 
+
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doReturn;
@@ -108,10 +109,8 @@ public class ThinTargetCacheTest {
 
         Optional<ThinTargetInfo> dto2 = thinTargetCache.getTargetInfo(TARGET_ID);
         checkTargetApiDTO(dto2.get());
-        //  Shouldn't have made a call, since we requested all targets to update set of supported
-        //  features
-        verify(topologyProcessor, times(1)).getTarget(TARGET_ID);
-        verify(topologyProcessor, times(1)).getAllTargets();
+        // Should have made a subsequent call.
+        verify(topologyProcessor, times(2)).getTarget(TARGET_ID);
     }
 
     @Test
@@ -181,7 +180,6 @@ public class ThinTargetCacheTest {
         when(topologyProcessor.getAllProbes()).thenReturn(Collections.singleton(probeInfo));
         doReturn(Collections.singleton(targetInfo)).when(topologyProcessor).getAllTargets();
         when(topologyProcessor.getTarget(Mockito.eq(TARGET_ID))).thenReturn(targetInfo);
-        when(topologyProcessor.getAllTargets()).thenReturn(Collections.singleton(targetInfo));
     }
 
     private void checkTargetApiDTO(ThinTargetInfo targetApiDTO) {

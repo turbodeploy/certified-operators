@@ -1317,19 +1317,13 @@ public class SettingsMapper {
                 case STRING_SETTING_VALUE_TYPE:
                     dtoSkeleton.setValueType(InputValueType.STRING);
                     final StringSettingValueType stringType = settingSpec.getStringSettingValueType();
-                    final String stringDefaultValue = stringType.getDefault();
-                    if (stringDefaultValue != null) {
-                        dtoSkeleton.setDefaultValue(stringDefaultValue);
-                    }
+                    dtoSkeleton.setDefaultValue(stringType.getDefault());
                     break;
                 case ENUM_SETTING_VALUE_TYPE:
                     // Enum is basically a string with predefined allowable values.
                     dtoSkeleton.setValueType(InputValueType.STRING);
                     final EnumSettingValueType enumType = settingSpec.getEnumSettingValueType();
-                    final String enumDefaultValue = enumType.getDefault();
-                    if (enumDefaultValue != null) {
-                        dtoSkeleton.setDefaultValue(enumDefaultValue);
-                    }
+                    dtoSkeleton.setDefaultValue(enumType.getDefault());
                     dtoSkeleton.setOptions(enumType.getEnumValuesList().stream()
                             .map(enumValue -> {
                                 final SettingOptionApiDTO enumOption = new SettingOptionApiDTO();

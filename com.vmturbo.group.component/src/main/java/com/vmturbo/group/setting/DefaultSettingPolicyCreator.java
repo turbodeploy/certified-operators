@@ -298,7 +298,6 @@ public class DefaultSettingPolicyCreator implements Runnable {
                     final List<SettingSpec> specsForType = entry.getValue();
                     specsForType.stream()
                             .map(spec -> defaultSettingFromSpec(spec, entry.getKey()))
-                            .filter(Objects::nonNull)
                             .forEach(policyBuilder::addSettings);
                     return policyBuilder.build();
                 }));
@@ -312,7 +311,7 @@ public class DefaultSettingPolicyCreator implements Runnable {
      * @return The {@link Setting} representing the spec's default value, or an empty
      * optional if the {@link SettingSpec} is malformed.
      */
-    @Nullable
+    @Nonnull
     private static Setting defaultSettingFromSpec(@Nonnull final SettingSpec spec,
             int entityType) {
         final Setting.Builder retBuilder = Setting.newBuilder().setSettingSpecName(spec.getName());
@@ -321,9 +320,6 @@ public class DefaultSettingPolicyCreator implements Runnable {
                 final BooleanSettingValueType valueType = spec.getBooleanSettingValueType();
                 final Optional<Boolean> specificTypeDefault =
                         Optional.ofNullable(valueType.getEntityDefaultsMap().get(entityType));
-                if (!specificTypeDefault.isPresent() && !valueType.hasDefault()) {
-                    return null;
-                }
                 retBuilder.setBooleanSettingValue(BooleanSettingValue.newBuilder()
                         .setValue(specificTypeDefault.orElse(valueType.getDefault())));
                 break;
@@ -332,9 +328,6 @@ public class DefaultSettingPolicyCreator implements Runnable {
                 final NumericSettingValueType valueType = spec.getNumericSettingValueType();
                 final Optional<Float> specificTypeDefault =
                         Optional.ofNullable(valueType.getEntityDefaultsMap().get(entityType));
-                if (!specificTypeDefault.isPresent() && !valueType.hasDefault()) {
-                    return null;
-                }
                 retBuilder.setNumericSettingValue(NumericSettingValue.newBuilder()
                         .setValue(specificTypeDefault.orElse(valueType.getDefault())));
                 break;
@@ -343,9 +336,6 @@ public class DefaultSettingPolicyCreator implements Runnable {
                 final StringSettingValueType valueType = spec.getStringSettingValueType();
                 final Optional<String> specificTypeDefault =
                         Optional.ofNullable(valueType.getEntityDefaultsMap().get(entityType));
-                if (!specificTypeDefault.isPresent() && !valueType.hasDefault()) {
-                    return null;
-                }
                 retBuilder.setStringSettingValue(StringSettingValue.newBuilder()
                         .setValue(specificTypeDefault.orElse(valueType.getDefault())));
                 break;
@@ -354,18 +344,12 @@ public class DefaultSettingPolicyCreator implements Runnable {
                 final EnumSettingValueType valueType = spec.getEnumSettingValueType();
                 final Optional<String> specificTypeDefault =
                         Optional.ofNullable(valueType.getEntityDefaultsMap().get(entityType));
-                if (!specificTypeDefault.isPresent() && !valueType.hasDefault()) {
-                    return null;
-                }
                 retBuilder.setEnumSettingValue(EnumSettingValue.newBuilder()
                         .setValue(specificTypeDefault.orElse(valueType.getDefault())));
                 break;
             }
             case SORTED_SET_OF_OID_SETTING_VALUE_TYPE:
                 final SortedSetOfOidSettingValueType valueType = spec.getSortedSetOfOidSettingValueType();
-                if (valueType.getDefaultList().isEmpty()) {
-                    return null;
-                }
                 retBuilder.setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                     .addAllOids(valueType.getDefaultList()));
                 break;

@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -14,7 +13,6 @@ import com.google.common.collect.ImmutableList;
 import io.swagger.annotations.ApiModelProperty;
 
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
-import com.vmturbo.common.protobuf.utils.ProbeFeature;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -201,8 +199,6 @@ public class ProbeRESTApi {
         @ApiModelProperty(value = "Entity types and actions that can be applied to them.")
         private final List<ProbeActionCapability> actionPolicies;
 
-        private final Set<ProbeFeature> probeFeatures;
-
         /**
          * Protected constructor, suitable only for deserialization purposes.
          */
@@ -217,7 +213,6 @@ public class ProbeRESTApi {
             this.error = null;
             this.identifyingFields = null;
             this.actionPolicies = null;
-            this.probeFeatures = null;
         }
 
         public ProbeDescription(final long probeId, @Nonnull final String type,
@@ -227,8 +222,7 @@ public class ProbeRESTApi {
                 @Nonnull final CreationMode creationMode,
                 @Nonnull final List<AccountField> accountFields,
                 @Nonnull final List<String> identifyingFields,
-                @Nonnull final List<ProbeActionCapability> actionPolicies,
-                @Nonnull final Set<ProbeFeature> probeFeatures) {
+                @Nonnull final List<ProbeActionCapability> actionPolicies) {
             this.id = probeId;
             this.type = Objects.requireNonNull(type);
             this.category = Objects.requireNonNull(category);
@@ -240,7 +234,6 @@ public class ProbeRESTApi {
             this.identifyingFields = identifyingFields;
             this.actionPolicies = ImmutableList.copyOf(Objects.requireNonNull(actionPolicies,
                     "Action policies shouldn't be null."));
-            this.probeFeatures = Objects.requireNonNull(probeFeatures);
         }
 
         /**
@@ -260,7 +253,6 @@ public class ProbeRESTApi {
             this.identifyingFields = null;
             this.error = Objects.requireNonNull(error);
             this.actionPolicies = null;
-            this.probeFeatures = null;
         }
 
         public List<AccountField> getAccountFields() {
@@ -316,11 +308,6 @@ public class ProbeRESTApi {
         @Override
         public List<String> getIdentifyingFields() {
             return identifyingFields;
-        }
-
-        @Override
-        public Set<ProbeFeature> getSupportedFeatures() {
-            return probeFeatures;
         }
 
         /**
