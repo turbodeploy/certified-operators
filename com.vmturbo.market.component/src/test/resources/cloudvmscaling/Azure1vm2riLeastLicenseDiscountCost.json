@@ -80,7 +80,8 @@
           "template": 100001,
           "count": 1,
           "isf": false,
-          "shared": false
+          "shared": false,
+          "applicableBusinessAccounts" : [10]
         },
         {
           "oid": 1000001,
@@ -91,7 +92,8 @@
           "template": 100002,
           "count": 1,
           "isf": false,
-          "shared": false
+          "shared": false,
+          "applicableBusinessAccounts" : [10]
         }
       ],
       "Matching": [

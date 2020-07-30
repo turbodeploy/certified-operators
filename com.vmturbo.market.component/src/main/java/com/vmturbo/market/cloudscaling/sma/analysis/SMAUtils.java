@@ -106,7 +106,7 @@ public class SMAUtils {
      * Placeholder for an invalid RI.
      */
     public static final SMAReservedInstance BOGUS_RI = new SMAReservedInstance(UNKNOWN_OID, UNKNOWN_OID,
-        UNKNOWN_NAME, UNKNOWN_OID, BOGUS_TEMPLATE, UNKNOWN_OID, 0, false, false, false);
+        UNKNOWN_NAME, UNKNOWN_OID, Collections.emptySet(), BOGUS_TEMPLATE, UNKNOWN_OID, 0, false, false, false);
 
     /**
      * Ensures there are only 4 significant decimal places.  Round up if needed.

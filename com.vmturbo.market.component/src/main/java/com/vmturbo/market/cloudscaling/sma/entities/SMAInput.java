@@ -21,6 +21,7 @@ import javax.annotation.Nullable;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
 
@@ -852,11 +853,16 @@ public class SMAInput {
         long riKeyId = reservedInstanceKeyIDGenerator.lookUpRIKey(reservedInstanceKey, riBoughtId);
 
         String templateName = template.getName();
+
+        Set<Long> scopedAccountsIds = shared ? Collections.emptySet() : ImmutableSet.copyOf(
+                riBoughtInfo.getReservedInstanceScopeInfo().getApplicableBusinessAccountIdList());
+
         // Unfortunately, the probe returns ISF=true for metal templates.
         SMAReservedInstance ri = new SMAReservedInstance(riBoughtId,
             riKeyId,
             name,
             businessAccountId,
+            scopedAccountsIds,
             template,
             zoneId,
             count,

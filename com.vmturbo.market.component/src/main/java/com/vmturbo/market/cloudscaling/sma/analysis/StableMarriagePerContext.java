@@ -489,7 +489,7 @@ public class StableMarriagePerContext {
                    if (vmList != null) {
                        vmsWithProviderInFamily.addAll(vmList.stream()
                            // take into account scoping or RI
-                           .filter(x -> (ri.isShared() || (x.getBusinessAccountId() == ri.getBusinessAccountId())))
+                           .filter(vm -> vm.mayBeCoveredByRI(ri))
                                .collect(Collectors.toSet()));
                     }
                 }
@@ -502,7 +502,7 @@ public class StableMarriagePerContext {
                     virtualMachineList.addAll(vmList
                             .stream().filter(vm -> vm.zoneCompatible(ri, virtualMachineGroupMap))
                             // take into account scoping of RI.
-                            .filter(vm -> (ri.isShared() || (ri.getBusinessAccountId() == vm.getBusinessAccountId())))
+                            .filter(vm -> vm.mayBeCoveredByRI(ri))
                             .collect(Collectors.toList()));
                 }
             }

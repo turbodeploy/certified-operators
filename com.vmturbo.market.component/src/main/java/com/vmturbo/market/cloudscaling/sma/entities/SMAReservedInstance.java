@@ -43,6 +43,12 @@ public class SMAReservedInstance {
      * BusinessAccount, subaccount of the billing family.
      */
     private final long businessAccountId;
+
+    /**
+     * Scoped BA oids. RI scoped account may be different from purchase account.
+     */
+    private final Set<Long> applicableBusinessAccounts;
+
     /*
      * Template, used to infer CSP, family and coupons.
      */
@@ -131,6 +137,7 @@ public class SMAReservedInstance {
      * @param riKeyOid         generated keyid for ReservedInstanceKey
      * @param name             name of RI
      * @param businessAccount  business account
+     * @param applicableBusinessAccounts scoped BAs
      * @param template         compute tier
      * @param zone             availability zone
      * @param count            number of RIs
@@ -143,6 +150,7 @@ public class SMAReservedInstance {
                                final long riKeyOid,
                                @Nonnull final String name,
                                final long businessAccount,
+                               @Nonnull Set<Long> applicableBusinessAccounts,
                                @Nonnull final SMATemplate template,
                                final long zone,
                                final float count,
@@ -153,6 +161,7 @@ public class SMAReservedInstance {
         this.riKeyOid = riKeyOid;
         this.name = Objects.requireNonNull(name, "name is null!");
         this.businessAccountId = businessAccount;
+        this.applicableBusinessAccounts = applicableBusinessAccounts;
         this.template = Objects.requireNonNull(template, "template is null!");
         this.normalizedTemplate = template;
         this.zoneId = zone;
@@ -165,6 +174,27 @@ public class SMAReservedInstance {
         lastDiscountedVM = null;
         riCoveragePerGroup = new HashMap<>();
         discountableVMs = new HashSet<>();
+    }
+
+    /**
+     * Create a shallow copy of {@link SMAReservedInstance}.
+     *
+     * @param ri {@link SMAReservedInstance} instance to copy
+     * @return shallow copy of provided  {@link SMAReservedInstance}
+     */
+    public static SMAReservedInstance copyFrom(SMAReservedInstance ri) {
+        return new SMAReservedInstance(
+                ri.getOid(),
+                ri.getRiKeyOid(),
+                ri.getName(),
+                ri.getBusinessAccountId(),
+                ri.getApplicableBusinessAccounts(),
+                ri.getTemplate(),
+                ri.getZoneId(),
+                ri.getCount(),
+                ri.isIsf(),
+                ri.isShared(),
+                ri.isPlatformFlexible());
     }
 
     /*
@@ -521,6 +551,15 @@ public class SMAReservedInstance {
         return (vm.getCurrentRI() != null &&
             vm.getCurrentRI().getRiKeyOid() == getRiKeyOid()) &&
             vm.getCurrentRICoverage() > SMAUtils.EPSILON;
+    }
+
+    /**
+     * Get list of accounts that RI can be applied to.
+     *
+     * @return List of accounts that RI can be applied to
+     */
+    public Set<Long> getApplicableBusinessAccounts() {
+        return applicableBusinessAccounts;
     }
 
     /**
