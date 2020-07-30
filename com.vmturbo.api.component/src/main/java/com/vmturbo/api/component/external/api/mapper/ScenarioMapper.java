@@ -1818,12 +1818,24 @@ public class ScenarioMapper {
         @Nonnull final List<ScenarioChange> changes,
         @Nonnull final ScenarioChangeMappingContext mappingContext)
         throws ConversionException {
-        final List<SettingApiDTO<String>> settingChanges = changes.stream()
+        final Optional<TopologyMigration> migration = changes.stream()
+            .filter(ScenarioChange::hasTopologyMigration)
+            .map(ScenarioChange::getTopologyMigration)
+            .findFirst();
+
+        final List<SettingApiDTO<String>> osMigrationSettings =
+            migration.isPresent()
+                ? createOsMigrationSettingApiDTOs(migration.get().getOsMigrationsList())
+                : Collections.emptyList();
+
+        // Resize settings are not controllable for Migration plans
+        final List<SettingApiDTO<String>> settingChanges = migration.isPresent()
+            ? Collections.emptyList()
+            : changes.stream()
                 .filter(ScenarioChange::hasSettingOverride)
                 .map(ScenarioChange::getSettingOverride)
                 .flatMap(override -> createApiSettingFromOverride(override, mappingContext).stream())
                 .collect(Collectors.toList());
-
 
         final List<PlanChanges> allPlanChanges = changes.stream()
                 .filter(ScenarioChange::hasPlanChanges).map(ScenarioChange::getPlanChanges)
@@ -1834,13 +1846,6 @@ public class ScenarioMapper {
                 .map(ScenarioChange::getRiSetting)
                 .flatMap(ri -> createRiSettingApiDTOs(ri).stream())
                 .collect(Collectors.toList());
-
-        final List<SettingApiDTO<String>> osMigrationSettings = createOsMigrationSettingApiDTOs(
-            changes.stream()
-                .filter(ScenarioChange::hasTopologyMigration)
-                .map(ScenarioChange::getTopologyMigration)
-                .flatMap(tm -> tm.getOsMigrationsList().stream())
-                .collect(Collectors.toList()));
 
         final List<RemoveConstraintApiDTO> removeConstraintApiDTOS = getRemoveConstraintsDtos(allPlanChanges, mappingContext );
 

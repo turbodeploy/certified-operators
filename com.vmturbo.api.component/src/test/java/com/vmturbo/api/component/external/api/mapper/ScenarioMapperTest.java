@@ -118,6 +118,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.search.CloudType;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
@@ -173,9 +174,12 @@ public class ScenarioMapperTest {
 
     private UuidMapper uuidMapper;
 
+    private final SettingApiDTO<String> settingApiDto = new SettingApiDTO<>();
+
     @Before
     public void setup() throws Exception {
         repositoryApi = Mockito.mock(RepositoryApi.class);
+        templatesUtils = Mockito.mock(TemplatesUtils.class);
         templatesUtils = Mockito.mock(TemplatesUtils.class);
         policiesService = Mockito.mock(PoliciesService.class);
         settingsService = Mockito.mock(SettingsService.class);
@@ -200,6 +204,15 @@ public class ScenarioMapperTest {
                 templatesUtils, settingsService, settingsManagerMapping, settingsMapper,
                 policiesService, groupRpcService, groupMapper, uuidMapper);
         when(settingsService.getSettingsByUuid(any())).thenReturn(Lists.newArrayList());
+
+        // Used by testSettingOverrideToApiDto and testMigrationSuppressesAutomationChanges
+
+        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
+        when(possibilities.getAll()).thenReturn(Collections.singletonList(settingApiDto));
+        when(possibilities.getSettingForEntityType(any())).thenReturn(Optional.of(settingApiDto));
+        when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
+        when(settingsManagerMapping.convertToPlanSetting(Collections.singletonList(settingApiDto)))
+            .thenReturn(Collections.singletonList(settingApiDto));
     }
 
     /**
@@ -787,16 +800,9 @@ public class ScenarioMapperTest {
     public void testSettingOverrideToApiDto() throws Exception {
         final Scenario scenario = buildScenario(buildNumericSettingOverride("foo", 1.2f));
 
-        final SettingApiDTO<String> apiDto = new SettingApiDTO<>();
-        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
-        when(possibilities.getAll()).thenReturn(Collections.singletonList(apiDto));
-        when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
-        when(settingsManagerMapping.convertToPlanSetting(Collections.singletonList(apiDto))).thenReturn(Collections.singletonList(apiDto));
-        // Pass-through plan settings conversion
-
         final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
         final SettingApiDTO<String> apiFoo = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
-        assertEquals(apiFoo, apiDto);
+        assertEquals(apiFoo, settingApiDto);
     }
 
     /**
@@ -2335,6 +2341,61 @@ public class ScenarioMapperTest {
         assertEquals("false", getSettingValue(settings, "windowsByol").orElse(MISSING));
 
         assertAllSameOs(settings);
+    }
+
+    /**
+     * Verify that if the scenario does not contain a migration, no OS migration
+     * settings are included in the API DTO.
+     *
+     * @throws InterruptedException should not happen.
+     * @throws ConversionException should not happen.
+     */
+    @Test
+    public void testNoOsMigrationSettingsForNonMigration()
+        throws InterruptedException, ConversionException {
+
+        int osMigrationSettingsCount = scenarioMapper
+            .toScenarioApiDTO(buildScenario())
+            .getConfigChanges().getOsMigrationSettingList().size();
+
+        assertEquals(0, osMigrationSettingsCount);
+    }
+
+    /**
+     * Automation settings are configured automatically and internally to Migrate to Cloud
+     * Plan and as they are not user-configurable these settings should not be included when
+     * converting to a Scenario API DTO.
+     *
+     * @throws InterruptedException should not happen.
+     * @throws ConversionException should not happen.
+     */
+    @Test
+    public void testMigrationSuppressesAutomationChanges()
+        throws InterruptedException, ConversionException {
+        Scenario scenario = buildScenario(
+            // This should not be included in the result...
+            ScenarioChange.newBuilder()
+                .setSettingOverride(
+                    SettingOverride.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setSetting(Setting.newBuilder()
+                            .setSettingSpecName("resize")
+                            .setEnumSettingValue(EnumSettingValue.newBuilder()
+                                .setValue("AUTOMATIC")
+                                .build()
+                            ).build()
+                        ).build()
+                ).build(),
+            // ... because this change indicates that this is a migration plan
+            ScenarioChange.newBuilder()
+                .setTopologyMigration(TopologyMigration.newBuilder()
+                    .setDestinationEntityType(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)
+                    .build()
+                ).build()
+        );
+
+        ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
+        assertEquals(0, scenarioApiDTO.getConfigChanges().getAutomationSettingList().size());
     }
 
     @Nonnull
