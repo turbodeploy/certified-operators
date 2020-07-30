@@ -7,11 +7,11 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
-
-import com.google.protobuf.InvalidProtocolBufferException;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue.Builder;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 
 /**
@@ -100,14 +101,22 @@ public class DefaultGlobalSettingsCreator implements Runnable {
                 }
                 case STRING_SETTING_VALUE_TYPE: {
                     final StringSettingValueType valueType = spec.getStringSettingValueType();
-                    retBuilder.setStringSettingValue(StringSettingValue.newBuilder()
-                            .setValue(valueType.getDefault()));
+                    final Builder settingValueBuilder = StringSettingValue.newBuilder();
+                    final String defaultValue = valueType.getDefault();
+                    if (defaultValue != null) {
+                        settingValueBuilder.setValue(defaultValue);
+                    }
+                    retBuilder.setStringSettingValue(settingValueBuilder);
                     break;
                 }
                 case ENUM_SETTING_VALUE_TYPE: {
                     final EnumSettingValueType valueType = spec.getEnumSettingValueType();
-                    retBuilder.setEnumSettingValue(EnumSettingValue.newBuilder()
-                            .setValue(valueType.getDefault()));
+                    final EnumSettingValue.Builder settingValueBuilder = EnumSettingValue.newBuilder();
+                    final String defaultValue = valueType.getDefault();
+                    if (defaultValue != null) {
+                        settingValueBuilder.setValue(defaultValue);
+                    }
+                    retBuilder.setEnumSettingValue(settingValueBuilder);
                     break;
                 }
                 default: {

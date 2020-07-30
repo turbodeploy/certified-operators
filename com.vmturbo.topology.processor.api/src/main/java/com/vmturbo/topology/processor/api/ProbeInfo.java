@@ -2,9 +2,11 @@ package com.vmturbo.topology.processor.api;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.utils.ProbeFeature;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 
 /**
@@ -76,4 +78,11 @@ public interface ProbeInfo {
      * @return list of identifying fields
      */
     List<String> getIdentifyingFields();
+
+    /**
+     * Set of features provided by probe.
+     *
+     * @return set of probe features
+     */
+    Set<ProbeFeature> getSupportedFeatures();
 }

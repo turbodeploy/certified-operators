@@ -48,7 +48,7 @@ public enum GlobalSettingSpecs {
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS)),
 
     SmtpServer("smtpServer", "SMTP Server",
-            new StringSettingDataType("", "*"),
+            new StringSettingDataType(null, "*"),
             Collections.emptyList()),
 
     SmtpPort("smtpPort", "SMTP Port",
@@ -56,15 +56,15 @@ public enum GlobalSettingSpecs {
             Collections.emptyList()),
 
     SmtpFromAddress("fromAddress", "'From' Address",
-            new StringSettingDataType("", "*"),
+            new StringSettingDataType(null, "*"),
             Collections.emptyList()),
 
     SmtpUsername("smtpUsername", "Username",
-            new StringSettingDataType("", "*"),
+            new StringSettingDataType(null, "*"),
             Collections.emptyList()),
 
     SmtpPassword("smtpPassword", "Password",
-            new StringSettingDataType("", "*"),
+            new StringSettingDataType(null, "*"),
             Collections.emptyList()),
 
     SmtpEncription("smtpEncryption", "Encryption",
