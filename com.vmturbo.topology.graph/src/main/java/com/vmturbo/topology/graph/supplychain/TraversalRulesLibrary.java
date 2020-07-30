@@ -43,7 +43,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                 // special rule for VMs and Container Pods
                     // special treatment for related VDCs
                     // (traverse them, but do not continue traversal from them)
-                new VdcAsAggregatorRule<>(),
+                new VMPodAggregatorRule<>(),
 
                 // patch for DCs, because aggregation
                     // is not yet introduced on-prem
@@ -59,6 +59,11 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
 
                 // never traverse from a tier to an aggregating region or zone
                 new TierRule<>(),
+
+                // rule specific to volumes as seed
+                    // ignore traversing further up from vm consumers if a pod is
+                    // also consuming the volume.
+                new VolumeToPodRule<>(),
 
                 // use default traversal rule in all other cases
                 new DefaultTraversalRule<>());
@@ -165,13 +170,15 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
      * They must treat related VDCs in a special way: they should
      * allow traversal to related VDCs but disallow any further traversal
      * from there on.
+     * This rule also adds in a condition specific to traversal of VMs
+     * which have consumer pods which also consume cloud volumes.
      *
      * <p>This effect is achieved by using {@link DefaultTraversalRule},
      *    but treating VDCs as aggregators.</p>
      *
      * @param <E> The type of {@link TopologyGraphEntity} in the graph.
      */
-    private static class VdcAsAggregatorRule<E extends TopologyGraphEntity<E>>
+    private static class VMPodAggregatorRule<E extends TopologyGraphEntity<E>>
             extends DefaultTraversalRule<E> {
         @Override
         public boolean isApplicable(@Nonnull final E entity, @Nonnull final TraversalMode traversalMode) {
@@ -206,6 +213,22 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         @Override
         protected Stream<E> getFilteredProviders(@Nonnull E entity,
                                                  @Nonnull TraversalMode traversalMode) {
+            if ((entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                    && (traversalMode == TraversalMode.CONSUMES)) {
+
+                // when traversing down the supply chain of a vm, traverse
+                // only those volumes which do not have pods as consumers (volumes
+                // connected only to the vm).
+                // if this traversal is coming from a pod which has a volume also as
+                // a provider, the pods traversal will pull in those volumes which
+                // are connected to the pod apart from the ones selected here
+                return super.getFilteredProviders(entity, traversalMode)
+                        .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE)
+                        .filter(e -> !((e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                                && (e.getConsumers().stream()
+                                .filter(c -> c.getEntityType()
+                                        == EntityType.CONTAINER_POD_VALUE).count() > 0)));
+            }
             // ignore VDCs, because they are treated as aggregators
             return super.getFilteredProviders(entity, traversalMode)
                         .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE);
@@ -406,6 +429,39 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
             return super.getFilteredAggregators(entity, traversalMode)
                             .filter(e -> e.getEntityType() != EntityType.REGION_VALUE)
                             .filter(e -> e.getEntityType() != EntityType.AVAILABILITY_ZONE_VALUE);
+        }
+    }
+
+    /**
+     * Virtual volume specific rule: when in seed, ignore traversing beyond
+     * the vm consumer if there is a pod which is also consuming this volume.
+     * This assumes that a pod will always be connected to both the vm and
+     * the volume.
+     *
+     * @param <E> The type of {@link TopologyGraphEntity} in the graph.
+     */
+    private static class VolumeToPodRule<E extends TopologyGraphEntity<E>>
+            extends DefaultTraversalRule<E> {
+        @Override
+        public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
+            return entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE;
+           }
+
+        @Override
+        protected Stream<E> getFilteredAggregators(@Nonnull E entity,
+                                                   @Nonnull TraversalMode traversalMode) {
+            final Stream<E> consumerPods = super.getFilteredConsumers(entity, traversalMode)
+                    .filter(e -> e.getEntityType()
+                            == EntityType.CONTAINER_POD_VALUE);
+
+            if (consumerPods.count() > 0) {
+                // VMs to be treated as aggregators, to stop traversing further
+                // from them which otherwise will bring in all pod consumers.
+                return Stream.concat(super.getFilteredAggregators(entity, traversalMode),
+                        super.getFilteredConsumers(entity, traversalMode)
+                                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE));
+            }
+            return super.getFilteredAggregators(entity, traversalMode);
         }
     }
 }
