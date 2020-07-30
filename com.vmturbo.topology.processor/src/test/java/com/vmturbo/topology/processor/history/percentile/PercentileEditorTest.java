@@ -255,14 +255,14 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Assert.assertEquals(Arrays.asList(42, 44, 46, 48, 50),
                 percentileEditor.getCacheEntry(VCPU_COMMODITY_REFERENCE)
                         .getUtilizationCountStore()
-                        .checkpoint(Collections.emptySet())
+                        .checkpoint(Collections.emptySet(), true)
                         .build()
                         .getUtilizationList());
         // LATEST(46, 47, 48, 49, 50) + TOTAL(86, 87, 88, 89, 90) = FULL(132, 134, 136, 138, 140)
         Assert.assertEquals(Arrays.asList(132, 134, 136, 138, 140),
                 percentileEditor.getCacheEntry(IMAGE_CPU_COMMODITY_REFERENCE)
                         .getUtilizationCountStore()
-                        .checkpoint(Collections.emptySet())
+                        .checkpoint(Collections.emptySet(), true)
                         .build()
                         .getUtilizationList());
     }
@@ -285,7 +285,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                                       TIMESTAMP_INIT_START_SEP_1_2019,
                                       Arrays.asList(vmUtilizations, buUtilizations), buUtilizations,
                                       vmUtilizations,
-                                      true);
+                                      true, 13, 12);
     }
 
     /**
@@ -305,10 +305,10 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                         * TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
         checkObservationWindowChanged(nextScheduledCheckpointMs + 2000, nextScheduledCheckpointMs,
                                       Arrays.asList(Arrays.asList(112, 119, 126, 133, 140),
-                                        Arrays.asList(153, 156, 159, 162, 165)),
+                                      Arrays.asList(153, 156, 159, 162, 165)),
                                       Arrays.asList(214, 218, 222, 226, 230),
                                       Arrays.asList(148, 156, 164, 172, 180),
-                                      false);
+                                      false, 10, 13);
     }
 
     private void checkObservationWindowChanged(long broadcastTimeAfterWindowChanged,
@@ -316,7 +316,9 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                                                List<List<Integer>> expectedTotalUtilizations,
                                                List<Integer> buUtilizations,
                                                List<Integer> vmUtilizations,
-                                               boolean enforceMaintenanceIsExpected)
+                                               boolean enforceMaintenanceIsExpected,
+                                               int dayPersistenceIdx,
+                                               int totalPersistenceIdx)
                     throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
         final HistoryAggregationContext firstContext =
@@ -373,7 +375,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         final PercentileEditorCacheAccess spiedEditor = Mockito.spy(percentileEditor);
         Mockito.when(spiedEditor.createCacheBackup()).thenReturn(cacheBackup);
         spiedEditor.completeBroadcast(secondContext);
-        checkMaintenance(periodMsForTotalBlob, expectedTotalUtilizations, enforceMaintenanceIsExpected);
+        checkMaintenance(periodMsForTotalBlob, expectedTotalUtilizations,
+            enforceMaintenanceIsExpected, dayPersistenceIdx, totalPersistenceIdx);
         Mockito.verify(cacheBackup, Mockito.times(1)).keepCacheOnClose();
     }
 
@@ -415,18 +418,21 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
 
         // Ensure the capacity it the updated one
         Assert.assertThat(store.getLatestCountsRecord().getCapacity(), Matchers.is(CAPACITY * 2));
-        PercentileRecord.Builder fullRecord = store.checkpoint(Collections.emptyList());
+        PercentileRecord.Builder fullRecord = store.checkpoint(Collections.emptyList(), false);
         Assert.assertThat(fullRecord.getCapacity(), Matchers.is(CAPACITY * 2));
     }
 
     private void checkMaintenance(long periodMsForTotalBlob,
                                   List<List<Integer>> expectedTotalUtilizations,
-                                  boolean enforceMaintenanceIsExpected)
+                                  boolean enforceMaintenanceIsExpected, int dayPersistenceIdx,
+                                  int totalPersistenceIdx)
                     throws HistoryCalculationException, InterruptedException {
+        // Verify total persistence has been called
         final ArgumentCaptor<PercentileCounts> percentileCountsCaptor =
                         ArgumentCaptor.forClass(PercentileCounts.class);
         final ArgumentCaptor<Long> periodCaptor = ArgumentCaptor.forClass(Long.class);
-        Mockito.verify(percentilePersistenceTasks.get(12), Mockito.atLeastOnce())
+
+        Mockito.verify(percentilePersistenceTasks.get(totalPersistenceIdx), Mockito.atLeastOnce())
                 .save(percentileCountsCaptor.capture(), periodCaptor.capture(), Mockito.any());
          final List<PercentileCounts> capturedCounts = percentileCountsCaptor.getAllValues();
         final List<Long> capturedPeriods = periodCaptor.getAllValues();
@@ -445,8 +451,9 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Assert.assertThat(periods.size(), CoreMatchers.is(2));
         Assert.assertThat(periods, Matchers.containsInAnyOrder(NEW_BUSINESS_USER_OBSERVATION_PERIOD,
                         NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD));
-        Mockito.verify(percentilePersistenceTasks.get(13), Mockito.atLeastOnce())
-                        .save(percentileCountsCaptor.capture(), periodCaptor.capture(), Mockito.any());
+
+        Mockito.verify(percentilePersistenceTasks.get(dayPersistenceIdx), Mockito.atLeastOnce())
+            .save(percentileCountsCaptor.capture(), periodCaptor.capture(), Mockito.any());
         checkMaintenance(enforceMaintenanceIsExpected, periodCaptor, capturedCounts.get(1));
     }
 
@@ -473,7 +480,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                     EntityCommodityFieldReference commodityReference, long newObservationPeriod)
                     throws HistoryCalculationException {
         final PercentileRecord percentileRecord = percentileEditor.getCacheEntry(commodityReference)
-                        .getUtilizationCountStore().checkpoint(Collections.emptySet()).build();
+                        .getUtilizationCountStore().checkpoint(Collections.emptySet(), true).build();
         Assert.assertEquals(utilizations, percentileRecord.getUtilizationList());
         Assert.assertEquals(newObservationPeriod, percentileRecord.getPeriod());
     }
@@ -610,19 +617,19 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         percentileEditor.completeBroadcast(context);
 
         // Save current LATEST day percentiles with one write.
-        Mockito.verify(percentilePersistenceTasks.get(3), Mockito.times(1)).save(Mockito.any(),
+        Mockito.verify(percentilePersistenceTasks.get(0), Mockito.times(1)).save(Mockito.any(),
                                                     Mockito.eq((long)(PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours() * Units.HOUR_MS)),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
 
         // We do exactly one TOTAL write to DB when one maintenance windows passed since last checkpoint.
-        Mockito.verify(percentilePersistenceTasks.get(2), Mockito.times(1)).save(Mockito.any(),
+        Mockito.verify(percentilePersistenceTasks.get(3), Mockito.times(1)).save(Mockito.any(),
                                                     Mockito.eq(TIMESTAMP_AUG_29_2019_12_00),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
 
         // We load exactly two times in maintenance because we have two different periods in graph.
-        Mockito.verify(percentilePersistenceTasks.get(0), Mockito.times(1))
-                        .load(Mockito.any(), Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
         Mockito.verify(percentilePersistenceTasks.get(1), Mockito.times(1))
+                        .load(Mockito.any(), Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+        Mockito.verify(percentilePersistenceTasks.get(2), Mockito.times(1))
                         .load(Mockito.any(), Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
     }
 
@@ -645,17 +652,17 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         percentileEditor.completeBroadcast(context);
 
         // Update LATEST day once.
-        Mockito.verify(percentilePersistenceTasks.get(5), Mockito.times(1)).save(Mockito.any(),
+        Mockito.verify(percentilePersistenceTasks.get(0), Mockito.times(1)).save(Mockito.any(),
                                                     Mockito.eq((long)(PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours() * Units.HOUR_MS)),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
 
         // Normally we should do exactly one TOTAL write even if two maintenance windows passed since last checkpoint.
-        Mockito.verify(percentilePersistenceTasks.get(4), Mockito.times(1)).save(Mockito.any(),
+        Mockito.verify(percentilePersistenceTasks.get(5), Mockito.times(1)).save(Mockito.any(),
                                                     Mockito.eq(TIMESTAMP_AUG_30_2019_00_00),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
 
         // Two periods * two maintenance window = exactly four invocations.
-        for (int invocation = 0; invocation < 4; invocation++) {
+        for (int invocation = 1; invocation < 5; invocation++) {
             Mockito.verify(percentilePersistenceTasks.get(invocation), Mockito.times(1))
                             .load(Mockito.any(),
                                             Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
@@ -688,14 +695,14 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Assert.assertEquals(Arrays.asList(43, 46, 49, 52, 55),
                         percentileEditor.getCacheEntry(VCPU_COMMODITY_REFERENCE)
                                         .getUtilizationCountStore()
-                                        .checkpoint(Collections.emptySet())
+                                        .checkpoint(Collections.emptySet(), true)
                                         .build()
                                         .getUtilizationList());
         // LATEST(46, 47, 48, 49, 50) + TOTAL(132, 134, 136, 138, 140) = FULL(178, 181, 184, 187, 190)
         Assert.assertEquals(Arrays.asList(178, 181, 184, 187, 190),
                         percentileEditor.getCacheEntry(IMAGE_CPU_COMMODITY_REFERENCE)
                                         .getUtilizationCountStore()
-                                        .checkpoint(Collections.emptySet())
+                                        .checkpoint(Collections.emptySet(), true)
                                         .build()
                                         .getUtilizationList());
     }

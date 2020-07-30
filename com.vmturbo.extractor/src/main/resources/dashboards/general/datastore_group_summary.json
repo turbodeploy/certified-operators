@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1593625439943,
+  "iteration": 1595538278697,
   "links": [],
   "panels": [
     {
@@ -536,6 +536,23 @@
                 "value": 2
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Datastore"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Go to Datastore Summary for ${__value.text}",
+                    "url": "/d/datastore_summary?var-Datastore=${__value.text}&var-DB=${DB}"
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -631,6 +648,23 @@
               {
                 "id": "unit",
                 "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Datastore"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Go to Datastore Summary for ${__value.text}",
+                    "url": "/d/datastore_summary?var-Datastore=${__value.text}&var-DB=${DB}"
+                  }
+                ]
               }
             ]
           }

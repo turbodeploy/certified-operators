@@ -72,6 +72,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
@@ -592,15 +593,18 @@ public class Stages {
         private final List<ScenarioChange> changes;
         private final SearchResolver<TopologyEntity> searchResolver;
         private final GroupServiceBlockingStub groupServiceClient;
+        private final GroupResolverSearchFilterResolver searchFilterResolver;
 
         public TopologyEditStage(@Nonnull final TopologyEditor topologyEditor,
                                  @Nonnull final SearchResolver<TopologyEntity> searchResolver,
                                  @Nonnull final List<ScenarioChange> scenarioChanges,
-                                 @Nullable final GroupServiceBlockingStub groupServiceClient) {
+                                 @Nullable final GroupServiceBlockingStub groupServiceClient,
+                                 @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver) {
             this.topologyEditor = Objects.requireNonNull(topologyEditor);
             this.changes = Objects.requireNonNull(scenarioChanges);
             this.searchResolver = Objects.requireNonNull(searchResolver);
             this.groupServiceClient = groupServiceClient;
+            this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
         }
 
         @Override
@@ -609,7 +613,8 @@ public class Stages {
             // This is so that pre-edit group membership lookups don't get cached in the "main"
             // group resolver, preventing post-edit group membership lookups from seeing members
             // added or removed during editing.
-            final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
+            final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient,
+                    searchFilterResolver);
             try {
                 topologyEditor.editTopology(input, changes, getContext().getTopologyInfo(), groupResolver);
             } catch (GroupResolutionException e) {
@@ -1439,15 +1444,18 @@ public class Stages {
         private final SearchResolver<TopologyEntity> searchResolver;
         private final GroupServiceBlockingStub groupServiceClient;
         private final List<ScenarioChange> changes;
+        private final GroupResolverSearchFilterResolver searchFilterResolver;
 
         public OverrideWorkLoadDemandStage(@Nonnull final DemandOverriddenCommodityEditor demandOverriddenCommodityEditor,
                                            @Nonnull final SearchResolver<TopologyEntity> searchResolver,
                                            @Nonnull final GroupServiceBlockingStub groupServiceClient,
-                                           @Nonnull final List<ScenarioChange> changes) {
+                                           @Nonnull final List<ScenarioChange> changes,
+                                           @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver) {
             this.demandOverriddenCommodityEditor = Objects.requireNonNull(demandOverriddenCommodityEditor);
             this.searchResolver = searchResolver;
             this.groupServiceClient = groupServiceClient;
             this.changes = Objects.requireNonNull(changes);
+            this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
         }
 
         @Override
@@ -1456,7 +1464,8 @@ public class Stages {
             if (!topoInfo.hasPlanInfo()) { // skip non plan cases
                 return Status.success();
             }
-            final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
+            final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient,
+                    searchFilterResolver);
             try {
                 demandOverriddenCommodityEditor.applyDemandUsageChange(graph, groupResolver, changes);
             } catch (GroupResolutionException e) {
@@ -1476,17 +1485,20 @@ public class Stages {
         private final SearchResolver<TopologyEntity> searchResolver;
         private final GroupServiceBlockingStub groupServiceClient;
         private final List<ScenarioChange> changes;
+        private final GroupResolverSearchFilterResolver searchFilterResolver;
 
         public PlanScopingStage(@Nonnull final PlanTopologyScopeEditor topologyScopeEditor,
                                 @Nullable final PlanScope planScope,
                                 @Nonnull final SearchResolver<TopologyEntity> searchResolver,
                                 @Nonnull final List<ScenarioChange> changes,
-                                @Nullable final GroupServiceBlockingStub groupServiceClient) {
+                                @Nullable final GroupServiceBlockingStub groupServiceClient,
+                                @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver) {
             this.planScope = planScope;
             this.planTopologyScopeEditor = Objects.requireNonNull(topologyScopeEditor);
             this.searchResolver = Objects.requireNonNull(searchResolver);
             this.groupServiceClient = groupServiceClient;
             this.changes = changes;
+            this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
         }
 
         @Override
@@ -1501,7 +1513,8 @@ public class Stages {
                 throw new PipelineStageException("Plan with topology context id " +
                         topologyInfo.getTopologyContextId() + " has no planInfo object");
             }
-            final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
+            final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient,
+                    searchFilterResolver);
             if (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN)
                             && !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN)) {
                 // populate InvertedIndex

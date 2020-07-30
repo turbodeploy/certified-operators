@@ -22,6 +22,7 @@ import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
@@ -151,6 +152,8 @@ public class LivePipelineFactory {
 
     private final ReservationServiceBlockingStub reservationService;
 
+    private final GroupResolverSearchFilterResolver searchFilterResolver;
+
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                @Nonnull final PolicyManager policyManager,
                                @Nonnull final StitchingManager stitchingManager,
@@ -182,7 +185,8 @@ public class LivePipelineFactory {
                                @Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader,
                                @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector,
                                @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
-                               @Nonnull final ReservationServiceBlockingStub reservationService) {
+                               @Nonnull final ReservationServiceBlockingStub reservationService,
+                               @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -215,6 +219,7 @@ public class LivePipelineFactory {
         this.actionMergeSpecsUploader = actionMergeSpecsUploader;
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
         this.reservationService = Objects.requireNonNull(reservationService);
+        this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
     }
 
     /**
@@ -239,8 +244,8 @@ public class LivePipelineFactory {
             @Nonnull final List<TopoBroadcastManager> additionalBroadcastManagers,
             @Nonnull final StitchingJournalFactory journalFactory) {
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient),
-                    topologyInfo, consistentScalingManager);
+                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient,
+                        searchFilterResolver), topologyInfo, consistentScalingManager);
         final List<TopoBroadcastManager> managers = new ArrayList<>(additionalBroadcastManagers.size() + 1);
         managers.add(topoBroadcastManager);
         managers.addAll(additionalBroadcastManagers);
