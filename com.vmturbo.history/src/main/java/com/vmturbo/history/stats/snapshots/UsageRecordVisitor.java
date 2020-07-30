@@ -45,24 +45,23 @@ public class UsageRecordVisitor extends AbstractVisitor<Record, UsageState> {
 
     @Override
     public void visit(@Nonnull Record record) {
-        final Float avgValue = getFloatValue(record, StringConstants.AVG_VALUE);
-        final Float minValue = getFloatValue(record, StringConstants.MIN_VALUE);
-        final Float maxValue = getFloatValue(record, StringConstants.MAX_VALUE);
+        final float avgValue = getFloatValue(record, StringConstants.AVG_VALUE, 0);
+        final float minValue = getFloatValue(record, StringConstants.MIN_VALUE, avgValue);
+        final float maxValue = getFloatValue(record, StringConstants.MAX_VALUE, avgValue);
         final String propertySubTypeValue =
                         RecordVisitor.getFieldValue(record, StringConstants.PROPERTY_SUBTYPE,
                                         String.class);
-        final UsageState state = ensureState(() -> new UsageState(propertySubTypeValue, avgValue != null,
-                minValue != null, maxValue != null), record);
-
-        final float avgFloat = avgValue == null ? 0 : avgValue;
-        final float minFloat = minValue == null ? avgFloat : minValue;
-        final float maxFloat = maxValue == null ? avgFloat : maxValue;
-
-        state.record(minFloat, avgFloat, maxFloat);
+        final UsageState state = ensureState(() -> new UsageState(propertySubTypeValue), record);
+        state.record(minValue, avgValue, maxValue);
     }
 
-    private static Float getFloatValue(@Nonnull Record record, String fieldName) {
-        return RecordVisitor.getFieldValue(record, fieldName, Float.class);
+    private static Float getFloatValue(@Nonnull Record record, String fieldName,
+                    float defaultValue) {
+        final Float rawValue = RecordVisitor.getFieldValue(record, fieldName, Float.class);
+        if (rawValue == null) {
+            return defaultValue;
+        }
+        return rawValue;
     }
 
     @Override
@@ -131,15 +130,9 @@ public class UsageRecordVisitor extends AbstractVisitor<Record, UsageState> {
     public static class UsageState {
         private final StatsAccumulator usageAccumulator = new StatsAccumulator();
         private String propertySubType;
-        private boolean hasAvg = true;
-        private boolean hasMin = true;
-        private boolean hasMax = true;
 
-        private UsageState(String propertySubType, boolean hasAvg, boolean hasMin, boolean hasMax) {
+        private UsageState(String propertySubType) {
             this.propertySubType = propertySubType;
-            this.hasAvg = hasAvg;
-            this.hasMin = hasMin;
-            this.hasMax = hasMax;
         }
 
         private String getPropertySubType() {
@@ -153,28 +146,12 @@ public class UsageRecordVisitor extends AbstractVisitor<Record, UsageState> {
 
         @Nonnull
         private StatValue toStatValue() {
-            StatValue.Builder valueBuilder = StatValue.newBuilder();
-            if (hasAvg) {
-                valueBuilder.setAvg((float)usageAccumulator.getAvg());
-                valueBuilder.setTotal((float)usageAccumulator.getTotal());
-            }
-            if (hasMin) {
-                valueBuilder.setMin((float)usageAccumulator.getMin());
-                valueBuilder.setTotalMin((float)usageAccumulator.getTotalMin());
-            }
-            if (hasMax) {
-                valueBuilder.setMax((float)usageAccumulator.getMax());
-                valueBuilder.setTotalMax((float)usageAccumulator.getTotalMax());
-            }
-            return valueBuilder.build();
+            return usageAccumulator.toStatValue();
         }
 
         private void clear() {
             usageAccumulator.clear();
             propertySubType = null;
-            hasAvg = true;
-            hasMin = true;
-            hasMax = true;
         }
 
     }
