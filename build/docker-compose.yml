@@ -44,6 +44,7 @@ volumes:
   nginx-run: *localdriver
   nginx-home: *localdriver
   timescale-data: *localdriver
+  grafana-data: *localdriver
 
 services:
   rsyslog:
@@ -631,9 +632,19 @@ services:
   # Purely in-memory store.
   # Currently only used for integration type testing.
   grafana:
-    image: grafana/grafana:7.0.1
+    extends:
+      file: common-services.yml
+      service: common-service
+    image: turbonomic/grafana:${XL_VERSION}
     ports:
       - 3000:3000
+    depends_on:
+      - rsyslog
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      component_type: grafana
+      instance_id: grafana-1
 
   integration-intersight:
     extends:

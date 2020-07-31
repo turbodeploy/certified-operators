@@ -469,6 +469,13 @@
         </profile>
 
         <profile>
+            <id>grafana</id>
+            <modules>
+                <module>../grafana</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>component-tests</id>
             <modules>
                 <module>../com.vmturbo.components.test.utilities</module>
@@ -1091,6 +1098,7 @@
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
+                <module>../grafana</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.licensing</module>
@@ -1256,6 +1264,7 @@
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
+                <module>../grafana</module>
                 <module>../diags</module>
             </modules>
         </profile>
