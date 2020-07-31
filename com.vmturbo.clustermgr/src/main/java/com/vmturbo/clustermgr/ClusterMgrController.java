@@ -16,6 +16,7 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +32,7 @@ import org.springframework.web.client.HttpServerErrorException;
 import com.vmturbo.clustermgr.api.ClusterConfiguration;
 import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.clustermgr.api.HttpProxyConfig;
+import com.vmturbo.components.common.health.CompositeHealthMonitor;
 
 /**
  * REST endpoint for ClusterMgr, exposing APIs for component status, component configuration.
@@ -67,6 +69,9 @@ import com.vmturbo.clustermgr.api.HttpProxyConfig;
         produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
 
 public class ClusterMgrController {
+
+    @Autowired
+    private CompositeHealthMonitor healthMonitor;
 
     // see HttpResponse.TOO_MANY_REQUESTS
     private static final int HTTP_RESPONSE_TOO_MANY_REQUESTS = 429;
@@ -493,21 +498,19 @@ public class ClusterMgrController {
     }
 
     /**
-     * Health-check API used by Consul to determine whether a component is alive.
-     * Don't declare we are "healthy" until the ClusterKvStore has been initialized
-     * indicating that we are open for business.
+     * Health-check API used by Consul/K8s to determine whether a component is alive. Currently
+     * check connection to ClusterKvStore and DB.
      *
-     * @return OK/"true" if we are ready, or SERVICE_UNAVAILABLE/"false" if not ready.
+     * @return health status.
      */
     @ApiOperation("Health-check API used by Consul to determine whether a component is alive.")
-    @RequestMapping(path = "/health",
-            method = RequestMethod.GET)
+    @RequestMapping(path = "/health", method = RequestMethod.GET)
     @ResponseBody
     @SuppressWarnings("unused")
-    public ResponseEntity<String> getHealth() {
-        return clusterMgrService.isClusterKvStoreInitialized() ?
-                ResponseEntity.ok("true") :
-                ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("false");
+    public ResponseEntity<CompositeHealthMonitor.CompositeHealthStatus> getHealth() {
+        final CompositeHealthMonitor.CompositeHealthStatus status = healthMonitor.getHealthStatus();
+        return clusterMgrService.isClusterKvStoreInitialized() && status.isHealthy()
+                ? ResponseEntity.ok(status) : ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(status);
     }
 
 
