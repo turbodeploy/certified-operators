@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.search;
+package com.vmturbo.extractor.patchers;
 
 import static com.vmturbo.extractor.models.ModelDefinitions.SEVERITY_ENUM;
 
@@ -12,6 +12,7 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
 import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
@@ -26,15 +27,15 @@ public class GroupPrimitiveFieldsNotOnGroupingPatcher implements EntityRecordPat
     public void patch(PartialRecordInfo recordInfo, DataProvider dataProvider) {
         // find metadata for primitive fields NOT on Grouping
         final List<SearchMetadataMapping> metadataList =
-                SearchMetadataUtils.getMetadata(recordInfo.groupType, FieldType.PRIMITIVE).stream()
+                SearchMetadataUtils.getMetadata(recordInfo.getGroupType(), FieldType.PRIMITIVE).stream()
                         .filter(m -> m.getGroupFieldFunction() == null)
                         .collect(Collectors.toList());
 
         metadataList.forEach(metadata -> {
             switch (metadata) {
                 case PRIMITIVE_SEVERITY:
-                    recordInfo.record.set(SEVERITY_ENUM,
-                            dataProvider.getSeverity(recordInfo.oid));
+                    recordInfo.getRecord().set(SEVERITY_ENUM,
+                            dataProvider.getSeverity(recordInfo.getOid()));
                     break;
                 default:
                     logger.error("Unsupported group primitive metadata: {}", metadata);

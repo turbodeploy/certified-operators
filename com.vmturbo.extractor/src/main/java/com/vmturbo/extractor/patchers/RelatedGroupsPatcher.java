@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.search;
+package com.vmturbo.extractor.patchers;
 
 import java.util.Collections;
 import java.util.List;
@@ -11,8 +11,11 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.extractor.search.EnumUtils.GroupTypeUtils;
+import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
 import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -36,19 +39,19 @@ public class RelatedGroupsPatcher implements EntityRecordPatcher<DataProvider> {
     @Override
     public void patch(PartialRecordInfo recordInfo, DataProvider dataProvider) {
         final List<SearchMetadataMapping> metadataMappings = SearchMetadataUtils.getMetadata(
-                recordInfo.entityType, FieldType.RELATED_GROUP);
+                recordInfo.getEntityType(), FieldType.RELATED_GROUP);
 
         metadataMappings.forEach(metadata -> {
-            final GroupType relatedGroupType = EnumUtils.groupTypeFromApiToProto(
+            final GroupType relatedGroupType = GroupTypeUtils.apiToProto(
                     metadata.getRelatedGroupType());
-            final EntityType relatedEntityType = EnumUtils.entityTypeFromApiToProto(
+            final EntityType relatedEntityType = SearchEntityTypeUtils.apiToProto(
                     metadata.getMemberType());
             // if related entity type is same as current entity type, no need to get related entity
             // like: find cluster of a host, we don't need to find related hosts of the host before
             // finding groups which contain it
-            Set<Long> relatedEntities = recordInfo.entityType == relatedEntityType.getNumber()
-                    ? Collections.singleton(recordInfo.oid)
-                    : dataProvider.getRelatedEntitiesOfType(recordInfo.oid, relatedEntityType);
+            Set<Long> relatedEntities = recordInfo.getEntityType() == relatedEntityType.getNumber()
+                    ? Collections.singleton(recordInfo.getOid())
+                    : dataProvider.getRelatedEntitiesOfType(recordInfo.getOid(), relatedEntityType);
             Stream<Grouping> relatedGroups = relatedEntities.stream()
                     .map(dataProvider::getGroupsForEntity)
                     .flatMap(List::stream)
@@ -57,10 +60,10 @@ public class RelatedGroupsPatcher implements EntityRecordPatcher<DataProvider> {
 
             switch (metadata.getRelatedGroupProperty()) {
                 case COUNT:
-                    recordInfo.attrs.put(metadata.getJsonKeyName(), relatedGroups.count());
+                    recordInfo.putAttrs(metadata.getJsonKeyName(), relatedGroups.count());
                     break;
                 case NAMES:
-                    recordInfo.attrs.put(metadata.getJsonKeyName(),
+                    recordInfo.putAttrs(metadata.getJsonKeyName(),
                             relatedGroups.map(g -> g.getDefinition().getDisplayName())
                                     .collect(Collectors.toList()));
                     break;

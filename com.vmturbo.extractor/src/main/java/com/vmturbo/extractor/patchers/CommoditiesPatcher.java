@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.search;
+package com.vmturbo.extractor.patchers;
 
 import java.util.List;
 import java.util.Map;
@@ -12,8 +12,10 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
 import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
 /**
@@ -27,23 +29,23 @@ public class CommoditiesPatcher implements EntityRecordPatcher<TopologyEntityDTO
     public void patch(PartialRecordInfo recordInfo, TopologyEntityDTO entity) {
         // find all commodities and commodity attributes defined in metadata and set on jsonb
         final List<SearchMetadataMapping> commodityMetadata =
-                SearchMetadataUtils.getMetadata(recordInfo.entityType, FieldType.COMMODITY);
+                SearchMetadataUtils.getMetadata(recordInfo.getEntityType(), FieldType.COMMODITY);
         if (commodityMetadata.isEmpty()) {
             // nothing to add
             return;
         }
 
         final Set<Integer> commodityTypes = commodityMetadata.stream()
-                .map(m -> EnumUtils.commodityTypeFromApiToProtoInt(m.getCommodityType()))
+                .map(m -> CommodityTypeUtils.apiToProto(m.getCommodityType()).getNumber())
                 .collect(Collectors.toSet());
         // prepare sold commodity map first
         Map<Integer, List<CommoditySoldDTO>> csByType = entity.getCommoditySoldListList().stream()
                 .filter(cs -> commodityTypes.contains(cs.getCommodityType().getType()))
                 .collect(Collectors.groupingBy(cs -> cs.getCommodityType().getType()));
 
-        final Map<String, Object> attrs = recordInfo.attrs;
+        final Map<String, Object> attrs = recordInfo.getAttrs();
         commodityMetadata.forEach(metadata -> {
-            int commodityType = EnumUtils.commodityTypeFromApiToProtoInt(metadata.getCommodityType());
+            int commodityType = CommodityTypeUtils.apiToProto(metadata.getCommodityType()).getNumber();
             List<CommoditySoldDTO> commoditySoldDTOs = csByType.get(commodityType);
             if (commoditySoldDTOs != null) {
                 final String jsonKey = metadata.getJsonKeyName();

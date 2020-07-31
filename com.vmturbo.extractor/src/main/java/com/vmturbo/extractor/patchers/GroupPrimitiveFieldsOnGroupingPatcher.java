@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.search;
+package com.vmturbo.extractor.patchers;
 
 import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_TABLE;
 
@@ -13,8 +13,10 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.search.EnumUtils.GroupTypeUtils;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
 import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
@@ -37,7 +39,7 @@ public class GroupPrimitiveFieldsOnGroupingPatcher implements EntityRecordPatche
             Optional<Object> fieldValue = metadata.getGroupFieldFunction().apply(group);
             if (metadata.getJsonKeyName() != null) {
                 // jsonb column, add to json map
-                fieldValue.ifPresent(value -> recordInfo.attrs.put(metadata.getJsonKeyName(), value));
+                fieldValue.ifPresent(value -> recordInfo.putAttrs(metadata.getJsonKeyName(), value));
             } else {
                 // normal columns
                 Column<?> column = SEARCH_ENTITY_TABLE.getColumn(metadata.getColumnName());
@@ -51,12 +53,12 @@ public class GroupPrimitiveFieldsOnGroupingPatcher implements EntityRecordPatche
                     switch (column.getColType()) {
                         case ENTITY_TYPE:
                             // convert to database enum
-                            recordInfo.record.set((Column<EntityType>)column,
-                                    EnumUtils.groupTypeFromProtoToDb((GroupDTO.GroupType)value));
+                            recordInfo.getRecord().set((Column<EntityType>)column,
+                                    GroupTypeUtils.protoToDb((GroupDTO.GroupType)value));
                             break;
                         default:
                             // for other fields like oid, name, origin.
-                            recordInfo.record.set((Column<Object>)column, value);
+                            recordInfo.getRecord().set((Column<Object>)column, value);
                     }
                 }
             }

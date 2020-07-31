@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.search;
+package com.vmturbo.extractor.patchers;
 
 import java.util.List;
 import java.util.Map;
@@ -13,8 +13,11 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.dto.searchquery.AggregateCommodityFieldApiDTO.Aggregation;
 import com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.CommodityAttribute;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
+import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
+import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
 import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
@@ -29,17 +32,18 @@ public class GroupAggregatedCommoditiesPatcher implements EntityRecordPatcher<Da
     @Override
     public void patch(PartialRecordInfo recordInfo, DataProvider dataProvider) {
         final List<SearchMetadataMapping> metadataList = SearchMetadataUtils.getMetadata(
-                recordInfo.groupType, FieldType.AGGREGATE_COMMODITY);
-        final long groupId = recordInfo.oid;
-        final Map<String, Object> attrs = recordInfo.attrs;
+                recordInfo.getGroupType(), FieldType.AGGREGATE_COMMODITY);
+        final long groupId = recordInfo.getOid();
+        final Map<String, Object> attrs = recordInfo.getAttrs();
 
         metadataList.forEach(metadata -> {
             final String jsonKey = metadata.getJsonKeyName();
-            final int commodityType = EnumUtils.commodityTypeFromApiToProtoInt(metadata.getCommodityType());
+            final int commodityType = CommodityTypeUtils.apiToProto(metadata.getCommodityType())
+                    .getNumber();
             final CommodityAttribute commodityAttribute = metadata.getCommodityAttribute();
             final Aggregation commodityAggregation = metadata.getCommodityAggregation();
             Stream<Long> entityIdStream = dataProvider.getGroupLeafEntitiesOfType(groupId,
-                    EnumUtils.entityTypeFromApiToProto(metadata.getMemberType()));
+                    SearchEntityTypeUtils.apiToProto(metadata.getMemberType()));
 
             switch (commodityAttribute) {
                 case USED:
@@ -62,6 +66,15 @@ public class GroupAggregatedCommoditiesPatcher implements EntityRecordPatcher<Da
         });
     }
 
+    /**
+     * Get aggregated used values for given commodity over given entities.
+     *
+     * @param entities      entities to aggregate over
+     * @param commodityType the type of commodity
+     * @param aggregation how to aggregate the commodity across the group
+     * @param dataProvider a provider of topology-wide data
+     * @return a double representing the aggregated used value, or empty
+     */
     public OptionalDouble getUsed(Stream<Long> entities, int commodityType,
             Aggregation aggregation, DataProvider dataProvider) {
         DoubleStream doubleStream = entities
@@ -79,6 +92,15 @@ public class GroupAggregatedCommoditiesPatcher implements EntityRecordPatcher<Da
         }
     }
 
+    /**
+     * Get aggregated capacity values for given commodity over given entities.
+     *
+     * @param entities      entities to aggregate over
+     * @param commodityType the type of commodity
+     * @param aggregation how to aggregate the commodity across the group
+     * @param dataProvider a provider of topology-wide data
+     * @return a double representing the aggregated capacity value, or empty
+     */
     public OptionalDouble getCapacity(Stream<Long> entities, int commodityType,
             Aggregation aggregation, DataProvider dataProvider) {
         DoubleStream doubleStream = entities

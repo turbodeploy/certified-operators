@@ -15,6 +15,11 @@ import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
+import com.vmturbo.extractor.search.EnumUtils.EntityStateUtils;
+import com.vmturbo.extractor.search.EnumUtils.EnvironmentTypeUtils;
+import com.vmturbo.extractor.search.EnumUtils.GroupTypeUtils;
+import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.search.metadata.SearchEntityMetadata;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
@@ -24,44 +29,60 @@ import com.vmturbo.search.metadata.SearchMetadataMapping;
  */
 public class EnumUtilsTest {
 
+    /** Support for tests that should throw. */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    /**
+     * Test that we can convert protobuf group types to DB group types.
+     */
     @Test
     public void testProtoGroupTypeToDbType() {
         for (GroupType groupType : GroupType.values()) {
-            assertThat(EnumUtils.groupTypeFromProtoToDb(groupType), is(notNullValue()));
+            assertThat(GroupTypeUtils.protoToDb(groupType), is(notNullValue()));
         }
     }
 
+    /**
+     * Test that we can convert Protobuf entity types to DB entity types.
+     */
     @Test
     public void testProtoIntEntityTypeToDbType() {
         // verify that all entity types which we have metadata for are defined in the db entity types enum
         for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
-            int protoEntityType = EnumUtils.entityTypeFromApiToProto(
+            int protoEntityType = SearchEntityTypeUtils.apiToProto(
                     searchEntityMetadata.getEntityType()).getNumber();
-            assertThat(EnumUtils.entityTypeFromProtoIntToDb(protoEntityType), is(notNullValue()));
+            assertThat(SearchEntityTypeUtils.protoIntToDb(protoEntityType), is(notNullValue()));
         }
     }
 
+    /**
+     * Test that we can convert Protobuf entity states to DB entity states.
+     */
     @Test
     public void testProtoEntityStateToDbState() {
         for (EntityState entityState : EntityState.values()) {
-            assertThat(EnumUtils.entityStateFromProtoToDb(entityState), is(notNullValue()));
+            assertThat(EntityStateUtils.protoToDb(entityState), is(notNullValue()));
         }
     }
 
+    /**
+     * Test that we can convert Protobuf environment types to DB environment types.
+     */
     @Test
     public void testProtoEnvironmentTypeToDbType() {
         for (EnvironmentType environmentType : EnvironmentType.values()) {
-            assertThat(EnumUtils.environmentTypeFromProtoToDb(environmentType), is(notNullValue()));
+            assertThat(EnvironmentTypeUtils.protoToDb(environmentType), is(notNullValue()));
         }
     }
 
+    /**
+     * Test that we can convert API commodity types to Protobuf commodity types.
+     */
     @Test
-    public void testApiCommodityTypeToProtoInt() {
+    public void testApiCommodityTypeToProto() {
         for (CommodityType commodityType : CommodityType.values()) {
-            assertThat(EnumUtils.commodityTypeFromApiToProtoInt(commodityType), is(notNullValue()));
+            assertThat(CommodityTypeUtils.apiToProto(commodityType).getNumber(), is(notNullValue()));
         }
         // verify all commodities defined in metadata have correct mapping
         Arrays.stream(SearchEntityMetadata.values())
@@ -70,13 +91,17 @@ public class EnumUtilsTest {
                 .filter(m -> m.getCommodityType() != null)
                 .map(SearchMetadataMapping::getCommodityType)
                 .forEach(apiCommodityType ->
-                        assertThat(EnumUtils.commodityTypeFromApiToProtoInt(apiCommodityType), is(notNullValue())));
+                        assertThat(CommodityTypeUtils.apiToProto(apiCommodityType).getNumber(),
+                                is(notNullValue())));
     }
 
+    /**
+     * Test that we can convert API group types to Protobuf group types.
+     */
     @Test
     public void testApiGroupTypeToProtoType() {
         for (com.vmturbo.api.enums.GroupType groupType : com.vmturbo.api.enums.GroupType.values()) {
-            assertThat(EnumUtils.groupTypeFromApiToProto(groupType), is(notNullValue()));
+            assertThat(GroupTypeUtils.apiToProto(groupType), is(notNullValue()));
         }
         // verify all grouptype defined in metadata have correct mapping
         Arrays.stream(SearchEntityMetadata.values())
@@ -85,7 +110,7 @@ public class EnumUtilsTest {
                 .filter(m -> m.getRelatedGroupType() != null)
                 .map(SearchMetadataMapping::getRelatedGroupType)
                 .forEach(groupType ->
-                        assertThat(EnumUtils.groupTypeFromApiToProto(groupType), is(notNullValue())));
+                        assertThat(GroupTypeUtils.apiToProto(groupType), is(notNullValue())));
     }
 
     /**
@@ -116,6 +141,6 @@ public class EnumUtilsTest {
      * @param apiEntityType api entity type
      */
     private void verifyApiEntityTypeToProto(EntityType apiEntityType) {
-        assertThat(EnumUtils.entityTypeFromApiToProto(apiEntityType), is(notNullValue()));
+        assertThat(SearchEntityTypeUtils.apiToProto(apiEntityType), is(notNullValue()));
     }
 }

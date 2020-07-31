@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.search;
+package com.vmturbo.extractor.patchers;
 
 import java.util.List;
 import java.util.Map;
@@ -8,8 +8,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.api.dto.searchquery.MemberFieldApiDTO.Property;
+import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
 import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
+import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
 
@@ -24,10 +26,10 @@ public class GroupMemberFieldPatcher implements EntityRecordPatcher<DataProvider
     public void patch(PartialRecordInfo recordInfo, DataProvider dataProvider) {
         // find metadata for member fields
         final List<SearchMetadataMapping> metadataList =
-                SearchMetadataUtils.getMetadata(recordInfo.groupType, FieldType.MEMBER);
+                SearchMetadataUtils.getMetadata(recordInfo.getGroupType(), FieldType.MEMBER);
 
-        final Map<String, Object> attrs = recordInfo.attrs;
-        final long groupId = recordInfo.oid;
+        final Map<String, Object> attrs = recordInfo.getAttrs();
+        final long groupId = recordInfo.getOid();
 
         metadataList.forEach(metadata -> {
             // only member count is handled now
@@ -51,7 +53,7 @@ public class GroupMemberFieldPatcher implements EntityRecordPatcher<DataProvider
             } else {
                 // direct members of specific type (not used for now)
                 attrs.put(jsonKey, dataProvider.getGroupDirectMembersCount(groupId,
-                        EnumUtils.entityTypeFromApiToProto(metadata.getMemberType())));
+                        SearchEntityTypeUtils.apiToProto(metadata.getMemberType())));
             }
         } else {
             // indirect members count
@@ -61,7 +63,7 @@ public class GroupMemberFieldPatcher implements EntityRecordPatcher<DataProvider
             } else {
                 // indirect members of specific type
                 attrs.put(jsonKey, dataProvider.getGroupIndirectMembersCount(groupId,
-                        EnumUtils.entityTypeFromApiToProto(metadata.getMemberType())));
+                        SearchEntityTypeUtils.apiToProto(metadata.getMemberType())));
             }
         }
     }

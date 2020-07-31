@@ -3,10 +3,10 @@ package com.vmturbo.extractor.topology;
 import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH_AS_HASH;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_STATE;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_STATE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TABLE;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_AS_TYPE;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENVIRONMENT_TYPE;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENVIRONMENT_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.FIRST_SEEN;
 import static com.vmturbo.extractor.models.ModelDefinitions.LAST_SEEN;
 import static com.vmturbo.extractor.models.ModelDefinitions.SCOPED_OIDS;
@@ -56,9 +56,9 @@ public class EntityHashManagerTest {
         entityHashManager = new EntityHashManager(config);
         baseEntity = new Record(ENTITY_TABLE);
         baseEntity.set(ENTITY_OID_AS_OID, 1L);
-        baseEntity.set(ENTITY_TYPE_AS_TYPE, EntityType.VIRTUAL_MACHINE);
-        baseEntity.set(ENVIRONMENT_TYPE, EnvironmentType.ON_PREM);
-        baseEntity.set(ENTITY_STATE, EntityState.POWERED_ON);
+        baseEntity.set(ENTITY_TYPE_ENUM, EntityType.VIRTUAL_MACHINE);
+        baseEntity.set(ENVIRONMENT_TYPE_ENUM, EnvironmentType.ON_PREM);
+        baseEntity.set(ENTITY_STATE_ENUM, EntityState.POWERED_ON);
         baseEntity.set(ATTRS, new JsonString("{}"));
         baseEntity.set(SCOPED_OIDS, new Long[]{});
         this.sink = mock(DslRecordSink.class);
@@ -100,7 +100,7 @@ public class EntityHashManagerTest {
         Long hash2;
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
              TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
-            baseEntity.set(ENTITY_TYPE_AS_TYPE, EntityType.PHYSICAL_MACHINE);
+            baseEntity.set(ENTITY_TYPE_ENUM, EntityType.PHYSICAL_MACHINE);
             assertThat(snapshotManager.updateRecordHash(baseEntity), notNullValue());
             snapshotManager.processChanges(entitiesWriter);
             hash2 = entityHashManager.getEntityHash(oid);
@@ -110,13 +110,13 @@ public class EntityHashManagerTest {
             assertThat(hash2, not(hash1));
             assertThat(entityHashManager.getHashLastSeen(hash1), nullValue());
             // undo change
-            baseEntity.set(ENTITY_TYPE_AS_TYPE, EntityType.VIRTUAL_MACHINE);
+            baseEntity.set(ENTITY_TYPE_ENUM, EntityType.VIRTUAL_MACHINE);
         }
         // change environment... similar checks as above
         Long hash3;
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
              TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
-            baseEntity.set(ENVIRONMENT_TYPE, EnvironmentType.CLOUD);
+            baseEntity.set(ENVIRONMENT_TYPE_ENUM, EnvironmentType.CLOUD);
             assertThat(snapshotManager.updateRecordHash(baseEntity), notNullValue());
             hash3 = entityHashManager.getEntityHash(oid);
             snapshotManager.processChanges(entitiesWriter);
@@ -125,14 +125,14 @@ public class EntityHashManagerTest {
             assertThat(hash3, not(hash1));
             assertThat(hash3, not(hash2));
             assertThat(entityHashManager.getHashLastSeen(hash2), nullValue());
-            baseEntity.set(ENVIRONMENT_TYPE, EnvironmentType.ON_PREM);
+            baseEntity.set(ENVIRONMENT_TYPE_ENUM, EnvironmentType.ON_PREM);
         }
 
         // same deal, change entity state
         Long hash4;
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
              TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
-            baseEntity.set(ENTITY_STATE, EntityState.MAINTENANCE);
+            baseEntity.set(ENTITY_STATE_ENUM, EntityState.MAINTENANCE);
             assertThat(snapshotManager.updateRecordHash(baseEntity), notNullValue());
             hash4 = entityHashManager.getEntityHash(oid);
             snapshotManager.processChanges(entitiesWriter);
@@ -141,7 +141,7 @@ public class EntityHashManagerTest {
             assertThat(hash4, not(hash1));
             assertThat(hash4, not(hash3));
             assertThat(entityHashManager.getHashLastSeen(hash3), nullValue());
-            baseEntity.set(ENTITY_STATE, EntityState.POWERED_ON);
+            baseEntity.set(ENTITY_STATE_ENUM, EntityState.POWERED_ON);
         }
 
         // change attrs
