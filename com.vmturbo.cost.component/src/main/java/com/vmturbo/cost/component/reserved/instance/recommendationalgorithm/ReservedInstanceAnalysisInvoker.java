@@ -86,6 +86,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
 
     private static List<String> riSettingNames = new ArrayList<>();
 
+    private static boolean enableRIBuyAfterPricingChange;
+
     /**
      * List of Business Accounts with associated pricing information.
      */
@@ -109,7 +111,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                                            @Nonnull ReservedInstanceBoughtStore riBoughtStore,
                                            @Nonnull BusinessAccountPriceTableKeyStore prTabKeyStore,
                                            @Nonnull PriceTableStore prTabStore,
-                                           long realtimeTopologyContextId) {
+                                           long realtimeTopologyContextId,
+                                            @Nonnull boolean enableRIBuyAfterPricingChange) {
         this.reservedInstanceAnalyzer = reservedInstanceAnalyzer;
         this.repositoryClient = repositoryClient;
         this.settingsServiceClient = settingsServiceClient;
@@ -120,6 +123,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         this.riBoughtStore.getUpdateEventStream()
                 .filter(event -> event == ReservedInstanceBoughtChangeType.UPDATED)
                 .subscribe(this::onRIInventoryUpdated);
+        this.enableRIBuyAfterPricingChange = enableRIBuyAfterPricingChange;
     }
 
     /**
@@ -136,7 +140,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         // We don't want to run Buy RI twice (once for reason A, another for reason B).
         boolean hasRIBuyRun = false;
         hasRIBuyRun = invokeRIBuyIfBusinessAccountsUpdated(allBusinessAccounts);
-        if (!hasRIBuyRun) {
+        if (!hasRIBuyRun && enableRIBuyAfterPricingChange) {
             hasRIBuyRun = invokeRIBuyIfPriceTablesChanged(allBusinessAccounts);
         }
         if (!hasRIBuyRun && isRunBuyRIOnNextBroadcast()) {

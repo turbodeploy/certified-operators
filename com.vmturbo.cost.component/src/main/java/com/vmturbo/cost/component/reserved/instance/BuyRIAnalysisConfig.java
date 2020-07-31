@@ -46,6 +46,9 @@ public class BuyRIAnalysisConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    @Value("${enableRIBuyAfterPricingChange: true}")
+    private boolean enableRIBuyAfterPricingChange;
+
     @Autowired
     private CostDBConfig databaseConfig;
 
@@ -170,7 +173,8 @@ public class BuyRIAnalysisConfig {
                 repositoryServiceClient(), settingServiceClient(),
                 reservedInstanceAnalysisConfig.reservedInstanceBoughtStore(),
                 pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),
-                realtimeTopologyContextId);
+                realtimeTopologyContextId,
+                enableRIBuyAfterPricingChange);
         groupClientConfig.settingsClient().addSettingsListener(reservedInstanceAnalysisInvoker);
         return reservedInstanceAnalysisInvoker;
     }

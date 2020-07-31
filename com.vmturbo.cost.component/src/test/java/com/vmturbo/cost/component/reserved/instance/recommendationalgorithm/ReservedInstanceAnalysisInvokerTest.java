@@ -175,7 +175,7 @@ public class ReservedInstanceAnalysisInvokerTest {
                 riBoughtStore,
                 store,
                 prTabStore,
-                1);
+                1, true);
 
         return invoker;
     }
