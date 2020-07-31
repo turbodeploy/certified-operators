@@ -89,13 +89,13 @@ public enum EntitySettingSpecs {
      * Resize Up Heap automation mode.
      */
     ResizeUpHeap("resizeUpHeap", "Resize Up Heap", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToRecommend(), true),
+            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
 
     /**
      * Resize Down Heap automation mode.
      */
     ResizeDownHeap("resizeDownHeap", "Resize Down Heap", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToRecommend(), true),
+            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
 
     /**
      * Resize Up DBMem automation mode.
@@ -213,10 +213,7 @@ public enum EntitySettingSpecs {
         EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
             EntityType.CONTAINER_POD, EntityType.CONTAINER,
             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-            EntityType.APPLICATION_COMPONENT),
-            actionExecutionModeSetToManualTypeSpecific(
-                    Collections.singletonMap(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)),
-            true),
+            EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
 
     /**
      * For some types of entities Suspend actions are disabled by default.
@@ -237,10 +234,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
                     EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
-                    EntityType.APPLICATION_COMPONENT),
-            actionExecutionModeSetToManualTypeSpecific(
-                    Collections.singletonMap(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)),
-            true),
+                    EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
 
     /**
      * For some types of entities Suspend actions are disabled by default.
@@ -1488,12 +1482,6 @@ public enum EntitySettingSpecs {
     @Nonnull
     private static SettingDataStructure<?> actionExecutionModeSetToManual() {
         return new EnumSettingDataType<>(ActionMode.MANUAL, ActionMode.class);
-    }
-
-    @Nonnull
-    private static SettingDataStructure<?> actionExecutionModeSetToManualTypeSpecific(
-            @Nonnull Map<EntityType, ActionMode> entityDefaults) {
-        return new EnumSettingDataType<>(ActionMode.MANUAL, null, entityDefaults, ActionMode.class);
     }
 
     @Nonnull

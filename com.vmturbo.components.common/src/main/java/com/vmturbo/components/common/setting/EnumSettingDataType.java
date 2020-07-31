@@ -16,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.Builder;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Data structure description for enumeration settings.
@@ -50,21 +49,6 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
     public EnumSettingDataType(@Nullable T defaultValue, @Nullable T maxValue,
                     @Nonnull Class<T> enumClass) {
         super(defaultValue);
-        this.maxValue = maxValue;
-        this.enumClass = enumClass;
-    }
-
-    /**
-     * Constructs enum data type holding specified default value.
-     *
-     * @param defaultValue default value
-     * @param maxValue maximum value
-     * @param entityDefaults entity-specific overrides for default values
-     * @param enumClass class of an enum
-     */
-    public EnumSettingDataType(@Nonnull T defaultValue, @Nullable T maxValue,
-                               @Nonnull Map<EntityType, T> entityDefaults, @Nonnull Class<T> enumClass) {
-        super(defaultValue, entityDefaults);
         this.maxValue = maxValue;
         this.enumClass = enumClass;
     }
