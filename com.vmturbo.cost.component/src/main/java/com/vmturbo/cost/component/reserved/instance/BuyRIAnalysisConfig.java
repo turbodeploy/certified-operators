@@ -73,6 +73,9 @@ public class BuyRIAnalysisConfig {
     @Autowired
     private PricingConfig pricingConfig;
 
+    @Value("${disableRealtimeRIBuyAnalysis:false}")
+    private boolean disableRealtimeRIBuyAnalysis;
+
     /**
      * Gets Buy ReservedInstance Scheduler.
      *
@@ -174,7 +177,8 @@ public class BuyRIAnalysisConfig {
                 reservedInstanceAnalysisConfig.reservedInstanceBoughtStore(),
                 pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),
                 realtimeTopologyContextId,
-                enableRIBuyAfterPricingChange);
+                enableRIBuyAfterPricingChange,
+                disableRealtimeRIBuyAnalysis);
         groupClientConfig.settingsClient().addSettingsListener(reservedInstanceAnalysisInvoker);
         return reservedInstanceAnalysisInvoker;
     }

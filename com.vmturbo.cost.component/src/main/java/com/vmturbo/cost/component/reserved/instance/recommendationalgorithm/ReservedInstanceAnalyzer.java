@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -221,6 +222,20 @@ public class ReservedInstanceAnalyzer {
                         .setBuyRi(BuyRIActionPlanInfo.newBuilder()
                                 .setTopologyContextId(topologyContextId)))
                 .build();
+    }
+
+    /**
+     * Clears the realtime actions from the {@link BuyReservedInstanceStore}, {@link ActionContextRIBuyStore},
+     * and action-orchestrator (by sending an empty action plan).
+     */
+    public void clearRealtimeRIBuyActions() {
+        try {
+            buyRiStore.updateBuyReservedInstances(Collections.emptySet(), realtimeTopologyContextId);
+            actionContextRIBuyStore.deleteRIBuyContextData(realtimeTopologyContextId);
+            actionsSender.notifyActionsRecommended(createEmptyActionPlan(realtimeTopologyContextId));
+        } catch (Exception e) {
+            logger.error("Error clearing the realtime RI buy actions", e);
+        }
     }
 
     /**

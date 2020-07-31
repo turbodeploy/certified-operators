@@ -49,7 +49,6 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore.ReservedInstanceBoughtChangeType;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
 import com.vmturbo.group.api.SettingsListener;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -86,7 +85,10 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
 
     private static List<String> riSettingNames = new ArrayList<>();
 
-    private static boolean enableRIBuyAfterPricingChange;
+    private boolean enableRIBuyAfterPricingChange;
+
+    private boolean disableRealtimeRIBuyAnalysis;
+
 
     /**
      * List of Business Accounts with associated pricing information.
@@ -112,7 +114,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                                            @Nonnull BusinessAccountPriceTableKeyStore prTabKeyStore,
                                            @Nonnull PriceTableStore prTabStore,
                                            long realtimeTopologyContextId,
-                                            @Nonnull boolean enableRIBuyAfterPricingChange) {
+                                           boolean enableRIBuyAfterPricingChange,
+                                           boolean disableRealtimeRIBuyAnalysis) {
         this.reservedInstanceAnalyzer = reservedInstanceAnalyzer;
         this.repositoryClient = repositoryClient;
         this.settingsServiceClient = settingsServiceClient;
@@ -120,10 +123,9 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         this.riBoughtStore = riBoughtStore;
         this.prTabKeyStore = prTabKeyStore;
         this.prTabStore = prTabStore;
-        this.riBoughtStore.getUpdateEventStream()
-                .filter(event -> event == ReservedInstanceBoughtChangeType.UPDATED)
-                .subscribe(this::onRIInventoryUpdated);
+        this.riBoughtStore.onInventoryChange(this::onRIInventoryUpdated);
         this.enableRIBuyAfterPricingChange = enableRIBuyAfterPricingChange;
+        this.disableRealtimeRIBuyAnalysis = disableRealtimeRIBuyAnalysis;
     }
 
     /**
@@ -162,7 +164,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      * @param buyRiRequest StartBuyRIAnalysisRequest.
      */
     public synchronized void invokeBuyRIAnalysis(StartBuyRIAnalysisRequest buyRiRequest) {
-        if (cloudTopology.isPresent()) {
+        if (cloudTopology.isPresent() && !disableRealtimeRIBuyAnalysis) {
             logger.info("Started BuyRIAnalysis with accounts: {}, regions: {}, platforms: {},"
                     + " tenancies: {} and profile: {}",
                     buyRiRequest.getAccountsList(),
@@ -183,9 +185,14 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                 logger.error("Exception while publishing Buy RI actions", e);
             }
         } else {
-            logger.warn("No cloud topology defined in the Cost. Trigger Buy RI on next topology broadcast.");
-            // Set flag to run RI Buy on next topology broadcast.
-            setRunBuyRIOnNextBroadcast(true);
+            if (!disableRealtimeRIBuyAnalysis) {
+                logger.warn("No cloud topology defined in the Cost. Trigger Buy RI on next topology broadcast.");
+                // Set flag to run RI Buy on next topology broadcast.
+                setRunBuyRIOnNextBroadcast(true);
+            } else {
+                logger.warn("Realtime RI buy analysis is disabled. Skipping");
+                reservedInstanceAnalyzer.clearRealtimeRIBuyActions();
+            }
         }
     }
 
@@ -208,11 +215,9 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
 
     /**
      * Invokes RI Buy Analysis if the RI Inventory is updated.
-     *
-     * @param type ReservedInstanceBoughtChangeType
      */
     @VisibleForTesting
-    protected void onRIInventoryUpdated(final ReservedInstanceBoughtChangeType type) {
+    protected void onRIInventoryUpdated() {
         StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
         if (buyRiRequest.getAccountsList().isEmpty()) {
             logger.warn("onRIInventoryUpdated: No BAs found. Trigger RI Buy Analysis on"

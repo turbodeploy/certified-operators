@@ -9,7 +9,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -30,8 +29,6 @@ import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
-import reactor.core.publisher.Flux;
-
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey.Builder;
@@ -45,8 +42,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.SQLPriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore.ReservedInstanceBoughtChangeType;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker.BizAccPriceRecord;
 
 /**
  * Class to unit test ReservedInstanceAnalysisInvoker.
@@ -150,7 +145,7 @@ public class ReservedInstanceAnalysisInvokerTest {
         ReservedInstanceAnalysisInvoker invoker = spy(getReservedInstanceAnalysisInvoker());
         StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = StartBuyRIAnalysisRequest.newBuilder().build();
         doReturn(startBuyRIAnalysisRequest).when(invoker).getStartBuyRIAnalysisRequest();
-        invoker.onRIInventoryUpdated(ReservedInstanceBoughtChangeType.UPDATED);
+        invoker.onRIInventoryUpdated();
         verify(invoker, never()).invokeBuyRIAnalysis(startBuyRIAnalysisRequest);
 
         // Scenario where the BA's are present in the repository. In this case the RI Buy Analysis
@@ -159,14 +154,12 @@ public class ReservedInstanceAnalysisInvokerTest {
                 .addAllAccounts(Lists.newArrayList(1L, 2L, 3L)).build();
         doReturn(startBuyRIAnalysisRequest).when(invoker).getStartBuyRIAnalysisRequest();
         Mockito.doNothing().when(invoker).invokeBuyRIAnalysis(startBuyRIAnalysisRequest);
-        invoker.onRIInventoryUpdated(ReservedInstanceBoughtChangeType.UPDATED);
+        invoker.onRIInventoryUpdated();
         verify(invoker).invokeBuyRIAnalysis(startBuyRIAnalysisRequest);
     }
 
     private ReservedInstanceAnalysisInvoker getReservedInstanceAnalysisInvoker() {
         final ReservedInstanceBoughtStore riBoughtStore = Mockito.mock(ReservedInstanceBoughtStore.class);
-        final Flux<ReservedInstanceBoughtChangeType> updateEventStream = Flux.empty();
-        Mockito.when(riBoughtStore.getUpdateEventStream()).thenReturn(updateEventStream);
 
         ReservedInstanceAnalysisInvoker invoker = new
                 ReservedInstanceAnalysisInvoker(Mockito.mock(ReservedInstanceAnalyzer.class),
@@ -175,7 +168,9 @@ public class ReservedInstanceAnalysisInvokerTest {
                 riBoughtStore,
                 store,
                 prTabStore,
-                1, true);
+                1,
+                true,
+                false);
 
         return invoker;
     }
