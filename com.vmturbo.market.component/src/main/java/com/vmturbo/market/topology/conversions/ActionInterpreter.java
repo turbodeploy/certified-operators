@@ -108,7 +108,8 @@ public class ActionInterpreter {
     private final ProjectedRICoverageCalculator projectedRICoverageCalculator;
     private static final Set<EntityState> evacuationEntityState =
         EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
-    private static final Set<Integer> TRANSLATE_MOVE_TO_SCALE_PROVIDER_TYPE = ImmutableSet.of(EntityType.STORAGE_TIER_VALUE);
+    private static final Set<Integer> TRANSLATE_MOVE_TO_SCALE_PROVIDER_TYPE =
+            ImmutableSet.of(EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE);
     private final CommodityIndex commodityIndex;
 
     /**
