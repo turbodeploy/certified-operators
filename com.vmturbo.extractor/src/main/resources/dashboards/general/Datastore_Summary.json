@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1596047214564,
+  "iteration": 1596225780243,
   "links": [],
   "panels": [
     {
@@ -448,7 +448,7 @@
       "type": "table-old"
     },
     {
-      "datasource": null,
+      "datasource": "$DB",
       "fieldConfig": {
         "defaults": {
           "custom": {
