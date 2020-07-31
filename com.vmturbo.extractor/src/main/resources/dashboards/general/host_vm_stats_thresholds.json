@@ -958,6 +958,10 @@
       }
     ]
   },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
   "timepicker": {
     "refresh_intervals": [
       "10s",
