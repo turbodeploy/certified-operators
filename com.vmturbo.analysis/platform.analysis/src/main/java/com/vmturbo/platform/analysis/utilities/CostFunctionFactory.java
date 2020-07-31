@@ -19,6 +19,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Table;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -529,9 +530,9 @@ public class CostFunctionFactory {
         final long zoneId = buyerContext.getZoneId();
 
         // Match CbtpCostDTO based on billing family ID (if present) or business account ID
-        final Long cbtpScopeId = cbtpCostDTO.getScopeId();
-        if (cbtpScopeId.equals(balanceAccount.getParentId())
-                || cbtpScopeId.equals(balanceAccount.getId())) {
+        final Set<Long> cbtpScopeIds = ImmutableSet.copyOf(cbtpCostDTO.getScopeIdsList());
+        if (cbtpScopeIds.contains(balanceAccount.getParentId())
+                || cbtpScopeIds.contains(balanceAccount.getId())) {
             // costTable will be indexed using zone id, if the CBTP is scoped to a zone.
             // Otherwise the costTable will be indexed using the region id.
             CostTuple costTuple = costTable.getTuple(regionId, priceId, licenseTypeKey);

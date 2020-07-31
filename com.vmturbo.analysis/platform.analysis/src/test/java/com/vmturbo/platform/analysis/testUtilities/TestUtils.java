@@ -703,7 +703,7 @@ public class TestUtils {
         CostDTO costDTOcbtp = CostDTO.newBuilder()
                 .setCbtpResourceBundle(cbtpBundleBuilder
                         .addCostTupleList(costTuple)
-                        .setScopeId(accountScopeId))
+                        .addScopeIds(accountScopeId))
                 .build();
         CbtpCostDTO cdDTo = costDTOcbtp.getCbtpResourceBundle();
         cbtp.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo));
@@ -748,7 +748,7 @@ public class TestUtils {
         }
         cbtpBundleBuilder.addCostTupleList(costTuple);
         cbtpBundleBuilder.setDiscountPercentage(averageDiscount);
-        cbtpBundleBuilder.setScopeId(0);
+        cbtpBundleBuilder.addScopeIds(0);
         return cbtpBundleBuilder;
     }
 }
