@@ -319,7 +319,11 @@ public class ProbeRESTApi {
         }
 
         @Override
+        @Nonnull
         public Set<ProbeFeature> getSupportedFeatures() {
+            if (probeFeatures == null) {
+                return Collections.emptySet();
+            }
             return probeFeatures;
         }
 

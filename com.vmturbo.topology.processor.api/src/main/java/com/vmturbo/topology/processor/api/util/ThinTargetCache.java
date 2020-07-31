@@ -20,9 +20,11 @@ import com.vmturbo.common.protobuf.utils.ProbeFeature;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.ProbeListener;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TargetListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 
 /**
@@ -32,7 +34,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
  * The cache is lazily initialized, but existing entries never go out of date because it listens to
  * removal/addition/update notifications
  */
-public class ThinTargetCache implements TargetListener {
+public class ThinTargetCache implements TargetListener, ProbeListener {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -62,14 +64,10 @@ public class ThinTargetCache implements TargetListener {
      */
     private final SetOnce<Boolean> allTargetsRetrieved = new SetOnce<>();
 
-    /**
-     * Set of the probe features provided by added targets in the environment.
-     */
-    private Set<ProbeFeature> availableProbeFeatures;
-
     public ThinTargetCache(@Nonnull final TopologyProcessor topologyProcessor) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         topologyProcessor.addTargetListener(this);
+        topologyProcessor.addProbeListener(this);
     }
 
     /**
@@ -155,14 +153,12 @@ public class ThinTargetCache implements TargetListener {
                 setOnceTI.trySetValue(thinTargetInfo);
                 targetsById.put(targetInfo.getId(), setOnceTI);
             });
-        updateAvailableFeatures();
     }
 
     @Override
     public void onTargetRemoved(final long targetId) {
         logger.info("Target {} removed. Clearing it from the cache.", targetId);
         targetsById.remove(targetId);
-        updateAvailableFeatures();
     }
 
     @Override
@@ -177,6 +173,43 @@ public class ThinTargetCache implements TargetListener {
             });
     }
 
+    @Override
+    public void onProbeRegistered(@Nonnull TopologyProcessorDTO.ProbeInfo probe) {
+        // If the probe is registered we need to update its info in both probeById and targetById
+        // as some of its information may have changed
+        final ProbeInfo probeInfo;
+        try {
+            probeInfo = topologyProcessor.getProbe(probe.getId());
+        } catch (CommunicationException | TopologyProcessorException e) {
+            // We could not get the info of newly registered probe log an error
+            logger.error("Cannot get the information for probe {}:{}:{} after it was registered. "
+                + "This may result in wrong values in the target cache.",
+                probe.getId(), probe.getType(), probe.getCategory());
+            return;
+        }
+        final ThinProbeInfo thinProbeInfo = toThinProbeInfo(probeInfo);
+        final SetOnce<ThinProbeInfo> setOnce = new SetOnce<>();
+        setOnce.trySetValue(thinProbeInfo);
+        probeById.put(thinProbeInfo.oid(), setOnce);
+
+        // Now we need to update targets map as well
+        final List<ThinTargetInfo> affectedTargets = getAllTargets()
+            .stream()
+            .filter(v -> v.probeInfo() != null)
+            .filter(v -> v.probeInfo().oid() == thinProbeInfo.oid())
+            .collect(Collectors.toList());
+
+        affectedTargets
+            .forEach(thinTargetInfo -> {
+                final SetOnce<ThinTargetInfo> setOnceTI = new SetOnce<>();
+                ThinTargetInfo updatedThinTargetInfo = ImmutableThinTargetInfo.builder()
+                    .from(thinTargetInfo)
+                    .probeInfo(thinProbeInfo).build();
+                setOnceTI.trySetValue(updatedThinTargetInfo);
+                targetsById.put(thinTargetInfo.oid(), setOnceTI);
+            });
+    }
+
     /**
      * Return set of probe features provided by added targets.
      *
@@ -184,18 +217,12 @@ public class ThinTargetCache implements TargetListener {
      */
     @Nonnull
     public Set<ProbeFeature> getAvailableProbeFeatures() {
-        if (availableProbeFeatures == null || availableProbeFeatures.isEmpty()) {
-            updateAvailableFeatures();
-        }
-        return availableProbeFeatures;
-    }
-
-    private void updateAvailableFeatures() {
-        availableProbeFeatures = Collections.unmodifiableSet(this.getAllTargets()
-                .stream()
-                .map(el -> el.probeInfo().supportedFeature())
-                .flatMap(Collection::stream)
-                .collect(Collectors.toSet()));
+        return getAllTargets()
+            .stream()
+            .map(ThinTargetInfo::probeInfo)
+            .map(ThinProbeInfo::supportedFeatures)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
     }
 
     @Nonnull
@@ -235,7 +262,7 @@ public class ThinTargetCache implements TargetListener {
             .type(pInfo.getType())
             .category(pInfo.getCategory())
             .uiCategory(pInfo.getUICategory())
-            .supportedFeature(pInfo.getSupportedFeatures())
+            .supportedFeatures(pInfo.getSupportedFeatures())
             .build();
     }
 
@@ -262,7 +289,7 @@ public class ThinTargetCache implements TargetListener {
          *
          * @return features provided by probe
          */
-        Set<ProbeFeature> supportedFeature();
+        Set<ProbeFeature> supportedFeatures();
     }
 
     @Value.Immutable

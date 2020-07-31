@@ -18,10 +18,12 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.utils.ProbeFeature;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 public class ThinTargetCacheTest {
@@ -108,10 +110,8 @@ public class ThinTargetCacheTest {
 
         Optional<ThinTargetInfo> dto2 = thinTargetCache.getTargetInfo(TARGET_ID);
         checkTargetApiDTO(dto2.get());
-        //  Shouldn't have made a call, since we requested all targets to update set of supported
-        //  features
-        verify(topologyProcessor, times(1)).getTarget(TARGET_ID);
-        verify(topologyProcessor, times(1)).getAllTargets();
+        // Should have made a subsequent call.
+        verify(topologyProcessor, times(2)).getTarget(TARGET_ID);
     }
 
     @Test
@@ -167,6 +167,68 @@ public class ThinTargetCacheTest {
         checkTargetApiDTO(target);
     }
 
+    /**
+     * Test the case that a target is added but its probe is not registered. After the probe
+     * registers the target info is updated with new values.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testOnProbeRegistered() throws Exception {
+        // ARRANGE
+        mockTopologyProcessorOutputs();
+
+        // ACT
+        thinTargetCache.getAllTargets();
+        final ProbeInfo updatedProbeInfo = mock(ProbeInfo.class);
+        when(updatedProbeInfo.getId()).thenReturn(PROBE_ID);
+        when(updatedProbeInfo.getType()).thenReturn(PROBE_TYPE);
+        when(updatedProbeInfo.getCategory()).thenReturn(PROBE_CATEGORY);
+        when(updatedProbeInfo.getUICategory()).thenReturn(PROBE_UI_CATEGORY);
+        when(updatedProbeInfo.getSupportedFeatures()).thenReturn(Collections.singleton(ProbeFeature.ACTION_APPROVAL));
+        when(topologyProcessor.getProbe(Mockito.eq(PROBE_ID))).thenReturn(updatedProbeInfo);
+        thinTargetCache.onProbeRegistered(TopologyProcessorDTO.ProbeInfo.newBuilder().setId(PROBE_ID).build());
+
+        // ASSERT that everything is updated
+        Assert.assertThat(thinTargetCache.getTargetInfo(TARGET_ID).get().probeInfo().supportedFeatures(),
+            is(Collections.singleton(ProbeFeature.ACTION_APPROVAL)));
+        Assert.assertThat(thinTargetCache.getAvailableProbeFeatures(),
+            is(Collections.singleton(ProbeFeature.ACTION_APPROVAL)));
+    }
+
+    /**
+     * Tests the case where probe first get registered and then target get registered.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testProbeAndTargetRegistered() throws Exception {
+        // ARRANGE
+        final ProbeInfo probeInfo = mock(ProbeInfo.class);
+        when(probeInfo.getId()).thenReturn(PROBE_ID);
+        when(probeInfo.getType()).thenReturn(PROBE_TYPE);
+        when(probeInfo.getCategory()).thenReturn(PROBE_CATEGORY);
+        when(probeInfo.getUICategory()).thenReturn(PROBE_UI_CATEGORY);
+        when(probeInfo.getSupportedFeatures()).thenReturn(Collections.singleton(ProbeFeature.ACTION_APPROVAL));
+        when(topologyProcessor.getProbe(Mockito.eq(PROBE_ID))).thenReturn(probeInfo);
+        when(topologyProcessor.getAllProbes()).thenReturn(Collections.singleton(probeInfo));
+        doReturn(Collections.emptySet()).when(topologyProcessor).getAllTargets();
+
+        //ACT
+        thinTargetCache.getAllTargets();
+        final TargetInfo targetInfo = mock(TargetInfo.class);
+        when(targetInfo.getId()).thenReturn(TARGET_ID);
+        when(targetInfo.getProbeId()).thenReturn(PROBE_ID);
+        when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
+        thinTargetCache.onTargetAdded(targetInfo);
+
+        // ASSERT that everything is updated
+        Assert.assertThat(thinTargetCache.getTargetInfo(TARGET_ID).get().probeInfo().supportedFeatures(),
+            is(Collections.singleton(ProbeFeature.ACTION_APPROVAL)));
+        Assert.assertThat(thinTargetCache.getAvailableProbeFeatures(),
+            is(Collections.singleton(ProbeFeature.ACTION_APPROVAL)));
+    }
+
     private void mockTopologyProcessorOutputs() throws Exception {
         final TargetInfo targetInfo = mock(TargetInfo.class);
         final ProbeInfo probeInfo = mock(ProbeInfo.class);
@@ -177,11 +239,11 @@ public class ThinTargetCacheTest {
         when(probeInfo.getType()).thenReturn(PROBE_TYPE);
         when(probeInfo.getCategory()).thenReturn(PROBE_CATEGORY);
         when(probeInfo.getUICategory()).thenReturn(PROBE_UI_CATEGORY);
+        when(probeInfo.getSupportedFeatures()).thenReturn(Collections.emptySet());
         when(topologyProcessor.getProbe(Mockito.eq(PROBE_ID))).thenReturn(probeInfo);
         when(topologyProcessor.getAllProbes()).thenReturn(Collections.singleton(probeInfo));
         doReturn(Collections.singleton(targetInfo)).when(topologyProcessor).getAllTargets();
         when(topologyProcessor.getTarget(Mockito.eq(TARGET_ID))).thenReturn(targetInfo);
-        when(topologyProcessor.getAllTargets()).thenReturn(Collections.singleton(targetInfo));
     }
 
     private void checkTargetApiDTO(ThinTargetInfo targetApiDTO) {
