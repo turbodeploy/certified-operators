@@ -1679,4 +1679,64 @@ public class TopologyConverterToMarketTest {
             }
         }
     }
+
+    /**
+     * Test IOPs (STORAGE_ACCESS) VM bought from Compute Tier is using the percentile value in the utilization data
+     *   when converting from TopologyEntityDTO to TraderTO.
+     * STORAGE_ACCESS commodity has percentile utilization bought in VM from CT
+     *   which STORAGE_ACCESS in CT sold list is resizable and has capacity.
+     *
+     * @throws IOException when one of the files cannot be load
+     */
+    @Test
+    public void testCommodityBoughtFromAProviderWithPercentileUtilization() throws IOException {
+        // These values should match with data stored in the json files
+        final long ctOid = 73403214215586L;
+        final long vmOid = 73470833555810L;
+        final int ctIopsCapacity = 2000;
+        final float targetUtilization = 0.7f;
+
+        final TopologyEntityDTO computeTier = messageFromJsonFile("protobuf/messages/ct-azure-1.topologyDto.json");
+
+        // The topology requires both the VM itself and provider Compute Tier.
+        final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
+            messageFromJsonFile("protobuf/messages/vm-azure-1.topologyDto.json"),
+            computeTier)
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+
+        final MarketTier marketTier = mock(MarketTier.class);
+        Mockito.when(marketTier.getTier()).thenReturn(computeTier);
+
+        Set<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketPriceTable,
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory)
+            .convertToMarket(topologyDTOs);
+
+        assertEquals(2, traderTOs.size());
+
+        traderTOs.stream().forEach(traderTO -> {
+            if (traderTO.getOid() == vmOid) {
+                assertEquals("Trader should be a VM", 10, traderTO.getType());
+                assertEquals("Shopping List have one shoppingListTO", 1, traderTO.getShoppingListsCount());
+                ShoppingListTO shoppingListTO = traderTO.getShoppingLists(0);
+                assertEquals("There should be two commodities in the shopping list", 2, shoppingListTO.getCommoditiesBoughtCount());
+                List<CommodityBoughtTO> commoditiesBoughtList = shoppingListTO.getCommoditiesBoughtList();
+                boolean hasStorageAccessCommodity = false;
+                for (CommodityBoughtTO commodityBoughtTO : commoditiesBoughtList) {
+                    if (commodityBoughtTO.getSpecification().getBaseType() == 64) {
+                        hasStorageAccessCommodity = true;
+                        final float expectedQuantity = (float)(ctIopsCapacity * 0.8 / targetUtilization);
+
+                        assertEquals(expectedQuantity, commodityBoughtTO.getQuantity(), epsilon);
+                        assertEquals(expectedQuantity, commodityBoughtTO.getPeakQuantity(), epsilon);
+                    }
+                }
+                assertTrue(hasStorageAccessCommodity);
+            }
+        });
+    }
+
 }
