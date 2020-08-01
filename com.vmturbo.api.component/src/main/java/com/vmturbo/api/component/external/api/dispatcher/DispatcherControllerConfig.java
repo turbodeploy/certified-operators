@@ -65,7 +65,11 @@ import com.vmturbo.api.validators.TemplatesValidator;
 @Configuration
 @EnableWebMvc
 @EnableWebSecurity
-@Import({ApiSecurityConfig.class, SecurityChainProxyInvoker.class, HeaderApiSecurityConfig.class, SamlApiSecurityConfig.class})
+@Import({ApiSecurityConfig.class,
+        SecurityChainProxyInvoker.class,
+        HeaderApiSecurityConfig.class,
+        SamlApiSecurityConfig.class,
+        DispatcherValidatorConfig.class})
 // DO NOT import configurations outside the external.api.dispatcher package here, because
 // that will re-create the configuration's beans in the child context for the dispatcher servlet.
 // You will end up with multiple instances of the same beans, which could lead to tricky bugs.
@@ -77,6 +81,9 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
      */
     @Autowired
     public ServiceConfig serviceConfig;
+
+    @Autowired
+    private DispatcherValidatorConfig dispatcherValidatorConfig;
 
     @Bean
     public ActionsController actionsController() {
@@ -200,7 +207,8 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public UsersController usersController() {
-        return new UsersController();
+        return new UsersController(serviceConfig.usersService(),
+                dispatcherValidatorConfig.inputDTOValidator());
     }
 
     @Bean

@@ -201,6 +201,17 @@ http {
             access_log  /var/log/nginx/access.log  upstream_ws;
         }
 
+        # Internal route to check that the current session is authenticated.
+        # See: https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-subrequest-authentication/
+        location /iam/auth {
+            internal;
+            set $api_servers $API;
+            proxy_pass              http://$api_servers:8080/api/v3/users/me;
+            proxy_pass_request_body off;
+            proxy_set_header        Content-Length "";
+            proxy_set_header        X-Original-URI $request_uri;
+        }
+
         # Proxying the report-related route, and redirecting to Grafana.
         location /reports {
             set $grafana_servers $GRAFANA;
@@ -214,12 +225,17 @@ http {
                 return 404;
             }
 
+            # Verify that the user is authenticated.
+            auth_request /iam/auth;
+            # Extract the reporting (grafana) username from the authentication request.
+            auth_request_set $webauth_user $upstream_http_x_report_username;
+
             # If it is set, then pass through to grafana.
             proxy_pass         http://$grafana_servers:3000;
             proxy_set_header   Host $http_host;
             proxy_set_header   X-Real-IP $remote_addr;
             proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header   X-WEBAUTH-USER reports-viewer;
+            proxy_set_header   X-WEBAUTH-USER $webauth_user;
             rewrite       ^/reports/?(.*) /$1 break;
             proxy_connect_timeout 10s;
             proxy_read_timeout 6000s;

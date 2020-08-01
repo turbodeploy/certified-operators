@@ -2,6 +2,7 @@ package com.vmturbo.extractor.grafana.client;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -19,10 +20,17 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import org.apache.http.client.HttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.client.support.BasicAuthenticationInterceptor;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
@@ -38,6 +46,7 @@ import com.vmturbo.extractor.grafana.model.Datasource;
 import com.vmturbo.extractor.grafana.model.DatasourceInput;
 import com.vmturbo.extractor.grafana.model.Folder;
 import com.vmturbo.extractor.grafana.model.FolderInput;
+import com.vmturbo.extractor.grafana.model.UserInput;
 
 /**
  * Hides the Grafana REST API.
@@ -78,10 +87,15 @@ public class GrafanaClient {
                 .getAdminPassword()));
         restTemplate.setInterceptors(interceptorList);
         final GsonHttpMessageConverter gsonConverter = new GsonHttpMessageConverter(GSON);
+        gsonConverter.setSupportedMediaTypes(Arrays.asList(MediaType.APPLICATION_JSON));
         final List<HttpMessageConverter<?>> converters = new ArrayList<>();
         converters.add(new StringHttpMessageConverter());
         converters.add(gsonConverter);
         restTemplate.setMessageConverters(converters);
+
+        HttpClient client = HttpClients.createDefault();
+        HttpComponentsClientHttpRequestFactory reqFact = new HttpComponentsClientHttpRequestFactory(client);
+        restTemplate.setRequestFactory(reqFact);
         return restTemplate;
     }
 
@@ -115,6 +129,64 @@ public class GrafanaClient {
             retUuids.put(obj.get("uid").getAsString(), obj.get("id").getAsLong());
         }
         return retUuids;
+    }
+
+    @Nonnull
+    private Optional<Long> getExistingUser(@Nonnull final String username) {
+        final URI checkUri = grafanaClientConfig.getGrafanaUrl(
+                Collections.singletonMap("loginOrEmail", username), "users", "lookup");
+        try {
+            ResponseEntity<JsonObject> user = restTemplate.getForEntity(checkUri, JsonObject.class);
+            if (user.getBody() != null) {
+                JsonElement id = user.getBody().get("id");
+                return Optional.ofNullable(id).map(JsonElement::getAsLong);
+            } else {
+                return Optional.empty();
+            }
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return Optional.empty();
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * Ensure that a particular user exists in the system.
+     *
+     * @param userInput The {@link UserInput}.
+     * @param refreshSummary The {@link OperationSummary} to record the operation.
+     */
+    public void ensureUserExists(@Nonnull final UserInput userInput,
+                                 @Nonnull final OperationSummary refreshSummary) {
+        final Optional<Long> existingId = getExistingUser(userInput.getUsername());
+        Long userId = null;
+        if (!existingId.isPresent()) {
+            final URI uri = grafanaClientConfig.getGrafanaUrl("admin", "users");
+            ResponseEntity<JsonObject> response = restTemplate.postForEntity(uri, userInput, JsonObject.class);
+            if (response.getBody() != null) {
+                logger.info(response);
+                JsonElement id = response.getBody().get("id");
+                if (id != null) {
+                    userId = id.getAsLong();
+                    refreshSummary.recordUserCreate(userInput.getUsername(), userId);
+                }
+            }
+        } else {
+            userId = existingId.get();
+            refreshSummary.recordUserUnchanged(userInput.getUsername(), userId);
+        }
+
+        // Ensure the user has a "viewer" role.
+        if (userId != null) {
+            final URI orgRole = grafanaClientConfig.getGrafanaUrl("orgs", Integer.toString(userInput.getOrgId()), "users", Long.toString(userId));
+            JsonParser jsonParser = new JsonParser();
+            JsonElement jsonElement = jsonParser.parse("{ \"role\" : \"Viewer\" }");
+            final ResponseEntity<JsonObject> userUpdateResp = restTemplate.exchange(orgRole, HttpMethod.PATCH,
+                    new HttpEntity<>(jsonElement), JsonObject.class);
+            logger.info(userUpdateResp.getBody());
+        }
     }
 
     /**

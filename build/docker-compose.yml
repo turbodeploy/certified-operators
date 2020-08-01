@@ -645,6 +645,12 @@ services:
     environment:
       component_type: grafana
       instance_id: grafana-1
+      GF_USERS_ALLOW_SIGN_UP: "true"
+      GF_USERS_DEFAULT_THEME: "light"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: "Editor"
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_SERVER_ROOT_URL: "https://%(domain)s/reports"
+      GF_SERVE_FROM_SUB_PATH: "true"
 
   integration-intersight:
     extends:

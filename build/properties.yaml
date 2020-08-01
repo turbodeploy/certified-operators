@@ -8,6 +8,7 @@ defaultProperties:
         scheduledMetricsIntervalMs: 60000
         grpcPingIntervalSeconds: 300
         realtimeTopologyContextId: 777777
+        enableReporting: true
         # hostnames for each component type
         actionOrchestratorHost: action-orchestrator
         apiHost: api

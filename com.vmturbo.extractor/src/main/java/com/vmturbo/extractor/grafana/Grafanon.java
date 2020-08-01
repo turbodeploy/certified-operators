@@ -11,6 +11,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
 
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,6 +24,7 @@ import com.vmturbo.extractor.grafana.model.DashboardSpec.UpsertDashboardRequest;
 import com.vmturbo.extractor.grafana.model.DashboardVersion;
 import com.vmturbo.extractor.grafana.model.DatasourceInput;
 import com.vmturbo.extractor.grafana.model.Folder;
+import com.vmturbo.extractor.grafana.model.UserInput;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointConfig;
 
@@ -99,8 +102,11 @@ public class Grafanon implements RequiresDataInitialization {
      *                       during this refresh.
      * @throws IllegalArgumentException If there is some configuration error.
      */
-    @Nonnull
     public void refreshGrafana(@Nonnull final RefreshSummary refreshSummary) {
+        if (grafanonConfig.getViewerUserInput().isPresent()) {
+            grafanaClient.ensureUserExists(grafanonConfig.getViewerUserInput().get(), refreshSummary);
+        }
+
         try {
             // Get the endpoint here (inside the initialization thread) to avoid blocking the
             // main thread.
@@ -207,6 +213,10 @@ public class Grafanon implements RequiresDataInitialization {
         private final Supplier<DbEndpointConfig> postgresDatasourceEndpoint;
         private long onErrorSleepIntervalMs = 30_000;
 
+        private String viewerUsername;
+        private String viewerDisplayName;
+        private String viewerPassword;
+
         GrafanonConfig(@Nonnull final Supplier<DbEndpointConfig> dbEndpoint) {
             this.postgresDatasourceEndpoint = dbEndpoint;
         }
@@ -219,6 +229,42 @@ public class Grafanon implements RequiresDataInitialization {
         @Nonnull
         public GrafanonConfig setTimescaleDisplayName(String timescaleDisplayName) {
             this.timescaleDisplayName = timescaleDisplayName;
+            return this;
+        }
+
+        /**
+         * Set the report viewer username.
+         *
+         * @param username Report viewer username.
+         * @return The config, for method chaining.
+         */
+        @Nonnull
+        public GrafanonConfig setViewerUsername(String username) {
+            this.viewerUsername = username;
+            return this;
+        }
+
+        /**
+         * Set the report viewer display name.
+         *
+         * @param displayName Report viewer display name.
+         * @return The config, for method chaining.
+         */
+        @Nonnull
+        public GrafanonConfig setViewerDisplayName(String displayName) {
+            this.viewerDisplayName = displayName;
+            return this;
+        }
+
+        /**
+         * Set the report viewer password.
+         *
+         * @param password Report viewer password.
+         * @return The config, for method chaining.
+         */
+        @Nonnull
+        public GrafanonConfig setViewerPassword(String password) {
+            this.viewerPassword = password;
             return this;
         }
 
@@ -255,6 +301,27 @@ public class Grafanon implements RequiresDataInitialization {
         @Nonnull
         public Supplier<DbEndpointConfig> getDbEndpointConfig() {
             return postgresDatasourceEndpoint;
+        }
+
+        /**
+         * Get the {@link UserInput} for the common "report viewer" user.
+         *
+         * @return The {@link UserInput} optional.
+         */
+        @Nonnull
+        public Optional<UserInput> getViewerUserInput() {
+            if (StringUtils.isEmpty(viewerDisplayName) || StringUtils.isEmpty(viewerUsername)) {
+                return Optional.empty();
+            } else {
+                String password = viewerPassword;
+                if (StringUtils.isEmpty(password)) {
+                    // If there is no explicit password provided, create a random alpha-numeric
+                    // password. We don't really care about this password, because we never log
+                    // in with the "viewer" user directly, only through the reverse proxy.
+                    password = RandomStringUtils.randomAlphanumeric(10).toUpperCase();
+                }
+                return Optional.of(new UserInput(viewerDisplayName, viewerUsername, password));
+            }
         }
 
         /**
