@@ -552,29 +552,34 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
 
         List<StatApiDTO> statDTOs = Lists.newArrayList();
         // Add projected stats
+        double afterActionStorageAmountUsed = 0d;
+        double afterActionStorageAccessUsed = 0d;
+        double afterActionIOThroughputUsed = 0d;
         for (CommodityBoughtDTO commodity : afterActionCommList) {
             switch (commodity.getCommodityType().getType()) {
                 case CommodityType.STORAGE_AMOUNT_VALUE:
-                    // Convert unit of storage amount from GB to MB.
-                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
-                            CLOUD_STORAGE_AMOUNT_UNIT, (float)(commodity.getUsed() / Units.KIBI),
-                            (float)(getCommodityCapacity(volume, CommodityType.STORAGE_AMOUNT) / Units.KIBI),
-                            null, volume.getDisplayName(), false));
+                    afterActionStorageAmountUsed = commodity.getUsed();
                     break;
                 case CommodityType.STORAGE_ACCESS_VALUE:
-                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
-                            CommodityTypeUnits.STORAGE_ACCESS.getUnits(), (float)commodity.getUsed(),
-                            getCommodityCapacity(volume, CommodityType.STORAGE_ACCESS),
-                            null, volume.getDisplayName(), false));
+                    afterActionStorageAccessUsed = commodity.getUsed();
                     break;
                 case CommodityType.IO_THROUGHPUT_VALUE:
-                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
-                            CommodityTypeUnits.IO_THROUGHPUT.getUnits(), (float)commodity.getUsed(),
-                            getCommodityCapacity(volume, CommodityType.IO_THROUGHPUT),
-                            null, volume.getDisplayName(), false));
+                    afterActionIOThroughputUsed = commodity.getUsed();
                     break;
             }
         }
+        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+                CLOUD_STORAGE_AMOUNT_UNIT, (float)afterActionStorageAmountUsed,
+                (float)(getCommodityCapacity(volume, CommodityType.STORAGE_AMOUNT) / Units.KIBI),
+                null, volume.getDisplayName(), false));
+        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+                CommodityTypeUnits.STORAGE_ACCESS.getUnits(), (float)afterActionStorageAccessUsed,
+                getCommodityCapacity(volume, CommodityType.STORAGE_ACCESS),
+                null, volume.getDisplayName(), false));
+        statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+                CommodityTypeUnits.IO_THROUGHPUT.getUnits(), (float)afterActionIOThroughputUsed,
+                getCommodityCapacity(volume, CommodityType.IO_THROUGHPUT),
+                null, volume.getDisplayName(), false));
 
         // Add stats for before action stats.
         for (CommodityBoughtDTO commodity : beforeActionCommList) {

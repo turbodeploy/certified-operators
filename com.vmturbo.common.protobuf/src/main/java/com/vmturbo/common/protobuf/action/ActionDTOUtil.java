@@ -307,7 +307,7 @@ public class ActionDTOUtil {
      */
     public static ActionEntity getMoveActionTarget(final ActionInfo actionInfo) {
         if (!actionInfo.getMove().getChangesList().isEmpty()) {
-            final ChangeProvider primaryChangeProvider = getPrimaryChangeProvider(actionInfo); //
+            final ChangeProvider primaryChangeProvider = getPrimaryChangeProvider(actionInfo);
             if (primaryChangeProvider.hasSource()
                 && primaryChangeProvider.hasDestination()
                 && primaryChangeProvider.hasResource()

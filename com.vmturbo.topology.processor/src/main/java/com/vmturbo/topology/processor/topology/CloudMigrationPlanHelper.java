@@ -121,10 +121,13 @@ public class CloudMigrationPlanHelper {
 
     /**
      * Non-EBS AWS storage types are skipped for Cloud migration consumption plan.
+     * Un-managed Azure storage tiers are also skipped for Cloud migration consumption plan.
      */
     private static final Set<String> CONSUMPTION_PLAN_SKIP_STORAGE_TIERS = ImmutableSet.of(
             "HDD",
-            "SSD"
+            "SSD",
+            "UNMANAGED_STANDARD",
+            "UNMANAGED_PREMIUM"
     );
 
     /**

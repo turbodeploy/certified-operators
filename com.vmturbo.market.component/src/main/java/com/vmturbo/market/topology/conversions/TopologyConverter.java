@@ -190,6 +190,8 @@ public class TopologyConverter {
 
     private final ProjectedRICoverageCalculator projectedRICoverageCalculator;
 
+    private final CloudStorageTierIOPSCalculator cloudStorageTierIOPSCalculator;
+
     /**
      * A non-shop-together TopologyConverter.
      *
@@ -239,6 +241,7 @@ public class TopologyConverter {
                 cert,
                 projectedRICoverageCalculator, tierExcluder, commodityIndex,
                 getExplanationOverride()));
+        this.cloudStorageTierIOPSCalculator = new CloudStorageTierIOPSCalculator(unmodifiableEntityOidToDtoMap);
     }
 
     /**
@@ -426,6 +429,7 @@ public class TopologyConverter {
                 cert,
                 projectedRICoverageCalculator, tierExcluder, commodityIndex,
                 getExplanationOverride()));
+        this.cloudStorageTierIOPSCalculator = new CloudStorageTierIOPSCalculator(unmodifiableEntityOidToDtoMap);
     }
 
     @VisibleForTesting
@@ -468,6 +472,7 @@ public class TopologyConverter {
                 getExplanationOverride()));
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
+        this.cloudStorageTierIOPSCalculator = new CloudStorageTierIOPSCalculator(unmodifiableEntityOidToDtoMap);
     }
 
     /**
@@ -1493,11 +1498,26 @@ public class TopologyConverter {
                                     // Convert the unit back to MB when creating the projected value.
                                     // Cost and API expects storage to be in MB.
                                     commSoldBuilder.setCapacity(comm.getUsed() * Units.KIBI);
+                                } else if (comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE) {
+                                    setStorageAccessSoldValueForVolume(commSoldBuilder, commBoughtGrouping);
                                 } else {
                                     commSoldBuilder.setCapacity(comm.getUsed());
                                 }
                                 volume.addCommoditySoldList(commSoldBuilder);
                             }
+                        }
+                        boolean storageAccessCommodityPresent = commBoughtGrouping.getCommodityBoughtList().stream()
+                                .anyMatch(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE);
+                        if (!storageAccessCommodityPresent) {
+                            // storage access commodity is not in the commodity list for the Lift&Shift
+                            // plan because it is disabled and not sent to the market. In this case,
+                            // we add the storage access commodity sold for the volume here. We don't
+                            // need the storage access usage value to determine the IOPS capacity for
+                            // GP2 and Azure Managed Premium.
+                            CommoditySoldDTO.Builder commSoldBuilder = CommoditySoldDTO.newBuilder()
+                                    .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE));
+                            setStorageAccessSoldValueForVolume(commSoldBuilder, commBoughtGrouping);
+                            volume.addCommoditySoldList(commSoldBuilder);
                         }
                     }
 
@@ -1508,6 +1528,23 @@ public class TopologyConverter {
             }
         }
         return resources;
+    }
+
+    /**
+     * Set the storage access sold value for the volume that is the provider of the storage
+     * commodity list.
+     *
+     * @param commSoldBuilder the storage access sold commodity to be added to a volume
+     * @param commBoughtGrouping the storage commodity list of a VM.
+     */
+    private void setStorageAccessSoldValueForVolume(CommoditySoldDTO.Builder commSoldBuilder,
+                                                    CommoditiesBoughtFromProvider commBoughtGrouping) {
+        long providerId = commBoughtGrouping.getProviderId();
+        TopologyEntityDTO tier = unmodifiableEntityOidToDtoMap.get(providerId);
+        if (tier != null) {
+            cloudStorageTierIOPSCalculator.getIopsCapacity(commBoughtGrouping.getCommodityBoughtList(), tier)
+                    .ifPresent(commSoldBuilder::setCapacity);
+        }
     }
 
     /**
