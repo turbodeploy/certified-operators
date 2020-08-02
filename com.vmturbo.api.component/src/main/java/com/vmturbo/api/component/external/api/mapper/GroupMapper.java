@@ -99,7 +99,6 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
@@ -330,33 +329,18 @@ public class GroupMapper {
 
     @Nullable
     private EntityEnvironment getApplianceEnvironment() {
-        final boolean applicationTargetsInEnv = applicationTargetsInEnv();
         final Set<Optional<CloudType>> cloudType = thinTargetCache.getAllTargets()
                 .stream()
                 .map(ThinTargetInfo::probeInfo)
                 .map(probe -> cloudTypeMapper.fromTargetType(probe.type()))
                 .collect(Collectors.toSet());
         if (cloudType.isEmpty() || cloudType.equals(Collections.singleton(Optional.empty()))) {
-            if (applicationTargetsInEnv) {
-                return new EntityEnvironment(EnvironmentType.HYBRID, CloudType.UNKNOWN);
-            }
             return new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN);
         } else if (cloudType.size() == 1) {
             return new EntityEnvironment(EnvironmentType.CLOUD, cloudType.iterator().next().get());
         } else {
-            if (applicationTargetsInEnv) {
-                return new EntityEnvironment(EnvironmentType.HYBRID, cloudType.stream()
-                    .filter(Optional::isPresent).collect(Collectors.toSet()).iterator().next().get());
-            }
             return null;
         }
-    }
-
-    private boolean applicationTargetsInEnv() {
-        return thinTargetCache.getAllTargets()
-            .stream()
-            .map(ThinTargetInfo::probeInfo)
-            .anyMatch(probe -> ProbeCategory.isAppOrContainerCategory(ProbeCategory.create(probe.category())));
     }
 
     /**
