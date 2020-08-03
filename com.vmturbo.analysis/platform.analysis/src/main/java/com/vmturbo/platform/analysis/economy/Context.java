@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
@@ -183,7 +184,7 @@ public class Context {
          */
         private long priceId_;
 
-        private final Long parentId_;
+        private Long parentId_;
 
         /**
          * Constructor for the Balance Account.
@@ -226,6 +227,16 @@ public class Context {
             this(0, 0, id, id, null);
         }
 
+        /**
+         * Creates a new BalanceAccount with account id and the parent id.
+         *
+         * @param id Account id.
+         * @param parentId Parent (e.g BillingFamily) id.
+         */
+        public BalanceAccount(long id, long parentId) {
+            this(0, 0, id, id, parentId);
+        }
+
         public void setSpent(double spent) {
             spent_ = spent;
         }
@@ -255,8 +266,27 @@ public class Context {
          *
          * @return ID of trader's parent account.
          */
+        @Nullable
         public Long getParentId() {
             return parentId_;
+        }
+
+        /**
+         * Sets parent id, e.g BillingFamily id in case of AWS.
+         *
+         * @param parentId ID of parent.
+         */
+        public void setParentId(@Nonnull Long parentId) {
+            parentId_ = parentId;
+        }
+
+        /**
+         * Checks if a non-null parent id had been previously set.
+         *
+         * @return Whether parent id was set.
+         */
+        public boolean hasParentId() {
+            return parentId_ != null;
         }
 
         @Override

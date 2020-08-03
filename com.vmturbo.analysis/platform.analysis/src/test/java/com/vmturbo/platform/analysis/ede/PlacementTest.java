@@ -1,11 +1,15 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static com.vmturbo.platform.analysis.ede.Placement.mergeContextSets;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -13,6 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -30,6 +35,8 @@ import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -897,5 +904,42 @@ public class PlacementTest {
             assertArrayEquals(expectedActions, results.getActions().toArray());
             assertTrue(results.getUnplacedTraders().isEmpty());
         }
+    }
+
+    /**
+     * Checks if after context merge, the parent id is set correctly, where applicable. Parent id
+     * is needed for fetching cost tuple for CBTP cost table.
+     */
+    @Test
+    public void contextMerger() {
+        // Account/pricing id.
+        final long accountId = 100L;
+        // Id of parent (BillingFamily).
+        final long parentId = 200L;
+        final long regionId = 300L;
+        final long zoneId = 400L;
+
+        // Only CBTP context has the parent id set.
+        final Context cbtpContext = new Context(regionId, zoneId,
+                new BalanceAccount(accountId, parentId));
+        final Context computeContext = new Context(regionId, zoneId,
+                new BalanceAccount(accountId));
+        final Context storageContext = new Context(regionId, zoneId,
+                new BalanceAccount(accountId));
+
+        final Set<Context> contextSet1 = ImmutableSet.of(cbtpContext, computeContext);
+        final Set<Context> contextSet2 = ImmutableSet.of(storageContext);
+        final Set<Context> resultSet = Stream.of(contextSet1, contextSet2)
+                .reduce(mergeContextSets)
+                .orElse(Collections.emptySet());
+
+        assertEquals(1, resultSet.size());
+        final Context resultContext = resultSet.iterator().next();
+        assertEquals(regionId, resultContext.getRegionId());
+        assertEquals(zoneId, resultContext.getZoneId());
+        assertEquals(accountId, resultContext.getBalanceAccount().getId());
+        final Long resultParentId = resultContext.getBalanceAccount().getParentId();
+        assertNotNull(resultParentId);
+        assertEquals(parentId, resultParentId.longValue());
     }
 } // end PlacementTest class

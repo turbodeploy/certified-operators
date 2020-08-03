@@ -11,6 +11,7 @@ import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -378,7 +379,7 @@ public final class ProtobufToAnalysis {
     private static List<Context> populateAllContextCbtp(@Nonnull CbtpCostDTO cbtpResourceBundle) {
         final Map<Long, Set<Long>> regionListByAccount =
                         extractContextFromCostTuple(cbtpResourceBundle.getCostTupleListList());
-        return createContextList(regionListByAccount);
+        return createContextList(regionListByAccount, cbtpResourceBundle.getScopeId());
     }
 
     /**
@@ -391,7 +392,7 @@ public final class ProtobufToAnalysis {
             @NonNull ComputeTierCostDTO computeTierCost) {
         final Map<Long, Set<Long>> regionListByAccount =
                 extractContextFromCostTuple(computeTierCost.getCostTupleListList());
-        return createContextList(regionListByAccount);
+        return createContextList(regionListByAccount, null);
     }
 
     /**
@@ -416,22 +417,27 @@ public final class ProtobufToAnalysis {
 
             }
         }
-        return createContextList(regionOrZoneSetByAccount);
+        return createContextList(regionOrZoneSetByAccount, null);
     }
 
     /**
      * Create a context list based on a map of business account id to region/zone set.
      *
      * @param regionOrZoneSetByAccount a map of business account id to a region/zone set.
+     * @param parentId Scope/BillingFamily id set in case of CBTP contexts only.
      * @return a list of contexts.
      */
-    private static List<Context> createContextList(Map<Long, Set<Long>> regionOrZoneSetByAccount) {
+    private static List<Context> createContextList(Map<Long, Set<Long>> regionOrZoneSetByAccount,
+            @Nullable Long parentId) {
         List<Context> contextList = new ArrayList<>();
         regionOrZoneSetByAccount.entrySet().forEach(e -> {
             e.getValue().stream().forEach(regionOrZoneId -> {
+                long accountId = e.getKey();
                 // each context will represent a region X ba combination or a zone X ba combination
                 contextList.add(new Context(regionOrZoneId, regionOrZoneId,
-                        new BalanceAccount(e.getKey())));
+                        parentId == null
+                                ? new BalanceAccount(accountId)
+                                : new BalanceAccount(accountId, parentId)));
             });
         });
         return contextList;

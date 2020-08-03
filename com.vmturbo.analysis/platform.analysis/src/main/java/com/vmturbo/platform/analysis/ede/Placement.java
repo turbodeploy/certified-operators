@@ -3,11 +3,14 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -48,6 +51,38 @@ public class Placement {
     public static int globalCounter = 0;
     private static boolean printMaxPlacementIterations = true;
     public static final int MOVE_COST_FACTOR_MAX_COMM_SIZE = 10;
+
+    /**
+     * Used to set parent id in the merged context, parent id is needed for CBTP cost lookup
+     * to work in case of from onPrem to cloud migration.
+     */
+    @VisibleForTesting
+    static final BinaryOperator<Set<Context>> mergeContextSets = (s1, s2) -> {
+        // Make up a map of account id to their parent (BillingFamily) ids.
+        final Map<Long, Long> accountIdToParentId = new HashMap<>();
+        Stream.of(s1, s2)
+                .flatMap(Collection::stream)
+                .forEach(ctx -> {
+                    if (ctx.getBalanceAccount().getParentId() != null) {
+                        accountIdToParentId.put(ctx.getBalanceAccount().getId(),
+                                ctx.getBalanceAccount().getParentId());
+                    }
+                });
+        // Find common context b/w the 2 sets.
+        Set<Context> commonContexts = Sets.intersection(s1, s2);
+
+        // If any of these common contexts are missing the parentId, then set them from the map
+        // previously created above, assuming the account id matches.
+        commonContexts.forEach(ctx -> {
+            if (!ctx.getBalanceAccount().hasParentId()) {
+                Long parentId = accountIdToParentId.get(ctx.getBalanceAccount().getId());
+                if (parentId != null) {
+                    ctx.getBalanceAccount().setParentId(parentId);
+                }
+            }
+        });
+        return commonContexts;
+    };
 
     /**
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
@@ -742,14 +777,15 @@ public class Placement {
         // for each market, we find their complete set of context list by getting context from each
         // active seller, then find intersection of contexts from all markets.
         // NOTE: two contexts are considered equal if the balance account contents are the same
-        // and region ids are the same.
+        // and region ids are the same. In the final common contexts that we return, we set the
+        // parent context id if there was a match based on the account id.
         return markets.stream()
                 .map(m -> m.getActiveSellers().stream()
                         .map(t -> economy.getTraderWithContextMap().get(t))
                         .filter(contextList -> contextList != null && !contextList.isEmpty())
-                        .flatMap(list -> list.stream())
+                        .flatMap(Collection::stream)
                         .collect(Collectors.toSet()))
-                .reduce(Sets::intersection)
+                .reduce(mergeContextSets)
                 .orElse(Collections.emptySet());
     }
 
