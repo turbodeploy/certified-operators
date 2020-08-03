@@ -219,7 +219,7 @@ public class ActionModeCalculator {
      * entity settings.
      *
      * @param action an action
-     * @param entitiesCache a nullable entitis and settings snapshot
+     * @param entitiesCache a nullable entities and settings snapshot
      * @return the action mode and execution schedule
      */
     @Nonnull
@@ -824,7 +824,7 @@ public class ActionModeCalculator {
                                                         EntitySettingSpecs.Move))
                         .distinct();
             case SCALE:
-                return Stream.of(EntitySettingSpecs.CloudComputeScale);
+                return Stream.of(getScaleActionSetting(action));
             case ALLOCATE:
                 // Allocate actions are not executable and are not configurable by the user
                 return Stream.empty();
@@ -866,6 +866,34 @@ public class ActionModeCalculator {
                 return Stream.empty();
         }
         return Stream.empty();
+    }
+
+    private static EntitySettingSpecs getScaleActionSetting(
+            @Nonnull final ActionDTO.Action action) {
+        // If probe provided information about disruptiveness/reversibility then use
+        // appropriate settings.
+        if (action.hasDisruptive() && action.hasReversible()) {
+            final EntitySettingSpecs result;
+            if (action.getDisruptive()) {
+                result = action.getReversible()
+                        ? EntitySettingSpecs.DisruptiveReversibleScaling
+                        : EntitySettingSpecs.DisruptiveIrreversibleScaling;
+            } else {
+                result = action.getReversible()
+                        ? EntitySettingSpecs.NonDisruptiveReversibleScaling
+                        : EntitySettingSpecs.NonDisruptiveIrreversibleScaling;
+            }
+
+            // Also check that disruptiveness/reversibility settings are applied to the given type.
+            final EntityType entityType = EntityType.forNumber(action.getInfo().getScale()
+                    .getTarget().getType());
+            if (result.getEntityTypeScope().contains(entityType)) {
+                return result;
+            }
+        }
+
+        // By default use generic setting for Scale actions
+        return EntitySettingSpecs.CloudComputeScale;
     }
 
     /**

@@ -1042,6 +1042,154 @@ public class ActionModeCalculatorTest {
         Assert.assertEquals(EntitySettingSpecs.ResizeDownDBMem, entitySpecs.get(0));
     }
 
+    /**
+     * Tests {@link ActionModeCalculator#specsApplicableToAction} method for disruptive
+     * reversible Scale action.
+     */
+    @Test
+    public void testSpecsApplicableToActionForDisruptiveReversibleScale() {
+        // ARRANGE
+        final ActionDTO.Action action = actionBuilder
+                .setInfo(ActionInfo.newBuilder()
+                        .setScale(Scale.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(1L)
+                                        .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                        .build())
+                                .build())
+                        .build())
+                .setDisruptive(true)
+                .setReversible(true)
+                .build();
+
+        // ACT
+        final List<EntitySettingSpecs> entitySpecs = actionModeCalculator
+                .specsApplicableToAction(action, Collections.emptyMap())
+                .collect(Collectors.toList());
+
+        // ASSERT
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.DisruptiveReversibleScaling, entitySpecs.get(0));
+    }
+
+    /**
+     * Tests {@link ActionModeCalculator#specsApplicableToAction} method for disruptive
+     * irreversible Scale action.
+     */
+    @Test
+    public void testSpecsApplicableToActionForDisruptiveIrreversibleScale() {
+        // ARRANGE
+        final ActionDTO.Action action = actionBuilder
+                .setInfo(ActionInfo.newBuilder()
+                        .setScale(Scale.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(1L)
+                                        .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                        .build())
+                                .build())
+                        .build())
+                .setDisruptive(true)
+                .setReversible(false)
+                .build();
+
+        // ACT
+        final List<EntitySettingSpecs> entitySpecs = actionModeCalculator
+                .specsApplicableToAction(action, Collections.emptyMap())
+                .collect(Collectors.toList());
+
+        // ASSERT
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.DisruptiveIrreversibleScaling, entitySpecs.get(0));
+    }
+
+    /**
+     * Tests {@link ActionModeCalculator#specsApplicableToAction} method for non-disruptive
+     * reversible Scale action.
+     */
+    @Test
+    public void testSpecsApplicableToActionForNonDisruptiveReversibleScale() {
+        // ARRANGE
+        final ActionDTO.Action action = actionBuilder
+                .setInfo(ActionInfo.newBuilder()
+                        .setScale(Scale.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(1L)
+                                        .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                        .build())
+                                .build())
+                        .build())
+                .setDisruptive(false)
+                .setReversible(true)
+                .build();
+
+        // ACT
+        final List<EntitySettingSpecs> entitySpecs = actionModeCalculator
+                .specsApplicableToAction(action, Collections.emptyMap())
+                .collect(Collectors.toList());
+
+        // ASSERT
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.NonDisruptiveReversibleScaling, entitySpecs.get(0));
+    }
+
+    /**
+     * Tests {@link ActionModeCalculator#specsApplicableToAction} method for non-disruptive
+     * irreversible Scale action.
+     */
+    @Test
+    public void testSpecsApplicableToActionForNonDisruptiveIrreversibleScale() {
+        // ARRANGE
+        final ActionDTO.Action action = actionBuilder
+                .setInfo(ActionInfo.newBuilder()
+                        .setScale(Scale.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(1L)
+                                        .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                        .build())
+                                .build())
+                        .build())
+                .setDisruptive(false)
+                .setReversible(false)
+                .build();
+
+        // ACT
+        final List<EntitySettingSpecs> entitySpecs = actionModeCalculator
+                .specsApplicableToAction(action, Collections.emptyMap())
+                .collect(Collectors.toList());
+
+        // ASSERT
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.NonDisruptiveIrreversibleScaling, entitySpecs.get(0));
+    }
+
+    /**
+     * Tests {@link ActionModeCalculator#specsApplicableToAction} method for Scale action without
+     * disruptiveness/reversibility flags.
+     */
+    @Test
+    public void testSpecsApplicableToActionForScale() {
+        // ARRANGE
+        final ActionDTO.Action action = actionBuilder
+                .setInfo(ActionInfo.newBuilder()
+                        .setScale(Scale.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(1L)
+                                        .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+
+        // ACT
+        final List<EntitySettingSpecs> entitySpecs = actionModeCalculator
+                .specsApplicableToAction(action, Collections.emptyMap())
+                .collect(Collectors.toList());
+
+        // ASSERT
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(EntitySettingSpecs.CloudComputeScale, entitySpecs.get(0));
+    }
+
     private Action getResizeDownAction(long vmId) {
         ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
             .setId(10289)

@@ -124,18 +124,23 @@ public class TargetInfoResolver {
         final List<TargetInfo> targetInfos = new ArrayList<>();
         for (Long discoveringTargetId : actionPartialEntity.getDiscoveringTargetIdsList()) {
             cachedCapabilities.getProbeFromTarget(discoveringTargetId).ifPresent(probeId -> {
-                final SupportLevel supportLevel =
-                        cachedCapabilities.getSupportLevel(action, executantEntity, probeId);
+                final MergedActionCapability mergedActionCapability = cachedCapabilities
+                        .getMergedActionCapability(action, executantEntity, probeId);
                 // Explicit skipping of a target with an unknown support level for action.
-                if (supportLevel == SupportLevel.UNKNOWN) {
+                if (mergedActionCapability.getSupportLevel() == SupportLevel.UNKNOWN) {
                     return;
                 }
                 final ProbeCategory probeCategory =
                         cachedCapabilities.getProbeCategory(probeId).orElse(null);
                 int priority = PROBE_CATEGORY_PRIORITIES.indexOf(probeCategory);
                 priority = priority >= 0 ? priority : NO_CATEGORY_PRIORITY;
-                targetInfos.add(
-                        new TargetInfo(discoveringTargetId, probeCategory, supportLevel, priority));
+                targetInfos.add(new TargetInfo(
+                        discoveringTargetId,
+                        probeCategory,
+                        mergedActionCapability.getSupportLevel(),
+                        priority,
+                        mergedActionCapability.getDisruptive(),
+                        mergedActionCapability.getReversible()));
             });
         }
 
@@ -178,7 +183,9 @@ public class TargetInfoResolver {
             final ImmutableActionTargetInfo.Builder actionTargetInfoBuilder =
                     ImmutableActionTargetInfo.builder()
                             .targetId(targetInfo.getTargetId())
-                            .supportingLevel(targetInfo.getSupportLevel());
+                            .supportingLevel(targetInfo.getSupportLevel())
+                            .disruptive(targetInfo.getDisruptive())
+                            .reversible(targetInfo.getReversible());
             if (targetInfo.getProbeCategory() != null) {
                 actionTargetInfoBuilder.addAllPrerequisites(
                         PrerequisiteCalculator.calculatePrerequisites(action, actionPartialEntity,
@@ -213,17 +220,26 @@ public class TargetInfoResolver {
      * A helper class that stores information for deciding which target will perform the action.
      */
     private static class TargetInfo {
-        private long targetId;
-        private ProbeCategory probeCategory;
-        private SupportLevel supportLevel;
-        private int priority;
+        private final long targetId;
+        private final ProbeCategory probeCategory;
+        private final SupportLevel supportLevel;
+        private final int priority;
+        private final Boolean disruptive;
+        private final Boolean reversible;
 
-        TargetInfo(long targetId, @Nullable ProbeCategory probeCategory,
-                @Nonnull SupportLevel supportLevel, int priority) {
+        TargetInfo(
+                long targetId,
+                @Nullable ProbeCategory probeCategory,
+                @Nonnull SupportLevel supportLevel,
+                int priority,
+                @Nullable Boolean disruptive,
+                @Nullable Boolean reversible) {
             this.targetId = targetId;
             this.supportLevel = supportLevel;
             this.probeCategory = probeCategory;
             this.priority = priority;
+            this.disruptive = disruptive;
+            this.reversible = reversible;
         }
 
         public long getTargetId() {
@@ -244,6 +260,16 @@ public class TargetInfoResolver {
             return priority;
         }
 
+        @Nullable
+        public Boolean getDisruptive() {
+            return disruptive;
+        }
+
+        @Nullable
+        public Boolean getReversible() {
+            return reversible;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -253,8 +279,12 @@ public class TargetInfoResolver {
                 return false;
             }
             final TargetInfo that = (TargetInfo)o;
-            return targetId == that.targetId && priority == that.priority &&
-                    probeCategory == that.probeCategory && supportLevel == that.supportLevel;
+            return targetId == that.targetId
+                    && priority == that.priority
+                    && probeCategory == that.probeCategory
+                    && supportLevel == that.supportLevel
+                    && Objects.equals(disruptive, that.disruptive)
+                    && Objects.equals(reversible, that.reversible);
         }
 
         @Override

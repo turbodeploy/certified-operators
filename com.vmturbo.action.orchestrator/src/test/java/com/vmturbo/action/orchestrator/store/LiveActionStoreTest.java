@@ -973,7 +973,7 @@ public class LiveActionStoreTest {
             .build();
         actionStore.populateRecommendedActions(secondPlan);
 
-        assertThat (actionStore.size(), is(1));
+        assertThat(actionStore.size(), is(1));
         assertThat(actionStore.getAction(queuedMove.getId()).get().getState(),
             is(ActionState.QUEUED));
     }
@@ -1020,7 +1020,7 @@ public class LiveActionStoreTest {
             .build();
         actionStore.populateRecommendedActions(secondPlan);
 
-        assertThat (actionStore.size(), is(1));
+        assertThat(actionStore.size(), is(1));
         assertThat(actionStore.getAction(move.getId()).get().getRecommendation().getDeprecatedImportance(),
             is(updatedMove.getDeprecatedImportance()));
         assertThat(actionStore.getAction(move.getId()).get().getRecommendation().getExecutable(),

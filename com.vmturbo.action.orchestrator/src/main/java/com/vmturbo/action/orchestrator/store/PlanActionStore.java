@@ -475,7 +475,6 @@ public class PlanActionStore implements ActionStore {
                                                            realtimeTopologyContextId);
         }
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
-        final List<ActionDTO.Action> actionsStream = new ArrayList<>(actions.size());
 
         Map<Long, ActionTargetInfo> actionTargetInfo = actionTargetSelector.getTargetsForActions(actions.stream(), snapshot);
         Stream<ActionDTO.Action> actionStream = actions.stream().map(

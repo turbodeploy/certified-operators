@@ -391,7 +391,7 @@ class LiveActions implements QueryableActionViews {
             if (actionTargetInfo.supportingLevel() == SupportLevel.SUPPORTED) {
                 action.receive(new ManualAcceptanceEvent(
                         action.getSchedule().get().getAcceptingUser(),
-                        targetsForAcceptedActions.get(action.getId()).targetId().get()));
+                        actionTargetInfo.targetId().get()));
             } else {
                 logger.error("Action {} cannot be executed because it is not supported. "
                                 + "Support level: {}", action.getRecommendationOid(),

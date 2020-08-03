@@ -2,10 +2,10 @@ package com.vmturbo.topology.processor.actions;
 
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
+
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
@@ -13,6 +13,10 @@ import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCa
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionPolicyElement;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionPolicyElement.CommodityScope;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionPolicyElement.ProviderScope;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.util.SdkActionPolicyBuilder;
 
@@ -92,6 +96,113 @@ public class SdkToProbeActionsConverterTest {
     }
 
     /**
+     * Tests conversion of action policy with provider scope.
+     */
+    @Test
+    public void testConvertActionPolicyWithProviderScope() {
+        // ARRANGE
+        final ActionPolicyDTO actionPolicy = ActionPolicyDTO.newBuilder()
+                .addPolicyElement(ActionPolicyElement.newBuilder()
+                        .setActionType(ActionType.SCALE)
+                        .setActionCapability(ActionCapability.SUPPORTED)
+                        .setProviderScope(ProviderScope.newBuilder()
+                                .setProviderType(EntityType.STORAGE_TIER)))
+                .setEntityType(EntityType.VIRTUAL_VOLUME)
+                .build();
+
+        // ACT
+        final ActionCapabilityElement result =
+                SdkToProbeActionsConverter.convert(actionPolicy).getCapabilityElement(0);
+
+        // ASSERT
+        Assert.assertEquals(ActionDTO.ActionType.SCALE, result.getActionType());
+        Assert.assertTrue(result.hasProviderScope());
+        Assert.assertEquals(EntityType.STORAGE_TIER, result.getProviderScope().getProviderType());
+    }
+
+    /**
+     * Tests conversion of action policy with commodity scope.
+     */
+    @Test
+    public void testConvertActionPolicyWithCommodityScope() {
+        // ARRANGE
+        final ActionPolicyDTO actionPolicy = ActionPolicyDTO.newBuilder()
+                .addPolicyElement(ActionPolicyElement.newBuilder()
+                        .setActionType(ActionType.SCALE)
+                        .setActionCapability(ActionCapability.SUPPORTED)
+                        .setCommodityScope(CommodityScope.newBuilder()
+                                .setCommodityType(CommodityType.STORAGE_AMOUNT)))
+                .setEntityType(EntityType.VIRTUAL_VOLUME)
+                .build();
+
+        // ACT
+        final ActionCapabilityElement result =
+                SdkToProbeActionsConverter.convert(actionPolicy).getCapabilityElement(0);
+
+        // ASSERT
+        Assert.assertEquals(ActionDTO.ActionType.SCALE, result.getActionType());
+        Assert.assertTrue(result.hasCommodityScope());
+        Assert.assertEquals(CommodityType.STORAGE_AMOUNT,
+                result.getCommodityScope().getCommodityType());
+    }
+
+    /**
+     * Tests conversion of action policy with disruptiveness/reversibility flags set to
+     * {@code true}.
+     */
+    @Test
+    public void testConvertDisruptiveReversibleActionPolicy() {
+        // ARRANGE
+        final ActionPolicyDTO actionPolicy = ActionPolicyDTO.newBuilder()
+                .addPolicyElement(ActionPolicyElement.newBuilder()
+                        .setActionType(ActionType.SCALE)
+                        .setActionCapability(ActionCapability.SUPPORTED)
+                        .setDisruptive(true)
+                        .setReversible(true))
+                .setEntityType(EntityType.VIRTUAL_VOLUME)
+                .build();
+
+        // ACT
+        final ActionCapabilityElement result =
+                SdkToProbeActionsConverter.convert(actionPolicy).getCapabilityElement(0);
+
+        // ASSERT
+        Assert.assertEquals(ActionDTO.ActionType.SCALE, result.getActionType());
+        Assert.assertTrue(result.hasDisruptive());
+        Assert.assertTrue(result.getDisruptive());
+        Assert.assertTrue(result.hasReversible());
+        Assert.assertTrue(result.getReversible());
+    }
+
+    /**
+     * Tests conversion of action policy with disruptiveness/reversibility flags set to
+     * {@code false}.
+     */
+    @Test
+    public void testConvertNonDisruptiveIrreversibleActionPolicy() {
+        // ARRANGE
+        final ActionPolicyDTO actionPolicy = ActionPolicyDTO.newBuilder()
+                .addPolicyElement(ActionPolicyElement.newBuilder()
+                        .setActionType(ActionType.SCALE)
+                        .setActionCapability(ActionCapability.SUPPORTED)
+                        .setDisruptive(false)
+                        .setReversible(false))
+                .setEntityType(EntityType.VIRTUAL_VOLUME)
+                .build();
+
+        // ACT
+        final ActionCapabilityElement result =
+                SdkToProbeActionsConverter.convert(actionPolicy).getCapabilityElement(0);
+
+        // ASSERT
+        Assert.assertEquals(ActionDTO.ActionType.SCALE, result.getActionType());
+        Assert.assertTrue(result.hasDisruptive());
+        Assert.assertFalse(result.getDisruptive());
+        Assert.assertTrue(result.hasReversible());
+        Assert.assertFalse(result.getReversible());
+    }
+
+    /**
      * Checks that there are same converted action policies.
      *
      * @param sdkActionPolicy policy before converting
@@ -100,9 +211,12 @@ public class SdkToProbeActionsConverterTest {
     private void assertIsConvertedSdkPolicy(ActionPolicyDTO sdkActionPolicy,
             ProbeActionCapability xlActionPolicy, ActionDTO.ActionType convertedType) {
         Assert.assertEquals(sdkActionPolicy.getEntityType().getNumber(), xlActionPolicy.getEntityType());
+        final ActionCapabilityElement capabilityElement = xlActionPolicy.getCapabilityElement(0);
         Assert.assertEquals(ProbeActionCapability.ActionCapability.forNumber(
                 sdkActionPolicy.getPolicyElement(0).getActionCapability().getNumber()),
-                xlActionPolicy.getCapabilityElement(0).getActionCapability());
-        Assert.assertEquals(convertedType , xlActionPolicy.getCapabilityElement(0).getActionType());
+                capabilityElement.getActionCapability());
+        Assert.assertEquals(convertedType, capabilityElement.getActionType());
+        Assert.assertFalse(capabilityElement.hasDisruptive());
+        Assert.assertFalse(capabilityElement.hasReversible());
     }
 }
