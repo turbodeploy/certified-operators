@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Data structure description for enumeration settings.
@@ -46,25 +47,43 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
      * @param maxValue maximum value
      * @param enumClass class of an enum
      */
-    public EnumSettingDataType(@Nonnull T defaultValue, @Nullable T maxValue,
+    public EnumSettingDataType(@Nullable T defaultValue, @Nullable T maxValue,
                     @Nonnull Class<T> enumClass) {
         super(defaultValue);
         this.maxValue = maxValue;
         this.enumClass = enumClass;
     }
 
+    /**
+     * Constructs enum data type holding specified default value.
+     *
+     * @param defaultValue default value
+     * @param maxValue maximum value
+     * @param entityDefaults entity-specific overrides for default values
+     * @param enumClass class of an enum
+     */
+    public EnumSettingDataType(@Nonnull T defaultValue, @Nullable T maxValue,
+                               @Nonnull Map<EntityType, T> entityDefaults, @Nonnull Class<T> enumClass) {
+        super(defaultValue, entityDefaults);
+        this.maxValue = maxValue;
+        this.enumClass = enumClass;
+    }
+
     @Override
     public void build(@Nonnull Builder builder) {
-        final List<String> values = Stream.of(getDefault().getDeclaringClass().getEnumConstants())
-                .filter(t -> ((this.maxValue == null) || (t.ordinal() <= this.maxValue.ordinal())))
-                .map(Enum::name)
-                .collect(Collectors.toList());
+        final EnumSettingValueType.Builder settingBuilder = EnumSettingValueType.newBuilder();
+        final T defaultValue = getDefault();
+        if (defaultValue != null) {
+            final List<String> values = Stream.of(getDefault().getDeclaringClass().getEnumConstants())
+                    .filter(t -> ((this.maxValue == null) || (t.ordinal() <= this.maxValue.ordinal())))
+                    .map(Enum::name)
+                    .collect(Collectors.toList());
+            settingBuilder.addAllEnumValues(values).setDefault(defaultValue.name());
+        }
         final Map<Integer, String> entityDefaults = getEntityDefaults().entrySet()
                 .stream()
                 .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().name()));
-        builder.setEnumSettingValueType(EnumSettingValueType.newBuilder()
-                .addAllEnumValues(values)
-                .setDefault(getDefault().name())
+        builder.setEnumSettingValueType(settingBuilder
                 .putAllEntityDefaults(entityDefaults)
                 .build());
     }

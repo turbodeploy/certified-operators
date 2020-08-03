@@ -22,13 +22,13 @@ import com.google.common.collect.Sets;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocationFilter;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
+import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
+import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
+import com.vmturbo.cloud.commitment.analysis.demand.store.ImmutableEntityComputeTierAllocationFilter;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope.ComputeTierDemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
@@ -112,12 +112,12 @@ public class CloudCommitmentDemandReaderTest {
         when(computeTierAllocationStore.streamAllocations(eq(filterB))).thenAnswer((f) -> Stream.of(allocationC, allocationD));
 
         // Invoke the reader
-        final Stream<EntityCloudTierMapping<?>> actualDemandStream = cloudCommitmentDemandReader.getDemand(
+        final Stream<EntityCloudTierMapping> actualDemandStream = cloudCommitmentDemandReader.getDemand(
                 CloudTierType.COMPUTE_TIER,
                 Lists.newArrayList(demandSegmentA, demandSegmentB),
                 startTime);
 
-        final Set<EntityCloudTierMapping<?>> actualDemand = actualDemandStream.collect(Collectors.toSet());
+        final Set<EntityCloudTierMapping> actualDemand = actualDemandStream.collect(Collectors.toSet());
 
         final ArgumentCaptor<EntityComputeTierAllocationFilter> filterCaptor =
                 ArgumentCaptor.forClass(EntityComputeTierAllocationFilter.class);

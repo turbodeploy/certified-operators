@@ -76,7 +76,7 @@ public class PercentileCommodityData
     @Override
     public PercentileRecord.Builder checkpoint(@Nonnull List<PercentileRecord> outdated)
                     throws HistoryCalculationException {
-        return utilizationCounts.checkpoint(outdated);
+        return utilizationCounts.checkpoint(outdated, true);
     }
 
     @Override
@@ -111,7 +111,7 @@ public class PercentileCommodityData
                     Double used = commodityFieldsAccessor.getRealTimeValue(field);
                     if (used != null) {
                         utilizationCounts.addPoints(Collections.singletonList(used / capacity * 100), capacity,
-                                                    System.currentTimeMillis());
+                                                    config.getClock().millis());
                     }
                 }
             }

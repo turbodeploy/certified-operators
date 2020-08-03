@@ -25,6 +25,7 @@ import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
+import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
@@ -159,6 +160,9 @@ public class ServiceConfig {
     @Value("${enableReporting:false}")
     private boolean enableReporting;
 
+    @Value("${grafanaViewerUsername:report-viewer}")
+    private String grafanaViewerUsername;
+
     @Value("${apiPaginationDefaultLimit:100}")
     private int apiPaginationDefaultLimit;
 
@@ -167,18 +171,6 @@ public class ServiceConfig {
 
     @Value("${apiPaginationDefaultSortCommodity:priceIndex}")
     private String apiPaginationDefaultSortCommodity;
-
-    /**
-     * Feature flag. If it is true then ExecutionSchedule settings are not displayed in UI.
-     */
-    @Value("${hideExecutionScheduleSetting:false}")
-    private boolean hideExecutionScheduleSetting;
-
-    /**
-     * Feature flag. If it is true then ExternalApproval settings are not displayed in UI.
-     */
-    @Value("${hideExternalApprovalOrAuditSettings:false}")
-    private boolean hideExternalApprovalOrAuditSettings;
 
     /**
      * Allow target management in integration mode? False by default.
@@ -555,9 +547,7 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 mapperConfig.settingsMapper(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
-                settingsPoliciesService(),
-                hideExecutionScheduleSetting,
-                hideExternalApprovalOrAuditSettings);
+                settingsPoliciesService());
     }
 
     @Bean
@@ -701,15 +691,31 @@ public class ServiceConfig {
         return new CpuInfoMapper();
     }
 
+    /**
+     * User for calculating the reporting user.
+     *
+     * @return {@link ReportingUserCalculator} to use.
+     */
+    @Bean
+    public ReportingUserCalculator reportingUserCalculator() {
+        return new ReportingUserCalculator(enableReporting, grafanaViewerUsername);
+    }
+
+    /**
+     * {@link UsersService}.
+     *
+     * @return The {@link UsersService}.
+     */
     @Bean
     public UsersService usersService() {
         return new UsersService(authConfig.getAuthHost(),
-                                authConfig.getAuthPort(),
-                                communicationConfig.serviceRestTemplate(),
-                                samlRegistrationId,
-                                samlEnabled,
-                                groupsService(),
-                                widgetSetsService());
+            authConfig.getAuthPort(),
+            communicationConfig.serviceRestTemplate(),
+            samlRegistrationId,
+            samlEnabled,
+            groupsService(),
+            widgetSetsService(),
+            reportingUserCalculator());
     }
 
     @Bean

@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -121,7 +122,7 @@ public class ReservedInstanceAggregate {
 
     public String getDisplayName() {
         if (riKey == null) return null;
-        return riKey.getAccountScopeId() + SEPARATOR +
+        return StringUtils.join(riKey.getAccountScopeId(), ",") + SEPARATOR +
                 riKey.getFamily() + SEPARATOR +
                 riKey.getOs() + SEPARATOR +
                 riKey.getRegionId() + SEPARATOR +

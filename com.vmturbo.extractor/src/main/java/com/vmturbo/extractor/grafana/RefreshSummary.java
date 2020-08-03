@@ -131,6 +131,20 @@ public class RefreshSummary implements OperationSummary {
         operations.add(operation);
     }
 
+    @Override
+    public void recordUserUnchanged(String username, long userId) {
+        final Operation operation = Operation.withSummary(FormattedString.format(
+                "User {} (id: {}) already exists.", username, userId));
+        operations.add(operation);
+    }
+
+    @Override
+    public void recordUserCreate(String username, long userId) {
+        final Operation operation = Operation.withSummary(FormattedString.format(
+                "User {} (id: {}) created.", username, userId));
+        operations.add(operation);
+    }
+
     /**
      * Create a summary string containing all the changes in this summary.
      *

@@ -66,8 +66,6 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceImplBase;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
-import com.vmturbo.commons.forecasting.ForecastingContext;
-import com.vmturbo.commons.forecasting.RegressionForecastingStrategy;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
@@ -126,8 +124,6 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final Clock clock;
 
-    private ForecastingContext forecastingContext;
-
     private final long realtimeTopologyContextId;
 
     private final int maxNumberOfInnerStatRecords;
@@ -163,7 +159,6 @@ public class CostRpcService extends CostServiceImplBase {
         this.planProjectedEntityCostStore = Objects.requireNonNull(planProjectedEntityCostStore);
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
         this.timeFrameCalculator = Objects.requireNonNull(timeFrameCalculator);
-        this.forecastingContext = new ForecastingContext(new RegressionForecastingStrategy());
         this.clock = Objects.requireNonNull(clock);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.maxNumberOfInnerStatRecords = maxNumberOfInnerStatRecords;

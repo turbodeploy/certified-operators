@@ -85,7 +85,11 @@ public class GroupResolverTest {
      */
     @Before
     public void setup() {
-        groupResolver = new GroupResolver(searchResolver, GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+        GroupResolverSearchFilterResolver searchFilterResolver = mock(GroupResolverSearchFilterResolver.class);
+        when(searchFilterResolver.resolveExternalFilters(any()))
+                .thenAnswer(invocation -> invocation.getArguments()[0]);
+        groupResolver = new GroupResolver(searchResolver,
+                GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()), searchFilterResolver);
     }
 
     /**

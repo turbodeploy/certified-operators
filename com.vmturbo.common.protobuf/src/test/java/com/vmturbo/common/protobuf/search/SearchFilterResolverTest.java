@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -16,7 +17,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,9 +31,6 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.SearchMoles.TargetSearchServiceMole;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 
@@ -46,10 +43,10 @@ public class SearchFilterResolverTest {
     private Function<GroupFilter, Set<Long>> getGroupMembers;
     @Mock
     private Function<Pair<Collection<Long>, GroupType>, Set<Long>> getOwnersOfGroups;
+    @Mock
+    private Function<PropertyFilter, Collection<Long>> getTargetIds;
 
     private SearchFilterResolver filterResolver;
-    private GrpcTestServer server;
-    private TargetSearchServiceMole targetService;
 
     /**
      * Set up the test.
@@ -59,21 +56,9 @@ public class SearchFilterResolverTest {
     @Before
     public void initialize() throws IOException {
         MockitoAnnotations.initMocks(this);
-        targetService = Mockito.spy(new TargetSearchServiceMole());
-        server = GrpcTestServer.newServer(targetService);
-        server.start();
-        final TargetSearchServiceBlockingStub targetSearchService =
-                TargetSearchServiceGrpc.newBlockingStub(server.getChannel());
+        Mockito.when(getTargetIds.apply(Mockito.any())).thenReturn(Sets.newHashSet(1L, 2L));
         filterResolver =
-                new TestSearchFilterResolver(getGroupMembers, getOwnersOfGroups, targetSearchService);
-    }
-
-    /**
-     * Cleans up the environment.
-     */
-    @After
-    public void shutdown() {
-        server.close();
+                new TestSearchFilterResolver(getGroupMembers, getOwnersOfGroups, getTargetIds);
     }
 
     /**
@@ -236,11 +221,12 @@ public class SearchFilterResolverTest {
 
         private final Function<GroupFilter, Set<Long>> getGroupMembers;
         private final Function<Pair<Collection<Long>, GroupType>, Set<Long>> getOwnersOfGroups;
+        private final Function<PropertyFilter, Collection<Long>> getTargetIds;
 
         TestSearchFilterResolver(Function<GroupFilter, Set<Long>> getGroupMembers,
                 Function<Pair<Collection<Long>, GroupType>, Set<Long>> getOwnersOfGroups,
-                @Nonnull TargetSearchServiceBlockingStub targetSearchService) {
-            super(targetSearchService);
+                Function<PropertyFilter, Collection<Long>> getTargetIds) {
+            this.getTargetIds = Objects.requireNonNull(getTargetIds);
             this.getGroupMembers = getGroupMembers;
             this.getOwnersOfGroups = getOwnersOfGroups;
         }
@@ -256,6 +242,12 @@ public class SearchFilterResolverTest {
         protected Set<Long> getGroupOwners(@Nonnull Collection<Long> groupIds,
                 @Nullable GroupType groupType) {
             return getOwnersOfGroups.apply(Pair.create(groupIds, groupType));
+        }
+
+        @Nonnull
+        @Override
+        protected Collection<Long> getTargetIdsFromFilter(@Nonnull PropertyFilter filter) {
+            return getTargetIds.apply(filter);
         }
     }
 }

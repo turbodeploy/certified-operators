@@ -7,12 +7,16 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Table;
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -66,175 +70,7 @@ public class JsonToSMAInputTranslator {
         return null;
     }
 
-    /**
-     * convert the given SMAInput and SMAOutput to a json file.
-     * @param smaInput the smaInput to convert
-     * @param smaOutput the smaOutput to convert
-     * @param filename the filename of the json file.
-     */
-    public void convertSmaToJson(SMAInput smaInput, SMAOutput smaOutput, String filename) {
-        File file = new File(filename);
-        FileWriter fr = null;
-        BufferedWriter br = null;
-        try {
-            fr = new FileWriter(file);
-            br = new BufferedWriter(fr);
-            br.write("{\n");
-            br.write("\t\"Contexts\": [\n");
-            br.write("\t\t{\n");
-            for (int contextIndex = 0; contextIndex < smaInput.getContexts().size(); contextIndex++) {
-                SMAInputContext smaInputContext = smaInput.getContexts().get(contextIndex);
-                br.write("\t\t\t\"context\": {\n");
-                SMAContext smaContext = smaInputContext.getContext();
-                br.write("\t\t\t\t\"os\": \"" + smaContext.getOs().name() + "\",\n");
-                br.write("\t\t\t\t\"csp\": \"" + smaContext.getCsp().name() + "\",\n");
-                br.write("\t\t\t\t\"region\": " + smaContext.getRegionId() + ",\n");
-                br.write("\t\t\t\t\"billingAccount\": " + smaContext.getBillingFamilyId() + ",\n");
-                br.write("\t\t\t\t\"tenancy\": \"" + smaContext.getTenancy().name() + "\"\n");
-                br.write("\t\t\t},\n");
-
-                br.write("\t\t\t\"Templates\": [\n");
-                for (SMATemplate smaTemplate : smaInputContext.getTemplates()) {
-                    br.write("\t\t\t\t{\n");
-                    br.write("\t\t\t\t\t\"oid\": " + smaTemplate.getOid() + ",\n");
-                    br.write("\t\t\t\t\t\"name\": \"" + smaTemplate.getName() + "\",\n");
-                    br.write("\t\t\t\t\t\"family\": \"" + smaTemplate.getFamily() + "\",\n");
-
-                    br.write("\t\t\t\t\t\"onDemandCost\": [\n");
-                    int currentIndex = 0;
-                    for (Table.Cell<Long, OSType, SMACost> entry : smaTemplate.getOnDemandCosts().cellSet()) {
-                        br.write("\t\t\t\t\t\t{\n");
-                        br.write("\t\t\t\t\t\t\t\"compute\": " + entry.getValue().getCompute() + ",\n");
-                        br.write("\t\t\t\t\t\t\t\"license\": " + entry.getValue().getLicense() + ",\n");
-                        br.write("\t\t\t\t\t\t\t\"businessAccount\": " + entry.getRowKey() + "\n");
-                        br.write("\t\t\t\t\t\t\t\"osType\": " + entry.getColumnKey() + "\n");
-
-                        if (currentIndex != smaTemplate.getOnDemandCosts().values().size() - 1) {
-                            br.write("\t\t\t\t\t\t},\n");
-                        }
-                        currentIndex++;
-                    }
-                    br.write("\t\t\t\t\t\t}\n");
-                    br.write("\t\t\t\t\t],\n");
-
-                    br.write("\t\t\t\t\t\"discountedCost\": [\n");
-                    currentIndex = 0;
-                    for (Table.Cell<Long, OSType, SMACost> entry : smaTemplate.getDiscountedCosts().cellSet()) {
-                        br.write("\t\t\t\t\t\t{\n");
-                        br.write("\t\t\t\t\t\t\t\"compute\": " + entry.getValue().getCompute() + ",\n");
-                        br.write("\t\t\t\t\t\t\t\"license\": " + entry.getValue().getLicense() + ",\n");
-                        br.write("\t\t\t\t\t\t\t\"businessAccount\": " + entry.getRowKey() + "\n");
-                        br.write("\t\t\t\t\t\t\t\"osType\": " + entry.getColumnKey() + "\n");
-
-                        if (currentIndex != smaTemplate.getDiscountedCosts().values().size() - 1) {
-                            br.write("\t\t\t\t\t\t},\n");
-                        }
-                        currentIndex++;
-                    }
-                    br.write("\t\t\t\t\t\t}\n");
-                    br.write("\t\t\t\t\t],\n");
-
-                    br.write("\t\t\t\t\t\"coupons\": " + smaTemplate.getCoupons() + "\n");
-                    if (smaTemplate != smaInputContext.getTemplates().get(smaInputContext.getTemplates().size() - 1)) {
-                        br.write("\t\t\t\t},\n");
-                    }
-                }
-                br.write("\t\t\t\t}\n");
-                br.write("\t\t\t],\n");
-
-                br.write("\t\t\t\"VirtualMachines\": [\n");
-                for (SMAVirtualMachine smaVirtualMachine : smaInputContext.getVirtualMachines()) {
-                    br.write("\t\t\t\t{\n");
-                    br.write("\t\t\t\t\t\"oid\": " + smaVirtualMachine.getOid() + ",\n");
-                    br.write("\t\t\t\t\t\"name\": \"" + smaVirtualMachine.getName() + "\",\n");
-                    br.write("\t\t\t\t\t\"businessAccount\": " + smaVirtualMachine.getBusinessAccountId() + ",\n");
-                    br.write("\t\t\t\t\t\"providers\": [\n");
-                    for (SMATemplate provider : smaVirtualMachine.getProviders()) {
-                        br.write("\t\t\t\t\t\t" + provider.getOid());
-                        if (provider != smaVirtualMachine.getProviders().get(smaVirtualMachine.getProviders().size() - 1)) {
-                            br.write(",\n");
-                        }
-                    }
-                    br.write("\n");
-                    br.write("\t\t\t\t\t],\n");
-                    br.write("\t\t\t\t\t\"zone\": " + smaVirtualMachine.getZoneId() + ",\n");
-                    if (!smaVirtualMachine.getGroupName().equals(SMAUtils.NO_GROUP_ID)) {
-                        br.write("\t\t\t\t\t\"groupName\": " + smaVirtualMachine.getGroupName() + ",\n");
-                    }
-                    br.write("\t\t\t\t\t\"currentRICoverage\": " + Math.round(smaVirtualMachine.getCurrentRICoverage()) + ",\n");
-                    br.write("\t\t\t\t\t\"currentRIKeyID\": " + Math.round(smaVirtualMachine.getCurrentRI().getRiKeyOid()) + ",\n");
-                    br.write("\t\t\t\t\t\"currentTemplate\": " + smaVirtualMachine.getCurrentTemplate().getOid() + "\n");
-
-                    if (smaVirtualMachine != smaInputContext.getVirtualMachines().get(smaInputContext.getVirtualMachines().size() - 1)) {
-                        br.write("\t\t\t\t},\n");
-                    }
-                }
-                br.write("\t\t\t\t}\n");
-                br.write("\t\t\t],\n");
-
-                br.write("\t\t\t\"ReservedInstances\": [\n");
-                for (SMAReservedInstance smaReservedInstance : smaInputContext.getReservedInstances()) {
-                    br.write("\t\t\t\t{\n");
-                    br.write("\t\t\t\t\t\"oid\": " + smaReservedInstance.getOid() + ",\n");
-                    br.write("\t\t\t\t\t\"keyOid\": " + smaReservedInstance.getRiKeyOid() + ",\n");
-                    br.write("\t\t\t\t\t\"name\": \"" + smaReservedInstance.getName() + "\",\n");
-                    br.write("\t\t\t\t\t\"businessAccount\": " + smaReservedInstance.getBusinessAccountId() + ",\n");
-                    br.write("\t\t\t\t\t\"utilization\": " + "0,\n");
-                    br.write("\t\t\t\t\t\"zone\": " + smaReservedInstance.getZoneId() + ",\n");
-                    br.write("\t\t\t\t\t\"template\": " + smaReservedInstance.getTemplate().getOid() + ",\n");
-                    br.write("\t\t\t\t\t\"count\": " + smaReservedInstance.getCount() + ",\n");
-                    br.write("\t\t\t\t\t\"isf\": " + smaReservedInstance.isIsf() + "\n");
-                    if (smaReservedInstance != smaInputContext.getReservedInstances().get(smaInputContext.getReservedInstances().size() - 1)) {
-                        br.write("\t\t\t\t},\n");
-                    }
-                }
-                if (smaInputContext.getReservedInstances().size() > 0) {
-                    br.write("\t\t\t\t}\n");
-                }
-                if (smaOutput != null && smaOutput.getContexts().size() == smaInput.getContexts().size()) {
-                    br.write("\t\t\t],\n");
-                } else {
-                    br.write("\t\t\t]\n");
-                }
-
-                if (smaOutput != null && smaOutput.getContexts().size() == smaInput.getContexts().size()) {
-                    SMAOutputContext smaOutputContext = smaOutput.getContexts().get(contextIndex);
-                    br.write("\t\t\t\"Matching\": [\n");
-                    for (SMAMatch smaMatch : smaOutputContext.getMatches()) {
-                        br.write("\t\t\t\t{\n");
-                        br.write("\t\t\t\t\t\"VirtualMachine\": " + smaMatch.getVirtualMachine().getOid() + ",\n");
-                        if (smaMatch.getDiscountedCoupons() > 0) {
-                            br.write("\t\t\t\t\t\"ReservedInstance\": " + smaMatch.getReservedInstance().getOid() + ",\n");
-                            br.write("\t\t\t\t\t\"DiscountedCoupons\": " + smaMatch.getDiscountedCoupons() + ",\n");
-                        }
-                        br.write("\t\t\t\t\t\"Template\": " + smaMatch.getTemplate().getOid() + "\n");
-                        if (smaMatch != smaOutputContext.getMatches().get(smaOutputContext.getMatches().size() - 1)) {
-                            br.write("\t\t\t\t},\n");
-                        }
-                    }
-                    br.write("\t\t\t\t}\n");
-                    br.write("\t\t\t]\n");
-                }
-
-                if (smaInputContext != smaInput.getContexts().get(smaInput.getContexts().size() - 1)) {
-                    br.write("\t\t},\n");
-                }
-            }
-            br.write("\t\t}\n");
-            br.write("\t]\n");
-            br.write("}\n");
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                br.close();
-                fr.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-    /**
+     /**
      * converts inputContext json object to SMAInputContext.
      * @param inputContextObj inputContext json object
      * @return corresponding SMAInputContext
@@ -290,6 +126,12 @@ public class JsonToSMAInputTranslator {
         if (reservedInstanceObj.has("shared")) {
             shared = reservedInstanceObj.get("shared").getAsBoolean();
         }
+        Set<Long> applicableBusinessAccounts = Collections.emptySet();
+        if (reservedInstanceObj.has("applicableBusinessAccounts")) {
+            JsonArray jsonArray = reservedInstanceObj.get("applicableBusinessAccounts").getAsJsonArray();
+            Long[] arrName = new Gson().fromJson(jsonArray, Long[].class);
+            applicableBusinessAccounts = ImmutableSet.copyOf(arrName);
+        }
         boolean platformFlexible = false;
         if (reservedInstanceObj.has("platformFlexible")) {
             reservedInstanceObj.get("platformFlexible").getAsBoolean();
@@ -299,8 +141,9 @@ public class JsonToSMAInputTranslator {
         if (zoneObj != null) {
             zone = reservedInstanceObj.get("zone").getAsLong();
         }
-        SMAReservedInstance reservedInstance = new SMAReservedInstance(oid, keyOid, name, businessAccount,
-                oidToTemplate.get(templateOid), zone, count, isf, shared, platformFlexible);
+        SMAReservedInstance reservedInstance = new SMAReservedInstance(oid, keyOid, name,
+                businessAccount, applicableBusinessAccounts, oidToTemplate.get(templateOid), zone,
+                count, isf, shared, platformFlexible);
         return reservedInstance;
     }
 

@@ -121,8 +121,8 @@ public class UtilizationCountStore {
             }
             float usage = (float)(percent * capacity / 100);
             // in both full observation window and latest between-checkpoints window
-            full.addPoint(usage, (float)capacity, key, true, timestamp);
-            latest.addPoint(usage, (float)capacity, key, true, timestamp);
+            full.addPoint(usage, (float)capacity, key, timestamp);
+            latest.addPoint(usage, (float)capacity, key, timestamp);
         }
     }
 
@@ -160,6 +160,20 @@ public class UtilizationCountStore {
     }
 
     /**
+     * Clears the latest, adds the input record and the re-adds latest.
+     *
+     * @param record serialized record
+     * @throws HistoryCalculationException when passed data are not valid
+     */
+    public synchronized void addBeforeLatest(PercentileRecord record) throws HistoryCalculationException {
+        PercentileRecord latestCopy = getLatestCountsRecord().build();
+        latest.clear();
+        String description = fieldReference.toString();
+        latest.deserialize(record, description);
+        latest.deserialize(latestCopy, description);
+    }
+
+    /**
      * Serialize the latest window counts array.
      *
      * @return serialized record
@@ -189,10 +203,12 @@ public class UtilizationCountStore {
      * Clear the latest array.
      *
      * @param oldPages counts arrays for the old periods of time that go out of observation window
+     * @param clearLatest should the latest record be cleared.
      * @return serialized counts array for the entire observation window, to be persisted
      * @throws HistoryCalculationException when passed data are not valid
      */
-    public synchronized PercentileRecord.Builder checkpoint(Collection<PercentileRecord> oldPages)
+    public synchronized PercentileRecord.Builder checkpoint(Collection<PercentileRecord> oldPages,
+                                                            boolean clearLatest)
                     throws HistoryCalculationException {
         for (PercentileRecord oldest : oldPages) {
             if (oldest.getUtilizationCount() != buckets.size()) {
@@ -202,17 +218,16 @@ public class UtilizationCountStore {
                                                       + ", expected "
                                                       + buckets.size());
             }
+
             for (int i = 0; i < oldest.getUtilizationCount(); ++i) {
                 int count = oldest.getUtilization(i);
-                float average = buckets.average(i);
-                for (int j = 0; j < count; ++j) {
-                    full.addPoint(average * oldest.getCapacity() / 100, oldest.getCapacity(),
-                                    fieldReference.toString(), false,
-                                    oldest.getStartTimestamp());
-                }
+                full.removePoint(i, count, oldest.getCapacity(),
+                                    oldest.getEndTimestamp(), fieldReference.toString());
             }
         }
-        latest.clear();
+        if (clearLatest) {
+            latest.clear();
+        }
         return serialize(full, periodDays);
     }
 

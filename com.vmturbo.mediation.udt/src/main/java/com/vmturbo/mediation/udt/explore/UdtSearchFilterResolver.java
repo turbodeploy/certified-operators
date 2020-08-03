@@ -1,6 +1,7 @@
 package com.vmturbo.mediation.udt.explore;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterators;
 import java.util.stream.Collectors;
@@ -14,8 +15,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -31,6 +34,7 @@ public class UdtSearchFilterResolver extends SearchFilterResolver {
 
     private final RequestExecutor requestExecutor;
     private final DataRequests requests;
+    private final TargetSearchServiceBlockingStub targetSearchService;
 
     /**
      * Constructor.
@@ -41,7 +45,8 @@ public class UdtSearchFilterResolver extends SearchFilterResolver {
      */
     @ParametersAreNonnullByDefault
     public UdtSearchFilterResolver(Connection connection, RequestExecutor requestExecutor, DataRequests requests) {
-        super(TargetSearchServiceGrpc.newBlockingStub(connection.getTopologyProcessorChannel()));
+        this.targetSearchService = Objects.requireNonNull(TargetSearchServiceGrpc
+                .newBlockingStub(connection.getTopologyProcessorChannel()));
         this.requestExecutor = requestExecutor;
         this.requests = requests;
     }
@@ -66,5 +71,11 @@ public class UdtSearchFilterResolver extends SearchFilterResolver {
     protected Set<Long> getGroupOwners(@Nonnull Collection<Long> groupIds, @Nullable GroupType type) {
         final GetOwnersRequest request = requests.getGroupOwnerRequest(groupIds, type);
         return requestExecutor.getOwnersOfGroups(request);
+    }
+
+    @Nonnull
+    @Override
+    protected Collection<Long> getTargetIdsFromFilter(@Nonnull PropertyFilter filter) {
+        return targetSearchService.searchTargets(filter).getTargetsList();
     }
 }

@@ -78,6 +78,9 @@ public class ReservedInstanceConfig {
     @Value("${concurrentSupplementalRICoverageAllocation:true}")
     private boolean concurrentSupplementalRICoverageAllocation;
 
+    @Value("${ignoreReservedInstanceInventory:false}")
+    private boolean ignoreReservedInstanceInventory;
+
     @Autowired
     private GroupClientConfig groupClientConfig;
 
@@ -119,9 +122,13 @@ public class ReservedInstanceConfig {
 
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
-        return new ReservedInstanceBoughtStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator(),
-                pricingConfig.priceTableStore());
+        if (ignoreReservedInstanceInventory) {
+            return new EmptyReservedInstanceBoughtStore();
+        } else {
+            return new SQLReservedInstanceBoughtStore(databaseConfig.dsl(),
+                    identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator(),
+                    pricingConfig.priceTableStore());
+        }
     }
 
     /**

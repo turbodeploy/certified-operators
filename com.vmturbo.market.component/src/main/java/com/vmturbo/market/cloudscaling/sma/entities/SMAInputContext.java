@@ -80,16 +80,7 @@ public class SMAInputContext {
         if (oldReservedInstances != null) {
             for (int i = 0; i < oldReservedInstances.size(); i++) {
                 SMAReservedInstance oldRI = oldReservedInstances.get(i);
-                SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
-                    oldRI.getRiKeyOid(),
-                    oldRI.getName(),
-                    oldRI.getBusinessAccountId(),
-                    oldRI.getTemplate(),
-                    oldRI.getZoneId(),
-                    oldRI.getCount(),
-                    oldRI.isIsf(),
-                    oldRI.isShared(),
-                    oldRI.isPlatformFlexible());
+                SMAReservedInstance newRI = SMAReservedInstance.copyFrom(oldRI);
                 newReservedInstances.add(newRI);
             }
         }
@@ -127,17 +118,7 @@ public class SMAInputContext {
         this.virtualMachines = newVirtualMachines;
         List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
         for (SMAReservedInstance oldRI : inputContext.getReservedInstances()) {
-            SMAReservedInstance newRI = new SMAReservedInstance(
-                    oldRI.getOid(),
-                    oldRI.getRiKeyOid(),
-                    oldRI.getName(),
-                    oldRI.getBusinessAccountId(),
-                    oldRI.getTemplate(),
-                    oldRI.getZoneId(),
-                    oldRI.getCount(),
-                    oldRI.isIsf(),
-                    oldRI.isShared(),
-                    oldRI.isPlatformFlexible());
+            SMAReservedInstance newRI = SMAReservedInstance.copyFrom(oldRI);
             newReservedInstances.add(newRI);
         }
         this.reservedInstances = newReservedInstances;

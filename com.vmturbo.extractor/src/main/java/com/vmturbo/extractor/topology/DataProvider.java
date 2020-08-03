@@ -169,6 +169,7 @@ public class DataProvider {
      * contains 2 hosts and 1 vm, it will return 2 if requested entityType is host.
      *
      * @param groupId group id
+     * @param entityType entity type
      * @return direct member count
      */
     public int getGroupDirectMembersCount(long groupId, EntityType entityType) {

@@ -144,4 +144,42 @@ public class SecurityConstant {
     public static final Set<String> PREDEFINED_ROLE_SET =
             ImmutableSet.of(ADMINISTRATOR, SITE_ADMIN, AUTOMATOR, DEPLOYER, ADVISOR, OBSERVER,
                     SHARED_ADVISOR, SHARED_OBSERVER);
+
+    /**
+     * Enum for predefine roles.
+     */
+    public enum PredefinedRole {
+        /**
+         * ADMINISTRATOR role.
+         */
+        ADMINISTRATOR,
+        /**
+         * SITE_ADMIN role.
+         */
+        SITE_ADMIN,
+        /**
+         * AUTOMATOR role.
+         */
+        AUTOMATOR,
+        /**
+         * DEPLOYER role.
+         */
+        DEPLOYER,
+        /**
+         * ADVISOR role.
+         */
+        ADVISOR,
+        /**
+         * OBSERVER role.
+         */
+        OBSERVER,
+        /**
+         * SHARED_ADVISOR role.
+         */
+        SHARED_ADVISOR,
+        /**
+         * SHARED_OBSERVER role.
+         */
+        SHARED_OBSERVER
+    }
 }

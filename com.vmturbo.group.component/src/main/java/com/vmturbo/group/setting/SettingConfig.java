@@ -22,6 +22,10 @@ import com.vmturbo.group.api.SettingsUpdatesReciever;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 @Configuration
 @Import({GroupComponentDBConfig.class, IdentityProviderConfig.class, GroupConfig.class,
@@ -39,6 +43,9 @@ public class SettingConfig {
 
     @Autowired
     private PlanOrchestratorClientConfig planOrchestratorClientConfig;
+
+    @Autowired
+    private TopologyProcessorClientConfig topologyProcessorClientConfig;
 
     @Value("${createDefaultSettingPolicyRetryIntervalSec}")
     public long createDefaultSettingPolicyRetryIntervalSec;
@@ -61,7 +68,18 @@ public class SettingConfig {
     @Bean
     public SettingSpecStore settingSpecsStore() {
         return new EnumBasedSettingSpecStore(hideExecutionScheduleSetting,
-            hideExternalApprovalOrAuditSettings);
+            hideExternalApprovalOrAuditSettings, thinTargetCache());
+    }
+
+    /**
+     * A cache for simple target information.
+     *
+     * @return instance of thin target cache
+     */
+    @Bean
+    public ThinTargetCache thinTargetCache() {
+        return new ThinTargetCache(topologyProcessorClientConfig.topologyProcessor(
+                TopologyProcessorSubscription.forTopic(Topic.Notifications)));
     }
 
     @Bean

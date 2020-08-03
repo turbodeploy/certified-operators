@@ -80,6 +80,7 @@ public class SMAUtilsTest {
                         representative.getRiKeyOid(),
                         smaReservedInstance.getName(),
                         smaReservedInstance.getBusinessAccountId(),
+                        smaReservedInstance.getApplicableBusinessAccounts(),
                         smaReservedInstance.getTemplate(),
                         smaReservedInstance.getZoneId(),
                         smaReservedInstance.getCount(),
@@ -269,16 +270,7 @@ public class SMAUtilsTest {
             List<SMAReservedInstance> oldReservedInstances = inputContext.getReservedInstances();
             for (int i = 0; i < nReservedInstances; i++) {
                 SMAReservedInstance oldRI = oldReservedInstances.get(i);
-                SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
-                        oldRI.getRiKeyOid(),
-                        oldRI.getName(),
-                        oldRI.getBusinessAccountId(),
-                        oldRI.getTemplate(),
-                        oldRI.getZoneId(),
-                        oldRI.getCount(),
-                        oldRI.isIsf(),
-                        oldRI.isShared(),
-                        oldRI.isPlatformFlexible());
+                SMAReservedInstance newRI = SMAReservedInstance.copyFrom(oldRI);
                 newReservedInstances.add(newRI);
             }
             SMAContext context = inputContext.getContext();
@@ -447,11 +439,12 @@ public class SMAUtilsTest {
         for (int i = 0; i < nReservedInstances; i++) {
             long riKeyId = SMATestConstants.RESERVED_INSTANCE_KEY_BASE + i;
             long riOid = SMATestConstants.RESERVED_INSTANCE_BASE + i;
+            long baOid = SMATestConstants.BUSINESS_ACCOUNT_BASE + (i % (nReservedInstances
+                    / SMATestConstants.BUSINESS_ACCOUNT_BASE));
             SMAReservedInstance reservedInstance = new SMAReservedInstance(riOid,
                     riKeyId,
                     "ri" + riOid,
-                    SMATestConstants.BUSINESS_ACCOUNT_BASE +
-                            (i % (nReservedInstances / SMATestConstants.BUSINESS_ACCOUNT_BASE)),
+                    baOid, Collections.emptySet(),
                     smaTemplate,
                     SMATestConstants.ZONE_BASE,
                     1,
@@ -524,16 +517,7 @@ public class SMAUtilsTest {
             List<SMAReservedInstance> oldReservedInstances = inputContext.getReservedInstances();
             for (int i = 0; i < nReservedInstances; i++) {
                 SMAReservedInstance oldRI = oldReservedInstances.get(i);
-                SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
-                    oldRI.getRiKeyOid(),
-                    oldRI.getName(),
-                    oldRI.getBusinessAccountId(),
-                    oldRI.getTemplate(),
-                    oldRI.getZoneId(),
-                    oldRI.getCount(),
-                    oldRI.isIsf(),
-                    oldRI.isShared(),
-                    oldRI.isPlatformFlexible());
+                SMAReservedInstance newRI = SMAReservedInstance.copyFrom(oldRI);
                 newReservedInstances.add(newRI);
             }
             SMAInputContext newInputContext = new SMAInputContext(context, newVirtualMachines, newReservedInstances, inputContext.getTemplates());
@@ -665,9 +649,10 @@ public class SMAUtilsTest {
             long riOid = SMATestConstants.RESERVED_INSTANCE_BASE + i;
             long riKeyOid = SMATestConstants.RESERVED_INSTANCE_KEY_BASE + i;
             long zone = (typeOfRIs == TypeOfRIs.REGIONAL ? SMAUtils.NO_ZONE : SMATestConstants.ZONE_BASE + rand.nextInt(nzones));
+            long baOid = SMATestConstants.BUSINESS_ACCOUNT_BASE + rand.nextInt(nbusinessAccount);
             SMAReservedInstance smaReservedInstance = new SMAReservedInstance(riOid,
                 riKeyOid, "ri" + riOid,
-                SMATestConstants.BUSINESS_ACCOUNT_BASE + rand.nextInt(nbusinessAccount),
+                baOid, Collections.emptySet(),
                 smaTemplates.get(rand.nextInt(nTemplates)),
                 zone,
                 1,  // count
@@ -804,16 +789,7 @@ public class SMAUtilsTest {
             List<SMAReservedInstance> oldReservedInstances = inputContext.getReservedInstances();
             for (int i = 0; i < nReservedInstances; i++) {
                 SMAReservedInstance oldRI = oldReservedInstances.get(i);
-                SMAReservedInstance newRI = new SMAReservedInstance(oldRI.getOid(),
-                    oldRI.getRiKeyOid(),
-                    oldRI.getName(),
-                    oldRI.getBusinessAccountId(),
-                    oldRI.getTemplate(),
-                    oldRI.getZoneId(),
-                    oldRI.getCount(),
-                    oldRI.isIsf(),
-                    oldRI.isShared(),
-                    oldRI.isPlatformFlexible());
+                SMAReservedInstance newRI = SMAReservedInstance.copyFrom(oldRI);
                 newReservedInstances.add(newRI);
             }
             SMAInputContext newInputContext = new SMAInputContext(context, newVirtualMachines, newReservedInstances, inputContext.getTemplates());
@@ -912,6 +888,7 @@ public class SMAUtilsTest {
                 SMAReservedInstance smaReservedInstance = new SMAReservedInstance(riOid,
                     riKeyOid, "ri_" + riOid + "_" + j,
                     businessAccount,
+                    Collections.emptySet(),
                     riTemplate,
                     zone,
                     1,  // count

@@ -86,7 +86,7 @@ public class ReservedInstanceCoverageStoreTest {
     public void setup() throws Exception {
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
         reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
-        reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
+        reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
                 new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
         reservedInstanceCoverageStore = new ReservedInstanceCoverageStore(dsl);
     }

@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Lists;
@@ -18,11 +17,14 @@ import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityCloudTierMapping;
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.DemandSelectionStage.DemandSelectionFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.DemandSelectionStage.DemandSelectionFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.EntityCloudTierDemandSet;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
@@ -34,6 +36,8 @@ import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandS
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.DemandSegment;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * Testing the demand selection stage.
@@ -91,31 +95,41 @@ public class DemandSelectionStageTest {
         when(analysisContext.getAnalysisStartTime()).thenReturn(Optional.of(lookbackStartTime));
 
         // construct the stage
-        final AnalysisStage demandSelectionStage = demandSelectionFactory.createStage(
+        final AnalysisStage<Void, EntityCloudTierDemandSet> demandSelectionStage = demandSelectionFactory.createStage(
                 id, analysisConfig, analysisContext);
 
 
         // set demand reader response
         final EntityCloudTierMapping entityCloudTierMappingA = ImmutableEntityCloudTierMapping.builder()
-                .startTime(lookbackStartTime.minus(3, ChronoUnit.DAYS))
-                .endTime(lookbackStartTime.plus(1, ChronoUnit.DAYS))
+                .timeInterval(ImmutableTimeInterval.builder()
+                        .startTime(lookbackStartTime.minus(3, ChronoUnit.DAYS))
+                        .endTime(lookbackStartTime.plus(1, ChronoUnit.DAYS))
+                        .build())
                 .entityOid(1L)
                 .accountOid(2L)
                 .regionOid(3L)
                 .serviceProviderOid(4L)
-                .cloudTierType(CloudTierType.COMPUTE_TIER)
-                .cloudTierDemand(new Object())
+                .cloudTierDemand(ImmutableComputeTierDemand.builder()
+                        .cloudTierOid(5L)
+                        .osType(OSType.LINUX)
+                        .tenancy(Tenancy.DEFAULT)
+                        .build())
                 .build();
 
         final EntityCloudTierMapping entityCloudTierMappingB = ImmutableEntityCloudTierMapping.builder()
-                .startTime(lookbackStartTime.plus(1, ChronoUnit.DAYS))
-                .endTime(Instant.now())
+                .timeInterval(ImmutableTimeInterval.builder()
+                        .startTime(lookbackStartTime.plus(1, ChronoUnit.DAYS))
+                        .endTime(Instant.now())
+                        .build())
                 .entityOid(1L)
                 .accountOid(2L)
                 .regionOid(3L)
                 .serviceProviderOid(4L)
-                .cloudTierType(CloudTierType.COMPUTE_TIER)
-                .cloudTierDemand(new Object())
+                .cloudTierDemand(ImmutableComputeTierDemand.builder()
+                        .cloudTierOid(5L)
+                        .osType(OSType.LINUX)
+                        .tenancy(Tenancy.DEFAULT)
+                        .build())
                 .build();
 
         when(demandReader.getDemand(
@@ -124,18 +138,19 @@ public class DemandSelectionStageTest {
                 eq(lookbackStartTime))).thenReturn(Stream.of(entityCloudTierMappingA, entityCloudTierMappingB));
 
         // invoke the stage
-        final AnalysisStage.StageResult<Set<EntityCloudTierMapping<?>>> stageResult =
+        final AnalysisStage.StageResult<EntityCloudTierDemandSet> stageResult =
                 demandSelectionStage.execute(null);
 
 
         // setup expected output
         final EntityCloudTierMapping expectedMappingA = ImmutableEntityCloudTierMapping.copyOf(entityCloudTierMappingA)
-                .withStartTime(lookbackStartTime);
+                .withTimeInterval(ImmutableTimeInterval.copyOf(entityCloudTierMappingA.timeInterval())
+                        .withStartTime(lookbackStartTime));
         final EntityCloudTierMapping expectedMappingB = entityCloudTierMappingB;
 
 
-        assertThat(stageResult.output(), hasSize(2));
-        assertThat(stageResult.output(), containsInAnyOrder(expectedMappingA, expectedMappingB));
+        assertThat(stageResult.output().allocatedDemand(), hasSize(2));
+        assertThat(stageResult.output().allocatedDemand(), containsInAnyOrder(expectedMappingA, expectedMappingB));
 
     }
 }

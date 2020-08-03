@@ -240,7 +240,7 @@ public class ActionWriter implements ActionsListener {
                 final Long newHash = snapshotManager.updateRecordHash(record);
                 if (newHash != null) {
                     try (Record r = actionSpecUpserter.open(record)) {
-                        r.set(ActionModel.ActionMetric.ACTION_SPEC_HASH, newHash);
+                        r.set(ActionModel.ActionSpec.HASH, newHash);
                         snapshotManager.setRecordTimes(r);
                     }
                 }

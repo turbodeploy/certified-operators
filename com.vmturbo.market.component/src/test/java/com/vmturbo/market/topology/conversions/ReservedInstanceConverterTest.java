@@ -310,7 +310,7 @@ public class ReservedInstanceConverterTest {
                 traderTO.getSettings().getQuoteFunction().getRiskBased().getCloudCost();
         final CbtpCostDTO cbtpCostDTO = costDTO.getCbtpResourceBundle();
         Assert.assertEquals(1, cbtpCostDTO.getCostTupleListList().size());
-        Assert.assertEquals(businessAccountOid, cbtpCostDTO.getScopeId());
+        Assert.assertEquals(businessAccountOid, cbtpCostDTO.getScopeIdsList().iterator().next().longValue());
     }
 
     /**

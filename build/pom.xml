@@ -6,26 +6,26 @@
 
     <groupId>com.vmturbo</groupId>
     <artifactId>Turbonomic-XL</artifactId>
-    <version>7.22.6-SNAPSHOT</version>
+    <version>7.22.7-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
-        <market.version>3.22.6-SNAPSHOT</market.version>
+        <market.version>3.22.7-SNAPSHOT</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>7.22.6-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>7.22.7-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
-        <apm.probes.branch.version>7.22.6-SNAPSHOT</apm.probes.branch.version>
+        <apm.probes.branch.version>7.22.7-SNAPSHOT</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>7.22.6-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>7.22.7-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.22-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.25-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -150,7 +150,7 @@
         <docker.registry>docker.io</docker.registry>
         <docker.image.prefix>turbonomic</docker.image.prefix>
 
-        <immutables.version>2.7.3</immutables.version>
+        <immutables.version>2.8.8</immutables.version>
         <roaringbitmap.version>0.8.13</roaringbitmap.version>
         <!-- java slang -->
         <javaslang.version>2.0.5</javaslang.version>
@@ -465,6 +465,13 @@
             <id>nginx</id>
             <modules>
                 <module>../nginx</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>grafana</id>
+            <modules>
+                <module>../grafana</module>
             </modules>
         </profile>
 
@@ -1091,6 +1098,7 @@
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
+                <module>../grafana</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.licensing</module>
@@ -1256,6 +1264,7 @@
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
+                <module>../grafana</module>
                 <module>../diags</module>
             </modules>
         </profile>

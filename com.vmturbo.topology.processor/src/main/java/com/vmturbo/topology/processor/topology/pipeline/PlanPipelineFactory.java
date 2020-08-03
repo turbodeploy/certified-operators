@@ -22,6 +22,7 @@ import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
@@ -130,6 +131,8 @@ public class PlanPipelineFactory {
 
     private final EphemeralEntityEditor ephemeralEntityEditor;
 
+    private final GroupResolverSearchFilterResolver searchFilterResolver;
+
     public PlanPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                @Nonnull final PolicyManager policyManager,
                                @Nonnull final StitchingManager stitchingManager,
@@ -154,7 +157,8 @@ public class PlanPipelineFactory {
                                @Nonnull DemandOverriddenCommodityEditor demandOverriddenCommodityEditor,
                                @Nonnull final ConsistentScalingManager consistentScalingManager,
                                @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector,
-                               @Nonnull final EphemeralEntityEditor ephemeralEntityEditor) {
+                               @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
+                               @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -180,6 +184,7 @@ public class PlanPipelineFactory {
         this.demandOverriddenCommodityEditor = demandOverriddenCommodityEditor;
         this.requestAndLimitCommodityThresholdsInjector = Objects.requireNonNull(requestAndLimitCommodityThresholdsInjector);
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
+        this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
     }
 
     /**
@@ -208,7 +213,8 @@ public class PlanPipelineFactory {
             @Nullable final PlanScope scope,
             @Nonnull final StitchingJournalFactory journalFactory) {
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo, consistentScalingManager);
+                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient,
+                        searchFilterResolver), topologyInfo, consistentScalingManager);
         final TopologyPipeline.Builder<EntityStore, TopologyBroadcastInfo, EntityStore> topoPipelineBuilder =
             TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context);
         // if the constructed topology is already in the cache from the realtime topology, just
@@ -227,12 +233,12 @@ public class PlanPipelineFactory {
                 // TODO: Move the ToplogyEditStage after the GraphCreationStage
                 // That way the editstage can work on the graph instead of a
                 // separate structure.
-                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient))
+                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient, searchFilterResolver))
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
-                .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient))
+                .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient, searchFilterResolver))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
                 .addStage(new PolicyStage(policyManager, changes))
                 .addStage(new IgnoreConstraintsStage(context.getGroupResolver(), groupServiceClient, changes))
@@ -245,7 +251,7 @@ public class PlanPipelineFactory {
                 .addStage(new HistoryAggregationStage(historyAggregator, changes, topologyInfo, scope))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
-                .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes))
+                .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes, searchFilterResolver))
                 .addStage(new RequestCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
                 .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
@@ -269,10 +275,11 @@ public class PlanPipelineFactory {
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope) {
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo, consistentScalingManager);
+                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient,
+                        searchFilterResolver), topologyInfo, consistentScalingManager);
         return TopologyPipeline.<Long, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new TopologyAcquisitionStage(repositoryClient))
-                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient))
+                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient, searchFilterResolver))
                 .addStage(new GraphCreationStage())
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))

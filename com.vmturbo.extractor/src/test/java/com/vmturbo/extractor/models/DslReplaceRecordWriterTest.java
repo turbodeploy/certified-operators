@@ -56,7 +56,7 @@ public class DslReplaceRecordWriterTest {
 
     private static final WriterConfig config = ImmutableWriterConfig.builder()
             .addAllReportingCommodityWhitelist(
-                    ModelDefinitions.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST.stream()
+                    Constants.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST.stream()
                             .map(CommodityType::getNumber)
                             .collect(Collectors.toList()))
             .insertTimeoutSeconds(60)

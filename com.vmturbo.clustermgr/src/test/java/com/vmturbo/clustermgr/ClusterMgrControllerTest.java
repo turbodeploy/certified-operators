@@ -31,7 +31,10 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vmturbo.components.common.health.CompositeHealthMonitor;
+import com.vmturbo.components.common.health.HealthStatus;
+import com.vmturbo.components.common.health.HealthStatusProvider;
+import com.vmturbo.components.common.health.SimpleHealthStatus;
 
 /**
  * Tests for the ClusterMgr HTTP endpoints
@@ -54,11 +57,25 @@ public class ClusterMgrControllerTest {
     private ClusterMgrService clusterMgrServiceMock;
 
     @Autowired
+    private CompositeHealthMonitor compositeHealthMonitor;
+
+    @Autowired
     private WebApplicationContext wac;
 
     @Before
     public void setup() {
         mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
+        compositeHealthMonitor.addHealthCheck(new HealthStatusProvider() {
+            @Override
+            public String getName() {
+                return "test";
+            }
+
+            @Override
+            public HealthStatus getHealthStatus() {
+                return new SimpleHealthStatus(true, "good");
+            }
+        });
     }
 
     @Test
@@ -200,7 +217,7 @@ public class ClusterMgrControllerTest {
                 .andExpect(status().isOk())
                 .andReturn();
         // Assert
-        assertThat(result.getResponse().getContentAsString(), is("true"));
+        assertThat(result.getResponse().getStatus(), is(200));
     }
 
     /**
@@ -214,7 +231,7 @@ public class ClusterMgrControllerTest {
         MvcResult result = mockMvc.perform(get(API_PREFIX + "/health"))
                 .andExpect(status().isServiceUnavailable())
                 .andReturn();
-        assertThat(result.getResponse().getContentAsString(), is("false"));
+        assertThat(result.getResponse().getStatus(), is(503));
     }
 
     @Test

@@ -49,6 +49,7 @@ import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Tests for {@link DefaultSettingPolicyValidator}.
@@ -653,8 +654,9 @@ public class SettingPolicyValidatorTest {
      */
     @Test
     public void testDefaultPoliciesFromSpec() {
+        final ThinTargetCache thinTargetCache = Mockito.mock(ThinTargetCache.class);
         DefaultSettingPolicyValidator validator = new DefaultSettingPolicyValidator(
-                new EnumBasedSettingSpecStore(false, false),
+                new EnumBasedSettingSpecStore(false, false, thinTargetCache),
                 mock(IGroupStore.class));
 
             List<InvalidItemException> exceptions = Lists.newArrayList();

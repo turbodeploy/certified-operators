@@ -22,6 +22,7 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationListener;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.event.ContextRefreshedEvent;
@@ -34,6 +35,8 @@ import com.vmturbo.clustermgr.kafka.KafkaConfigurationServiceConfig;
 import com.vmturbo.clustermgr.management.ComponentRegistrationConfig;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.config.PropertiesLoader;
+import com.vmturbo.components.common.health.CompositeHealthMonitor;
+import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 
 /**
  * The ClusterMgrMain is a utility to launch each of the VmtComponent Docker Containers configured to run on the
@@ -42,7 +45,7 @@ import com.vmturbo.components.common.config.PropertiesLoader;
  * persistent key/value server and is injected automatically by Spring Cloud Configuration.
  */
 @Configuration("theComponent")
-@Import({ClusterMgrConfig.class, SwaggerConfig.class, KafkaConfigurationServiceConfig.class})
+@Import({ClusterMgrConfig.class, SwaggerConfig.class, KafkaConfigurationServiceConfig.class, ClustermgrDBConfig.class})
 public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent> {
 
     private static final Logger log = LogManager.getLogger();
@@ -55,8 +58,14 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
     @Autowired
     private ClusterMgrConfig clusterMgrConfig;
 
+    @Autowired
+    private ClustermgrDBConfig clustermgrDBConfig;
+
     @Value("${kafkaConfigFile:/config/kafka-config.yml}")
     private String kafkaConfigFile;
+
+    @Value("${mariadbHealthCheckIntervalSeconds:60}")
+    private int mariaHealthCheckIntervalSeconds;
 
     @Autowired
     private KafkaConfigurationService kafkaConfigurationService;
@@ -154,6 +163,22 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
             Thread.currentThread().interrupt();
             throw new RuntimeException(ie);
         }
+
+
+    }
+
+    /**
+     * Health monitor.
+     *
+     * @return health monitor
+     */
+    @Bean
+    public CompositeHealthMonitor healthMonitor() {
+        final CompositeHealthMonitor healthMonitor =
+                new CompositeHealthMonitor("Clustermgr Component");
+        healthMonitor.addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                clustermgrDBConfig.dataSource()::getConnection));
+        return healthMonitor;
     }
 
     private synchronized void startBackgroundTask(Runnable task) {
