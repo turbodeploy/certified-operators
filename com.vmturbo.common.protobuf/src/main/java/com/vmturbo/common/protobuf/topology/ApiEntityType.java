@@ -175,13 +175,15 @@ public enum ApiEntityType {
      * expand cloud aggregators, we want to get entities of all the types in
      * {@link #SCOPE_EXPANSION_TYPES_FOR_CLOUD}.
      */
-    public static final Map<ApiEntityType, Set<ApiEntityType>> ENTITY_TYPES_TO_EXPAND =
-            ImmutableMap.of(
-                    ApiEntityType.DATACENTER, Collections.singleton(ApiEntityType.PHYSICAL_MACHINE),
-                    ApiEntityType.REGION, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-                    ApiEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-                    ApiEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-                    ApiEntityType.VIRTUAL_DATACENTER, Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
+    public static final ImmutableMap<ApiEntityType, Set<ApiEntityType>> ENTITY_TYPES_TO_EXPAND =
+            new ImmutableMap.Builder<ApiEntityType, Set<ApiEntityType>>()
+                    .put(ApiEntityType.DATACENTER, ImmutableSet.of(ApiEntityType.PHYSICAL_MACHINE, ApiEntityType.VIRTUAL_MACHINE))
+                    .put(ApiEntityType.REGION, SCOPE_EXPANSION_TYPES_FOR_CLOUD)
+                    .put(ApiEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD)
+                    .put(ApiEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD)
+                    .put(ApiEntityType.VIRTUAL_DATACENTER, Collections.singleton(ApiEntityType.VIRTUAL_MACHINE))
+                    .put(ApiEntityType.PHYSICAL_MACHINE, Collections.singleton(ApiEntityType.VIRTUAL_MACHINE))
+                    .build();
 
     private final String apiStr;
 
