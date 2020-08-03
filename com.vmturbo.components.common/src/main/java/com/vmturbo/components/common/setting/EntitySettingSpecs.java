@@ -38,10 +38,10 @@ public enum EntitySettingSpecs {
     /**
      * Move action automation mode.
      */
-    Move("move", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_VOLUME,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER, EntityType.DISK_ARRAY,
-                    EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+    Move("move", "Move / Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
+                    EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+            actionExecutionModeSetToManual(), true),
 
     /**
      * Cloud compute scale action automation mode.
@@ -263,6 +263,41 @@ public enum EntitySettingSpecs {
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
 
     /**
+     * Enable Scale actions (currently it is used for Volumes only).
+     */
+    EnableScaleActions("enableScaleActions", "Enable Scale Actions", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            new BooleanSettingDataType(true), true),
+
+    /**
+     * Automation mode for non-disruptive reversible actions.
+     */
+    NonDisruptiveReversibleScaling("nonDisruptiveReversibleScaling", "Non-disruptive Reversible Scaling",
+            Collections.emptyList(), SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            actionModeWithoutDisabledOption(), true),
+
+    /**
+     * Automation mode for non-disruptive irreversible actions.
+     */
+    NonDisruptiveIrreversibleScaling("nonDisruptiveIrreversibleScaling", "Non-disruptive Irreversible Scaling",
+            Collections.emptyList(), SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            actionModeWithoutDisabledOption(), true),
+
+    /**
+     * Automation mode for disruptive reversible actions.
+     */
+    DisruptiveReversibleScaling("disruptiveReversibleScaling", "Disruptive Reversible Scaling",
+            Collections.emptyList(), SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            actionModeWithoutDisabledOption(), true),
+
+    /**
+     * Automation mode for disruptive irreversible actions.
+     */
+    DisruptiveIrreversibleScaling("disruptiveIrreversibleScaling", "Disruptive Irreversible Scaling",
+            Collections.emptyList(), SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            actionModeWithoutDisabledOption(), true),
+
+    /**
      * CPU utilization threshold.
      */
     CpuUtilization("cpuUtilization", "CPU Utilization",
@@ -413,6 +448,15 @@ public enum EntitySettingSpecs {
             numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
+     * Aggressiveness for virtual volume.
+     */
+    PercentileAggressivenessVirtualVolume("percentileAggressivenessVirtualVolume",
+            SettingConstants.AGGRESSIVENESS,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            numeric(90.0f, 100.0f, 95.0f), true),
+
+    /**
      * Min observation period for container spec.
      */
     MinObservationPeriodContainerSpec("minObservationPeriodContainerSpec",
@@ -422,13 +466,22 @@ public enum EntitySettingSpecs {
         numeric(0.0f, 90.0f, 1.0f), true),
 
     /**
-     * Min observation period for business user.
+     * Min observation period for virtual machine.
      */
     MinObservationPeriodVirtualMachine("minObservationPeriodVirtualMachine",
             "Min Observation Period",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f, 90.0f, 0.0f), true),
+
+    /**
+     * Min observation period for virtual volume.
+     */
+    MinObservationPeriodVirtualVolume("minObservationPeriodVirtualVolume",
+            "Min Observation Period",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            numeric(0.0f, 7.0f, 0.0f), true),
 
     /**
      * Max observation period for business user.
@@ -455,6 +508,15 @@ public enum EntitySettingSpecs {
             SettingConstants.MAX_OBSERVATION_PERIOD,
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(7.0f, 90.0f, 30.0f), true),
+
+    /**
+     * Max observation period for virtual volume.
+     */
+    MaxObservationPeriodVirtualVolume("maxObservationPeriodVirtualVolume",
+            SettingConstants.MAX_OBSERVATION_PERIOD,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
             numeric(7.0f, 90.0f, 30.0f), true),
 
     /**
@@ -526,6 +588,17 @@ public enum EntitySettingSpecs {
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
+
+    /**
+     * Resize target Utilization for IOPS and Throughput. We use this unified setting for both IOPS
+     * and Throughput because IOPS and Throughput utilization values are dependent on each other.
+     */
+    ResizeTargetUtilizationIopsAndThroughput("resizeTargetUtilizationIopsAndThroughput",
+            "Scaling Target IOPS/Throughput Utilization",
+            //path is needed for the UI to display this setting in a separate category
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
      * IOPS capacity to set on the entity.
@@ -1255,6 +1328,19 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE),
             numeric(0, Float.POSITIVE_INFINITY, 50000),
+            true),
+
+    /**
+     * Instructs Market analysis to prefer savings over reversibility when generating Volume Scale
+     * actions.
+     */
+    PreferSavingsOverReversibility(
+            "preferSavingsOverReversibility",
+            "Prefer Savings Over Reversibility",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            new BooleanSettingDataType(true),
             true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =
@@ -1279,13 +1365,17 @@ public enum EntitySettingSpecs {
                     EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name,
                     EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name,
                     EntitySettingSpecs.EnforceNonDisruptive.name,
-            EntitySettingSpecs.ResizeUpHeap.name,
-            EntitySettingSpecs.ResizeDownHeap.name,
-            EntitySettingSpecs.ScalingPolicy.name,
-            EntitySettingSpecs.ResizeUpDBMem.name,
-            EntitySettingSpecs.ResizeDownDBMem.name,
-            EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
-                    EntitySettingSpecs.ShopTogether.name);
+                    EntitySettingSpecs.ResizeUpHeap.name,
+                    EntitySettingSpecs.ResizeDownHeap.name,
+                    EntitySettingSpecs.ScalingPolicy.name,
+                    EntitySettingSpecs.ResizeUpDBMem.name,
+                    EntitySettingSpecs.ResizeDownDBMem.name,
+                    EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
+                    EntitySettingSpecs.ShopTogether.name,
+                    EntitySettingSpecs.NonDisruptiveReversibleScaling.name,
+                    EntitySettingSpecs.NonDisruptiveIrreversibleScaling.name,
+                    EntitySettingSpecs.DisruptiveReversibleScaling.name,
+                    EntitySettingSpecs.DisruptiveIrreversibleScaling.name);
 
     /**
      * Default regex for a String-type SettingDataStructure = matches anything.
@@ -1496,7 +1586,8 @@ public enum EntitySettingSpecs {
     @Nonnull
     private static SettingDataStructure<?> actionExecutionModeSetToManualTypeSpecific(
             @Nonnull Map<EntityType, ActionMode> entityDefaults) {
-        return new EnumSettingDataType<>(ActionMode.MANUAL, null, entityDefaults, ActionMode.class);
+        return new EnumSettingDataType<>(ActionMode.MANUAL, null, null, entityDefaults,
+                ActionMode.class);
     }
 
     @Nonnull
@@ -1506,7 +1597,8 @@ public enum EntitySettingSpecs {
 
     @Nonnull
     private static SettingDataStructure<?> nonExecutableActionMode() {
-        return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.RECOMMEND, ActionMode.class);
+        return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.RECOMMEND, null,
+                ActionMode.class);
     }
 
     @Nonnull
@@ -1514,6 +1606,11 @@ public enum EntitySettingSpecs {
         return new EnumSettingDataType<>(ActionMode.DISABLED, ActionMode.class);
     }
 
+    @Nonnull
+    private static SettingDataStructure<?> actionModeWithoutDisabledOption() {
+        return new EnumSettingDataType<>(ActionMode.MANUAL, null, ActionMode.RECOMMEND,
+                ActionMode.class);
+    }
 
     @Nonnull
     private static SettingDataStructure<?> numeric(float min, float max, float defaultValue) {
@@ -1535,7 +1632,6 @@ public enum EntitySettingSpecs {
         return new SortedSetOfOidSettingDataType(type, null);
     }
 
-    @Nonnull
     public boolean isAllowGlobalDefault() {
         return allowGlobalDefault;
     }
