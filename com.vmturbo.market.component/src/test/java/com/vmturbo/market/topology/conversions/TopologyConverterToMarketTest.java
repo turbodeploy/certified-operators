@@ -1354,7 +1354,7 @@ public class TopologyConverterToMarketTest {
                 converter.getResizedCapacity(any(), any(), any()))
                 .thenCallRealMethod();
         Whitebox.setInternalState(converter, "cloudTc", cloudTopologyConverter);
-        Whitebox.setInternalState(converter, "cert", Mockito.mock(CloudEntityResizeTracker.class));
+        Whitebox.setInternalState(converter, "commoditiesResizeTracker", Mockito.mock(CommoditiesResizeTracker.class));
         final MarketTier marketTier = mock(MarketTier.class);
         Mockito.when(marketTier.getTier()).thenReturn(computeTier);
         Mockito.when(cloudTopologyConverter.getMarketTier(PROVIDER_ID)).thenReturn(marketTier);
@@ -1409,7 +1409,7 @@ public class TopologyConverterToMarketTest {
                     .setCommodityType(vmem)
                     .build())
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setScalable(false)
+                    .setScalable(false).setProviderId(10L)
                     .addCommodityBought(CommodityBoughtDTO.newBuilder()
                         .setCommodityType(mem)
                     ).setMovable(true))

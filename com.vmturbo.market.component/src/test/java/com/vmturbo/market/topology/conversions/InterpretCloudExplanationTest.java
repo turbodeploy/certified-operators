@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
@@ -37,7 +36,6 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.conversions.ActionInterpreter.CalculatedSavings;
-import com.vmturbo.market.topology.conversions.CloudEntityResizeTracker.CommodityUsageType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Congestion;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
@@ -67,7 +65,7 @@ public class InterpretCloudExplanationTest {
     // The oid to traderTO map
     private final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap = Maps.newHashMap();
     // The cloud entity resize tracker
-    private final CloudEntityResizeTracker cert = mock(CloudEntityResizeTracker.class);
+    private final CommoditiesResizeTracker commoditiesResizeTracker = mock(CommoditiesResizeTracker.class);
     // Projected RI coverage
     private final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage = Maps.newHashMap();
     private static final CommodityType VCPU = CommodityType.newBuilder().setType(
@@ -116,7 +114,7 @@ public class InterpretCloudExplanationTest {
         // We create action interpreter as a spy because we want to mock the interpretation of the
         // move action, but we want to test the explanation.
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
-            cloudTc, originalTopology, oidToTraderTOMap, cert, riCoverageCalculator, tierExcluder,
+            cloudTc, originalTopology, oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
             CommodityIndex.newFactory()::newIndex));
 
         initialCoverage = Optional.of(EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
@@ -140,9 +138,9 @@ public class InterpretCloudExplanationTest {
         // Congested / Under-utilized commodities
         Set<CommodityType> congestedCommodities = ImmutableSet.of(VCPU);
         Set<CommodityType> underUtilizedCommodities = ImmutableSet.of(VMEM);
-        when(cert.getCommoditiesResizedByUsageType(VM1_OID)).thenReturn(
-            ImmutableMap.of(CommodityUsageType.CONGESTED, congestedCommodities,
-                            CommodityUsageType.UNDER_UTILIZED, underUtilizedCommodities));
+        when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(congestedCommodities);
+        when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
+
         // Savings
         doReturn(new CalculatedSavings(trax(10))).when(ai).calculateActionSavings(move, originalCloudTopology,
             projectedCosts, topologyCostCalculator);
@@ -166,9 +164,9 @@ public class InterpretCloudExplanationTest {
     public void testInterpretEfficiencyWithRiCoverageIncrease() {
         // Congested / Under-utilized commodities
         Set<CommodityType> underUtilizedCommodities = ImmutableSet.of(VMEM);
-        when(cert.getCommoditiesResizedByUsageType(VM1_OID)).thenReturn(
-            ImmutableMap.of(CommodityUsageType.CONGESTED, Collections.emptySet(),
-                CommodityUsageType.UNDER_UTILIZED, underUtilizedCommodities));
+        when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
+        when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
+
 
         // Savings
         doReturn(new CalculatedSavings(trax(10))).when(ai).calculateActionSavings(move, originalCloudTopology,
@@ -177,9 +175,7 @@ public class InterpretCloudExplanationTest {
         // RI Coverage increases
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
         when(riCoverageCalculator.getProjectedRICoverageForEntity(VM1_OID)).thenReturn(projectedCoverage);
-
         Optional<Action> action = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
-
         Efficiency efficiency = action.get().getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
         assertTrue(efficiency.getIsRiCoverageIncreased());
         assertTrue(efficiency.getUnderUtilizedCommoditiesList().isEmpty());
@@ -194,9 +190,8 @@ public class InterpretCloudExplanationTest {
     public void testInterpretEfficiencyWithUnderUtilizedCommodity() {
         // Congested / Under-utilized commodities
         Set<CommodityType> underUtilizedCommodities = ImmutableSet.of(VMEM);
-        when(cert.getCommoditiesResizedByUsageType(VM1_OID)).thenReturn(
-            ImmutableMap.of(CommodityUsageType.CONGESTED, Collections.emptySet(),
-                CommodityUsageType.UNDER_UTILIZED, underUtilizedCommodities));
+        when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
+        when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
         // Savings
         doReturn(new CalculatedSavings(trax(10))).when(ai).calculateActionSavings(move, originalCloudTopology,
             projectedCosts, topologyCostCalculator);
@@ -204,9 +199,7 @@ public class InterpretCloudExplanationTest {
         // No RI Coverage
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.empty());
         projectedRiCoverage.put(VM1_OID, null);
-
         Optional<Action> action = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
-
         Efficiency efficiency = action.get().getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
         assertTrue(!efficiency.getUnderUtilizedCommoditiesList().isEmpty());
         assertFalse(efficiency.getIsRiCoverageIncreased());
@@ -221,9 +214,8 @@ public class InterpretCloudExplanationTest {
     @Test
     public void testInterpretEfficiencyWithWastedCost() {
         // Congested / Under-utilized commodities
-        when(cert.getCommoditiesResizedByUsageType(VM1_OID)).thenReturn(
-            ImmutableMap.of(CommodityUsageType.CONGESTED, Collections.emptySet(),
-                CommodityUsageType.UNDER_UTILIZED, Collections.emptySet()));
+        when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
+        when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
 
         // Savings
         doReturn(new CalculatedSavings(trax(10))).when(ai).calculateActionSavings(move, originalCloudTopology,
@@ -251,9 +243,8 @@ public class InterpretCloudExplanationTest {
     @Test
     public void testInterpretUnexplainableAction() {
         // Congested / Under-utilized commodities
-        when(cert.getCommoditiesResizedByUsageType(VM1_OID)).thenReturn(
-            ImmutableMap.of(CommodityUsageType.CONGESTED, Collections.emptySet(),
-                CommodityUsageType.UNDER_UTILIZED, Collections.emptySet()));
+        when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
+        when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
 
         // Savings
         doReturn(new CalculatedSavings(trax(-10))).when(ai).calculateActionSavings(move, originalCloudTopology,
